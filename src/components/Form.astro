@@ -1,0 +1,717 @@
+---
+interface Props {
+  readonly ticket?: string
+}
+const { ticket = '' } = Astro.props as Props
+---
+
+<section id="formulario" class="mx-auto px-6 py-2">
+  <div class="mx-auto w-full max-w-lg">
+    <!-- Card -->
+    <div
+      class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-6 shadow-lg backdrop-blur"
+    >
+      <div class="mb-6 flex flex-col items-center gap-2 text-center">
+        <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          Crea tu cuenta de Hive
+        </h1>
+        <p class="text-sm text-amber-50">Únete a la Web3</p>
+      </div>
+
+      <form id="registro-form" class="space-y-6">
+        <!-- Usuario -->
+        <div class="space-y-2">
+          <label
+            for="username"
+            class="block text-sm font-semibold uppercase tracking-wide text-white"
+          >
+            Usuario
+          </label>
+          <div class="relative flex">
+            <span
+              class="border-border bg-background text-accent-foreground inline-flex select-none items-center rounded-l-lg border border-r-0 px-3 text-sm font-medium"
+            >
+              @
+            </span>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              maxlength="16"
+              required
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="ingresa el usuario a crear"
+              class="lowercase-only border-border bg-background placeholder:text-accent-foreground focus:border-primary focus:ring-primary/40 w-full rounded-r-lg border px-3 py-2 pr-10 text-sm text-white focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <!-- Iconos estado username -->
+            <div
+              id="username-status-icon"
+              class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2"
+            >
+              <div
+                id="loading-icon"
+                class="border-primary/60 hidden h-5 w-5 animate-spin rounded-full border-2 border-t-transparent"
+              >
+              </div>
+              <div
+                id="success-icon"
+                class="hidden text-lg font-bold text-green-400"
+              >
+                ✓
+              </div>
+              <div
+                id="error-icon"
+                class="text-destructive hidden text-lg font-bold"
+              >
+                ✗
+              </div>
+            </div>
+          </div>
+          <div
+            id="username-error"
+            class="text-destructive hidden text-xs font-medium"
+          >
+          </div>
+          <p class="text-xs leading-relaxed text-white/90">
+            Elige un nombre de usuario de 3 a 16 caracteres, iniciando con una
+            letra. Puedes usar números y guiones (-). Los puntos (.) crean
+            segmentos, cada uno debe tener mínimo 3 caracteres y seguir las
+            mismas reglas.
+          </p>
+        </div>
+
+        <!-- Ticket -->
+        <div class="space-y-2">
+          <label
+            for="ticket"
+            class="text-foreground block text-sm font-semibold uppercase tracking-wide"
+          >
+            Ticket
+          </label>
+          <div class="relative flex">
+            <input
+              id="ticket"
+              name="ticket"
+              type="text"
+              value={ticket}
+              required
+              placeholder="Ingresa el código"
+              class="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 pr-10 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+            <!-- Iconos estado ticket -->
+            <div
+              id="ticket-status-icon"
+              class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2"
+            >
+              <div
+                id="ticket-loading-icon"
+                class="border-primary/60 hidden h-5 w-5 animate-spin rounded-full border-2 border-t-transparent"
+              >
+              </div>
+              <div
+                id="ticket-success-icon"
+                class="hidden text-lg font-bold text-green-400"
+              >
+                ✓
+              </div>
+              <div
+                id="ticket-error-icon"
+                class="text-destructive hidden text-lg font-bold"
+              >
+                ✗
+              </div>
+            </div>
+          </div>
+          <div
+            id="ticket-error"
+            class="text-destructive hidden text-xs font-medium"
+          >
+          </div>
+          <div id="ticket-info" class="text-muted-foreground hidden text-xs">
+          </div>
+        </div>
+
+        <!-- Botón -->
+        <button
+          id="form-siguiente"
+          type="submit"
+          disabled
+          class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >Siguiente</button
+        >
+      </form>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { validateAccountName } from '@/utils/validate-username'
+  import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
+  import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
+  import { createHiveChain, HealthChecker } from '@hiveio/wax/vite'
+
+  let debounceTimer: ReturnType<typeof setTimeout>
+  let ticketDebounceTimer: ReturnType<typeof setTimeout>
+
+  // Estado de validación de los campos
+  let isUsernameValid = false
+  let isTicketValid = false
+
+  interface FieldElements {
+    input: HTMLInputElement | null
+    statusIcon: HTMLElement | null
+    loadingIcon: HTMLElement | null
+    successIcon: HTMLElement | null
+    errorIcon: HTMLElement | null
+    errorText: HTMLElement | null
+  }
+
+  function getUsernameElements(): FieldElements {
+    return {
+      input: document.querySelector<HTMLInputElement>('#username'),
+      statusIcon: document.querySelector('#username-status-icon'),
+      loadingIcon: document.querySelector('#loading-icon'),
+      successIcon: document.querySelector('#success-icon'),
+      errorIcon: document.querySelector('#error-icon'),
+      errorText: document.querySelector('#username-error'),
+    }
+  }
+
+  function getTicketElements(): FieldElements {
+    return {
+      input: document.querySelector<HTMLInputElement>('#ticket'),
+      statusIcon: document.querySelector('#ticket-status-icon'),
+      loadingIcon: document.querySelector('#ticket-loading-icon'),
+      successIcon: document.querySelector('#ticket-success-icon'),
+      errorIcon: document.querySelector('#ticket-error-icon'),
+      errorText: document.querySelector('#ticket-error'),
+    }
+  }
+
+  function setFieldState(
+    elements: FieldElements,
+    state: 'neutral' | 'loading' | 'error' | 'success',
+    message?: string
+  ) {
+    const {
+      input,
+      statusIcon,
+      loadingIcon,
+      successIcon,
+      errorIcon,
+      errorText,
+    } = elements
+
+    // Resetear todos los iconos
+    loadingIcon?.classList.add('hidden')
+    successIcon?.classList.add('hidden')
+    errorIcon?.classList.add('hidden')
+
+    // Resetear bordes
+    input?.classList.remove(
+      'border-red-500',
+      'border-green-500',
+      'border-blue-500'
+      )
+    switch (state) {
+      case 'neutral':
+        statusIcon?.classList.add('hidden')
+        errorText?.classList.add('hidden')
+        input?.classList.add('border-border')
+        break
+
+      case 'loading':
+        loadingIcon?.classList.remove('hidden')
+        statusIcon?.classList.remove('hidden')
+        input?.classList.add('border-blue-500')
+        break
+
+      case 'error':
+        errorIcon?.classList.remove('hidden')
+        statusIcon?.classList.remove('hidden')
+        input?.classList.add('border-red-500')
+        if (errorText && message) {
+          errorText.textContent = message
+          errorText.classList.remove('hidden')
+        }
+        break
+
+      case 'success':
+        successIcon?.classList.remove('hidden')
+        statusIcon?.classList.remove('hidden')
+        errorText?.classList.add('hidden')
+        input?.classList.add('border-green-500')
+        break
+    }
+  }
+
+  function resetUsernameState() {
+    setFieldState(getUsernameElements(), 'neutral')
+    isUsernameValid = false
+    updateSubmitButton()
+  }
+
+  function showLoadingState() {
+    setFieldState(getUsernameElements(), 'loading')
+    isUsernameValid = false
+    updateSubmitButton()
+  }
+
+  function showErrorState(errorMessage: string) {
+    setFieldState(getUsernameElements(), 'error', errorMessage)
+    isUsernameValid = false
+    updateSubmitButton()
+  }
+
+  function showSuccessState() {
+    setFieldState(getUsernameElements(), 'success')
+    isUsernameValid = true
+    updateSubmitButton()
+  }
+
+  // --- Hive chain helper (caché + fallback inteligente) ---
+  type HiveChain = Awaited<ReturnType<typeof createHiveChain>>
+  const HIVE_HEALTH_ENDPOINTS: readonly string[] = [
+    'https://techcoderx.com',
+    'https://api.openhive.network',
+    'https://rpc.mahdiyari.info',
+  ] as const
+
+  const sleep = (ms: number): Promise<void> =>
+    new Promise(r => setTimeout(r, ms))
+
+  let cachedChain: HiveChain | null = null
+  let creatingChainPromise: Promise<HiveChain | null> | null = null
+
+  async function createHiveChainWithFallback(): Promise<HiveChain | null> {
+    // 1. Default
+    try {
+      return await createHiveChain()
+    } catch (err) {
+
+    }
+
+    // 2. HealthChecker
+    const healthChecker = new HealthChecker([...HIVE_HEALTH_ENDPOINTS], 4000)
+    try {
+      try {
+        const temp = await createHiveChain({
+          apiEndpoint: HIVE_HEALTH_ENDPOINTS[0],
+        })
+        healthChecker.register(
+          temp.api.database_api.get_dynamic_global_properties,
+          {},
+          (data): true | string => (data?.id === 0 ? true : 'invalid dgp')
+        )
+      } catch (regErr) {
+
+      }
+      await sleep(1200)
+      const best = healthChecker
+        .list()
+        .filter(e => e.up)
+        .sort((a, b) => b.score - a.score)[0]
+      if (best) {
+        try {
+          return await createHiveChain({ apiEndpoint: best.endpointUrl })
+        } catch (bestErr) {
+
+        }
+      }
+    } finally {
+      healthChecker.unregisterAll(true)
+    }
+
+    // 3. Secuencial
+    for (const ep of HIVE_HEALTH_ENDPOINTS) {
+      try {
+        return await createHiveChain({ apiEndpoint: ep })
+      } catch {
+        /* continuar */
+      }
+    }
+    return null
+  }
+
+  async function getHiveChain(): Promise<HiveChain | null> {
+    if (cachedChain) return cachedChain
+    if (creatingChainPromise) return creatingChainPromise
+    creatingChainPromise = (async () => {
+      const chain = await createHiveChainWithFallback()
+      if (chain) cachedChain = chain
+      creatingChainPromise = null
+      return chain
+    })()
+    return creatingChainPromise
+  }
+
+  function disposeHiveChain(): void {
+    if (cachedChain) {
+      try {
+        cachedChain.delete()
+      } catch (e) {
+
+      }
+      cachedChain = null
+    }
+  }
+
+  // Funciones para ticket
+  function resetTicketState() {
+    setFieldState(getTicketElements(), 'neutral')
+    isTicketValid = false
+    updateSubmitButton()
+  }
+
+  function showTicketLoadingState() {
+    setFieldState(getTicketElements(), 'loading')
+    isTicketValid = false
+    updateSubmitButton()
+  }
+
+  function showTicketErrorState(errorMessage: string) {
+    setFieldState(getTicketElements(), 'error', errorMessage)
+    isTicketValid = false
+    updateSubmitButton()
+  }
+
+  function showTicketSuccessState() {
+    setFieldState(getTicketElements(), 'success')
+    isTicketValid = true
+    updateSubmitButton()
+  }
+
+  // Función para actualizar el estado del botón
+  function updateSubmitButton() {
+    const submitButton =
+      document.querySelector<HTMLButtonElement>('#form-siguiente')!
+
+    if (isUsernameValid && isTicketValid) {
+      submitButton.disabled = false
+      submitButton.classList.remove('opacity-50', 'cursor-not-allowed')
+      submitButton.classList.add('cursor-pointer')
+    } else {
+      submitButton.disabled = true
+      submitButton.classList.add('opacity-50', 'cursor-not-allowed')
+      submitButton.classList.remove('cursor-pointer')
+    }
+  }
+
+  async function validateUsername(username: string) {
+    if (!username.trim()) {
+      resetUsernameState()
+      return
+    }
+
+    showLoadingState()
+
+    try {
+      // Validación local de formato
+      const formatError = validateAccountName(username)
+      if (formatError) {
+        showErrorState(formatError)
+        return
+      }
+
+      // Verificar si es un usuario sospechoso
+      try {
+        const suspiciousResponse = await fetch('/api/validate/suspicious', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: username,
+            includeReason: true,
+          }),
+        })
+
+        const suspiciousResult = await suspiciousResponse.json()
+
+        if (suspiciousResult.isSuspicious) {
+          const errorMsg = suspiciousResult.suggestion
+            ? `Username no permitido. ${suspiciousResult.suggestion}`
+            : 'Este username no está permitido'
+          showErrorState(errorMsg)
+          return
+        }
+      } catch (suspiciousError) {
+
+        // Continuar con la validación aunque falle la verificación de sospechosos
+      }
+
+      // Verificar si existe un username similar en las últimas 24 horas
+      try {
+        const similarityResponse = await fetch('/api/validate/similarity', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            username: username,
+            threshold: 0.68,
+            timeRangeHours: 24,
+          }),
+        })
+
+        const similarityResult = await similarityResponse.json()
+
+        if (similarityResult.isSimilar) {
+          const errorMsg =
+            similarityResult.suggestions &&
+            similarityResult.suggestions.length > 0
+              ? `${similarityResult.errorMessage}. Prueba: ${similarityResult.suggestions.join(', ')}`
+              : similarityResult.errorMessage ||
+                'Username muy similar a una cuenta reciente'
+          showErrorState(errorMsg)
+          return
+        }
+      } catch (similarityError) {
+
+        // Continuar con la validación aunque falle la verificación de similitud
+      }
+
+      // Verificar si la cuenta ya existe en Hive
+      const chain = await getHiveChain()
+      if (!chain) {
+        showErrorState('Error conectando a la red Hive')
+        return
+      }
+
+      const accountExists = await validateHiveAccountExists({
+        chain,
+        accountName: username,
+      })
+
+      if (accountExists) {
+        showErrorState('Este username ya está en uso')
+        return
+      }
+
+      // Nota: no llamamos chain.delete() aquí para reutilizar la conexión en futuras validaciones.
+
+      // Si llegamos aquí, el username es válido y disponible
+      showSuccessState()
+    } catch (error) {
+      showErrorState('Error al validar username')
+
+    }
+  }
+
+  function handleUsernameInput() {
+    const input = document.querySelector<HTMLInputElement>('#username')!
+    const username = input.value.toLowerCase().trim()
+
+    // Limpiar timer anterior
+    clearTimeout(debounceTimer)
+
+    // Debounce de 300ms
+    debounceTimer = setTimeout(() => {
+      validateUsername(username)
+    }, 300)
+  }
+
+  async function validateTicketCode(ticket: string) {
+    if (!ticket.trim()) {
+      resetTicketState()
+      return
+    }
+
+    // Validación local de formato (fail fast) usando validateTicket antes de consultar API
+    const localTicketError = validateTicket(ticket)
+    if (localTicketError) {
+      showTicketErrorState(localTicketError)
+      return // Evitamos llamada a la base de datos / API
+    }
+
+    showTicketLoadingState()
+
+    try {
+      const response = await fetch('/api/validate/ticket', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ticket }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.valid) {
+        showTicketSuccessState()
+        if (result.ticket?.description) {
+          const ticketInfo = document.querySelector('#ticket-info')
+          if (ticketInfo) {
+            ticketInfo.textContent = `${result.ticket.type.toUpperCase()}: ${result.ticket.description}`
+            ticketInfo.classList.remove('hidden')
+          }
+        }
+      } else {
+        showTicketErrorState(result.error || 'Ticket inválido')
+        const ticketInfo = document.querySelector('#ticket-info')
+        if (ticketInfo) {
+          ticketInfo.classList.add('hidden')
+        }
+      }
+    } catch (error) {
+
+      showTicketErrorState('Error validando ticket. Inténtalo de nuevo.')
+      const ticketInfo = document.querySelector('#ticket-info')
+      if (ticketInfo) {
+        ticketInfo.classList.add('hidden')
+      }
+    }
+  }
+
+  function handleTicketInput() {
+    const input = document.querySelector<HTMLInputElement>('#ticket')!
+    let ticket = input.value.trim()
+
+    // Limpiar y formatear el ticket en tiempo real
+    const cleanedTicket = cleanTicket(ticket)
+
+    // Solo actualizar el valor si realmente cambió y no está vacío
+    if (cleanedTicket !== input.value && cleanedTicket !== '') {
+      const cursorPosition = input.selectionStart || 0
+      input.value = cleanedTicket
+      ticket = cleanedTicket
+      // Restaurar posición del cursor solo si es válida
+      const newPosition = Math.min(cursorPosition, cleanedTicket.length)
+      input.setSelectionRange(newPosition, newPosition)
+    } else if (cleanedTicket !== '') {
+      ticket = cleanedTicket
+    }
+
+    // Cancelar debounce previo
+    clearTimeout(ticketDebounceTimer)
+
+    // Validación inmediata de formato sin esperar debounce para UX más responsiva
+    if (!ticket) {
+      resetTicketState()
+      return
+    }
+
+    const localError = validateTicket(ticket)
+    if (localError) {
+      showTicketErrorState(localError)
+      return // No programamos fetch
+    } else {
+      // Estado preliminar válido mientras esperamos debounce para consultar disponibilidad
+      // No marcamos éxito todavía porque falta confirmar con backend (uso / consumo / tipo)
+      setFieldState(getTicketElements(), 'neutral')
+      isTicketValid = false
+      updateSubmitButton()
+    }
+
+    // Debounce de 300ms para llamada a API solo si formato válido
+    ticketDebounceTimer = setTimeout(() => {
+      validateTicketCode(ticket)
+    }, 300)
+  }
+
+  async function handleFormSubmit(event: Event) {
+    event.preventDefault()
+
+    // Verificar que ambos campos estén validados
+    if (!isUsernameValid || !isTicketValid) {
+      return
+    }
+
+    // Obtener valores de los inputs
+    const usernameInput = document.querySelector<HTMLInputElement>('#username')!
+    const ticketInput = document.querySelector<HTMLInputElement>('#ticket')!
+    const submitButton =
+      document.querySelector<HTMLButtonElement>('#form-siguiente')!
+
+    const username = usernameInput.value.toLowerCase().trim()
+    const ticket = ticketInput.value.trim()
+
+    // Validar una vez más antes de proceder
+    if (!username || username.length < 3) {
+      return
+    }
+
+    // Deshabilitar botón y mostrar loading
+    submitButton.disabled = true
+    const originalText = submitButton.textContent
+    submitButton.textContent = 'Creando sesión...'
+
+    try {
+      // Crear sesión de creación en el servidor
+      const sessionResponse = await fetch('/api/create/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          ticket: ticket, // El ticket ya está validado como correcto
+        }),
+      })
+
+      const sessionResult = await sessionResponse.json()
+
+      if (!sessionResponse.ok || !sessionResult.success) {
+        throw new Error(sessionResult.error || 'Error al crear la sesión')
+      }
+
+      // Session creada exitosamente - log solo en desarrollo
+
+      // Navegar a la página de detalles
+      // Liberamos chain antes de cambiar de página para evitar timers colgantes
+      disposeHiveChain()
+      window.location.href = `/details/${username}`
+    } catch (error) {
+
+      // Mostrar toast de error
+      // @ts-ignore - showToast is available globally from Layout.astro
+      if (window.showToast) {
+        // @ts-ignore
+        window.showToast(
+          'error',
+          'Error al crear la sesión. Inténtalo de nuevo.'
+        )
+      }
+
+      // Mostrar error también en el botón como fallback
+      submitButton.textContent = 'Error - Inténtalo de nuevo'
+      submitButton.classList.add('bg-red-600', 'hover:bg-red-700')
+
+      // Restaurar botón después de 3 segundos
+      setTimeout(() => {
+        submitButton.disabled = false
+        submitButton.textContent = originalText
+        submitButton.classList.remove('bg-red-600', 'hover:bg-red-700')
+      }, 3000)
+    }
+  }
+
+  // Inicializar cuando el DOM esté listo
+  document.addEventListener('DOMContentLoaded', () => {
+    const usernameInput = document.querySelector<HTMLInputElement>('#username')
+    const ticketInput = document.querySelector<HTMLInputElement>('#ticket')
+    const form = document.querySelector<HTMLFormElement>('#registro-form')
+
+    usernameInput?.addEventListener('input', handleUsernameInput)
+    ticketInput?.addEventListener('input', handleTicketInput)
+    form?.addEventListener('submit', handleFormSubmit)
+
+    // Si vino un ticket por prop, asegurar formato correcto y disparar validación inicial
+    if (ticketInput && ticketInput.value) {
+      const originalValue = ticketInput.value.trim()
+      const cleanedValue = cleanTicket(originalValue)
+
+      // Solo actualizar si el valor cambió para evitar parpadeo
+      if (cleanedValue !== ticketInput.value) {
+        ticketInput.value = cleanedValue
+      }
+
+      // Disparar validación sin delay para tickets iniciales
+      if (cleanedValue) {
+        validateTicketCode(cleanedValue)
+      }
+    }
+  })
+</script>

@@ -1,0 +1,37 @@
+---
+/**
+ * Componente Card reutilizable (ligero) basado en tokens definidos en @theme.
+ * Props mínimas para esta fase.
+ */
+interface Props {
+  readonly as?: string
+  readonly variant?: 'default' | 'muted'
+  readonly padding?: string // utilidades tailwind p-6 etc.
+  readonly class?: string
+}
+
+const {
+  as = 'div',
+  variant = 'default',
+  padding = 'p-6',
+  class: className = '',
+} = Astro.props
+
+const Tag = as as keyof HTMLElementTagNameMap
+
+function variantClasses(v: string): string {
+  switch (v) {
+    case 'muted':
+      return 'bg-background'
+    case 'default':
+    default:
+      return 'bg-card/95 supports-[backdrop-filter]:bg-card/90'
+  }
+}
+---
+
+<Tag
+  class={`card border-border rounded-lg border shadow-lg backdrop-blur ${variantClasses(variant)} ${padding} ${className}`.trim()}
+>
+  <slot />
+</Tag>

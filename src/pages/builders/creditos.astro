@@ -1,0 +1,644 @@
+---
+import BuildersLayout from '@/layouts/BuildersLayout.astro'
+import BuildersTabs from '@/components/ui/BuildersTabs.astro'
+import { db } from '@/lib/database'
+import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
+
+// Autenticación centralizada - si no está autenticado, se redirige automáticamente
+const currentUser = await getAuthenticatedUser(Astro, 'builders')
+
+// Si currentUser es una Response, significa que se está redirigiendo
+if (currentUser instanceof Response) {
+  return currentUser
+}
+
+// Asegurar que tenemos un BuilderUser
+if (!currentUser || currentUser.role !== 'builder') {
+  return Astro.redirect('/builders/login')
+}
+
+const builderUsername = currentUser.hive_username
+
+// Obtener información de créditos del builder directamente desde la tabla Credits
+interface BuilderCredits {
+  pending: number
+  claimed: number
+  consumed: number
+  builder_id: number | null
+}
+
+let builderCredits: BuilderCredits = {
+  pending: 0,
+  claimed: 0,
+  consumed: 0,
+  builder_id: null,
+}
+
+try {
+  // Obtener builder_id
+  const builderResult = await db.execute({
+    sql: 'SELECT id FROM Builders WHERE hive_username = ?',
+    args: [builderUsername],
+  })
+
+  if (builderResult.rows.length > 0) {
+    const builderId = Number(builderResult.rows[0].id)
+    builderCredits.builder_id = builderId
+
+    // Obtener créditos del builder desde tabla Credits
+    const creditsResult = await db.execute({
+      sql: `SELECT pending_amount, available_amount, total_consumed
+            FROM Credits
+            WHERE builder_id = ?`,
+      args: [builderId],
+    })
+
+    if (creditsResult.rows.length > 0) {
+      const row = creditsResult.rows[0] as any
+      builderCredits.pending = Number(row.pending_amount || 0)
+      builderCredits.claimed = Number(row.available_amount || 0)
+      builderCredits.consumed = Number(row.total_consumed || 0)
+    }
+  }
+} catch (error) {}
+
+// Obtener historial de créditos desde la tabla CreditAudit
+interface CreditHistoryRow {
+  readonly id: number
+  readonly operation: string
+  readonly amount: number
+  readonly reason: string | null
+  readonly timestamp: string
+  readonly performed_by_admin: number | null
+}
+
+let creditHistory: CreditHistoryRow[] = []
+
+try {
+  if (builderCredits.builder_id) {
+    // Obtener historial de la tabla CreditAudit
+    const historyResult = await db.execute({
+      sql: `
+        SELECT
+          id, operation, amount, reason, timestamp, performed_by_admin
+        FROM CreditAudit
+        WHERE builder_id = ?
+        ORDER BY timestamp DESC
+      `,
+      args: [builderCredits.builder_id],
+    })
+    creditHistory = historyResult.rows as unknown as CreditHistoryRow[]
+  }
+} catch (error) {}
+
+// Calcular estadísticas
+const creditosPendientes = builderCredits.pending
+const creditosReclamados = builderCredits.claimed
+const creditosConsumidos = builderCredits.consumed
+const creditosDisponibles = creditosReclamados - creditosConsumidos
+---
+
+<BuildersLayout title="Créditos - Builders" currentPage="creditos">
+  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="mb-6">
+      <h1 class="mb-2 text-3xl font-bold text-white">💰 Gestión de Créditos</h1>
+      <p class="text-gray-400">
+        Administra tus créditos, reclama tickets y consulta tu historial.
+      </p>
+    </div>
+
+    <BuildersTabs active="creditos" />
+
+    <!-- Resumen de Créditos -->
+    <section class="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <!-- Créditos Pendientes -->
+      <div class="bg-card border-border rounded-lg border p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-400">Créditos Pendientes</p>
+            <p class="text-2xl font-bold text-white">
+              {creditosPendientes}
+            </p>
+          </div>
+          <div class="rounded-full bg-yellow-500/20 p-3">
+            <span class="text-2xl">🎯</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Créditos Disponibles (Reclamados - Consumidos) -->
+      <div class="bg-card border-border rounded-lg border p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-400">
+              Créditos Disponibles
+            </p>
+            <p class="text-2xl font-bold text-white">
+              {creditosDisponibles}
+            </p>
+          </div>
+          <div class="rounded-full bg-green-500/20 p-3">
+            <span class="text-2xl">💳</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Créditos Consumidos -->
+      <div class="bg-card border-border rounded-lg border p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-400">Créditos Consumidos</p>
+            <p class="text-2xl font-bold text-white">
+              {creditosConsumidos}
+            </p>
+          </div>
+          <div class="rounded-full bg-red-500/20 p-3">
+            <span class="text-2xl">📉</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Acciones Rápidas -->
+    <section class="mb-8 grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+      <!-- Reclamar Créditos -->
+      <div class="bg-card border-border rounded-lg border p-6">
+        <h3 class="mb-3 text-lg font-semibold text-white">
+          🎯 Reclamar Créditos
+        </h3>
+        <p class="mb-4 text-sm text-gray-400">
+          Firma con Keychain para reclamar créditos de forma segura.
+        </p>
+        <button
+          id="claim-credits-btn"
+          class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Reclamar con Keychain
+        </button>
+      </div>
+
+      <!-- Comprar Créditos -->
+      <div class="bg-card border-border rounded-lg border p-6">
+        <h3 class="mb-3 text-lg font-semibold text-white">
+          💎 Comprar Créditos
+        </h3>
+        <p class="mb-4 text-sm text-gray-400">
+          Adquiere más créditos para crear más cuentas Hive.
+        </p>
+        <button
+          id="buy-credits-btn"
+          class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Comprar Créditos
+        </button>
+      </div>
+    </section>
+
+    <!-- Historial de Créditos -->
+    <section
+      class="mb-8 overflow-hidden rounded-lg border border-gray-700/60 bg-gray-900/40"
+    >
+      <div
+        class="flex items-center justify-between border-b border-gray-700/60 px-6 py-4"
+      >
+        <h2 class="flex items-center gap-2 text-lg font-semibold text-white">
+          📊 Historial de Créditos
+        </h2>
+        <div class="flex gap-2">
+          <button
+            id="export-history-btn"
+            class="text-sm font-medium text-blue-400 hover:text-blue-300"
+          >
+            Exportar CSV
+          </button>
+        </div>
+      </div>
+
+      {
+        creditHistory.length > 0 ? (
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-700 text-sm">
+              <thead class="bg-gray-800/60">
+                <tr>
+                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Fecha
+                  </th>
+                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Operación
+                  </th>
+                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Cantidad
+                  </th>
+                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Descripción
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-700">
+                {creditHistory.map(item => (
+                  <tr class="hover:bg-gray-800/40">
+                    <td class="px-4 py-3 text-gray-300">
+                      {new Date(item.timestamp).toLocaleDateString('es-ES', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          item.operation === 'claim_via_blockchain'
+                            ? 'bg-green-500/20 text-green-300'
+                            : item.operation === 'assign_credits'
+                              ? 'bg-blue-500/20 text-blue-300'
+                              : item.operation === 'consume_credits'
+                                ? 'bg-red-500/20 text-red-300'
+                                : item.operation === 'purchase_credits'
+                                  ? 'bg-purple-500/20 text-purple-300'
+                                  : 'bg-gray-500/20 text-gray-300'
+                        }`}
+                      >
+                        {item.operation === 'claim_via_blockchain'
+                          ? 'Reclamado'
+                          : item.operation === 'assign_credits'
+                            ? 'Asignado'
+                            : item.operation === 'consume_credits'
+                              ? 'Consumido'
+                              : item.operation === 'purchase_credits'
+                                ? 'Comprado'
+                                : item.operation}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3">
+                      <span
+                        class={`font-semibold ${
+                          item.amount > 0 ? 'text-green-400' : 'text-red-400'
+                        }`}
+                      >
+                        {item.amount > 0 ? '+' : ''}
+                        {item.amount}
+                      </span>
+                    </td>
+                    <td class="px-4 py-3 text-gray-300">
+                      <div class="text-sm">
+                        {item.reason || 'Sin descripción'}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div class="p-10 text-center">
+            <div class="mb-4 text-5xl">📊</div>
+            <p class="mb-2 font-semibold text-white">
+              Sin historial de créditos
+            </p>
+            <p class="text-sm text-gray-400">
+              Cuando recibas o uses créditos aparecerán aquí.
+            </p>
+          </div>
+        )
+      }
+    </section>
+  </div>
+
+  <!-- Modales y scripts -->
+
+  <!-- Modal Comprar Créditos -->
+  <div
+    id="buy-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
+  >
+    <div
+      class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
+    >
+      <h3 class="mb-4 text-lg font-semibold text-white">💎 Comprar Créditos</h3>
+      <form id="buy-form">
+        <div class="mb-4">
+          <label
+            for="buy-amount"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Cantidad de Créditos
+          </label>
+          <input
+            type="number"
+            id="buy-amount"
+            name="amount"
+            min="1"
+            max="10"
+            placeholder="1-10 créditos"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
+            required
+          />
+          <p class="mt-1 text-xs text-gray-400">
+            Máximo 10 créditos por compra automática
+          </p>
+        </div>
+        <div class="mb-4">
+          <label
+            for="payment-method"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Método de Pago
+          </label>
+          <select
+            id="payment-method"
+            name="paymentMethod"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
+            required
+          >
+            <option value="">Selecciona método</option>
+            <option value="hive">Hive/HBD</option>
+            <option value="paypal">PayPal</option>
+            <option value="crypto">Criptomonedas</option>
+          </select>
+        </div>
+        <div class="mb-4">
+          <label
+            for="payment-reference"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Referencia de Pago (opcional)
+          </label>
+          <input
+            type="text"
+            id="payment-reference"
+            name="paymentReference"
+            placeholder="ID de transacción, etc."
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
+          />
+        </div>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            id="cancel-buy"
+            class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="bg-primary flex-1 rounded-lg px-4 py-2 text-white hover:opacity-90"
+          >
+            Comprar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Resultado de operaciones -->
+  <div
+    id="result"
+    class="fixed bottom-4 right-4 z-50 hidden max-w-sm rounded-lg border p-4"
+  >
+    <!-- Resultado aparecerá aquí -->
+  </div>
+</BuildersLayout>
+
+<script define:vars={{ currentUsername: builderUsername }}>
+  document.addEventListener('DOMContentLoaded', () => {
+    setupEventListeners()
+  })
+
+  function setupEventListeners() {
+    // Reclamar créditos con Keychain
+    const claimBtn = document.getElementById('claim-credits-btn')
+    claimBtn?.addEventListener('click', handleClaimCredits)
+
+    // Comprar créditos
+    const buyBtn = document.getElementById('buy-credits-btn')
+    const buyModal = document.getElementById('buy-modal')
+    const buyForm = document.getElementById('buy-form')
+    const cancelBuy = document.getElementById('cancel-buy')
+
+    buyBtn?.addEventListener('click', () => {
+      buyModal?.classList.remove('hidden')
+      buyModal?.classList.add('flex')
+    })
+
+    cancelBuy?.addEventListener('click', () => {
+      buyModal?.classList.add('hidden')
+      buyModal?.classList.remove('flex')
+    })
+
+    buyForm?.addEventListener('submit', handleBuyCredits)
+
+    // Exportar historial
+    document
+      .getElementById('export-history-btn')
+      ?.addEventListener('click', handleExportHistory)
+
+    // Cerrar modales al hacer clic fuera
+    setupModalCloseOnOutsideClick()
+  }
+
+  async function handleClaimCredits() {
+    const claimBtn = document.getElementById('claim-credits-btn')
+    if (!claimBtn) return
+
+    const originalText = claimBtn.textContent
+
+    try {
+      // Deshabilitar botón
+      claimBtn.disabled = true
+      claimBtn.textContent = 'Generando hash...'
+
+      showResult('info', 'Preparando operación de claim...')
+
+      // 1. Solicitar hash de validación al servidor
+      const hashResponse = await fetch('/api/credits/claim-hash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const hashData = await hashResponse.json()
+
+      if (!hashResponse.ok || !hashData.success) {
+        showResult(
+          'error',
+          hashData.error || 'Error generando hash de validación'
+        )
+        return
+      }
+
+      claimBtn.textContent = 'Conectando Keychain...'
+      showResult('info', 'Preparando custom JSON para Keychain...')
+
+      // 2. Verificar que Keychain esté disponible
+      if (typeof window.hive_keychain === 'undefined') {
+        showResult('error', 'Hive Keychain no está instalado')
+        return
+      }
+
+      // 3. Crear custom JSON operation
+      const username = currentUsername
+      const customJsonData = hashData.customJson
+
+      claimBtn.textContent = 'Firmando operación...'
+      showResult('info', 'Solicitando firma de custom JSON...')
+
+      // 4. Solicitar firma de custom JSON a Keychain
+      const keyResult = await new Promise(resolve => {
+        window.hive_keychain.requestCustomJson(
+          username,
+          customJsonData.id,
+          'Posting',
+          JSON.stringify(customJsonData.json),
+          'Claim Credits - HolaHive',
+          response => {
+            resolve(response)
+          }
+        )
+      })
+
+      if (!keyResult.success) {
+        showResult('error', keyResult.message || 'Error firmando con Keychain')
+        return
+      }
+
+      const transactionId = keyResult.result.id
+
+      claimBtn.textContent = 'Verificando blockchain...'
+      showResult('info', 'Verificando transacción en blockchain...')
+      // 5. Esperar un momento para que la transacción se propague
+      await new Promise(resolve => setTimeout(resolve, 3000))
+
+      // 6. Verificar la transacción en el servidor
+      const verifyResponse = await fetch('/api/credits/claim-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactionId: transactionId,
+          hash: hashData.hash,
+        }),
+      })
+
+      const verifyData = await verifyResponse.json()
+
+      if (verifyResponse.ok && verifyData.success) {
+        showResult('success')
+        // Mostrar información adicional
+
+        // Recargar página después de un momento
+        setTimeout(() => location.reload(), 3000)
+      } else {
+        showResult(
+          'error',
+          verifyData.error || 'Error verificando la transacción'
+        )
+      }
+    } catch (error) {
+      showResult('error', 'Error de conexión o procesamiento')
+    } finally {
+      // Restaurar botón
+      claimBtn.disabled = false
+      claimBtn.textContent = originalText || 'Reclamar con Keychain'
+    }
+  }
+
+  async function handleBuyCredits(e) {
+    e.preventDefault()
+
+    const form = e.target
+    if (!form) return
+
+    const formData = new FormData(form)
+    const amountValue = formData.get('amount')
+    const paymentMethod = formData.get('paymentMethod')
+    const paymentReference = formData.get('paymentReference')
+
+    const amount = amountValue ? parseInt(amountValue) : 0
+
+    if (!amount || !paymentMethod) {
+      showResult('error', 'Todos los campos son requeridos')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/credits/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, paymentMethod, paymentReference }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        showResult('success')
+        // Cerrar modal
+        document.getElementById('buy-modal')?.classList.add('hidden')
+        // Recargar página después de un momento
+        setTimeout(() => location.reload(), 2000)
+      } else {
+        showResult('error', data.error || 'Error al comprar créditos')
+      }
+    } catch (error) {
+      showResult('error', 'Error de conexión')
+    }
+  }
+
+  function handleExportHistory() {
+    const format = 'csv' // Por defecto CSV, se puede hacer configurable
+    const url = `/api/credits/export?format=${format}`
+
+    // Crear enlace temporal para descargar
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `creditos_historial_${new Date().toISOString().split('T')[0]}.${format}`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    showResult('success', 'Descarga iniciada')
+  }
+
+  function setupModalCloseOnOutsideClick() {
+    const modals = ['buy-modal']
+
+    modals.forEach(modalId => {
+      const modal = document.getElementById(modalId)
+      modal?.addEventListener('click', e => {
+        if (e.target === modal) {
+          modal.classList.add('hidden')
+          modal.classList.remove('flex')
+        }
+      })
+    })
+  }
+
+  function showResult(type, message) {
+    const resultDiv = document.getElementById('result')
+    if (!resultDiv) return
+
+    const colors = {
+      success: 'bg-green-900/20 border-green-500/30 text-green-400',
+      error: 'bg-red-900/20 border-red-500/30 text-red-400',
+      info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
+    }
+
+    const icons = {
+      success: '✅',
+      error: '❌',
+      info: 'ℹ️',
+    }
+
+    resultDiv.className = `fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border p-4 ${colors[type]}`
+    resultDiv.innerHTML = `
+			<div class="font-medium">
+				${icons[type]} ${message}
+			</div>
+		`
+    resultDiv.classList.remove('hidden')
+
+    // Auto hide after 5 seconds
+    setTimeout(() => {
+      resultDiv.classList.add('hidden')
+    }, 5000)
+  }
+</script>

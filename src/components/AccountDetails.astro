@@ -1,0 +1,1072 @@
+---
+import DownloadFormatModal from '@/components/ui/DownloadFormatModal.astro'
+import Tooltip from '@/components/ui/Tooltip.astro'
+
+interface Props {
+  readonly username: string
+}
+const { username } = Astro.props as Props
+---
+
+<section
+  class="flex w-full items-start justify-center px-6 py-2 md:items-center"
+>
+  <div class="w-full max-w-lg">
+    <div
+      class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-6 shadow-lg backdrop-blur"
+    >
+      <header class="mb-5 flex flex-col items-center gap-2 text-center">
+        <h1
+          class="text-foreground text-2xl font-bold tracking-tight sm:text-3xl"
+        >
+          Detalles de la cuenta a crear
+        </h1>
+      </header>
+      <div
+        class="mb-6 rounded-lg border bg-white/70 px-4 py-1 text-sm text-gray-800 shadow-sm"
+        role="alert"
+        aria-live="polite"
+      >
+        <span class="mr-1 font-bold"> ¡Info!</span>
+        Guarda tus claves privadas antes de continuar.
+      </div>
+      <div
+        class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
+      >
+        <p class="text-muted-foreground text-sm font-medium">Cuenta a crear:</p>
+        <span
+          class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-lg font-semibold"
+          data-username={username}>@{username}</span
+        >
+      </div>
+      <!-- Keys Container (always visible) -->
+      <div id="keys-container" class="space-y-5">
+        <p class="text-foreground mb-2 text-xs font-semibold">
+          Tu clave principal:
+        </p>
+        <div class="group">
+          <div
+            class="border-border bg-background relative min-h-[2.5rem] overflow-hidden rounded-md border px-4 py-2 text-xs leading-relaxed transition-colors group-hover:border-gray-400"
+          >
+            <!-- Loading State inside key field -->
+            <div
+              id="key-loading"
+              class="flex h-full min-h-[2rem] items-center justify-center gap-3 transition-opacity duration-300"
+            >
+              <div role="status">
+                <svg
+                  aria-hidden="true"
+                  class="inline h-6 w-6 animate-spin fill-gray-600 text-gray-200 dark:fill-gray-300 dark:text-gray-600"
+                  viewBox="0 0 100 101"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                    fill="currentColor"></path>
+                  <path
+                    d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                    fill="currentFill"></path>
+                </svg>
+                <span class="sr-only">Loading...</span>
+              </div>
+              <p class="text-foreground text-sm">Generando claves seguras...</p>
+            </div>
+            <!-- Master key display (hidden initially, clickable) -->
+            <p
+              id="master-key-display"
+              class="text-foreground/90 hidden min-h-[2rem] cursor-pointer break-all font-mono text-[15px] tracking-tight opacity-0 transition-all duration-500 ease-in-out group-hover:opacity-40 group-hover:blur-[0.5px]"
+              data-master-key=""
+              title="Haz clic para copiar"
+              style="transition-property: opacity, filter, transform;"
+            >
+            </p>
+            <!-- Copy button overlay (appears on hover) -->
+            <button
+              id="master-key-copy-btn"
+              type="button"
+              class="bg-background/70 text-muted-foreground/80 absolute inset-0 hidden cursor-pointer items-center justify-center gap-2 rounded-md text-[12px] font-semibold opacity-0 backdrop-blur-sm transition-all duration-300 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 group-hover:opacity-100"
+              aria-label="Copiar clave master"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="h-4 w-4"
+                aria-hidden="true"
+              >
+                <path
+                  d="M6.75 2A2.75 2.75 0 0 0 4 4.75v7.5A2.75 2.75 0 0 0 6.75 15h2.5A2.75 2.75 0 0 0 12 12.25v-7.5A2.75 2.75 0 0 0 9.25 2h-2.5ZM5.5 4.75c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25v7.5c0 .69-.56 1.25-1.25 1.25h-2.5c-.69 0-1.25-.56-1.25-1.25v-7.5Z"
+                ></path>
+                <path
+                  d="M13.25 5A2.75 2.75 0 0 1 16 7.75v7.5A2.75 2.75 0 0 1 13.25 18h-2.5A2.75 2.75 0 0 1 8 15.25v-1a.75.75 0 0 1 1.5 0v1c0 .69.56 1.25 1.25 1.25h2.5c.69 0 1.25-.56 1.25-1.25v-7.5C14.5 6.56 13.94 6 13.25 6h-1a.75.75 0 0 1 0-1.5h1Z"
+                ></path>
+              </svg>
+              <span>Copiar</span>
+            </button>
+            <!-- Feedback for copy action -->
+            <div
+              id="master-key-feedback"
+              class="pointer-events-none absolute inset-0 hidden items-center justify-center"
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                class="bg-success/90 text-success-foreground flex items-center gap-2 rounded-md px-3 py-1 text-[12px] font-semibold shadow-sm"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  class="h-4 w-4"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
+                    clip-rule="evenodd"></path>
+                </svg>
+                Clave copiada
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="mb-6 mt-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
+      >
+        <button
+          type="button"
+          id="btn-download-keys"
+          class="border-border inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 py-2 text-[0.9rem] font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
+          aria-label="Download keys file"
+        >
+          Descargar claves
+          <span aria-hidden="true">🔑</span>
+        </button>
+        <button
+          type="button"
+          id="btn-copy-master-cta"
+          class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300"
+          aria-label="Copy master key"
+        >
+          Copiar clave master
+          <span aria-hidden="true">🗝️</span>
+        </button>
+      </div>
+      <form id="form-confirm" class="space-y-4">
+        <div class="space-y-2">
+          <label
+            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 sm:gap-3"
+          >
+            <input id="chk-keys-saved" type="checkbox" class="peer sr-only" />
+            <span
+              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 peer-checked:[&>svg]:opacity-100"
+              aria-hidden="true"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="h-4 w-4 opacity-0 transition-all duration-200 peer-checked:opacity-100"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
+                  clip-rule="evenodd"></path>
+              </svg>
+            </span>
+            <span
+              class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
+            >
+              He verificado que mis claves están guardadas.
+            </span>
+          </label>
+          <label
+            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 sm:gap-3"
+          >
+            <input id="chk-keys-ack" type="checkbox" class="peer sr-only" />
+            <span
+              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 peer-checked:[&>svg]:opacity-100"
+              aria-hidden="true"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                class="h-4 w-4 opacity-0 transition-all duration-200 peer-checked:opacity-100"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
+                  clip-rule="evenodd"></path>
+              </svg>
+            </span>
+            <span
+              class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
+            >
+              Reconozco que si pierdo mis claves, pierdo la cuenta.
+            </span>
+          </label>
+        </div>
+        <div class="relative">
+          <button
+            id="btn-create-account"
+            type="submit"
+            disabled
+            data-default-label="Crear cuenta"
+            data-loading-label="Creando cuenta..."
+            data-tooltip-target="tooltip-download-keys"
+            data-tooltip-style="light"
+            class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 w-full cursor-pointer rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Crear cuenta
+          </button>
+          <Tooltip
+            id="tooltip-download-keys"
+            message="¡Debes descargar las claves!"
+            style="light"
+          />
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal para seleccionar formato de descarga -->
+  <DownloadFormatModal />
+
+  <!-- Modal de progreso de creación de cuenta -->
+  <div
+    id="progress-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="progress-modal-title"
+  >
+    <div
+      class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-2xl"
+    >
+      <div class="mb-6 text-center">
+        <h2
+          id="progress-modal-title"
+          class="text-foreground text-xl font-semibold"
+        >
+          Creando tu cuenta
+        </h2>
+        <p class="text-muted-foreground mt-2 text-sm">
+          Por favor espera mientras procesamos tu solicitud
+        </p>
+      </div>
+
+      <!-- Progress container that will be updated by JS -->
+      <div id="progress-container"></div>
+
+      <!-- Botón de cerrar (solo visible si hay error) -->
+      <div class="hidden text-center" id="progress-error-actions">
+        <button
+          type="button"
+          id="btn-close-progress"
+          class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
+        >
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import { HiveKeys } from '@/lib/create/get-keys'
+    import {
+      KeyDownloadManager,
+      type KeysData,
+      type DownloadFormat,
+    } from '@/utils/key-download-manager'
+    import { I18nManager } from '@/utils/i18n'
+
+    // Global window extensions interface
+    interface ExtendedWindow {
+      showToast?: (
+        type: 'success' | 'error' | 'warning',
+        message: string,
+        duration?: number
+      ) => void
+      closeDownloadModal?: () => void
+      handleFormatSelection?: (format: DownloadFormat) => Promise<void>
+    }
+
+    // DOM Elements interface
+    interface DOMElements {
+      readonly chk1: HTMLInputElement | null
+      readonly chk2: HTMLInputElement | null
+      readonly submitBtn: HTMLButtonElement | null
+      readonly copyBtn: HTMLButtonElement | null
+      readonly downloadBtn: HTMLButtonElement | null
+      readonly loadingEl: HTMLElement | null
+      readonly keysContainer: HTMLElement | null
+      readonly masterKeyDisplay: HTMLElement | null
+      readonly masterKeyCopyBtn: HTMLButtonElement | null
+      readonly masterKeyFeedback: HTMLElement | null
+      readonly form: HTMLFormElement | null
+      readonly progressModal: HTMLElement | null
+      readonly progressContainer: HTMLElement | null
+      readonly progressErrorActions: HTMLElement | null
+      readonly closeProgressBtn: HTMLButtonElement | null
+    } // Application state interface
+    interface AppState {
+      masterKey: string
+      allKeys: HiveKeys | null
+      hasDownloaded: boolean
+      copyFeedbackTimeout: number | undefined
+      username: string
+      keysetId: string
+    }
+
+    // Constants
+    const KEYS_SESSION_KEY = 'hh_keys_downloaded'
+    const KEYSET_SEPARATOR = '_'
+
+    /**
+     * Main class to manage account details functionality
+     */
+    class AccountDetailsManager {
+      private elements: DOMElements
+      private state: AppState
+      private readonly extWindow = window as Window & ExtendedWindow
+
+      constructor() {
+        this.elements = this.initializeDOMElements()
+        this.state = this.initializeState()
+        this.setupEventListeners()
+        this.setupGlobalMethods()
+      }
+
+      private initializeDOMElements(): DOMElements {
+        return {
+          chk1: document.querySelector<HTMLInputElement>('#chk-keys-saved'),
+          chk2: document.querySelector<HTMLInputElement>('#chk-keys-ack'),
+          submitBtn: document.querySelector<HTMLButtonElement>(
+            '#btn-create-account'
+          ),
+          copyBtn: document.querySelector<HTMLButtonElement>(
+            '#btn-copy-master-cta'
+          ),
+          downloadBtn:
+            document.querySelector<HTMLButtonElement>('#btn-download-keys'),
+          loadingEl: document.querySelector<HTMLElement>('#key-loading'),
+          keysContainer: document.querySelector<HTMLElement>('#keys-container'),
+          masterKeyDisplay: document.querySelector<HTMLElement>(
+            '#master-key-display'
+          ),
+          masterKeyCopyBtn: document.querySelector<HTMLButtonElement>(
+            '#master-key-copy-btn'
+          ),
+          masterKeyFeedback: document.querySelector<HTMLElement>(
+            '#master-key-feedback'
+          ),
+          form: document.querySelector<HTMLFormElement>('#form-confirm'),
+          progressModal: document.querySelector<HTMLElement>('#progress-modal'),
+          progressContainer: document.querySelector<HTMLElement>(
+            '#progress-container'
+          ),
+          progressErrorActions: document.querySelector<HTMLElement>(
+            '#progress-error-actions'
+          ),
+          closeProgressBtn: document.querySelector<HTMLButtonElement>(
+            '#btn-close-progress'
+          ),
+        }
+      }
+
+      private initializeState(): AppState {
+        const usernameEl =
+          document.querySelector<HTMLElement>('[data-username]')
+        const username = usernameEl?.getAttribute('data-username') || ''
+
+        return {
+          masterKey: '',
+          allKeys: null,
+          hasDownloaded: false,
+          copyFeedbackTimeout: undefined,
+          username,
+          keysetId: '',
+        }
+      }
+
+      private generateKeysetId(): string {
+        return `${this.state.username}${KEYSET_SEPARATOR}${Date.now().toString(36)}`
+      }
+
+      private checkIfDownloaded(keysetId: string): boolean {
+        const downloadedId = sessionStorage.getItem(KEYS_SESSION_KEY)
+        return downloadedId === keysetId
+      }
+
+      private async ensureCreationSession(): Promise<boolean> {
+        try {
+          if (!this.state.username) return false
+          const res = await fetch('/api/create/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: this.state.username }),
+          })
+          if (!res.ok) {
+            return false
+          }
+          return true
+        } catch (e) {
+          return false
+        }
+      }
+
+      private async generateKeys(): Promise<void> {
+        try {
+          if (!this.state.username) {
+            throw new Error('Username not found')
+          }
+
+          // Ensure backend creation session
+          await this.ensureCreationSession()
+
+          // Always generate fresh keys on load
+          const hiveKeys = await HiveKeys.generate(this.state.username)
+          this.state.masterKey = hiveKeys.masterPrivateKey
+          this.state.allKeys = hiveKeys
+
+          // Generate unique keyset ID and store it
+          this.state.keysetId = this.generateKeysetId()
+          this.state.hasDownloaded = this.checkIfDownloaded(this.state.keysetId)
+
+          // Detect refresh navigation using Navigation Timing
+          const nav = performance.getEntriesByType('navigation')[0]
+          const isReload =
+            nav && (nav as PerformanceNavigationTiming).type === 'reload'
+
+          // Show toast for new keys on page reload
+          if (isReload && this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'warning',
+              'Se generaron unas claves nuevas. Debes descargar nuevamente.',
+              6000
+            )
+          }
+
+          // Update DOM with generated keys
+          this.updateMasterKeyDisplay()
+        } catch (error) {
+          this.showErrorState()
+        }
+      }
+
+      private updateMasterKeyDisplay(): void {
+        if (this.elements.masterKeyDisplay && this.state.masterKey) {
+          // Set the content first
+          this.elements.masterKeyDisplay.textContent = this.state.masterKey
+          this.elements.masterKeyDisplay.setAttribute(
+            'data-master-key',
+            this.state.masterKey
+          )
+          this.elements.loadingEl?.classList.add('opacity-0')
+
+          // After loading fade out, show the key with fade in
+          setTimeout(() => {
+            this.elements.loadingEl?.classList.add('hidden')
+            this.elements.masterKeyDisplay?.classList.remove('hidden')
+            this.elements.masterKeyDisplay?.classList.add(
+              'flex',
+              'items-center'
+            )
+            setTimeout(() => {
+              this.elements.masterKeyDisplay?.classList.remove('opacity-0')
+            }, 50)
+
+            // Show copy button overlay
+            this.elements.masterKeyCopyBtn?.classList.remove('hidden')
+            this.elements.masterKeyCopyBtn?.classList.add('flex')
+          }, 300)
+        }
+      }
+
+      private showErrorState(): void {
+        if (!this.elements.loadingEl) return
+
+        // Clear existing content
+        this.elements.loadingEl.innerHTML = ''
+
+        // Create error container
+        const errorContainer = document.createElement('div')
+        errorContainer.className =
+          'flex items-center justify-center gap-3 text-red-400 py-2'
+
+        const errorIcon = document.createElement('span')
+        errorIcon.textContent = '✗'
+
+        const errorMessage = document.createElement('p')
+        errorMessage.className = 'text-sm'
+        errorMessage.textContent =
+          'Error al generar claves. Por favor recarga la página.'
+
+        errorContainer.appendChild(errorIcon)
+        errorContainer.appendChild(errorMessage)
+        this.elements.loadingEl.appendChild(errorContainer)
+      }
+
+      private updateState(): void {
+        if (
+          this.elements.submitBtn &&
+          this.elements.chk1 &&
+          this.elements.chk2
+        ) {
+          const ok =
+            this.elements.chk1.checked &&
+            this.elements.chk2.checked &&
+            this.state.hasDownloaded
+          this.elements.submitBtn.disabled = !ok
+          this.elements.submitBtn.title = !this.state.hasDownloaded
+            ? 'You must download the key file first'
+            : ''
+
+          // Manejar tooltip - solo mostrar cuando está deshabilitado
+          const tooltipTarget = this.elements.submitBtn.getAttribute(
+            'data-tooltip-target'
+          )
+          if (tooltipTarget) {
+            if (!ok) {
+              // Habilitar tooltip cuando el botón está deshabilitado
+              this.elements.submitBtn.setAttribute(
+                'data-tooltip-target',
+                tooltipTarget
+              )
+            } else {
+              // Deshabilitar tooltip cuando el botón está habilitado
+              this.elements.submitBtn.removeAttribute('data-tooltip-target')
+              // Ocultar tooltip si está visible
+              const tooltip = document.getElementById(tooltipTarget)
+              if (tooltip) {
+                tooltip.classList.add('invisible', 'opacity-0')
+                tooltip.classList.remove('visible', 'opacity-100')
+              }
+            }
+          }
+        }
+      }
+
+      private showCopyFeedback(): void {
+        if (!this.elements.masterKeyFeedback || !this.elements.masterKeyDisplay)
+          return
+
+        if (this.state.copyFeedbackTimeout) {
+          clearTimeout(this.state.copyFeedbackTimeout)
+          this.state.copyFeedbackTimeout = undefined
+        }
+
+        this.elements.masterKeyFeedback.classList.remove(
+          'animate-fade-in',
+          'animate-fade-out'
+        )
+        // Ya no ocultamos la clave aquí porque se hace antes de llamar a esta función
+        this.elements.masterKeyFeedback.classList.remove('hidden')
+        this.elements.masterKeyFeedback.classList.add('flex', 'animate-fade-in')
+
+        this.state.copyFeedbackTimeout = window.setTimeout(() => {
+          this.elements.masterKeyFeedback?.classList.remove('animate-fade-in')
+          this.elements.masterKeyFeedback?.classList.add('animate-fade-out')
+          this.state.copyFeedbackTimeout = window.setTimeout(() => {
+            this.elements.masterKeyFeedback?.classList.add('hidden')
+            this.elements.masterKeyFeedback?.classList.remove(
+              'animate-fade-out',
+              'flex'
+            )
+            // Removemos el efecto de vidrio desenfocado
+            this.elements.masterKeyDisplay?.classList.remove(
+              'blur-md',
+              'brightness-50'
+            )
+            this.state.copyFeedbackTimeout = undefined
+          }, 240)
+        }, 1500)
+      }
+
+      private async copyMasterKey(trigger?: HTMLElement): Promise<void> {
+        if (!this.state.masterKey) return
+        try {
+          await navigator.clipboard.writeText(this.state.masterKey)
+          trigger?.classList.add('ring-2', 'ring-gray-400')
+
+          // Aplicamos efecto de vidrio desenfocado
+          this.elements.masterKeyDisplay?.classList.add(
+            'blur-md',
+            'brightness-50'
+          )
+          setTimeout(() => {
+            this.showCopyFeedback()
+          }, 150)
+
+          setTimeout(
+            () => trigger?.classList.remove('ring-2', 'ring-gray-400'),
+            800
+          )
+        } catch (error) {}
+        if (trigger instanceof HTMLElement) {
+          window.setTimeout(() => trigger.blur(), 0)
+        }
+      }
+
+      private openDownloadModal(): void {
+        const modal = document.querySelector('#download-format-modal')
+        modal?.classList.remove('hidden')
+        modal?.classList.add('flex')
+      }
+
+      private closeDownloadModal(): void {
+        const modal = document.querySelector('#download-format-modal')
+        modal?.classList.add('hidden')
+        modal?.classList.remove('flex')
+      }
+
+      private async handleDownload(format: DownloadFormat): Promise<void> {
+        if (!this.state.allKeys || !this.state.masterKey) return
+
+        const privateKeys = this.state.allKeys.getAllPrivateKeys()
+        const publicKeys = this.state.allKeys.getAllPublicKeys()
+        const keysetId = this.state.keysetId
+
+        const keysData: KeysData = {
+          username: this.state.username,
+          masterKey: this.state.masterKey,
+          privateKeys,
+          publicKeys,
+          keysetId,
+          timestamp: new Date().toISOString(),
+        }
+
+        try {
+          await KeyDownloadManager.downloadKeys(keysData, format)
+
+          // Mark as downloaded locally
+          this.state.hasDownloaded = true
+          sessionStorage.setItem(KEYS_SESSION_KEY, this.state.keysetId)
+
+          // Notify server about downloaded keys
+          await this.notifyServerKeysDownloaded(publicKeys)
+
+          this.updateState()
+
+          // Close modal
+          this.closeDownloadModal()
+
+          // Show success message
+          if (this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'success',
+              I18nManager.t('messages.keysDownloaded', {
+                format: format.toUpperCase(),
+              })
+            )
+          }
+        } catch (error) {
+          if (this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'error',
+              I18nManager.t('messages.downloadError')
+            )
+          } else {
+            alert(I18nManager.t('messages.downloadError'))
+          }
+        }
+      }
+
+      private async notifyServerKeysDownloaded(publicKeys: any): Promise<void> {
+        try {
+          let res = await fetch('/api/create/keys-hash', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ownerPublicKey: publicKeys.owner,
+              activePublicKey: publicKeys.active,
+              postingPublicKey: publicKeys.posting,
+              memoPublicKey: publicKeys.memo,
+            }),
+          })
+
+          if (res.status === 401) {
+            const ok = await this.ensureCreationSession()
+            if (ok) {
+              res = await fetch('/api/create/keys-hash', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ownerPublicKey: publicKeys.owner,
+                  activePublicKey: publicKeys.active,
+                  postingPublicKey: publicKeys.posting,
+                  memoPublicKey: publicKeys.memo,
+                }),
+              })
+            }
+          }
+
+          if (!res.ok) {
+          }
+        } catch (e) {}
+      }
+
+      private showProgressModal(): void {
+        if (this.elements.progressModal) {
+          this.elements.progressModal.classList.remove('hidden')
+          this.elements.progressModal.classList.add('flex')
+        }
+      }
+
+      private hideProgressModal(): void {
+        if (this.elements.progressModal) {
+          this.elements.progressModal.classList.add('hidden')
+          this.elements.progressModal.classList.remove('flex')
+        }
+      }
+
+      private renderProgressStepper(
+        currentStep: number,
+        completedSteps: number[] = [],
+        errorStep: number = -1
+      ): void {
+        if (!this.elements.progressContainer) return
+
+        const steps = [
+          'Verificando información',
+          'Creando la cuenta',
+          'Redirigiendo',
+        ]
+
+        // Generate stepper HTML
+        const progressPercentage =
+          errorStep >= 0
+            ? Math.max(0, ((errorStep + 1) / steps.length) * 100)
+            : Math.max(0, ((currentStep + 1) / steps.length) * 100)
+
+        const stepperHTML = `
+          <div class="progress-stepper w-full max-w-md mx-auto mb-6" role="progressbar" aria-valuemin="0" aria-valuemax="${steps.length}" aria-valuenow="${currentStep + 1}" aria-label="Progreso de creación de cuenta">
+            <!-- Progress Bar -->
+            <div class="progress-bar-container mb-6">
+              <div class="bg-muted h-2 rounded-full overflow-hidden">
+                <div class="progress-fill h-full bg-primary rounded-full transition-all duration-700 ease-out" style="width: ${progressPercentage}%"></div>
+              </div>
+            </div>
+
+            <!-- Steps Container -->
+            <div class="steps-container space-y-4">
+              ${steps.map((step, index) => this.renderStep(step, index, currentStep, completedSteps, errorStep)).join('')}
+            </div>
+          </div>
+        `
+
+        this.elements.progressContainer.innerHTML = stepperHTML
+      }
+
+      private renderStep(
+        step: string,
+        index: number,
+        currentStep: number,
+        completedSteps: number[],
+        errorStep: number
+      ): string {
+        const isActive = index === currentStep
+        const isCompleted = completedSteps.includes(index)
+        const isError = index === errorStep
+
+        let stepClass =
+          'step-item flex items-center gap-4 p-4 rounded-lg border transition-all duration-500 ease-out'
+        let iconClass =
+          'step-icon flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300'
+        let textClass = 'text-sm font-medium transition-colors duration-300'
+        let icon = `<span>${index + 1}</span>`
+        let statusText = ''
+
+        if (isActive) {
+          stepClass += ' step-active border-primary bg-primary/5 shadow-sm'
+          iconClass += ' bg-primary text-primary-foreground animate-pulse'
+          textClass += ' text-primary'
+          icon = `<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>`
+          statusText =
+            '<p class="text-xs text-muted-foreground mt-1">En progreso...</p>'
+        } else if (isCompleted) {
+          stepClass += ' step-completed border-green-500 bg-green-50'
+          iconClass += ' bg-green-500 text-white'
+          textClass += ' text-green-700'
+          icon = `<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"></path>
+          </svg>`
+          statusText = '<p class="text-xs text-green-600 mt-1">Completado</p>'
+        } else if (isError) {
+          stepClass += ' step-error border-red-500 bg-red-50'
+          iconClass += ' bg-red-500 text-white'
+          textClass += ' text-red-700'
+          icon = `<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
+          </svg>`
+          statusText = '<p class="text-xs text-red-600 mt-1">Error</p>'
+        } else {
+          stepClass += ' step-pending border-border bg-muted/30 opacity-60'
+          iconClass += ' bg-muted text-muted-foreground'
+          textClass += ' text-muted-foreground'
+        }
+
+        return `
+          <div class="${stepClass}" style="animation-delay: ${index * 150}ms" ${isActive ? 'aria-current="step"' : ''}>
+            <div class="${iconClass}">${icon}</div>
+            <div class="step-text flex-1">
+              <p class="${textClass}">${step}</p>
+              ${statusText}
+            </div>
+          </div>
+        `
+      }
+
+      private showProgressError(): void {
+        if (this.elements.progressErrorActions) {
+          this.elements.progressErrorActions.classList.remove('hidden')
+        }
+      }
+
+      private setupGlobalMethods(): void {
+        this.extWindow.closeDownloadModal = () => this.closeDownloadModal()
+        this.extWindow.handleFormatSelection = (format: DownloadFormat) =>
+          this.handleDownload(format)
+      }
+
+      private async handleFormSubmit(e: Event): Promise<void> {
+        e.preventDefault()
+
+        if (!this.state.allKeys || !this.state.username) {
+          return
+        }
+
+        // Show progress modal and start with step 0
+        this.showProgressModal()
+        this.renderProgressStepper(0) // Step 0: Verificando información
+
+        // Disable button and show loading
+        if (this.elements.submitBtn) {
+          this.elements.submitBtn.disabled = true
+          this.elements.submitBtn.innerHTML =
+            this.elements.submitBtn.dataset.loadingLabel ??
+            'Creating account...'
+        }
+
+        try {
+          const publicKeys = this.state.allKeys.getAllPublicKeys()
+
+          // Step 1: Creando la cuenta
+          await new Promise(resolve => setTimeout(resolve, 1500)) // More time to see verification step
+          this.renderProgressStepper(1, [0])
+
+          // Call create-account API
+          const response = await fetch('/api/create/account', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              username: this.state.username,
+              ownerPublicKey: publicKeys.owner,
+              activePublicKey: publicKeys.active,
+              postingPublicKey: publicKeys.posting,
+              memoPublicKey: publicKeys.memo,
+            }),
+          })
+
+          const result = await response.json()
+
+          if (response.ok && result.success) {
+            // Allow time to see account creation step
+            await new Promise(resolve => setTimeout(resolve, 1200))
+
+            // Step 2: Redirigiendo
+            this.renderProgressStepper(2, [0, 1])
+            await new Promise(resolve => setTimeout(resolve, 2000)) // Longer delay to appreciate success
+
+            // Complete all steps
+            this.renderProgressStepper(-1, [0, 1, 2])
+            await new Promise(resolve => setTimeout(resolve, 1500)) // More time to see completion
+
+            // Account created successfully, redirect to success page
+            window.location.href = `/success/${this.state.username}`
+          } else {
+            throw new Error(result.error || 'Failed to create account')
+          }
+        } catch (error) {
+          // Show error state on current step
+          const currentStep = 1 // Most likely failed during account creation
+          this.renderProgressStepper(-1, [0], currentStep)
+          this.showProgressError()
+
+          // Show detailed error message
+          let errorMessage = 'Unknown error'
+          if (error instanceof Error) {
+            errorMessage = error.message
+          } else if (typeof error === 'string') {
+            errorMessage = error
+          }
+
+          // Show toast notification
+          if (this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'error',
+              `Account creation failed: ${errorMessage}`,
+              8000
+            )
+          } else {
+            // Fallback: show alert if toast not available
+            alert(`Account creation failed: ${errorMessage}`)
+          }
+
+          // Reset button to original state
+          if (this.elements.submitBtn) {
+            this.elements.submitBtn.innerHTML =
+              this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+            this.elements.submitBtn.disabled = false
+            this.updateState()
+          }
+        }
+      }
+
+      private setupEventListeners(): void {
+        // Checkbox event listeners
+        this.elements.chk1?.addEventListener('change', () => this.updateState())
+        this.elements.chk2?.addEventListener('change', () => this.updateState())
+
+        // Copy button event listeners
+        this.elements.copyBtn?.addEventListener('click', () =>
+          this.copyMasterKey(this.elements.copyBtn!)
+        )
+        this.elements.masterKeyDisplay?.addEventListener('click', () =>
+          this.copyMasterKey(this.elements.masterKeyDisplay!)
+        )
+        this.elements.masterKeyCopyBtn?.addEventListener('click', () =>
+          this.copyMasterKey(this.elements.masterKeyCopyBtn!)
+        )
+        this.elements.downloadBtn?.addEventListener('click', () => {
+          if (!this.state.allKeys || !this.state.masterKey) return
+          this.openDownloadModal()
+        })
+
+        // Form submission event listener
+        this.elements.form?.addEventListener('submit', e =>
+          this.handleFormSubmit(e)
+        )
+        // Progress modal close button event listener
+        this.elements.closeProgressBtn?.addEventListener('click', () => {
+          this.hideProgressModal()
+          // Reset submit button when closing modal
+          if (this.elements.submitBtn) {
+            this.elements.submitBtn.innerHTML =
+              this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+            this.elements.submitBtn.disabled = false
+            this.updateState()
+          }
+        })
+      }
+
+      public async initialize(): Promise<void> {
+        await this.generateKeys()
+      }
+    }
+
+    // Initialize the application
+    const accountManager = new AccountDetailsManager()
+    accountManager.initialize()
+  </script>
+
+  <style>
+    /* Progress Stepper CSS - Centralized styles */
+    @keyframes cascade-in {
+      from {
+        transform: translateY(20px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes step-highlight {
+      0%,
+      100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.02);
+      }
+    }
+
+    .step-item {
+      animation: cascade-in 0.6s ease-out forwards;
+      animation-fill-mode: both;
+      opacity: 0;
+    }
+
+    .step-item:nth-child(1) {
+      animation-delay: 0ms;
+    }
+    .step-item:nth-child(2) {
+      animation-delay: 150ms;
+    }
+    .step-item:nth-child(3) {
+      animation-delay: 300ms;
+    }
+    .step-item:nth-child(4) {
+      animation-delay: 450ms;
+    }
+
+    .step-active {
+      animation:
+        cascade-in 0.6s ease-out forwards,
+        step-highlight 2s ease-in-out infinite;
+    }
+
+    .progress-fill {
+      transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Unified color system - single source of truth */
+    .step-active {
+      border-color: #e42f4d;
+      background-color: rgba(228, 47, 77, 0.05);
+    }
+
+    .step-completed {
+      border-color: #10b981;
+      background-color: #f0fdf4;
+    }
+
+    .step-error {
+      border-color: #ef4444;
+      background-color: #fef2f2;
+    }
+
+    .step-pending {
+      border-color: #18171c;
+      background-color: rgba(27, 27, 25, 0.3);
+    }
+
+    /* Accessibility improvements */
+    @media (prefers-reduced-motion: reduce) {
+      .step-item,
+      .step-active,
+      .progress-fill {
+        animation: none;
+        transition: none;
+      }
+
+      .animate-spin {
+        animation: none;
+      }
+
+      .animate-pulse {
+        animation: none;
+      }
+    }
+  </style>
+</section>

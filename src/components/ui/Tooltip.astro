@@ -1,0 +1,93 @@
+---
+interface Props {
+  readonly id: string
+  readonly message: string
+  readonly style?: 'light' | 'dark'
+}
+
+const { id, message, style = 'light' } = Astro.props as Props
+---
+
+<div
+  id={id}
+  role="tooltip"
+  class={`absolute z-50 invisible inline-block px-3 py-2 text-sm font-medium rounded-lg shadow-sm opacity-0 tooltip transition-opacity duration-300 bottom-full left-1/2 transform -translate-x-1/2 mb-2 ${
+    style === 'light'
+      ? 'text-gray-900 bg-white border border-gray-200'
+      : 'text-white bg-gray-900'
+  }`}
+>
+  {message}
+  <div class="tooltip-arrow" data-popper-arrow></div>
+</div>
+
+<style>
+  .tooltip {
+    /* Posicionamiento por defecto - arriba del elemento */
+    white-space: nowrap;
+  }
+
+  .tooltip-arrow {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: inherit;
+    border: inherit;
+    /* Posicionar la flecha en la parte inferior del tooltip */
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+  }
+
+  .tooltip-arrow:before {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: inherit;
+    border: inherit;
+    transform: rotate(45deg);
+  }
+
+  /* Flecha para tooltip light */
+  .tooltip.light .tooltip-arrow {
+    background: white;
+    border-color: #e5e7eb;
+  }
+</style>
+
+<script>
+  // Script para manejar la visibilidad del tooltip
+  document.addEventListener('DOMContentLoaded', () => {
+    // Función para mostrar tooltip
+    function showTooltip(targetId: string) {
+      const tooltip = document.getElementById(targetId)
+      if (tooltip) {
+        tooltip.classList.remove('invisible', 'opacity-0')
+        tooltip.classList.add('visible', 'opacity-100')
+      }
+    }
+
+    // Función para ocultar tooltip
+    function hideTooltip(targetId: string) {
+      const tooltip = document.getElementById(targetId)
+      if (tooltip) {
+        tooltip.classList.add('invisible', 'opacity-0')
+        tooltip.classList.remove('visible', 'opacity-100')
+      }
+    }
+
+    // Configurar tooltips
+    const tooltipTriggers = document.querySelectorAll('[data-tooltip-target]')
+
+    tooltipTriggers.forEach(trigger => {
+      const targetId = trigger.getAttribute('data-tooltip-target')
+      if (!targetId) return
+
+      trigger.addEventListener('mouseenter', () => showTooltip(targetId))
+      trigger.addEventListener('mouseleave', () => hideTooltip(targetId))
+      trigger.addEventListener('focus', () => showTooltip(targetId))
+      trigger.addEventListener('blur', () => hideTooltip(targetId))
+    })
+  })
+</script>

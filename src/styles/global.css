@@ -1,0 +1,66 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-background: #030303;
+  --color-foreground: #ffffff;
+  --color-card: #07070d;
+  --color-card-foreground: #faf9f5;
+  --color-popover: #30302e;
+  --color-popover-foreground: #e5e5e2;
+  --color-primary: #e42f4d;
+  --color-primary-foreground: #f4f4f9;
+  --color-secondary: #faf9f5;
+  --color-secondary-foreground: #1e0750;
+  --color-muted: #1b1b19;
+  --color-muted-foreground: #b7b5a9;
+  --color-accent: #1a1915;
+  --color-accent-foreground: #f5f4ee;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-success: #22c55e;
+  --color-success-foreground: #01230b;
+  --color-border: #18171c;
+  --color-input: #524d62;
+  --color-ring: #b1adcc;
+  --color-chart-1: #b05730;
+  --color-chart-2: #9c87f5;
+  --color-chart-3: #1a1915;
+  --color-chart-4: #2f2b48;
+  --color-chart-5: #b4552d;
+  --color-sidebar: #302d39;
+  --color-sidebar-foreground: #c3c0b6;
+  --color-sidebar-primary: #343434;
+  --color-sidebar-primary-foreground: #fbfbfb;
+  --color-sidebar-accent: #0f0f0e;
+  --color-sidebar-accent-foreground: #c3c0b6;
+  --color-sidebar-border: #ebebeb;
+  --color-sidebar-ring: #b5b5b5;
+
+  --radius-sm: 0.125rem;
+  --radius-md: 0.1875rem;
+  --radius-lg: 0.25rem;
+  --radius-xl: 0.375rem;
+
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Sora Variable', sans-serif;
+  background-color: theme(colors.background);
+  color: theme(colors.foreground);
+}

@@ -1,0 +1,52 @@
+---
+export interface Props {
+  active: 'tickets' | 'accounts' | 'creditos'
+}
+
+const { active } = Astro.props as Props
+
+const tabs = [
+  { key: 'tickets', label: 'Tickets', href: '/builders/tickets' },
+  { key: 'accounts', label: 'Cuentas', href: '/builders/accounts' },
+  { key: 'creditos', label: 'Créditos', href: '/builders/creditos' },
+]
+---
+
+<nav
+  aria-label="Secciones de Builders"
+  class="border-border/60 mb-6 w-full border-b"
+>
+  <ul role="tablist" class="-mb-px flex flex-wrap gap-4">
+    {
+      tabs.map(tab => {
+        const isActive = tab.key === active
+        return (
+          <li role="presentation">
+            <a
+              role="tab"
+              aria-selected={isActive}
+              tabindex={isActive ? 0 : -1}
+              href={tab.href}
+              class={`inline-flex items-center gap-2 rounded-t-md border px-4 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? 'border-border border-b-background bg-background text-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:border-border/40 border-transparent'
+              } `}
+            >
+              {tab.key === 'tickets' && '🎟️'}
+              {tab.key === 'accounts' && '👥'}
+              {tab.key === 'creditos' && '💰'}
+              <span>{tab.label}</span>
+            </a>
+          </li>
+        )
+      })
+    }
+  </ul>
+</nav>
+
+<style>
+  a[role='tab'][aria-selected='true'] {
+    box-shadow: 0 2px 0 0 var(--color-primary, #6366f1) inset;
+  }
+</style>

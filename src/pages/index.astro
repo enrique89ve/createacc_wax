@@ -1,0 +1,28 @@
+---
+import Form from '@/components/Form.astro'
+import Layout from '@/layouts/Layout.astro'
+import CreationStepper from '@/components/ui/CreationStepper.astro'
+
+// Obtener el valor del query param ?ticket=...
+const rawTicket = Astro.url.searchParams.get('ticket') ?? ''
+
+function normalizeTicket(raw: string): string {
+  if (!raw) return ''
+  return raw
+    .trim()
+    .replace(/[^a-zA-Z0-9]/g, '') // solo alfanumérico
+    .slice(0, 24) // máximo 24
+    .toUpperCase()
+}
+
+const ticketParam = normalizeTicket(rawTicket)
+---
+
+<Layout>
+  <div class="pt-6">
+    <CreationStepper />
+  </div>
+  <div class="mt-10">
+    <Form ticket={ticketParam} />
+  </div>
+</Layout>

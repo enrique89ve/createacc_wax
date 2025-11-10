@@ -1,0 +1,55 @@
+---
+import Layout from '@/layouts/Layout.astro'
+---
+
+<Layout title="Acceso Denegado - HolaHive">
+  <section class="flex min-h-screen w-full items-center justify-center px-4">
+    <div class="w-full max-w-md">
+      <div class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-8 shadow-lg backdrop-blur text-center">
+        
+        <!-- Icono de error -->
+        <div class="mb-6">
+          <div class="mx-auto w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.996-.833-2.464 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+        </div>
+
+        <!-- Título y mensaje -->
+        <h1 class="text-foreground text-2xl font-bold mb-4">
+          Acceso Denegado
+        </h1>
+        
+        <p class="text-muted-foreground text-sm mb-6 leading-relaxed">
+          No puedes acceder a esta página directamente. Debes completar el formulario de registro primero.
+        </p>
+
+        <!-- Botón para volver -->
+        <a 
+          href="/"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-sm font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2 w-full"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Volver al formulario
+        </a>
+        
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  // Mostrar toast explicativo al cargar la página
+  document.addEventListener('DOMContentLoaded', () => {
+    // @ts-ignore - showToast is available globally from Layout.astro
+    if (window.showToast) {
+      setTimeout(() => {
+        // @ts-ignore
+        window.showToast('warning', 'Completa el formulario de registro para continuar')
+      }, 1000)
+    }
+  })
+</script>

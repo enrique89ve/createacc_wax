@@ -1,0 +1,73 @@
+---
+import ProgressStepper from '@/components/ui/ProgressStepper.astro'
+
+interface Props {
+	readonly isVisible?: boolean
+	readonly currentStep?: number
+	readonly completedSteps?: readonly number[]
+	readonly errorStep?: number
+	readonly onClose?: string // Event handler name
+}
+
+const {
+	isVisible = false,
+	currentStep = -1,
+	completedSteps = [],
+	errorStep = -1,
+	onClose = 'closeProgressModal',
+} = Astro.props as Props
+
+const steps = [
+	'Verificando información',
+	'Creando la cuenta',
+	'Redirigiendo'
+]
+
+const hasError = errorStep >= 0
+---
+
+<div
+	id="progress-modal"
+	class={`fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm ${
+		isVisible ? 'flex' : 'hidden'
+	}`}
+	role="dialog"
+	aria-modal="true"
+	aria-labelledby="progress-modal-title"
+>
+	<div class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-2xl">
+		<div class="mb-6 text-center">
+			<h2
+				id="progress-modal-title"
+				class="text-foreground text-xl font-semibold"
+			>
+				Creando tu cuenta
+			</h2>
+			<p class="text-muted-foreground mt-2 text-sm">
+				Por favor espera mientras procesamos tu solicitud
+			</p>
+		</div>
+		
+		<ProgressStepper
+			steps={steps}
+			currentStep={currentStep}
+			completedSteps={completedSteps}
+			errorStep={errorStep}
+			className="mb-6"
+		/>
+		
+		<!-- Botón de cerrar (solo visible si hay error) -->
+		{hasError && (
+			<div class="text-center">
+				<button
+					type="button"
+					id="btn-close-progress"
+					class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
+					onclick={`window.${onClose}?.()`}
+				>
+					Cerrar
+				</button>
+			</div>
+		)}
+	</div>
+</div>

@@ -1,0 +1,74 @@
+import {
+  ResourceCreditsOperation,
+  type ITransactionBase,
+  type TAccountName,
+  type TNaiAssetConvertible,
+} from '@hiveio/wax'
+import { createDelegatorService } from '@/lib/hive-transaction-service'
+import { AppError, AppErrorCode } from '@/consts/errors'
+import { getRequiredEnvString } from '@/lib/env'
+import { ENV_KEYS } from '@/consts/constants'
+
+export interface IDelegateRCParams {
+  readonly maxRc: TNaiAssetConvertible
+  readonly delegatee: TAccountName
+}
+
+export interface IRemoveDelegationParams {
+  readonly delegatee: TAccountName
+}
+
+function assertNotSelfDelegation(delegator: string, delegatee: string): void {
+  if (delegator && delegatee && delegator === delegatee) {
+    throw new AppError(AppErrorCode.SELF_DELEGATION)
+  }
+}
+
+function assertNotSelfRemoval(delegator: string, delegatee: string): void {
+  if (delegator && delegatee && delegator === delegatee) {
+    throw new AppError(AppErrorCode.SELF_REMOVAL)
+  }
+}
+
+export async function delegateResourceCredits(
+  params: IDelegateRCParams
+): Promise<ITransactionBase> {
+  const service = createDelegatorService()
+
+  // Validation centralizada
+  const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
+  try {
+    assertNotSelfDelegation(delegatorAccount, params.delegatee)
+  } catch (e) {
+    throw new AppError(AppErrorCode.SELF_DELEGATION)
+  }
+
+  return await service.executeTransaction((tx, delegatorAccount) => {
+    const rcOperation = new ResourceCreditsOperation()
+    rcOperation
+      .delegate(delegatorAccount, params.maxRc.toString(), params.delegatee)
+      .authorize(delegatorAccount)
+    tx.pushOperation(rcOperation)
+  }, `RC delegated successfully to: ${params.delegatee}`)
+}
+
+export async function removeDelegation(
+  params: IRemoveDelegationParams
+): Promise<ITransactionBase> {
+  const service = createDelegatorService()
+
+  // Validation centralizada
+  const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
+  try {
+    assertNotSelfRemoval(delegatorAccount, params.delegatee)
+  } catch (e) {
+    throw new AppError(AppErrorCode.SELF_REMOVAL)
+  }
+
+  return await service.executeTransaction((tx, delegatorAccount) => {
+    const rcOperation = new ResourceCreditsOperation()
+    rcOperation.removeDelegation(delegatorAccount, params.delegatee)
+    rcOperation.authorize(delegatorAccount)
+    tx.pushOperation(rcOperation)
+  }, `RC delegation removed successfully from: ${params.delegatee}`)
+}

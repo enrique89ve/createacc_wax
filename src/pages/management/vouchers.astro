@@ -1,0 +1,422 @@
+---
+import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { ticketsRepository } from '@/lib/repositories/tickets-repository'
+import { creditsService } from '@/lib/credits-service'
+import type { TicketWithCreator } from '@/types/database'
+
+// La autenticación ya se maneja en ManagementLayout
+const session = Astro.locals.adminUser as import('@/types/auth').AdminSession
+
+// Obtener tickets del usuario
+let tickets: TicketWithCreator[] = []
+let canCreateTickets = true
+let remainingQuota = 0
+
+try {
+	if (session.role === 'admin') {
+		// Admin puede ver todos los tickets
+		tickets = await ticketsRepository.getAllWithCreators()
+	} else {
+		// Builder solo ve sus tickets
+		tickets = await ticketsRepository.getBuilderTicketsWithCreator(session.userId)
+
+		// Verificar créditos disponibles para builder
+		const credits = await creditsService.getBuilderCreditsByBuilderId(session.userId)
+
+		if (credits) {
+			const availableCredits = credits.available_amount
+
+			// En el nuevo sistema, canCreateTickets depende de tener créditos
+			canCreateTickets = availableCredits > 0
+			remainingQuota = availableCredits
+		} else {
+			// Builder no encontrado o sin datos
+			canCreateTickets = false
+			remainingQuota = 0
+		}
+	}
+} catch (error) {
+}
+---
+
+<ManagementLayout title="Gestión de Tickets - HolaHive" activeTab="tickets">
+  <!-- Header Section -->
+  <div class="mb-8 flex items-center justify-between">
+    <div>
+      <h2 class="text-foreground text-2xl font-bold">Gestión de Tickets</h2>
+      <p class="text-muted-foreground mt-1">
+        {
+          session.role === 'admin'
+            ? 'Gestiona todos los tickets del sistema'
+            : `Gestiona tus tickets (${remainingQuota} restantes)`
+        }
+      </p>
+    </div>
+    {
+      canCreateTickets && (
+        <button
+          id="create-ticket-btn"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+        >
+          + Crear Ticket
+        </button>
+      )
+    }
+  </div>
+
+  {/* Quota Warning for Builders */}
+  {
+    session.role === 'builder' && !canCreateTickets && (
+      <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+        <div class="flex">
+          <div class="text-yellow-400">⚠️</div>
+          <div class="ml-3">
+            <h3 class="text-sm font-medium text-yellow-800">
+              Límite de tickets alcanzado
+            </h3>
+            <p class="mt-1 text-sm text-yellow-700">
+              Has alcanzado tu límite de tickets. Contacta a un administrador
+              para aumentar tu quota.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  <!-- Tickets Table -->
+  <div class="bg-card border-border overflow-hidden rounded-lg border">
+    <div class="border-border border-b px-6 py-4">
+      <h3 class="text-foreground text-lg font-semibold">
+        {session.role === 'admin' ? 'Todos los Tickets' : 'Mis Tickets'}
+      </h3>
+    </div>
+
+    {
+      tickets.length > 0 ? (
+        <div class="overflow-x-auto">
+          <table class="divide-border w-full divide-y">
+            <thead class="bg-muted/50">
+              <tr>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Código
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Tipo
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Estado
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Creado por
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Fecha
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Créditos
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody class="bg-background divide-border divide-y">
+              {tickets.map(ticket => (
+                <tr class="hover:bg-muted/20">
+                  <td class="whitespace-nowrap px-6 py-4">
+                    <div class="text-foreground text-sm font-medium">
+                      {ticket.code}
+                    </div>
+                    {ticket.description && (
+                      <div class="text-muted-foreground text-sm">
+                        {ticket.description}
+                      </div>
+                    )}
+                  </td>
+                  <td class="whitespace-nowrap px-6 py-4">
+                    <span
+                      class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        ticket.type === 'admin'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}
+                    >
+                      {ticket.type}
+                    </span>
+                  </td>
+                  <td class="whitespace-nowrap px-6 py-4">
+                    <span
+                      class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        !ticket.is_active
+                          ? 'bg-red-100 text-red-800'
+                          : ticket.has_been_used
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                      }`}
+                    >
+                      {!ticket.is_active
+                        ? 'Sin créditos'
+                        : ticket.has_been_used
+                          ? 'En uso'
+                          : 'Disponible'}
+                    </span>
+                  </td>
+                  <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                    {ticket.created_by_username}
+                  </td>
+                  <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
+                    {new Date(ticket.created_at).toLocaleDateString()}
+                  </td>
+                  <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                    {ticket.credits ?? 1}/{ticket.original_credits ?? 1}
+                  </td>
+                  <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
+                    {!ticket.has_been_used &&
+                      (session.role === 'admin' ||
+                        (session.role === 'builder' &&
+                          ticket.created_by_builder === session.userId)) && (
+                        <button
+                          class="text-destructive hover:text-destructive/80 text-sm font-medium"
+                          onclick={`deleteTicket(${ticket.id})`}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div class="p-8 text-center">
+          <div class="text-muted-foreground mb-4 text-6xl">🎫</div>
+          <p class="text-foreground mb-2 text-lg font-medium">No hay tickets</p>
+          <p class="text-muted-foreground">
+            {session.role === 'admin'
+              ? 'Aún no se han creado tickets en el sistema'
+              : 'Aún no has creado ningún ticket'}
+          </p>
+        </div>
+      )
+    }
+  </div>
+</ManagementLayout>
+
+<!-- Create Ticket Modal -->
+<div
+  id="create-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
+>
+  <div class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6">
+    <h3 class="text-foreground mb-4 text-lg font-semibold">
+      Crear Nuevo Ticket
+    </h3>
+
+    <form id="create-form" class="space-y-4">
+      <div>
+        <label
+          for="ticket-code"
+          class="text-foreground mb-1 block text-sm font-medium"
+        >
+          Código del Ticket
+        </label>
+        <input
+          id="ticket-code"
+          type="text"
+          maxlength="24"
+          placeholder="TICKET2024"
+          class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+        />
+      </div>
+
+      <div>
+        <label
+          for="ticket-type"
+          class="text-foreground mb-1 block text-sm font-medium"
+        >
+          Tipo
+        </label>
+        <select
+          id="ticket-type"
+          class="bg-background border-border text-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+        >
+          <option value="free">Free</option>
+          <option value="premium">Premium</option>
+          {session.role === 'admin' && <option value="admin">Admin</option>}
+        </select>
+      </div>
+
+      <div>
+        <label
+          for="ticket-description"
+          class="text-foreground mb-1 block text-sm font-medium"
+        >
+          Descripción (opcional)
+        </label>
+        <input
+          id="ticket-description"
+          type="text"
+          placeholder="Descripción del ticket"
+          class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+        />
+      </div>
+
+      <div>
+        <label
+          for="ticket-credits"
+          class="text-foreground mb-1 block text-sm font-medium"
+        >
+          Créditos
+        </label>
+        <input
+          id="ticket-credits"
+          type="number"
+          min="1"
+          step="1"
+          value="1"
+          placeholder="1"
+          class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+        />
+        <p class="text-muted-foreground mt-1 text-xs">
+          Cantidad de créditos que otorgará este ticket.
+        </p>
+      </div>
+
+      <div id="create-error" class="text-destructive hidden text-sm"></div>
+
+      <div class="flex gap-3 pt-4">
+        <button
+          type="button"
+          id="cancel-btn"
+          class="bg-muted hover:bg-muted/80 text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          id="submit-btn"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+        >
+          Crear
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  declare global {
+    interface Window {
+      deleteTicket?: (ticketId: number) => Promise<void>
+    }
+  }
+  // Referencias DOM
+  const createBtn = document.getElementById('create-ticket-btn')
+  const createModal = document.getElementById('create-modal')
+  const createForm = document.getElementById('create-form')
+  const cancelBtn = document.getElementById('cancel-btn')
+  const createError = document.getElementById('create-error')
+
+  // Modal functions
+  function showModal() {
+    createModal?.classList.remove('hidden')
+    createModal?.classList.add('flex')
+  }
+
+  function hideModal() {
+    createModal?.classList.add('hidden')
+    createModal?.classList.remove('flex')
+    ;(createForm as HTMLFormElement | null)?.reset()
+    createError?.classList.add('hidden')
+  }
+
+  function showError(message: string) {
+    if (createError) {
+      createError.textContent = message
+      createError.classList.remove('hidden')
+    }
+  }
+
+  // Event listeners
+  createBtn?.addEventListener('click', showModal)
+  cancelBtn?.addEventListener('click', hideModal)
+
+  // Click outside modal to close
+  createModal?.addEventListener('click', e => {
+    if (e.target === createModal) {
+      hideModal()
+    }
+  })
+
+  // Create ticket form
+  createForm?.addEventListener('submit', async e => {
+    e.preventDefault()
+
+    const code = (
+      document.getElementById('ticket-code') as HTMLInputElement
+    ).value
+      .trim()
+      .toUpperCase()
+    const type = (document.getElementById('ticket-type') as HTMLSelectElement)
+      .value
+    const description = (
+      document.getElementById('ticket-description') as HTMLInputElement
+    ).value.trim()
+    const creditsRaw = (
+      document.getElementById('ticket-credits') as HTMLInputElement
+    ).value
+    const credits = Math.max(1, parseInt(creditsRaw || '1', 10))
+
+    if (!code) {
+      showError('El código del ticket es requerido')
+      return
+    }
+
+    try {
+      const response = await fetch('/api/management/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ code, type, description, credits }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        location.reload()
+      } else {
+        showError(result.error || 'Error al crear ticket')
+      }
+    } catch (error) {
+      showError('Error de conexión')
+    }
+  })
+
+  // Delete ticket function
+  window.deleteTicket = async (ticketId: number) => {
+    if (!confirm('¿Estás seguro de que quieres eliminar este ticket?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/management/tickets/${ticketId}`, {
+        method: 'DELETE',
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        location.reload()
+      } else {
+        alert(result.error || 'Error al eliminar ticket')
+      }
+    } catch (error) {
+      alert('Error de conexión')
+    }
+  }
+
+  // Logout ya está manejado en ManagementLayout
+</script>

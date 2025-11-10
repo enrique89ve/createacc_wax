@@ -1,0 +1,250 @@
+---
+/**
+ * Página de login para builders usando Keychain
+ */
+import BuildersLayout from '@/layouts/BuildersLayout.astro'
+---
+
+<BuildersLayout title="Login - Builders" currentPage="login">
+  <main class="bg-background text-foreground min-h-screen font-sans">
+    <div class="container mx-auto px-4 py-8">
+      <div class="mx-auto max-w-md">
+        <!-- Header -->
+        <div class="mb-8 text-center">
+          <h1 class="text-primary mb-2 text-3xl font-bold">Builders Login</h1>
+          <p class="text-muted">
+            Acceso exclusivo para moderadores y usuarios autorizados
+          </p>
+        </div>
+
+        <!-- Keychain Status -->
+        <div
+          id="keychain-status"
+          class="bg-card border-border mb-6 rounded-lg border p-4"
+        >
+          <div class="text-muted">Verificando Keychain...</div>
+        </div>
+
+        <!-- Login Form -->
+        <div class="bg-card border-border mb-6 rounded-lg border p-6">
+          <form id="login-form" class="space-y-4">
+            <div>
+              <label for="username" class="mb-2 block text-sm font-medium">
+                Usuario de Hive
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                placeholder="tu-usuario-hive"
+                class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2"
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              id="login-btn"
+              class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled
+            >
+              Login con Keychain
+            </button>
+          </form>
+
+          <!-- Info -->
+          <div class="bg-muted mt-4 rounded p-3 text-sm">
+            <p>
+              <strong>Nota:</strong> Solo moderadores y usuarios autorizados pueden
+              acceder.
+            </p>
+            <p class="mt-1">
+              Los superadmins deben usar el <a
+                href="/management/access"
+                class="text-primary underline">login con contraseña</a
+              >.
+            </p>
+          </div>
+        </div>
+
+        <!-- Result Display -->
+        <div id="result" class="hidden rounded-lg border p-4">
+          <!-- Resultado aparecerá aquí -->
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    import { quickLogin, isKeychainReady } from '@/lib/keychain-service'
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await initPage()
+      setupEventListeners()
+    })
+
+    // Inicializar página
+    async function initPage() {
+      const statusDiv = document.getElementById('keychain-status')!
+      const loginBtn = document.getElementById('login-btn') as HTMLButtonElement
+
+      try {
+        const isReady = await isKeychainReady()
+
+        if (isReady) {
+          statusDiv.innerHTML = `
+						<div class="text-green-400">
+							✅ Hive Keychain detectado y listo
+						</div>
+					`
+          loginBtn.disabled = false
+        } else {
+          statusDiv.innerHTML = `
+						<div class="text-red-400">
+							❌ Hive Keychain no está disponible
+							<div class="text-sm mt-1">
+								<a href="https://hive-keychain.com" target="_blank" class="text-primary underline">
+									Instala Hive Keychain
+								</a> y recarga la página
+							</div>
+						</div>
+					`
+          loginBtn.disabled = true
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `
+					<div class="text-red-400">
+						❌ Error verificando Keychain
+					</div>
+				`
+        loginBtn.disabled = true
+      }
+    }
+
+    // Setup event listeners
+    function setupEventListeners() {
+      const form = document.getElementById('login-form') as HTMLFormElement
+      form.addEventListener('submit', handleLogin)
+    }
+
+    // Manejar login
+    async function handleLogin(e: Event) {
+      e.preventDefault()
+
+      const form = e.target as HTMLFormElement
+      const formData = new FormData(form)
+      const username = ((formData.get('username') as string) || '').trim()
+
+      if (!username) {
+        showResult('error', 'Por favor ingresa tu usuario de Hive')
+        return
+      }
+
+      // Desactivar botón
+      const loginBtn = document.getElementById('login-btn') as HTMLButtonElement
+      loginBtn.disabled = true
+      loginBtn.textContent = 'Conectando con Keychain...'
+
+      try {
+        // 1. Login con Keychain
+        showResult('info', 'Solicitando firma de Keychain...')
+
+        const keychainResult = await quickLogin(username, 'Posting')
+
+        if (!keychainResult.success) {
+          showResult('error', keychainResult.error || 'Error en Keychain')
+          return
+        }
+
+        showResult('info', 'Verificando credenciales en servidor...')
+
+        // 2. Obtener CSRF token para Auth.js
+        const csrfResponse = await fetch('/api/auth/csrf')
+        const { csrfToken } = await csrfResponse.json()
+
+        // 🔍 DEBUG - Log locally instead of sending to server
+
+        // 3. Login usando Auth.js callback endpoint para credentials
+        const response = await fetch('/api/auth/callback/builders-keychain', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            username: keychainResult.username || '',
+            message: keychainResult.message || '',
+            publicKey: keychainResult.publicKey || '',
+            signature: keychainResult.signature || '',
+            timestamp: keychainResult.timestamp?.toString() || '',
+            csrfToken,
+            callbackUrl: '/builders/tickets',
+          }),
+        })
+
+        // Check if it's a successful response
+        if (response.ok || response.status === 302) {
+          showResult('success', '¡Login exitoso! Redirigiendo...')
+
+          // For successful auth, redirect to tickets page
+          setTimeout(() => {
+            window.location.href = '/builders/tickets'
+          }, 1000)
+          return
+        }
+
+        // Handle errors
+        try {
+          const responseText = await response.text()
+
+          // Try to parse as JSON to get error details
+          let errorMessage = 'Error en autenticación'
+          try {
+            const responseData = JSON.parse(responseText)
+            if (responseData.error) {
+              errorMessage = responseData.error
+            }
+          } catch {
+            // Not JSON, use status text
+            errorMessage = `Error ${response.status}: ${response.statusText}`
+          }
+
+          showResult('error', errorMessage)
+        } catch (parseError) {
+
+          showResult('error', 'Error de comunicación con el servidor')
+        }
+      } catch (error) {
+
+        showResult('error', 'Error de conexión. Inténtalo de nuevo.')
+      } finally {
+        loginBtn.disabled = false
+        loginBtn.textContent = 'Login con Keychain'
+      }
+    }
+
+    // Mostrar resultados
+    function showResult(type: 'success' | 'error' | 'info', message: string) {
+      const resultDiv = document.getElementById('result')!
+
+      const colors = {
+        success: 'bg-green-900/20 border-green-500/30 text-green-400',
+        error: 'bg-red-900/20 border-red-500/30 text-red-400',
+        info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
+      }
+
+      const icons = {
+        success: '✅',
+        error: '❌',
+        info: 'ℹ️',
+      }
+
+      resultDiv.className = `p-4 rounded-lg border ${colors[type]}`
+      resultDiv.innerHTML = `
+				<div class="font-medium">
+					${icons[type]} ${message}
+				</div>
+			`
+      resultDiv.classList.remove('hidden')
+    }
+  </script>
+</BuildersLayout>

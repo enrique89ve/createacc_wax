@@ -1,0 +1,109 @@
+---
+import '@/styles/global.css'
+import '@fontsource-variable/sora'
+import UserMenu from '@/components/ui/UserMenu.astro'
+import { getSession } from 'auth-astro/server'
+import { BuildersRepository } from '@/lib/repositories/builders-repository'
+
+export interface Props {
+  title: string
+  currentPage?: 'login' | 'tickets' | 'accounts' | 'creditos'
+}
+
+const { title, currentPage } = Astro.props
+
+// Get session info for authenticated users
+const session = await getSession(Astro.request)
+const user = session?.user
+
+// Get user credits if authenticated
+let userCredits: number | undefined = undefined
+if (user?.username) {
+	try {
+		const { db } = await import('@/lib/database')
+
+		// Obtener builder_id
+		const builderResult = await db.execute({
+			sql: 'SELECT id FROM Builders WHERE hive_username = ?',
+			args: [user.username],
+		})
+
+		if (builderResult.rows.length > 0) {
+			const builderId = (builderResult.rows[0] as any).id
+
+			// Obtener créditos disponibles de la tabla Credits
+			const creditsResult = await db.execute({
+				sql: 'SELECT available_amount FROM Credits WHERE builder_id = ?',
+				args: [builderId],
+			})
+
+			if (creditsResult.rows.length > 0) {
+				userCredits = (creditsResult.rows[0] as any).available_amount
+			} else {
+				// Si no existe registro, el builder tiene 0 créditos
+				userCredits = 0
+			}
+		}
+	} catch (error) {
+	}
+}
+---
+
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="description" content="HolaHive - Área de Builders" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>{title} - HolaHive Builders</title>
+</head>
+
+<body class="min-h-screen bg-background text-foreground">
+  <!-- Navigation Header - Hide on login page -->
+  {user && currentPage !== 'login' && (
+    <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div class="mx-auto flex h-14 max-w-7xl px-4 sm:px-6 lg:px-8 items-center">
+        <!-- Brand Title -->
+        <h1 class="text-lg font-semibold tracking-tight text-foreground">
+          Dashboard de Builders
+        </h1>
+
+        <!-- Spacer -->
+        <div class="flex flex-1 items-center justify-end space-x-4">
+          <!-- Credits link for all users -->
+          <a
+            href="/builders/creditos"
+            class="inline-flex items-center justify-center rounded-md bg-success/10 px-3 py-1.5 text-xs font-medium text-success ring-1 ring-success/20 hover:bg-success/20 hover:ring-success/30 transition-all duration-200"
+          >
+            <span class="mr-1">💳</span>
+            <span>Créditos Disponibles: {typeof userCredits === 'number' ? userCredits : 0}</span>
+          </a>
+
+          <!-- User Menu -->
+          <UserMenu
+            username={user.username}
+            role={user.role}
+            credits={userCredits}
+          />
+
+          <!-- Logout Button -->
+          <form action="/api/auth/signout" method="post" class="contents">
+            <button
+              type="submit"
+              class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              Salir
+            </button>
+          </form>
+        </div>
+      </div>
+    </header>
+  )}
+
+  <!-- Main Content -->
+  <main class="flex-1 space-y-4 p-4 md:p-6">
+    <slot />
+  </main>
+</body>
+</html>

@@ -1,0 +1,157 @@
+---
+import { I18nManager } from '@/utils/i18n'
+
+// Asegurar que las traducciones estén disponibles del lado del cliente
+const translations = I18nManager.getTranslations()
+---
+
+<div
+  id="download-format-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="modal-title"
+>
+  <div
+    class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-xl"
+  >
+    <header class="mb-4 text-center">
+      <h2 id="modal-title" class="text-foreground text-lg font-semibold">
+        {translations.downloadModal.title}
+      </h2>
+      <p class="text-muted-foreground mt-1 text-sm">
+        {translations.downloadModal.subtitle}
+      </p>
+    </header>
+
+    <div class="mb-6 space-y-3">
+      <button
+        type="button"
+        id="btn-download-txt"
+        class="border-border hover:bg-muted/50 focus:ring-primary/40 group w-full rounded-lg border p-4 text-left transition-colors focus:outline-none focus:ring-2"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="bg-primary/10 text-primary flex h-10 w-10 items-center justify-center rounded-lg"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="h-5 w-5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Zm5 5a.75.75 0 0 1 .75.75v1.5h1.5a.75.75 0 0 1 0 1.5h-1.5v1.5a.75.75 0 0 1-1.5 0v-1.5h-1.5a.75.75 0 0 1 0-1.5h1.5v-1.5A.75.75 0 0 1 9.5 7Z"
+                clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-foreground font-medium">
+              {translations.downloadModal.formats.txt.title}
+            </h3>
+            <p class="text-muted-foreground text-sm">
+              {translations.downloadModal.formats.txt.description}
+            </p>
+          </div>
+        </div>
+      </button>
+
+      <button
+        type="button"
+        id="btn-download-pdf"
+        class="border-border hover:bg-muted/50 focus:ring-primary/40 group w-full rounded-lg border p-4 text-left transition-colors focus:outline-none focus:ring-2"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10 text-red-500"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              class="h-5 w-5"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M4.5 2A1.5 1.5 0 0 0 3 3.5v13A1.5 1.5 0 0 0 4.5 18h11a1.5 1.5 0 0 0 1.5-1.5V7.621a1.5 1.5 0 0 0-.44-1.06l-4.12-4.122A1.5 1.5 0 0 0 11.378 2H4.5Zm4.75 6.75a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Zm0 2.5a.75.75 0 0 1 .75-.75h2.5a.75.75 0 0 1 0 1.5h-2.5a.75.75 0 0 1-.75-.75Z"
+                clip-rule="evenodd"></path>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-foreground font-medium">
+              {translations.downloadModal.formats.pdf.title}
+            </h3>
+            <p class="text-muted-foreground text-sm">
+              {translations.downloadModal.formats.pdf.description}
+            </p>
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div class="flex gap-3">
+      <button
+        type="button"
+        id="btn-cancel-download"
+        class="border-border bg-background text-foreground hover:bg-muted focus:ring-primary/40 flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2"
+      >
+        {translations.common.cancel}
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const modal = document.querySelector('#download-format-modal')
+  const btnTxt = document.querySelector('#btn-download-txt')
+  const btnPdf = document.querySelector('#btn-download-pdf')
+  const btnCancel = document.querySelector('#btn-cancel-download')
+
+  // Eventos del modal
+  btnTxt?.addEventListener('click', () => {
+    // @ts-ignore - función definida en el componente padre
+    if (window.handleFormatSelection) {
+      // @ts-ignore
+      window.handleFormatSelection('txt')
+    }
+  })
+
+  btnPdf?.addEventListener('click', () => {
+    // @ts-ignore - función definida en el componente padre
+    if (window.handleFormatSelection) {
+      // @ts-ignore
+      window.handleFormatSelection('pdf')
+    }
+  })
+
+  btnCancel?.addEventListener('click', () => {
+    // @ts-ignore - función definida en el componente padre
+    if (window.closeDownloadModal) {
+      // @ts-ignore
+      window.closeDownloadModal()
+    }
+  })
+
+  // Cerrar modal con escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+      // @ts-ignore
+      if (window.closeDownloadModal) {
+        // @ts-ignore
+        window.closeDownloadModal()
+      }
+    }
+  })
+
+  // Cerrar modal clickeando fuera
+  modal?.addEventListener('click', e => {
+    if (e.target === modal) {
+      // @ts-ignore
+      if (window.closeDownloadModal) {
+        // @ts-ignore
+        window.closeDownloadModal()
+      }
+    }
+  })
+</script>

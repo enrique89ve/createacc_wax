@@ -1,0 +1,176 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import CreationStepper from '@/components/ui/CreationStepper.astro'
+import Card from '@/components/ui/Card.astro'
+import { validateAccountName } from '@/utils/validate-username'
+import KeychainSection from '@/sections/success/KeychainSection.astro'
+import AppsSection from '@/sections/success/AppsSection.astro'
+import CommunityCTASection from '@/sections/success/CommunityCTASection.astro'
+import type { CreationSession } from '@/types/auth'
+import { getBooleanEnv } from '@/lib/env'
+
+// Obtener username de params
+const { user } = Astro.params
+
+// Validación básica de parámetro URL
+if (!user || typeof user !== 'string') {
+  return Astro.redirect('/')
+}
+
+// Validación de formato de username usando las mismas reglas del form
+const usernameError = validateAccountName(user)
+if (usernameError) {
+  return Astro.redirect('/')
+}
+
+// Estrategia de acceso:
+// 1. Si hay sesión válida y coincide con el usuario y marca accountCreated -> set cookie success_account y permitir.
+// 2. Si no hay sesión: validar cookie success_account=<username>.
+// 3. Si falla cookie -> redirect home.
+
+let allowAccess = false
+let via: 'session' | 'cookie' | 'none' = 'none'
+const creationSession: CreationSession | undefined = Astro.locals.creation
+
+if (
+  creationSession &&
+  creationSession.username === user &&
+  creationSession.accountCreated
+) {
+  allowAccess = true
+  via = 'session'
+  // Limpiar sesión (solo una vez). Ignorar errores silenciosamente.
+  try {
+    if (Astro.session) {
+      await Astro.session.set('createFlow', null)
+    }
+  } catch (error) {}
+  // Set cookie (15 min)
+  // Usar API nativa de Astro para cookies (evita sobrescribir otros Set-Cookie)
+  // Definir si la cookie debe ser Secure: true en MAINNET o si la request llega por HTTPS
+  const isMainnet = getBooleanEnv('MAINNET')
+  const xfProto = Astro.request.headers.get('x-forwarded-proto') || ''
+  const viaHttpsHeader = xfProto.split(',')[0]?.trim().toLowerCase() === 'https'
+  const forwarded = Astro.request.headers.get('forwarded') || ''
+  const viaForwarded = /proto=https/i.test(forwarded)
+  const isHttps =
+    (typeof Astro.url !== 'undefined' && Astro.url.protocol === 'https:') ||
+    viaHttpsHeader ||
+    viaForwarded
+  const cookieSecure = isMainnet || isHttps
+  Astro.cookies.set('success_account', user, {
+    httpOnly: true,
+    sameSite: 'strict',
+    path: `/success/${user}`,
+    maxAge: 15 * 60, // segundos
+    secure: cookieSecure,
+  })
+} else {
+  // No hay sesión válida; intentar cookie
+  const cookie = Astro.cookies.get('success_account')
+  if (cookie?.value) {
+    // Compatibilidad hacia atrás: si antes se guardó encodeado, intentar decodificar
+    let cookieUser = cookie.value
+    try {
+      cookieUser = decodeURIComponent(cookieUser)
+    } catch {
+      /* ignore decode error */
+    }
+    if (cookieUser === user) {
+      allowAccess = true
+      via = 'cookie'
+    }
+  }
+}
+
+if (!allowAccess) {
+  return Astro.redirect('/')
+}
+
+// Evitar cacheo por proxies/CDN (página sensible por cookie y username)
+Astro.response.headers.set('Cache-Control', 'private, no-store')
+---
+
+<Layout>
+  <div class="pt-6">
+    <CreationStepper />
+  </div>
+  <section
+    class="flex min-h-screen w-full items-start justify-center px-4 py-16 md:items-center"
+  >
+    <div class="w-full max-w-2xl">
+      <Card class="relative overflow-hidden p-8">
+        <div
+          aria-hidden="true"
+          class="ring-primary/10 pointer-events-none absolute inset-0 rounded-lg ring-1 ring-inset"
+        >
+        </div>
+        <!-- Header éxito -->
+        <header class="mb-10 text-center">
+          <div
+            class="border-primary/30 bg-primary/10 text-primary mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border shadow-inner"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-10 w-10"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke-linecap="round"
+                stroke-linejoin="round"></circle>
+              <polyline
+                points="9 12 12 15 17 10"
+                stroke-linecap="round"
+                stroke-linejoin="round"></polyline>
+            </svg>
+          </div>
+          <h1
+            class="text-foreground mb-4 text-3xl font-bold tracking-tight md:text-4xl"
+          >
+            ¡Bienvenido a Hive!
+          </h1>
+          <p
+            class="text-muted-foreground mx-auto mb-4 max-w-xl text-sm leading-relaxed md:text-base"
+          >
+            Felicidades, la cuenta
+            <a
+              href={`https://hivehub.dev/@${user}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="focus:ring-primary/40 inline-block rounded focus:outline-none focus:ring-2"
+            >
+              <kbd
+                class="border-primary/40 bg-muted/40 text-primary inline-flex items-center rounded-md border px-3 py-1 text-base font-semibold shadow-sm transition-transform will-change-transform hover:scale-105"
+              >
+                @{user}
+              </kbd>
+            </a>
+            ha sido creada exitosamente.
+          </p>
+          <p class="text-muted-foreground text-sm md:text-base">
+            Tu cuenta está lista para acceder a Hive.
+          </p>
+        </header>
+        <div class="mx-auto mt-8 flex max-w-sm justify-center">
+          <a
+            href="#keychain"
+            class="bg-primary text-primary-foreground focus:ring-primary/40 hover:bg-primary/90 inline-flex items-center gap-2 rounded-md px-6 py-3 text-sm font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2"
+          >
+            Descargar Keychain <span aria-hidden="true">↓</span>
+          </a>
+        </div>
+      </Card>
+      <!-- Secciones adicionales -->
+      <KeychainSection />
+      <AppsSection />
+      <CommunityCTASection />
+    </div>
+  </section>
+</Layout>

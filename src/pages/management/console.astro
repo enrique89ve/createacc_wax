@@ -1,0 +1,278 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import { dashboardService } from '@/lib/repositories/dashboard-service'
+import type {
+	RecentTicketInfo,
+	RecentAccountInfo,
+} from '@/lib/repositories/dashboard-service'
+
+// Get session data from middleware
+const session = Astro.locals.adminUser
+
+if (!session) {
+	return Astro.redirect('/management/access')
+}
+
+// Obtener todas las estadísticas y datos del dashboard
+let stats = {
+	totalBuilders: 0,
+	totalTickets: 0,
+	usedTickets: 0,
+	totalAccounts: 0,
+	todayAccounts: 0,
+}
+let recentTickets: RecentTicketInfo[] = []
+let recentAccounts: RecentAccountInfo[] = []
+
+try {
+	const summary = await dashboardService.getSystemActivitySummary(5)
+	stats = summary.stats
+	recentTickets = summary.recentTickets
+	recentAccounts = summary.recentAccounts
+} catch (error) {
+}
+---
+
+<Layout title="Console de Gestión - HolaHive">
+  <div class="bg-background min-h-screen">
+    <!-- Header -->
+    <header class="bg-card border-border border-b">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex h-16 items-center justify-between">
+          <div class="flex items-center gap-4">
+            <h1 class="text-foreground text-xl font-bold">Console HolaHive</h1>
+            <span
+              class="bg-primary/20 text-primary rounded-full px-2 py-1 text-xs font-medium"
+            >
+              {session.role === 'admin' ? 'Admin' : 'Builder'}
+            </span>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="text-muted-foreground text-sm">
+              Hola, {session.username}
+            </span>
+            <button
+              id="logout-btn"
+              class="bg-muted hover:bg-muted/80 text-foreground rounded-md px-3 py-1 text-sm transition-colors"
+            >
+              Salir
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="bg-card border-border border-b">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="flex space-x-8">
+          <a
+            href="/management/console"
+            class="border-primary text-primary border-b-2 px-1 py-4 text-sm font-medium"
+          >
+            Dashboard
+          </a>
+          <a
+            href="/management/vouchers"
+            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
+          >
+            Tickets
+          </a>
+          <a
+            href="/management/builders"
+            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
+          >
+            Builders
+          </a>
+          <a
+            href="/management/activity"
+            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
+          >
+            Actividad
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <!-- Stats Cards -->
+      <div class="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Total Builders -->
+        <a
+          href="/management/builders"
+          class="bg-card border-border hover:border-primary block rounded-lg border p-6 transition-colors"
+        >
+          <div class="flex items-center">
+            <div class="flex-1">
+              <p class="text-muted-foreground text-sm">Total Builders</p>
+              <p class="text-foreground text-2xl font-bold">
+                {stats.totalBuilders}
+              </p>
+            </div>
+            <div class="text-primary">👥</div>
+          </div>
+        </a>
+
+        <!-- Total Tickets -->
+        <div class="bg-card border-border rounded-lg border p-6">
+          <div class="flex items-center">
+            <div class="flex-1">
+              <p class="text-muted-foreground text-sm">Total Tickets</p>
+              <p class="text-foreground text-2xl font-bold">
+                {stats.totalTickets}
+              </p>
+              <p class="text-muted-foreground text-xs">
+                {stats.usedTickets} usados
+              </p>
+            </div>
+            <div class="text-primary">🎫</div>
+          </div>
+        </div>
+
+        <!-- Cuentas Creadas -->
+        <div class="bg-card border-border rounded-lg border p-6">
+          <div class="flex items-center">
+            <div class="flex-1">
+              <p class="text-muted-foreground text-sm">Cuentas Hive</p>
+              <p class="text-foreground text-2xl font-bold">
+                {stats.totalAccounts}
+              </p>
+              <p class="text-muted-foreground text-xs">Total creadas</p>
+            </div>
+            <div class="text-primary">🔗</div>
+          </div>
+        </div>
+
+        <!-- Hoy -->
+        <div class="bg-card border-border rounded-lg border p-6">
+          <div class="flex items-center">
+            <div class="flex-1">
+              <p class="text-muted-foreground text-sm">Hoy</p>
+              <p class="text-foreground text-2xl font-bold">
+                {stats.todayAccounts}
+              </p>
+              <p class="text-muted-foreground text-xs">Nuevas cuentas</p>
+            </div>
+            <div class="text-primary">📅</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <!-- Recent Tickets -->
+        <div class="bg-card border-border rounded-lg border">
+          <div class="border-border border-b p-6">
+            <h3 class="text-foreground text-lg font-semibold">
+              Tickets Recientes
+            </h3>
+          </div>
+          <div class="p-6">
+            {
+              recentTickets.length > 0 ? (
+                <div class="space-y-4">
+                  {recentTickets.map(ticket => (
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1">
+                        <p class="text-foreground text-sm font-medium">
+                          {ticket.code}
+                        </p>
+                        <p class="text-muted-foreground text-xs">
+                          Por {ticket.created_by_username} • {ticket.type} •{' '}
+                          {ticket.credits}/{ticket.original_credits} créditos
+                        </p>
+                      </div>
+                      <div class="text-right">
+                        <span
+                          class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                            !ticket.is_active
+                              ? 'bg-red-100 text-red-800'
+                              : ticket.has_been_used
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                        >
+                          {!ticket.is_active
+                            ? 'Sin créditos'
+                            : ticket.has_been_used
+                              ? 'En uso'
+                              : 'Disponible'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p class="text-muted-foreground text-sm">
+                  No hay tickets recientes
+                </p>
+              )
+            }
+          </div>
+        </div>
+
+        <!-- Recent Accounts -->
+        <div class="bg-card border-border rounded-lg border">
+          <div class="border-border border-b p-6">
+            <h3 class="text-foreground text-lg font-semibold">
+              Cuentas Recientes
+            </h3>
+          </div>
+          <div class="p-6">
+            {
+              recentAccounts.length > 0 ? (
+                <div class="space-y-4">
+                  {recentAccounts.map(account => (
+                    <div class="flex items-center justify-between">
+                      <div class="flex-1">
+                        <p class="text-foreground text-sm font-medium">
+                          @{account.username}
+                        </p>
+                        <p class="text-muted-foreground text-xs">
+                          Ticket: {account.ticket}
+                        </p>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-muted-foreground text-xs">
+                          {new Date(account.creation_date).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p class="text-muted-foreground text-sm">
+                  No hay cuentas recientes
+                </p>
+              )
+            }
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<script>
+  const logoutBtn = document.getElementById('logout-btn')
+
+  logoutBtn?.addEventListener('click', async () => {
+    try {
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
+        window.location.href = result.redirectTo || '/management/access'
+      } else {
+      }
+    } catch (error) {
+    }
+  })
+</script>

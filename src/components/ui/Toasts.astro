@@ -1,0 +1,218 @@
+---
+/** Componente de stack de toasts accesible */
+import type { ToastItem } from '@/types/toast'
+
+interface Props {
+	/** Opción: toasts iniciales (normalmente vacío) */
+	initial?: ReadonlyArray<ToastItem>
+}
+
+const { initial = [] } = Astro.props
+---
+
+<div
+	id="toast-region"
+	class="pointer-events-none fixed inset-x-0 top-4 z-50 flex flex-col items-center gap-2 px-2 sm:left-auto sm:right-4 sm:items-end"
+	aria-live="polite"
+	aria-atomic="false"
+>
+</div>
+
+<script>
+	import {
+		TOAST_CONFIG,
+		TOAST_VARIANT_ICON_COLORS,
+		TOAST_VARIANT_STYLES,
+		type ToastItem,
+		type ToastType,
+	} from '@/types/toast'
+
+	const config = {
+		defaultDuration: TOAST_CONFIG.DEFAULT_DURATION,
+		animationDuration: TOAST_CONFIG.ANIMATION_DURATION,
+		maxVisible: TOAST_CONFIG.MAX_VISIBLE,
+	} as const
+
+	let toasts: ToastItem[] = []
+
+	function generateUniqueId(): string {
+		return Math.random().toString(36).slice(2, 10)
+	}
+
+	/**
+	 * Mapea variante a SVG icónico (outline simple adaptable).
+	 * Retorna string de SVG.
+	 */
+	function getIconForType(type: ToastType): string {
+		switch (type) {
+			case 'success':
+				return `<svg class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 8.207-4 4a1 1 0 0 1-1.414 0l-2-2a1 1 0 1 1 1.414-1.414L9 10.586l3.293-3.293a1 1 0 0 1 1.414 1.414Z"/></svg>`
+			case 'error':
+				return `<svg class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5Zm3.707 11.793a1 1 0 0 1-1.414 1.414L10 11.414l-2.293 2.293a1 1 0 0 1-1.414-1.414L8.586 10 6.293 7.707a1 1 0 0 1 1.414-1.414L10 8.586l2.293-2.293a1 1 0 0 1 1.414 1.414L11.414 10l2.293 2.293Z"/></svg>`
+			case 'warning':
+				return `<svg class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM10 15a1 1 0 1 1 0-2 1 1 0 0 1 0 2Zm1-4a1 1 0 0 1-2 0V6a1 1 0 0 1 2 0v5Z"/></svg>`
+			case 'info':
+			default:
+				return `<svg class="w-5 h-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 0a10 10 0 1 0 10 10A10 10 0 0 0 10 0Zm1 15a1 1 0 0 1-2 0v-4a1 1 0 0 1 2 0Zm-1-6.5a1.25 1.25 0 1 1 1.25-1.25A1.25 1.25 0 0 1 10 8.5Z"/></svg>`
+		}
+	}
+
+	function buildToastElement(item: ToastItem): HTMLDivElement {
+		const wrapper = document.createElement('div')
+		wrapper.role = 'alert'
+		wrapper.className = `group relative flex w-full max-w-sm translate-y-0 items-start gap-3 overflow-hidden rounded-xl border border-transparent/10 bg-white/80 p-3 pr-10 text-sm shadow-lg ring-1 ring-black/5 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:bg-gray-800/80 dark:supports-[backdrop-filter]:bg-gray-800/60 ${TOAST_VARIANT_STYLES[item.type]} pointer-events-auto will-change-transform transition-all`
+		wrapper.dataset.id = item.id
+		wrapper.dataset.state = 'enter'
+
+		const iconWrap = document.createElement('div')
+		iconWrap.className = `relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${TOAST_VARIANT_ICON_COLORS[item.type]} ring-1 ring-inset ring-black/5`
+		iconWrap.innerHTML = getIconForType(item.type)
+
+		const body = document.createElement('div')
+		body.className = 'flex min-w-0 flex-col'
+
+		// Soporte título: si mensaje contiene ': ' dividimos
+		const parts = item.message.split(': ')
+		let title: string | undefined
+		let rest: string
+
+		if (parts.length > 1 && parts[0].length < 80) {
+			title = parts.shift()
+			rest = parts.join(': ')
+		} else {
+			rest = item.message
+		}
+
+		if (title) {
+			const h = document.createElement('div')
+			h.className =
+				'font-semibold leading-snug tracking-tight text-gray-900 dark:text-gray-100'
+			h.textContent = title
+			body.appendChild(h)
+		}
+
+		const p = document.createElement('div')
+		p.className =
+			'mt-0.5 whitespace-pre-wrap break-words leading-snug text-gray-700 dark:text-gray-300'
+		p.textContent = rest
+		body.appendChild(p)
+
+		const close = document.createElement('button')
+		close.type = 'button'
+		close.className =
+			'absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100/70 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-700/70 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 focus:ring-offset-white dark:focus:ring-offset-gray-900'
+		close.setAttribute('aria-label', 'Cerrar notificación')
+		close.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l12 12M13 1 1 13"/></svg>`
+		close.addEventListener('click', () => dismissToast(item.id))
+
+		// Barra de progreso
+		const progress = document.createElement('div')
+		progress.className =
+			'absolute bottom-0 left-0 h-0.5 w-full origin-left scale-x-0 bg-gradient-to-r from-current/30 via-current/50 to-current/30 will-change-transform'
+		// Animación progress
+		requestAnimationFrame(() => {
+			progress.style.transition = `transform ${item.duration || config.defaultDuration}ms linear`
+			progress.style.transform = 'scaleX(1)'
+		})
+
+		wrapper.appendChild(iconWrap)
+		wrapper.appendChild(body)
+		wrapper.appendChild(close)
+		wrapper.appendChild(progress)
+
+		return wrapper
+	}
+
+	function renderToasts(): void {
+		const region = document.querySelector<HTMLDivElement>('#toast-region')
+		if (!region) return
+
+		region.querySelectorAll<HTMLDivElement>('[data-id]').forEach((node) => {
+			if (!toasts.find((t) => t.id === node.dataset.id)) {
+				node.dataset.state = 'leave'
+				setTimeout(() => node.remove(), config.animationDuration)
+			}
+		})
+
+		// Añadir nuevos
+		toasts.forEach((t, idx) => {
+			if (!region.querySelector(`[data-id="${t.id}"]`)) {
+				const el = buildToastElement(t)
+				// stacking offset
+				el.style.transform = `translateY(${idx * 4}px)`
+				region.appendChild(el)
+				// salida automática
+				const ttl = t.duration ?? config.defaultDuration
+				setTimeout(() => dismissToast(t.id), ttl)
+			}
+			const existing = region.querySelector<HTMLDivElement>(
+				`[data-id="${t.id}"]`,
+			)
+			if (existing) {
+				existing.style.transform = `translateY(${idx * 4}px)`
+			}
+		})
+	}
+
+	function showToast(
+		type: ToastType,
+		message: string,
+		duration?: number,
+	): string {
+		const item: ToastItem = {
+			id: generateUniqueId(),
+			type,
+			message,
+			duration,
+			createdAt: Date.now(),
+		}
+		toasts.unshift(item)
+		if (toasts.length > config.maxVisible) {
+			toasts = toasts.slice(0, config.maxVisible)
+		}
+		renderToasts()
+		return item.id
+	}
+
+	function dismissToast(id: string): void {
+		const before = toasts.length
+		toasts = toasts.filter((t) => t.id !== id)
+		if (before !== toasts.length) {
+			renderToasts()
+		}
+	}
+
+	// Exponer global
+	window.showToast = showToast
+	window.dismissToast = dismissToast
+</script>
+
+<style>
+  /* Animaciones simples (Tailwind 4 puede usar @theme, se define manual aquí) */
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  @keyframes toast-out {
+    from {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.96);
+    }
+  }
+  [data-state='enter'].animate-in {
+    animation: toast-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  [data-state='leave'].animate-out {
+    animation: toast-out 0.25s ease-in forwards;
+  }
+</style>

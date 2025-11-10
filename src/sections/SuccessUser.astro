@@ -1,0 +1,64 @@
+---
+interface Props {
+  readonly accountName: string
+}
+
+const { accountName } = Astro.props
+---
+
+<section class="0 py-12">
+  <div class="mx-auto px-4 sm:px-8 lg:px-12">
+    <div
+      class="mx-auto max-w-2xl overflow-hidden rounded-lg border border-gray-400"
+    >
+      <div class="p-8 text-center">
+        <!-- Icono de check -->
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          class="text-redhive mx-auto mb-4 h-16 w-16"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></circle>
+          <polyline
+            points="9 12 12 15 17 10"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"></polyline>
+        </svg>
+
+        <!-- Título -->
+        <h2 class="mb-4 text-3xl font-bold text-white">¡Bienvenido a Hive!</h2>
+
+        <!-- Mensaje -->
+        <p class="mb-6 text-lg text-gray-300">
+          Felicidades, la cuenta
+          <a
+            href={`https://hivehub.dev/@${accountName}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-block"
+          >
+            <kbd
+              class="border-redhive/50 text-redhive inline-flex items-center rounded-md border bg-gray-100 px-3 py-1 text-lg font-semibold transition-transform hover:scale-105"
+            >
+              @{accountName}
+            </kbd>
+          </a>
+          ha sido creada exitosamente.
+        </p>
+
+        <p class="mb-8 text-lg text-gray-300">
+          Tu cuenta está lista para acceder a Hive.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>

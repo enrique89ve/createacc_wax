@@ -1,0 +1,444 @@
+---
+import BuildersLayout from '@/layouts/BuildersLayout.astro'
+import BuildersTabs from '@/components/ui/BuildersTabs.astro'
+import { db } from '@/lib/database'
+import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
+
+// Autenticación centralizada - si no está autenticado, se redirige automáticamente
+const currentUser = await getAuthenticatedUser(Astro, 'builders')
+
+// Si currentUser es una Response, significa que se está redirigiendo
+if (currentUser instanceof Response) {
+  return currentUser
+}
+
+// Obtener tickets del usuario (misma lógica que management pero solo propios siempre)
+interface BuilderTicketRow {
+  readonly id: number
+  readonly code: string
+  readonly type: string
+  readonly description: string | null
+  readonly original_credits: number
+  readonly credits: number
+  readonly is_active: number | boolean
+  readonly has_been_used: number | boolean
+  readonly created_at: string
+  readonly updated_at: string | null
+  readonly created_by: number
+}
+
+let tickets: BuilderTicketRow[] = []
+try {
+  const result = await db.execute({
+    sql: `SELECT id, code, type, description, original_credits, credits, is_active, has_been_used, created_at, updated_at, created_by_builder as created_by
+          FROM Tickets
+          WHERE created_by_builder = (SELECT id FROM Builders WHERE hive_username = ?)
+          ORDER BY created_at DESC`,
+    args: [(currentUser as any).username],
+  })
+  tickets = result.rows as unknown as BuilderTicketRow[]
+} catch (error) {}
+---
+
+<BuildersLayout title="Dashboard" currentPage="tickets">
+  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="mb-6">
+      <h1 class="mb-2 text-3xl font-bold text-white">
+        Hola {(currentUser as any).username}! 👋
+      </h1>
+      <p class="text-gray-400">
+        Gestiona tus tickets y crea cuentas Hive desde un solo lugar.
+      </p>
+    </div>
+    <BuildersTabs active="tickets" />
+
+    <!-- Tabla de Tickets del Builder -->
+    <section
+      class="mb-10 overflow-hidden rounded-lg border border-gray-700/60 bg-gray-900/40 p-0"
+    >
+      <div
+        class="flex items-center justify-between border-b border-gray-700/60 px-6 py-4"
+      >
+        <h2 class="flex items-center gap-2 text-lg font-semibold text-white">
+          🎟️ Mis Tickets
+        </h2>
+        <div class="flex items-center gap-3">
+          <button
+            id="create-ticket-btn"
+            class="bg-primary rounded-lg px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            + Crear Ticket
+          </button>
+        </div>
+      </div>
+      {
+        tickets.length > 0 ? (
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-700 text-sm">
+              <thead class="bg-gray-800/60">
+                <tr>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Código
+                  </th>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Tipo
+                  </th>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Créditos
+                  </th>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Estado
+                  </th>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Creado
+                  </th>
+                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-700">
+                {tickets.map(t => (
+                  <tr class="hover:bg-gray-800/40">
+                    <td class="px-4 py-2 align-top">
+                      <div class="font-medium text-white">{t.code}</div>
+                      {t.description && (
+                        <div class="text-xs text-gray-400">{t.description}</div>
+                      )}
+                    </td>
+                    <td class="px-4 py-2 align-top">
+                      <span
+                        class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${t.type === 'premium' ? 'bg-purple-500/20 text-purple-300' : t.type === 'admin' ? 'bg-pink-500/20 text-pink-300' : 'bg-gray-500/20 text-gray-300'}`}
+                      >
+                        {t.type}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2 align-top">
+                      <span class="font-semibold text-white">{t.credits}</span>
+                      <span class="text-gray-400">/{t.original_credits}</span>
+                    </td>
+                    <td class="px-4 py-2 align-top">
+                      <span
+                        class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${!t.is_active ? 'bg-red-500/20 text-red-300' : t.has_been_used ? 'bg-green-500/20 text-green-300' : 'bg-yellow-500/20 text-yellow-300'}`}
+                      >
+                        {!t.is_active
+                          ? 'Sin créditos'
+                          : t.has_been_used
+                            ? 'En uso'
+                            : 'Disponible'}
+                      </span>
+                    </td>
+                    <td class="px-4 py-2 align-top text-gray-400">
+                      {new Date(t.created_at).toLocaleDateString()}
+                    </td>
+                    <td class="space-x-3 px-4 py-2 align-top">
+                      <button
+                        class="text-xs font-medium text-blue-400 hover:text-blue-300"
+                        onclick={`updateCredits('${t.code}')`}
+                      >
+                        Actualizar
+                      </button>
+                      {!t.has_been_used && (
+                        <button
+                          class="text-xs font-medium text-red-400 hover:text-red-300"
+                          onclick={`deleteTicket(${t.id})`}
+                        >
+                          Borrar
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div class="p-10 text-center">
+            <div class="mb-4 text-5xl">🪙</div>
+            <p class="mb-2 font-semibold text-white">Aún no tienes tickets</p>
+            <p class="text-sm text-gray-400">
+              Cuando crees tickets aparecerán aquí.
+            </p>
+          </div>
+        )
+      }
+    </section>
+  </div>
+
+  <!-- Información contextual -->
+  <div class="mt-4 rounded-lg border border-gray-700/60 bg-gray-900/40 p-6">
+    <h3 class="mb-2 text-sm font-semibold text-white">ℹ️ Notas</h3>
+    <ul class="list-disc space-y-1 pl-4 text-xs text-gray-400">
+      <li>
+        Actualizar créditos aplica un delta (positivo o negativo) sobre los
+        créditos actuales.
+      </li>
+      <li>No puedes borrar un ticket que ya fue usado.</li>
+      <li>El borrado devuelve los créditos originales a tu saldo.</li>
+    </ul>
+  </div>
+
+  <!-- Modal Crear Ticket -->
+  <div
+    id="create-ticket-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
+  >
+    <div
+      class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
+    >
+      <h3 class="mb-4 text-lg font-semibold text-white">🎟️ Crear Ticket</h3>
+      <form id="create-ticket-form">
+        <div class="mb-4">
+          <label
+            for="ticket-name"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Nombre del Ticket
+          </label>
+          <input
+            type="text"
+            id="ticket-name"
+            name="ticketName"
+            maxlength="16"
+            placeholder="Ej: PROMO2025"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 uppercase text-white focus:border-transparent focus:outline-none focus:ring-2"
+            required
+          />
+          <p class="mt-1 text-xs text-gray-400">
+            4-16 caracteres, letras y números (no solo números)
+          </p>
+          <p id="ticket-error" class="mt-1 hidden text-xs text-red-400"></p>
+        </div>
+        <div class="mb-4">
+          <label
+            for="ticket-credits"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Créditos Iniciales
+          </label>
+          <input
+            type="number"
+            id="ticket-credits"
+            name="credits"
+            min="1"
+            max="100"
+            placeholder="1-100"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
+            required
+          />
+          <p class="mt-1 text-xs text-gray-400">
+            Máximo 100 créditos por ticket
+          </p>
+        </div>
+        <div class="mb-6">
+          <label
+            for="ticket-description"
+            class="mb-2 block text-sm font-medium text-gray-300"
+          >
+            Descripción (opcional)
+          </label>
+          <textarea
+            id="ticket-description"
+            name="description"
+            maxlength="100"
+            rows="2"
+            placeholder="Ej: Promoción especial 2025"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
+          ></textarea>
+        </div>
+        <div class="flex gap-3">
+          <button
+            type="button"
+            id="cancel-create-ticket"
+            class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="bg-primary flex-1 rounded-lg px-4 py-2 text-white hover:opacity-90"
+          >
+            Crear Ticket
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Navegación interna eliminada: cubierta por las pestañas -->
+</BuildersLayout>
+
+<script>
+  declare global {
+    interface Window {
+      updateCredits?: (code: string) => Promise<void>
+      deleteTicket?: (id: number) => Promise<void>
+    }
+  }
+
+  // Validación de ticket (mismo formato que validate-ticket.ts)
+  const MIN_TICKET_LENGTH = 4
+  const MAX_TICKET_LENGTH = 16 // Cambiado de 24 a 16 según requisitos
+  const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
+  const ONLY_NUMBERS_REGEX = /^\d+$/
+
+  function validateTicketName(name: string): string | null {
+    if (!name) return 'El nombre no puede estar vacío'
+    if (name.length < MIN_TICKET_LENGTH)
+      return `Mínimo ${MIN_TICKET_LENGTH} caracteres`
+    if (name.length > MAX_TICKET_LENGTH)
+      return `Máximo ${MAX_TICKET_LENGTH} caracteres`
+    if (!ALPHANUMERIC_REGEX.test(name)) return 'Solo letras y números'
+    if (ONLY_NUMBERS_REGEX.test(name)) return 'No puede ser solo números'
+    return null
+  }
+
+  // Modal de crear ticket
+  const createTicketBtn = document.getElementById('create-ticket-btn')
+  const createTicketModal = document.getElementById('create-ticket-modal')
+  const createTicketForm = document.getElementById(
+    'create-ticket-form'
+  ) as HTMLFormElement | null
+  const cancelCreateTicket = document.getElementById('cancel-create-ticket')
+  const ticketNameInput = document.getElementById(
+    'ticket-name'
+  ) as HTMLInputElement | null
+  const ticketErrorEl = document.getElementById('ticket-error')
+
+  createTicketBtn?.addEventListener('click', () => {
+    createTicketModal?.classList.remove('hidden')
+    createTicketModal?.classList.add('flex')
+    ticketNameInput?.focus()
+  })
+
+  cancelCreateTicket?.addEventListener('click', () => {
+    createTicketModal?.classList.add('hidden')
+    createTicketModal?.classList.remove('flex')
+    createTicketForm?.reset()
+    ticketErrorEl?.classList.add('hidden')
+  })
+
+  // Validación en tiempo real
+  ticketNameInput?.addEventListener('input', e => {
+    const target = e.target as HTMLInputElement
+    const value = target.value.toUpperCase()
+    target.value = value
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, MAX_TICKET_LENGTH)
+
+    const error = validateTicketName(target.value)
+    if (error && target.value.length > 0) {
+      ticketErrorEl!.textContent = error
+      ticketErrorEl?.classList.remove('hidden')
+    } else {
+      ticketErrorEl?.classList.add('hidden')
+    }
+  })
+
+  // Submit del formulario
+  createTicketForm?.addEventListener('submit', async e => {
+    e.preventDefault()
+
+    const formData = new FormData(e.target as HTMLFormElement)
+    const ticketName = (formData.get('ticketName') as string)
+      .toUpperCase()
+      .trim()
+    const credits = parseInt(formData.get('credits') as string)
+    const description = formData.get('description') as string
+
+    // Validar nombre
+    const error = validateTicketName(ticketName)
+    if (error) {
+      ticketErrorEl!.textContent = error
+      ticketErrorEl?.classList.remove('hidden')
+      return
+    }
+
+    // Validar créditos
+    if (!credits || credits < 1 || credits > 100) {
+      alert('Los créditos deben estar entre 1 y 100')
+      return
+    }
+
+    try {
+      const resp = await fetch('/api/tickets/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: ticketName,
+          credits: credits,
+          description: description || null,
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (resp.ok && data.success) {
+        alert(`Ticket "${ticketName}" creado exitosamente!`)
+        createTicketModal?.classList.add('hidden')
+        createTicketModal?.classList.remove('flex')
+        createTicketForm?.reset()
+        location.reload()
+      } else {
+        alert(data.error || 'Error al crear el ticket')
+      }
+    } catch (error) {
+      alert('Error de conexión')
+    }
+  })
+
+  // Cerrar modal al hacer clic fuera
+  createTicketModal?.addEventListener('click', e => {
+    if (e.target === createTicketModal) {
+      createTicketModal.classList.add('hidden')
+      createTicketModal.classList.remove('flex')
+      createTicketForm?.reset()
+      ticketErrorEl?.classList.add('hidden')
+    }
+  })
+  ;(window as any).updateCredits = async (code: string) => {
+    const deltaStr = prompt('Ingresa el delta de créditos (ej. 1 o -1)')
+    if (!deltaStr) return
+    const delta = parseInt(deltaStr, 10)
+    if (isNaN(delta) || delta === 0) {
+      alert('Delta inválido')
+      return
+    }
+    try {
+      const resp = await fetch('/api/tickets/update-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, delta }),
+      })
+      const data = await resp.json()
+      if (resp.ok && data.ok) {
+        alert(`Créditos actualizados: ${data.oldCredits} -> ${data.newCredits}`)
+        location.reload()
+      } else {
+        alert(data.error || 'Error al actualizar créditos')
+      }
+    } catch (e) {
+      alert('Error de red')
+    }
+  }
+  ;(window as any).deleteTicket = async (id: number) => {
+    if (
+      !confirm('¿Eliminar ticket? Esta acción devolverá créditos originales.')
+    )
+      return
+    try {
+      const resp = await fetch(`/api/management/tickets/${id}`, {
+        method: 'DELETE',
+      })
+      const data = await resp.json()
+      if (resp.ok && data.success) {
+        alert('Ticket eliminado')
+        location.reload()
+      } else {
+        alert(data.error || 'Error al eliminar')
+      }
+    } catch (e) {
+      alert('Error de red')
+    }
+  }
+</script>

@@ -1,0 +1,35 @@
+---
+// Navbar minimal: logo a la izquierda, botón "+ Post" sólo en páginas /success/*
+// Determinamos si la ruta actual incluye "/success/".
+import { Image } from 'astro:assets'
+import hiveLogo from '@/assets/hive.svg'
+const currentPath: string = Astro.url.pathname
+const isSuccess: boolean = currentPath.startsWith('/success/')
+---
+
+<header
+  class="border-border/60 from-background/90 to-background/70 supports-[backdrop-filter]:bg-background/60 bg-gradient-to-b backdrop-blur"
+>
+  <div
+    class="mx-auto flex h-12 w-full max-w-7xl items-center justify-between px-3 md:px-5"
+  >
+    <a
+      href="/"
+      class="text-foreground flex items-center gap-2 font-medium tracking-tight transition-opacity hover:opacity-90"
+    >
+      <Image src={hiveLogo} alt="Hive" class="h-8 w-auto" />
+    </a>
+    {
+      isSuccess && (
+        <a
+          href="https://peakd.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors focus:outline-none focus-visible:ring-2"
+        >
+          + Post
+        </a>
+      )
+    }
+  </div>
+</header>

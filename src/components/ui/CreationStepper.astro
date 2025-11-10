@@ -1,0 +1,160 @@
+---
+// Componente: CreationStepper estilizado tipo Stepper (inspirado en ejemplo proporcionado)
+// Reproduce estructura conceptual: Stepper > StepperItem > StepperTrigger > StepperIndicator + (Title, Description) + StepperSeparator.
+const pathname = Astro.url.pathname
+
+// Detección de paso actual
+let current = 1
+let username: string | undefined
+switch (true) {
+  case pathname === '/' || pathname === '':
+    current = 1
+    break
+  case pathname.startsWith('/details/'):
+    current = 2
+    username = pathname.split('/details/')[1]?.split('/')[0]
+    break
+  case pathname.startsWith('/success/'):
+    current = 3
+    username = pathname.split('/success/')[1]?.split('/')[0]
+    break
+  default:
+    current = 1
+}
+
+interface StepDef {
+  readonly id: number
+  readonly label: string
+  readonly href: string
+}
+
+const steps: readonly StepDef[] = [
+  { id: 1, label: 'Elige un usuario', href: '/' },
+  {
+    id: 2,
+    label: 'Detalles de la cuenta',
+    href: username ? `/details/${username}` : '#',
+  },
+  {
+    id: 3,
+    label: 'Explora a Hive',
+    href: username ? `/success/${username}` : '#',
+  },
+]
+
+// Ya no usamos barra continua; cada segmento renderiza su propio estado.
+
+// Utility para clases (simple). Evita dependencias.
+function cls(...parts: (string | false | undefined)[]): string {
+  return parts.filter(Boolean).join(' ')
+}
+---
+
+<nav aria-label="Progreso de creación de cuenta" class="w-full">
+  <div class="mx-auto max-w-4xl px-4">
+    <div class="space-y-4 text-center">
+      <div
+        class="Stepper group/stepper relative flex w-full flex-row items-start"
+        data-orientation="horizontal"
+      >
+        {
+          steps.map(step => {
+            const isCurrent = step.id === current
+            const isCompleted = step.id < current
+            const isUpcoming = step.id > current
+            const canNavigate = isCompleted || isCurrent
+            return (
+              <div
+                class={cls(
+                  'StepperItem relative flex flex-1 flex-col items-stretch text-center',
+                  isCurrent && 'data-[state=current]'
+                )}
+                data-state={
+                  isCurrent ? 'current' : isCompleted ? 'completed' : 'pending'
+                }
+              >
+                <a
+                  href={canNavigate ? step.href : undefined}
+                  tabindex={canNavigate ? 0 : -1}
+                  class={cls(
+                    'StepperTrigger group flex flex-col items-center gap-3 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+                    !canNavigate && 'pointer-events-none cursor-default'
+                  )}
+                  aria-current={isCurrent ? 'step' : undefined}
+                >
+                  <span
+                    class={cls(
+                      'StepperIndicator relative flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-medium transition-all',
+                      isCurrent &&
+                        'scale-105 border-white bg-white text-black shadow-sm ring-2 ring-white/30',
+                      isCompleted &&
+                        !isCurrent &&
+                        'border-white bg-white text-black shadow',
+                      isUpcoming && 'border-white/10 bg-white/5 text-white/40'
+                    )}
+                  >
+                    {isCompleted && !isCurrent ? (
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        stroke-width="2"
+                        stroke="currentColor"
+                        fill="none"
+                        class="h-3.5 w-3.5"
+                      >
+                        <path stroke="none" d="M0 0h24v24H0z" />
+                        <path d="M5 12l5 5l10 -10" />
+                      </svg>
+                    ) : (
+                      step.id
+                    )}
+                  </span>
+                  <div class="StepperContent px-2 text-center">
+                    <div
+                      class={cls(
+                        'StepperTitle text-[12px] font-medium tracking-tight transition-colors md:text-sm',
+                        isCurrent && 'text-white',
+                        isCompleted && !isCurrent && 'text-white',
+                        isUpcoming && 'text-white/60'
+                      )}
+                    >
+                      {step.label}
+                    </div>
+                  </div>
+                </a>
+                {step.id < steps.length && (
+                  <div class="StepperSeparator pointer-events-none absolute left-[calc(50%+0.75rem)] right-[calc(-50%+0.75rem)] top-3 h-px -translate-y-1/2">
+                    <div
+                      class={cls(
+                        'h-px w-full transition-colors',
+                        isCompleted ? 'bg-white' : 'bg-white/10',
+                        isCurrent && 'bg-white'
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })
+        }
+      </div>
+    </div>
+  </div>
+</nav>
+
+<style>
+  /* Animación sutil de aparición */
+  nav[aria-label='Progreso de creación de cuenta'] {
+    animation: fadeSlideIn 0.4s ease both;
+  }
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style>

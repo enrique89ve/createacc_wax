@@ -1,0 +1,107 @@
+---
+import keychainIcon from '@/assets/dapps/keychain.svg'
+
+interface DownloadDef {
+  readonly id: string
+  readonly label: string
+  readonly title: string
+  readonly href: string
+  readonly short?: string
+}
+
+const downloads: readonly DownloadDef[] = [
+  {
+    id: 'chrome',
+    label: 'Chrome',
+    title: 'Instalar en Chrome',
+    href: 'https://chrome.google.com/webstore/detail/hive-keychain/jcacnejopjdphbnjgfaaobbfafkihpep?hl=en',
+    short: 'Extensión Chrome',
+  },
+  {
+    id: 'firefox',
+    label: 'Firefox',
+    title: 'Instalar en Firefox',
+    href: 'https://addons.mozilla.org/en-US/firefox/addon/hive-keychain/',
+    short: 'Extensión Firefox',
+  },
+  {
+    id: 'android',
+    label: 'Android',
+    title: 'Descargar Android',
+    href: 'https://play.google.com/store/apps/details?id=com.mobilekeychain',
+    short: 'App Android',
+  },
+  {
+    id: 'ios',
+    label: 'iOS',
+    title: 'Descargar iOS',
+    href: 'https://apps.apple.com/us/app/hive-keychain/id1552190010',
+    short: 'App iOS',
+  },
+]
+
+// Íconos SVG minimalistas alineados visualmente (24x24) siguiendo estilo monocromo adaptado a currentColor.
+// Evitamos marcas complejas y usamos formas genéricas representativas para mantener consistencia.
+const iconMap: Record<string, string> = {
+  chrome: `<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' class='h-5 w-5'><circle cx='12' cy='12' r='10'/><circle cx='12' cy='12' r='4'/><path d='M21.17 8H12v8l5.66-9.82M6.83 8H12L8.5 2.18M3 12l5.5 9.82V12'/></svg>`,
+  firefox: `<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' class='h-5 w-5'><path d='M19.9 13.5a4.5 4.5 0 1 1-4.5-4.5c1.67 0 3.13.91 3.9 2.26l2.1-3.66A9 9 0 0 0 3.73 15.5L5.06 12a7 7 0 0 1 12.94-3.5c.07.2.11.4.11.61a4.5 4.5 0 0 1-4.5 4.5 1.5 1.5 0 0 1 0-3 1.5 1.5 0 0 0 1.5 1.5'/></svg>`,
+  android: `<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' class='h-5 w-5'><path d='M18 8V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2'/><rect x='6' y='8' width='12' height='10' rx='1'/><path d='M15 2l1.5 2M9 2L7.5 4M4 10v6a1 1 0 0 0 1 1h1M18 10v6a1 1 0 0 0 1 1h1'/><circle cx='9.5' cy='11' r='.5' fill='currentColor'/><circle cx='14.5' cy='11' r='.5' fill='currentColor'/></svg>`,
+  ios: `<svg viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' class='h-5 w-5'><path d='M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z'/><path d='M14.7 6.5c.4-.8 1.1-1.4 1.9-1.5-.1 1-.5 1.9-1 2.6-.6.7-1.3 1.2-2.1 1.3.1-1 .5-1.8 1.2-2.4z'/><path d='M17.4 13.5c-.1-1.9 1.6-2.8 1.6-2.9-.9-1.3-2.2-1.4-2.7-1.5-1.1-.1-2.2.7-2.8.7s-1.5-.7-2.4-.6c-1.3.1-2.4.7-3 1.9-1.3 2.3-.3 5.7.9 7.6.6.9 1.3 1.9 2.3 1.9.9 0 1.2-.6 2.3-.6s1.4.6 2.4.6c1 0 1.6-1 2.2-1.9.7-1.1 1-2.1 1-2.1-.02-.02-1.9-.8-1.8-3.1z'/></svg>`,
+}
+---
+
+<section id="keychain" class="mx-auto max-w-6xl py-24">
+  <div class="mb-12 text-center">
+    <div
+      class="border-primary/30 bg-primary/10 text-primary mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full border shadow-inner"
+    >
+      <img src={keychainIcon.src} alt="Hive Keychain" class="h-10 w-10" />
+    </div>
+    <h2
+      class="text-foreground mb-3 text-3xl font-bold tracking-tight md:text-4xl"
+    >
+      Descargar Hive Keychain
+    </h2>
+    <p
+      class="text-muted-foreground/80 mx-auto max-w-xl text-xs font-medium uppercase tracking-wide"
+    >
+      Gestiona claves y firma transacciones
+    </p>
+  </div>
+
+  <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+    {
+      downloads.map(d => (
+        <a
+          href={d.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="border-border/60 bg-card/70 hover:bg-card focus:ring-primary/40 group relative flex flex-col overflow-hidden rounded-xl border p-4 backdrop-blur transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2"
+          data-download={d.id}
+          aria-label={d.title}
+        >
+          <div class="border-primary/30 bg-primary/10 text-primary ring-primary/10 group-hover:border-primary/50 group-hover:bg-primary/15 mb-4 flex h-10 w-10 items-center justify-center rounded-md border shadow-sm ring-1 ring-inset transition-colors">
+            <div set:html={iconMap[d.id] || ''} />
+          </div>
+          <h3 class="text-foreground group-hover:text-primary mb-1 line-clamp-2 text-sm font-semibold leading-snug tracking-tight transition-colors">
+            {d.title}
+          </h3>
+          {d.short && (
+            <span class="border-border/50 bg-background/40 text-muted-foreground group-hover:border-border group-hover:text-foreground/90 mb-3 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors">
+              {d.short}
+            </span>
+          )}
+          <span class="text-primary mt-auto inline-flex items-center gap-1 text-[11px] font-medium">
+            Abrir{' '}
+            <span
+              aria-hidden="true"
+              class="transition-transform group-hover:translate-x-0.5"
+            >
+              ↗
+            </span>
+          </span>
+        </a>
+      ))
+    }
+  </div>
+</section>
