@@ -72,6 +72,7 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
 				status: 200, 
 				headers: { 'Content-Type': 'application/json' } 
 			}
+		)
 	} catch (error) {
 		return new Response(
 			JSON.stringify({

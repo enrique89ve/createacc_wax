@@ -58,6 +58,7 @@ export const buildersProvider = Credentials({
           : Date.now(),
       },
       'keychain'
+    )
     if (result.success && result.user) {
       return {
         id: result.user.id || result.user.username, // Use database ID if available, fallback to username

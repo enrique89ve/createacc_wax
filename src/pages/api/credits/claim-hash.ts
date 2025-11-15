@@ -74,6 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
       session.user.username,
       claimCode,
       creditsToGrant
+    )
     // Crear la estructura del custom JSON para Keychain
     const customJson = {
       id: 'claim_credits',

@@ -60,6 +60,7 @@ export class SimplifiedErrorProcessor {
     const shouldRetry = this.determineRetryability(
       unifiedError,
       normalizedError
+    )
     // Generar mensaje de usuario
     const userMessage = this.generateUserMessage(unifiedError, normalizedError)
 

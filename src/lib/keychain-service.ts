@@ -84,6 +84,7 @@ export class HiveKeychainService {
     const timestamp = Date.now()
     const baseMessage =
       customMessage ||
+      `Please sign this message to verify your identity with HolaHive`
     const message = `${baseMessage}\nUsername: ${username}\nTimestamp: ${timestamp}`
 
     return createHiveMessage(message)

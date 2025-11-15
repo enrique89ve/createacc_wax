@@ -159,6 +159,7 @@ export const DELETE: APIRoute = async context => {
           'ticket_deletion',
           ticket.code,
           session.userId
+        )
       } catch (error) {
         return jsonResponse(
           {

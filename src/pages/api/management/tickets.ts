@@ -205,6 +205,8 @@ export const POST: APIRoute = async context => {
           await creditsService.consumeCredits(
             session.userId,
             credits,
+            'ticket_creation'
+          )
         } catch (error) {
           return jsonResponse(
             {

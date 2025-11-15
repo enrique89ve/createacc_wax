@@ -120,6 +120,7 @@ export const POST: APIRoute = async ({ request }) => {
 				status: 200, 
 				headers: { 'Content-Type': 'application/json' } 
 			}
+		)
 	} catch (error) {
 		
 		return new Response(
@@ -177,6 +178,7 @@ export const GET: APIRoute = async ({ url }) => {
 				status: 200, 
 				headers: { 'Content-Type': 'application/json' } 
 			}
+		)
 	} catch (error) {
 		
 		return new Response(

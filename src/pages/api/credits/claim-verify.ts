@@ -44,6 +44,7 @@ export const POST: APIRoute = async ({ request }) => {
     const hashData = claimHashCache.validateAndConsume(
       hash,
       session.user.username
+    )
     if (!hashData) {
       return new Response(
         JSON.stringify({
@@ -62,6 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
       transactionId,
       hash,
       session.user.username
+    )
     if (!verificationResult.valid) {
       return new Response(
         JSON.stringify({

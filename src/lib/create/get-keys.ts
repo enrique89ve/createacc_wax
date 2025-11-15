@@ -60,8 +60,7 @@ export function generateRandomP5Key(): string {
       result += chars.charAt(randomIndex)
     }
   } catch (error) {
-    throw new Error(
-    )
+    throw new Error('Error generando clave P5 aleatoria')
   }
 
   // Validar que la clave generada tiene el formato correcto
@@ -226,6 +225,7 @@ export async function generateHiveKeys(
         publicKey: keyData.associatedPublicKey as TPublicKey,
       }
     }
+  )
   return {
     masterPrivateKey,
     keys,

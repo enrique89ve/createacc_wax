@@ -98,6 +98,7 @@ export async function verifyClaimTransaction(
     const customJsonOp = transaction.transaction_json.operations?.find(
       op =>
         op.type === 'custom_json_operation' && op.value.id === 'claim_credits'
+    )
     if (!customJsonOp) {
       return {
         valid: false,

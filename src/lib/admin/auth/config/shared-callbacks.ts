@@ -61,6 +61,7 @@ export async function signInCallback({ user }: { user: User }) {
   const isValidUser = Boolean(
     user?.id && user?.username && user?.auth_method &&
     (user?.role || user?.type === 'admin') // Admin users don't need role
+  )
   return isValidUser
 }
 

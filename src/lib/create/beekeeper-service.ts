@@ -23,11 +23,10 @@ export class BeekeeperService {
   async createWalletSession(): Promise<IWalletSession> {
     try {
       const bk = await createBeekeeper()
-      const session = bk.createSession(
+      const session = bk.createSession(BEEKEEPER_CONFIG.salt)
       return await this.initializeWallet(session)
     } catch (error) {
-      throw new Error(
-      )
+      throw new Error(ERROR_MESSAGES.SESSION_CREATION_FAILED)
     }
   }
 
