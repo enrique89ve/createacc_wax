@@ -18,7 +18,7 @@ const DEPRECATION_MESSAGE =
 
 // PUT: DEPRECATED
 export const PUT: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminSession(context, async () => {
     return new Response(JSON.stringify({ error: DEPRECATION_MESSAGE }), {
       status: 410, // 410 Gone - indicates resource is permanently unavailable
       headers: { 'Content-Type': 'application/json' },
@@ -28,7 +28,7 @@ export const PUT: APIRoute = async context => {
 
 // GET: DEPRECATED
 export const GET: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminSession(context, async () => {
     return new Response(JSON.stringify({ error: DEPRECATION_MESSAGE }), {
       status: 410, // 410 Gone - indicates resource is permanently unavailable
       headers: { 'Content-Type': 'application/json' },

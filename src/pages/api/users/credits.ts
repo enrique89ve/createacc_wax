@@ -32,6 +32,7 @@ export const GET: APIRoute = async ({ request }) => {
     // Get user credits info using new credits service
     const userCredits = await creditsService.getUserCredits(
       session.user.username
+    )
     if (!userCredits) {
       // Usuario temporal (no está en BD) - retornar 0 créditos
       return new Response(

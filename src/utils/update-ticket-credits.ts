@@ -1,6 +1,5 @@
 import { db } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
-import type { DatabaseTicketRow } from '@/types/database'
 
 export interface UpdateTicketCreditsResultSuccess {
   readonly ok: true
@@ -19,18 +18,13 @@ export type UpdateTicketCreditsResult =
   | UpdateTicketCreditsResultSuccess
   | UpdateTicketCreditsResultError
 
-function isPositiveInteger(n: unknown): n is number {
-  return typeof n === 'number' && Number.isInteger(n)
-}
-
 export async function updateTicketCredits(options: {
   readonly code: string
   readonly delta: number // puede ser negativo
   readonly performedBy?: number
-  readonly reason?: string
 }): Promise<UpdateTicketCreditsResult> {
   try {
-    const { code, delta, performedBy, reason } = options
+    const { code, delta, performedBy } = options
     if (typeof code !== 'string' || !code.trim()) {
       return { ok: false, error: 'Código inválido' }
     }

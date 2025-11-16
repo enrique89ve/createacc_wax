@@ -14,6 +14,11 @@ import type {
 } from '@/types/hive-signature'
 import { createHiveUsername, createHiveMessage } from '@/types/hive-signature'
 
+enum KeychainLoginMessage {
+  DefaultPrefix = 'Login to HiveAccount Creation at',
+  FallbackOrigin = 'https://join.holahive.com',
+}
+
 // Declaración global para TypeScript
 declare global {
   interface Window {
@@ -77,13 +82,25 @@ export class HiveKeychainService {
   /**
    * Genera mensaje seguro para firmar
    */
+  private resolveLoginPrefix(customMessage?: string): string {
+    if (customMessage) {
+      return customMessage
+    }
+
+    const origin =
+      typeof window !== 'undefined' && window.location?.origin
+        ? window.location.origin
+        : KeychainLoginMessage.FallbackOrigin
+
+    return `${KeychainLoginMessage.DefaultPrefix} ${origin}`
+  }
+
   private generateSecureMessage(
     username: HiveUsername,
     customMessage?: string
   ): HiveMessage {
     const timestamp = Date.now()
-    const baseMessage =
-      customMessage ||
+    const baseMessage = this.resolveLoginPrefix(customMessage)
     const message = `${baseMessage}\nUsername: ${username}\nTimestamp: ${timestamp}`
 
     return createHiveMessage(message)

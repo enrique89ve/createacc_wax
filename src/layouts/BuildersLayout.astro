@@ -3,7 +3,6 @@ import '@/styles/global.css'
 import '@fontsource-variable/sora'
 import UserMenu from '@/components/ui/UserMenu.astro'
 import { getSession } from 'auth-astro/server'
-import { BuildersRepository } from '@/lib/repositories/builders-repository'
 
 export interface Props {
   title: string
@@ -22,10 +21,10 @@ if (user?.username) {
 	try {
 		const { db } = await import('@/lib/database')
 
-		// Obtener builder_id
+		// Obtener builder_id desde Users
 		const builderResult = await db.execute({
-			sql: 'SELECT id FROM Builders WHERE hive_username = ?',
-			args: [user.username],
+			sql: 'SELECT id FROM Users WHERE username = ? AND role = ?',
+			args: [user.username, 'builder'],
 		})
 
 		if (builderResult.rows.length > 0) {

@@ -1,8 +1,9 @@
 // Moved from lib/constants.ts to consts/constants.ts for clearer separation
+// WALLET_PASSWORD moved to environment variables for security
 export const BEEKEEPER_CONFIG = {
   WALLET_NAME: 'holahive-creator',
-  WALLET_PASSWORD: 'holahive-secure-password-2024',
   SESSION_PREFIX: 'holahive-session',
+  SESSION_SALT: 'holahive-beekeeper-salt-2024',
 } as const
 
 export const RC_DELEGATION_AMOUNT = '50000000000' as const
@@ -13,6 +14,7 @@ export const ERROR_MESSAGES = {
     NO_PUBLIC_KEYS: 'No public keys found in wallet',
     PRIVATE_KEY_REQUIRED: 'Private key is required for wallet creation',
     CONFIG_REQUIRED: 'Account and private key are required',
+    SESSION_CREATION_FAILED: 'Failed to create Beekeeper session',
   },
   DELEGATION: {
     SELF_DELEGATION: 'Cannot delegate RC to yourself',
@@ -26,6 +28,7 @@ export const ROUTES = {
   MANAGEMENT: '/management/',
   API_LOGIN: '/api/auth/login',
   API_LOGOUT: '/api/auth/logout',
+  BUILDERS_LOGIN: '/builders/login',
 } as const
 
 export const SESSION_KEYS = {
@@ -34,30 +37,8 @@ export const SESSION_KEYS = {
   USER: 'user',
 } as const
 
-/**
- * @deprecated USER_ROLES is deprecated for backward compatibility only.
- * New code should use separate Admin and Builder types.
- * See: src/lib/admin/auth/helpers/auth-guards.ts
- */
 export const USER_ROLES = ['admin', 'builder'] as const
-
-/**
- * @deprecated UserRole type for backward compatibility only.
- * New code should use AdminSession or BuilderSession types.
- */
 export type UserRole = (typeof USER_ROLES)[number]
-
-export const TICKET_TYPES = {
-  REGULAR: 'regular',
-  ADMIN: 'admin',
-} as const
-
-export const TICKET_TYPE_LIST = [
-  TICKET_TYPES.REGULAR,
-  TICKET_TYPES.ADMIN,
-] as const
-
-export type TicketType = (typeof TICKET_TYPE_LIST)[number]
 
 export const AUTH_PROVIDERS = {
   CREDENTIALS: 'credentials',
@@ -164,4 +145,23 @@ export const ENV_KEYS = {
   HIVE_CREATOR_ACTIVE_KEY: 'HIVE_CREATOR_ACTIVE_KEY',
   HIVE_DELEGATOR_ACTIVE_KEY: 'HIVE_DELEGATOR_ACTIVE_KEY',
   MAINNET: 'MAINNET',
+  BEEKEEPER_WALLET_PASSWORD: 'BEEKEEPER_WALLET_PASSWORD',
 } as const
+
+export const CREDIT_ASSIGNMENT_SOURCES = {
+  MANUAL_CONSOLE: 'Asignación manual desde consola',
+  BUILDER_CREATION: 'Créditos iniciales al crear builder',
+  ADMIN_TRANSFER: 'Transferencia administrativa',
+} as const
+
+export const HIVE_USERNAME_CONSTRAINTS = {
+  MIN_LENGTH: 3,
+  MAX_LENGTH: 16,
+} as const
+
+export const BUILDER_INITIAL_CREDITS = 100 as const
+
+export enum CreditAssignLimits {
+  Min = 1,
+  Max = 100,
+}

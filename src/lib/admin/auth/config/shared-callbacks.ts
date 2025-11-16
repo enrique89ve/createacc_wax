@@ -10,18 +10,17 @@ import type { Session, User } from '@auth/core/types'
  * JWT callback - Stores user data in token
  */
 export async function jwtCallback({
-	token,
-	user
+  token,
+  user,
 }: {
-	token: JWT
-	user?: User
+  token: JWT
+  user?: User
 }) {
   // On sign in, store user data in token
   if (user) {
     token.userId = user.id
     token.username = user.username
     token.role = user.role
-    token.type = user.type // Add type for auth-guards
     token.auth_method = user.auth_method
     token.loginTime = user.loginTime
   }
@@ -44,7 +43,6 @@ export async function sessionCallback({
     session.user.id = token.userId as string
     session.user.username = token.username as string
     session.user.role = token.role as string
-    session.user.type = token.type as string // Add type for auth-guards
     session.user.auth_method = token.auth_method as string
     session.user.loginTime = token.loginTime as number
   }
@@ -59,8 +57,8 @@ export async function signInCallback({ user }: { user: User }) {
   // Allow sign in if user object exists and has required fields
   // Note: role is optional for admin users (type='admin')
   const isValidUser = Boolean(
-    user?.id && user?.username && user?.auth_method &&
-    (user?.role || user?.type === 'admin') // Admin users don't need role
+    user?.id && user?.username && user?.auth_method && user?.role
+  )
   return isValidUser
 }
 

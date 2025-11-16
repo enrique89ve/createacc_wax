@@ -3,6 +3,8 @@ import createBeekeeper, {
   type IBeekeeperWallet,
 } from '@hiveio/beekeeper'
 import { BEEKEEPER_CONFIG, ERROR_MESSAGES } from '@/consts/constants'
+import { getRequiredEnvString } from '@/lib/env'
+import { ENV_KEYS } from '@/consts/constants'
 
 export interface IWalletSession {
   readonly wallet: IBeekeeperUnlockedWallet
@@ -23,10 +25,11 @@ export class BeekeeperService {
   async createWalletSession(): Promise<IWalletSession> {
     try {
       const bk = await createBeekeeper()
-      const session = bk.createSession(
+      const session = bk.createSession(BEEKEEPER_CONFIG.SESSION_SALT)
       return await this.initializeWallet(session)
     } catch (error) {
       throw new Error(
+        `${ERROR_MESSAGES.WALLET.SESSION_CREATION_FAILED}: ${error instanceof Error ? error.message : String(error)}`
       )
     }
   }
@@ -37,7 +40,7 @@ export class BeekeeperService {
         BEEKEEPER_CONFIG.WALLET_NAME
       )
       const unlockedWallet = await lockedWallet.unlock(
-        BEEKEEPER_CONFIG.WALLET_PASSWORD
+        getRequiredEnvString(ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv)
       )
       const publicKeys = unlockedWallet.getPublicKeys()
 
@@ -58,7 +61,7 @@ export class BeekeeperService {
 
     const { wallet } = await session.createWallet(
       BEEKEEPER_CONFIG.WALLET_NAME,
-      BEEKEEPER_CONFIG.WALLET_PASSWORD,
+      getRequiredEnvString(ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv),
       false
     )
     const publicKey = await wallet.importKey(this.config.privateKey)

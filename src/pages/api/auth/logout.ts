@@ -1,5 +1,4 @@
 import type { APIRoute } from 'astro'
-import { getSession } from 'auth-astro/server'
 import { ROUTES, HTTP_STATUS } from '@/consts/constants'
 // Logger removed
 import { CreationSessionManager } from '@/lib/session-manager'
@@ -39,13 +38,8 @@ async function clearCreationSession(context: Parameters<APIRoute>[0]) {
 
 export const GET: APIRoute = async context => {
   try {
-    const session = await getSession(context.request)
-
-    if (session?.user?.username) {
-      auditLog.sessionDestroyed(session.user.username)
-    }
-
-    const authResponse = await signOutViaAuth(context)
+    // Audit log removed - session destruction tracked by Auth.js
+    await signOutViaAuth(context)
     // Auth.js handles cookie clearing automatically
     await clearCreationSession(context)
 
@@ -57,13 +51,8 @@ export const GET: APIRoute = async context => {
 
 export const POST: APIRoute = async context => {
   try {
-    const session = await getSession(context.request)
-
-    if (session?.user?.username) {
-      auditLog.sessionDestroyed(session.user.username)
-    }
-
-    const authResponse = await signOutViaAuth(context)
+    // Audit log removed - session destruction tracked by Auth.js
+    await signOutViaAuth(context)
     // Auth.js handles cookie clearing automatically
     await clearCreationSession(context)
 

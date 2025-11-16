@@ -34,37 +34,23 @@ const jsonResponse = (data: unknown, status: number): Response => {
 const getTicketCreator = async (
   ticket: DatabaseTicketRow
 ): Promise<CreatorInfo | null> => {
-  if (ticket.created_by_builder) {
-    const result = await db.execute({
-      sql: 'SELECT id, hive_username FROM Builders WHERE id = ?',
-      args: [ticket.created_by_builder],
-    })
-
-    if (result.rows.length === 0) return null
-
-    return {
-      userId: result.rows[0].id as number,
-      username: result.rows[0].hive_username as string,
-      role: 'builder',
-    }
+  if (!ticket.created_by) {
+    return null
   }
 
-  if (ticket.created_by_admin) {
-    const result = await db.execute({
-      sql: 'SELECT id, username FROM Admins WHERE id = ?',
-      args: [ticket.created_by_admin],
-    })
+  const result = await db.execute({
+    sql: 'SELECT id, username, role FROM Users WHERE id = ?',
+    args: [ticket.created_by],
+  })
 
-    if (result.rows.length === 0) return null
+  if (result.rows.length === 0) return null
 
-    return {
-      userId: result.rows[0].id as number,
-      username: result.rows[0].username as string,
-      role: 'admin',
-    }
+  const user = result.rows[0]
+  return {
+    userId: user.id as number,
+    username: user.username as string,
+    role: user.role as 'admin' | 'builder',
   }
-
-  return null
 }
 
 // Helper: Verificar permisos de eliminaci�n
@@ -153,12 +139,16 @@ export const DELETE: APIRoute = async context => {
 
       // Devolver créditos al creador directamente como 'claimed' (disponibles de inmediato)
       try {
-        await creditsService.returnCredits(
-          creator.username,
-          ticket.original_credits,
-          'ticket_deletion',
-          ticket.code,
-          session.userId
+        const creatorCredits = await creditsService.getBuilderCredits(
+          creator.username
+        )
+        if (creatorCredits) {
+          await creditsService.refundCreditsFromTicket(
+            creatorCredits.builder_id,
+            ticket.original_credits,
+            ticket.code
+          )
+        }
       } catch (error) {
         return jsonResponse(
           {

@@ -1,55 +1,15 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
-import { db } from '@/lib/database'
-
-// La autenticación ya se maneja en ManagementLayout
-const session = Astro.locals.adminUser as import('@/types/auth').AdminSession
-
-// Solo admin puede acceder a builders
-
-// Definir interfaz para Builder con estadísticas
-interface BuilderWithStats {
-  id: number
-  hive_username: string
-  is_active: boolean
-  last_claim_at: string | null
-  created_at: string
-  tickets_created: number
-  available_credits: number
-  pending_credits: number
-}
+import {
+  usersRepository,
+  type BuilderWithStats,
+} from '@/lib/repositories/users-repository'
 
 // Obtener builders con estadísticas
 let builders: BuilderWithStats[] = []
 
 try {
-  const result = await db.execute(`
-    SELECT
-      b.id,
-      b.hive_username,
-      b.is_active,
-      b.last_claim_at,
-      b.created_at,
-      COUNT(DISTINCT t.id) as tickets_created,
-      COALESCE(c.available_amount, 0) as available_credits,
-      COALESCE(c.pending_amount, 0) as pending_credits
-    FROM Builders b
-    LEFT JOIN Tickets t ON t.created_by_builder = b.id
-    LEFT JOIN Credits c ON c.builder_id = b.id
-    GROUP BY b.id, b.hive_username, b.is_active, b.last_claim_at, b.created_at
-    ORDER BY b.created_at DESC
-  `)
-
-  builders = result.rows.map((row: any) => ({
-    id: row.id,
-    hive_username: row.hive_username,
-    is_active: row.is_active === 1 || row.is_active === true,
-    last_claim_at: row.last_claim_at,
-    created_at: row.created_at,
-    tickets_created: Number(row.tickets_created || 0),
-    available_credits: Number(row.available_credits || 0),
-    pending_credits: Number(row.pending_credits || 0),
-  }))
+  builders = await usersRepository.getBuildersWithStats()
 } catch (error) {}
 ---
 
@@ -59,14 +19,14 @@ try {
     <div>
       <h2 class="text-foreground text-2xl font-bold">Gestión de Builders</h2>
       <p class="text-muted-foreground mt-1">
-        Gestiona usuarios con acceso a crear tickets
+        Asigna créditos a usuarios de Hive para crear cuentas
       </p>
     </div>
     <button
-      id="create-builder-btn"
+      id="assign-credits-btn"
       class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
     >
-      + Crear Builder
+      💳 Asignar Créditos
     </button>
   </div>
 
@@ -152,10 +112,10 @@ try {
                     <div class="flex gap-2">
                       <button
                         class="text-primary hover:text-primary/80 text-sm font-medium"
-                        onclick={`updateBuilderCredits('${builder.hive_username}')`}
-                        title="Actualizar créditos"
+                        onclick={`assignMoreCredits('${builder.hive_username}')`}
+                        title="Asignar más créditos"
                       >
-                        💳 Actualizar
+                        💳 Asignar
                       </button>
                       <button
                         class="text-destructive hover:text-destructive/80 text-sm font-medium"
@@ -175,65 +135,90 @@ try {
         <div class="p-8 text-center">
           <div class="text-muted-foreground mb-4 text-6xl">👷</div>
           <p class="text-foreground mb-2 text-lg font-medium">
-            No hay builders
+            No hay builders aún
           </p>
           <p class="text-muted-foreground">
-            Aún no se han creado usuarios builders en el sistema
+            Asigna créditos a un usuario de Hive para comenzar
           </p>
         </div>
       )
     }
   </div>
 
-  <!-- Create Builder Modal -->
+  <!-- Assign Credits Modal -->
   <div
-    id="create-modal"
+    id="assign-modal"
     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
   >
     <div
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        Crear Nuevo Builder
+        Asignar Créditos a Builder
       </h3>
 
-      <form id="create-form" class="space-y-4">
+      <form id="assign-form" class="space-y-4">
         <div>
           <label
             for="builder-username"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Hive Username
+            Usuario de Hive
           </label>
           <input
             id="builder-username"
             type="text"
             minlength="3"
             maxlength="20"
-            placeholder="hive_username"
+            placeholder="username"
             required
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Username de Hive del builder. Usará Keychain para autenticarse.
+            Si el usuario no existe, se creará automáticamente como builder
+          </p>
+        </div>
+
+        <div>
+          <label
+            for="credits-amount"
+            class="text-foreground mb-1 block text-sm font-medium"
+          >
+            Cantidad de Créditos
+          </label>
+          <input
+            id="credits-amount"
+            type="number"
+            min="1"
+            max="100"
+            value="10"
+            placeholder="10"
+            required
+            class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+          />
+          <p class="text-muted-foreground mt-1 text-xs">
+            Máximo 100 créditos por asignación
           </p>
         </div>
 
         <div class="bg-muted/50 rounded-lg p-3">
           <h4 class="text-foreground mb-2 text-sm font-medium">
-            Sistema de Tickets:
+            ℹ️ ¿Cómo funciona?
           </h4>
           <ul class="text-muted-foreground space-y-1 text-xs">
-            <li>• El builder usará Hive Keychain para autenticarse</li>
-            <li>• Puede crear tickets ilimitados por defecto</li>
+            <li>• Los créditos se asignan como "Pendientes"</li>
             <li>
-              • 1 ticket puede tener múltiples créditos para crear cuentas
+              • Si el usuario no existe, se crea automáticamente como builder
             </li>
-            <li>• Los límites se configuran mediante el sistema de créditos</li>
+            <li>
+              • El builder debe autenticarse con Keychain para reclamarlos
+            </li>
+            <li>• Después del claim, puede crear tickets y cuentas</li>
+            <li>• 1 crédito = 1 cuenta de Hive que puede crear</li>
           </ul>
         </div>
 
-        <div id="create-error" class="text-destructive hidden text-sm"></div>
+        <div id="assign-error" class="text-destructive hidden text-sm"></div>
 
         <div class="flex gap-3 pt-4">
           <button
@@ -248,7 +233,7 @@ try {
             id="submit-btn"
             class="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
           >
-            Crear Builder
+            Asignar Créditos
           </button>
         </div>
       </form>
@@ -264,13 +249,13 @@ try {
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        ✅ Builder Creado Exitosamente
+        ✅ Créditos Asignados Exitosamente
       </h3>
 
       <div class="space-y-4">
         <div>
           <label class="text-foreground mb-1 block text-sm font-medium">
-            Hive Username:
+            Usuario:
           </label>
           <div
             class="bg-background border-border text-foreground rounded-lg border px-3 py-2 text-sm"
@@ -279,11 +264,22 @@ try {
           </div>
         </div>
 
+        <div>
+          <label class="text-foreground mb-1 block text-sm font-medium">
+            Créditos Asignados:
+          </label>
+          <div
+            class="bg-background border-border rounded-lg border px-3 py-2 text-sm font-semibold text-green-600"
+          >
+            <span id="success-amount"></span> créditos
+          </div>
+        </div>
+
         <div class="rounded-lg border border-green-200 bg-green-50 p-3">
           <p class="text-sm text-green-800">
-            ✅ <strong>Builder creado correctamente.</strong> El usuario podrá autenticarse
-            con Hive Keychain usando @<span id="success-username-repeat"
-            ></span>.
+            ✅ <strong>Créditos asignados correctamente.</strong> El usuario @<span
+              id="success-username-repeat"></span> debe autenticarse con Keychain
+            para reclamarlos.
           </p>
         </div>
 
@@ -296,323 +292,6 @@ try {
       </div>
     </div>
   </div>
-
-  <!-- Update Credits Modal -->
-  <div
-    id="update-credits-modal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
-  >
-    <div
-      class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
-    >
-      <h3 class="text-foreground mb-4 text-lg font-semibold">
-        Actualizar Créditos
-      </h3>
-
-      <form id="update-credits-form" class="space-y-4">
-        <div>
-          <label
-            for="update-builder-username"
-            class="text-foreground mb-1 block text-sm font-medium"
-          >
-            Builder:
-          </label>
-          <div
-            class="bg-background border-border text-foreground rounded-lg border px-3 py-2 text-sm"
-          >
-            @<span id="update-builder-username"></span>
-          </div>
-        </div>
-
-        <div>
-          <label
-            for="credits-amount"
-            class="text-foreground mb-1 block text-sm font-medium"
-          >
-            Cantidad de Créditos
-          </label>
-          <input
-            id="credits-amount"
-            type="number"
-            min="1"
-            max="10000"
-            placeholder="100"
-            required
-            class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-          />
-          <p class="text-muted-foreground mt-1 text-xs">
-            Los créditos se agregarán a "Créditos Pendientes" que el builder
-            debe reclamar.
-          </p>
-        </div>
-
-        <div class="bg-muted/50 rounded-lg p-3">
-          <h4 class="text-foreground mb-2 text-sm font-medium">
-            ℹ️ Información:
-          </h4>
-          <ul class="text-muted-foreground space-y-1 text-xs">
-            <li>• Los créditos se agregan a "Pendientes"</li>
-            <li>• El builder debe reclamarlos para usarlos</li>
-            <li>• Los créditos disponibles aumentan después del claim</li>
-          </ul>
-        </div>
-
-        <div id="update-credits-error" class="text-destructive hidden text-sm">
-        </div>
-
-        <div class="flex gap-3 pt-4">
-          <button
-            type="button"
-            id="cancel-update-credits-btn"
-            class="bg-muted hover:bg-muted/80 text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            class="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
-          >
-            Asignar Créditos
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
 </ManagementLayout>
 
-<script>
-  declare global {
-    interface Window {
-      deleteBuilder?: (builderId: number) => Promise<void>
-      updateBuilderCredits?: (username: string) => void
-    }
-  }
-
-  // Referencias DOM
-  const createBtn = document.getElementById('create-builder-btn')
-  const createModal = document.getElementById('create-modal')
-  const createForm = document.getElementById('create-form') as HTMLFormElement
-  const cancelBtn = document.getElementById('cancel-btn')
-  const createError = document.getElementById('create-error')
-  const successModal = document.getElementById('success-modal')
-  const successCloseBtn = document.getElementById('success-close-btn')
-
-  // Referencias para actualizar créditos
-  const updateCreditsModal = document.getElementById('update-credits-modal')
-  const updateCreditsForm = document.getElementById(
-    'update-credits-form'
-  ) as HTMLFormElement
-  const cancelUpdateCreditsBtn = document.getElementById(
-    'cancel-update-credits-btn'
-  )
-  const updateCreditsError = document.getElementById('update-credits-error')
-  const updateBuilderUsernameSpan = document.getElementById(
-    'update-builder-username'
-  )
-  let currentBuilderUsername = ''
-
-  // Función para recargar la lista de builders
-  async function refreshBuildersList() {
-    location.reload()
-  }
-
-  // Modal functions
-  function showCreateModal() {
-    createModal?.classList.remove('hidden')
-    createModal?.classList.add('flex')
-  }
-
-  function hideCreateModal() {
-    createModal?.classList.add('hidden')
-    createModal?.classList.remove('flex')
-    createForm?.reset()
-    createError?.classList.add('hidden')
-  }
-
-  function showSuccessModal(username: string) {
-    const usernameEl = document.getElementById('success-username')
-    const usernameRepeatEl = document.getElementById('success-username-repeat')
-
-    if (usernameEl) usernameEl.textContent = username
-    if (usernameRepeatEl) usernameRepeatEl.textContent = username
-
-    successModal?.classList.remove('hidden')
-    successModal?.classList.add('flex')
-  }
-
-  function hideSuccessModal() {
-    successModal?.classList.add('hidden')
-    successModal?.classList.remove('flex')
-  }
-
-  function showUpdateCreditsModal(username: string) {
-    currentBuilderUsername = username
-    if (updateBuilderUsernameSpan) {
-      updateBuilderUsernameSpan.textContent = username
-    }
-    updateCreditsModal?.classList.remove('hidden')
-    updateCreditsModal?.classList.add('flex')
-    ;(document.getElementById('credits-amount') as HTMLInputElement)?.focus()
-  }
-
-  function hideUpdateCreditsModal() {
-    updateCreditsModal?.classList.add('hidden')
-    updateCreditsModal?.classList.remove('flex')
-    updateCreditsForm?.reset()
-    updateCreditsError?.classList.add('hidden')
-  }
-
-  function showError(message: string) {
-    if (createError) {
-      createError.textContent = message
-      createError.classList.remove('hidden')
-    }
-  }
-
-  function showUpdateCreditsError(message: string) {
-    if (updateCreditsError) {
-      updateCreditsError.textContent = message
-      updateCreditsError.classList.remove('hidden')
-    }
-  }
-
-  // Event listeners
-  createBtn?.addEventListener('click', showCreateModal)
-  cancelBtn?.addEventListener('click', hideCreateModal)
-  cancelUpdateCreditsBtn?.addEventListener('click', hideUpdateCreditsModal)
-  successCloseBtn?.addEventListener('click', () => {
-    hideSuccessModal()
-    refreshBuildersList()
-  })
-
-  // Click outside modal to close
-  createModal?.addEventListener('click', e => {
-    if (e.target === createModal) {
-      hideCreateModal()
-    }
-  })
-
-  updateCreditsModal?.addEventListener('click', e => {
-    if (e.target === updateCreditsModal) {
-      hideUpdateCreditsModal()
-    }
-  })
-
-  successModal?.addEventListener('click', e => {
-    if (e.target === successModal) {
-      hideSuccessModal()
-      refreshBuildersList()
-    }
-  })
-
-  // Create builder form
-  createForm?.addEventListener('submit', async e => {
-    e.preventDefault()
-
-    const hiveUsername = (
-      document.getElementById('builder-username') as HTMLInputElement
-    ).value
-      .trim()
-      .toLowerCase()
-
-    if (!hiveUsername || hiveUsername.length < 3) {
-      showError('El username debe tener al menos 3 caracteres')
-      return
-    }
-
-    try {
-      const response = await fetch('/api/management/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          hive_username: hiveUsername,
-        }),
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        hideCreateModal()
-        showSuccessModal(result.user.hive_username)
-      } else {
-        showError(result.error || 'Error al crear builder')
-      }
-    } catch (error) {
-      showError('Error de conexión')
-    }
-  })
-
-  // Delete builder function
-  window.deleteBuilder = async (builderId: number) => {
-    if (
-      !confirm(
-        '¿Estás seguro de que quieres eliminar este builder?\n\nEsta acción no se puede deshacer y el usuario perderá acceso a crear tickets.'
-      )
-    ) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/management/users?id=${builderId}`, {
-        method: 'DELETE',
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        await refreshBuildersList()
-      } else {
-        alert(result.error || 'Error al eliminar builder')
-      }
-    } catch (error) {
-      alert('Error de conexión')
-    }
-  }
-
-  // Update credits function
-  window.updateBuilderCredits = (username: string) => {
-    showUpdateCreditsModal(username)
-  }
-
-  // Update credits form
-  updateCreditsForm?.addEventListener('submit', async e => {
-    e.preventDefault()
-
-    const creditsAmount = parseInt(
-      (document.getElementById('credits-amount') as HTMLInputElement).value,
-      10
-    )
-    if (!creditsAmount || creditsAmount < 1) {
-      showUpdateCreditsError('La cantidad debe ser mayor a 0')
-      return
-    }
-
-    try {
-      const response = await fetch(
-        `/api/management/users/${currentBuilderUsername}/credits`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            amount: creditsAmount,
-          }),
-        }
-      )
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        hideUpdateCreditsModal()
-        alert()
-        await refreshBuildersList()
-      } else {
-        showUpdateCreditsError(result.error || 'Error al asignar créditos')
-      }
-    } catch (error) {
-      showUpdateCreditsError('Error de conexión')
-    }
-  })
-</script>
+<script src="../../scripts/management/builders.ts"></script>

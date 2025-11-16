@@ -179,7 +179,7 @@ try {
                           {ticket.code}
                         </p>
                         <p class="text-muted-foreground text-xs">
-                          Por {ticket.created_by_username} • {ticket.type} •{' '}
+                          Por {ticket.created_by_username} • {ticket.creator_type ?? 'manual'} •{' '}
                           {ticket.credits}/{ticket.original_credits} créditos
                         </p>
                       </div>

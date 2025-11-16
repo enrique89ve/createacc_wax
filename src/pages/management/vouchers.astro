@@ -13,30 +13,33 @@ let canCreateTickets = true
 let remainingQuota = 0
 
 try {
-	if (session.role === 'admin') {
-		// Admin puede ver todos los tickets
-		tickets = await ticketsRepository.getAllWithCreators()
-	} else {
-		// Builder solo ve sus tickets
-		tickets = await ticketsRepository.getBuilderTicketsWithCreator(session.userId)
+  if (session.role === 'admin') {
+    // Admin puede ver todos los tickets
+    tickets = await ticketsRepository.getAllWithCreators()
+  } else {
+    // Builder solo ve sus tickets
+    tickets = await ticketsRepository.getBuilderTicketsWithCreator(
+      session.userId
+    )
 
-		// Verificar créditos disponibles para builder
-		const credits = await creditsService.getBuilderCreditsByBuilderId(session.userId)
+    // Verificar créditos disponibles para builder
+    const credits = await creditsService.getBuilderCreditsByBuilderId(
+      session.userId
+    )
 
-		if (credits) {
-			const availableCredits = credits.available_amount
+    if (credits) {
+      const availableCredits = credits.available_amount
 
-			// En el nuevo sistema, canCreateTickets depende de tener créditos
-			canCreateTickets = availableCredits > 0
-			remainingQuota = availableCredits
-		} else {
-			// Builder no encontrado o sin datos
-			canCreateTickets = false
-			remainingQuota = 0
-		}
-	}
-} catch (error) {
-}
+      // En el nuevo sistema, canCreateTickets depende de tener créditos
+      canCreateTickets = availableCredits > 0
+      remainingQuota = availableCredits
+    } else {
+      // Builder no encontrado o sin datos
+      canCreateTickets = false
+      remainingQuota = 0
+    }
+  }
+} catch (error) {}
 ---
 
 <ManagementLayout title="Gestión de Tickets - HolaHive" activeTab="tickets">
@@ -137,12 +140,12 @@ try {
                   <td class="whitespace-nowrap px-6 py-4">
                     <span
                       class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                        ticket.type === 'admin'
+                        ticket.creator_role === 'admin'
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      {ticket.type}
+                      {ticket.creator_role ?? 'manual'}
                     </span>
                   </td>
                   <td class="whitespace-nowrap px-6 py-4">
@@ -163,7 +166,7 @@ try {
                     </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {ticket.created_by_username}
+                    {ticket.creator_username}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     {new Date(ticket.created_at).toLocaleDateString()}
@@ -175,7 +178,7 @@ try {
                     {!ticket.has_been_used &&
                       (session.role === 'admin' ||
                         (session.role === 'builder' &&
-                          ticket.created_by_builder === session.userId)) && (
+                          ticket.created_by === session.userId)) && (
                         <button
                           class="text-destructive hover:text-destructive/80 text-sm font-medium"
                           onclick={`deleteTicket(${ticket.id})`}
@@ -306,117 +309,4 @@ try {
   </div>
 </div>
 
-<script>
-  declare global {
-    interface Window {
-      deleteTicket?: (ticketId: number) => Promise<void>
-    }
-  }
-  // Referencias DOM
-  const createBtn = document.getElementById('create-ticket-btn')
-  const createModal = document.getElementById('create-modal')
-  const createForm = document.getElementById('create-form')
-  const cancelBtn = document.getElementById('cancel-btn')
-  const createError = document.getElementById('create-error')
-
-  // Modal functions
-  function showModal() {
-    createModal?.classList.remove('hidden')
-    createModal?.classList.add('flex')
-  }
-
-  function hideModal() {
-    createModal?.classList.add('hidden')
-    createModal?.classList.remove('flex')
-    ;(createForm as HTMLFormElement | null)?.reset()
-    createError?.classList.add('hidden')
-  }
-
-  function showError(message: string) {
-    if (createError) {
-      createError.textContent = message
-      createError.classList.remove('hidden')
-    }
-  }
-
-  // Event listeners
-  createBtn?.addEventListener('click', showModal)
-  cancelBtn?.addEventListener('click', hideModal)
-
-  // Click outside modal to close
-  createModal?.addEventListener('click', e => {
-    if (e.target === createModal) {
-      hideModal()
-    }
-  })
-
-  // Create ticket form
-  createForm?.addEventListener('submit', async e => {
-    e.preventDefault()
-
-    const code = (
-      document.getElementById('ticket-code') as HTMLInputElement
-    ).value
-      .trim()
-      .toUpperCase()
-    const type = (document.getElementById('ticket-type') as HTMLSelectElement)
-      .value
-    const description = (
-      document.getElementById('ticket-description') as HTMLInputElement
-    ).value.trim()
-    const creditsRaw = (
-      document.getElementById('ticket-credits') as HTMLInputElement
-    ).value
-    const credits = Math.max(1, parseInt(creditsRaw || '1', 10))
-
-    if (!code) {
-      showError('El código del ticket es requerido')
-      return
-    }
-
-    try {
-      const response = await fetch('/api/management/tickets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ code, type, description, credits }),
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        location.reload()
-      } else {
-        showError(result.error || 'Error al crear ticket')
-      }
-    } catch (error) {
-      showError('Error de conexión')
-    }
-  })
-
-  // Delete ticket function
-  window.deleteTicket = async (ticketId: number) => {
-    if (!confirm('¿Estás seguro de que quieres eliminar este ticket?')) {
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/management/tickets/${ticketId}`, {
-        method: 'DELETE',
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        location.reload()
-      } else {
-        alert(result.error || 'Error al eliminar ticket')
-      }
-    } catch (error) {
-      alert('Error de conexión')
-    }
-  }
-
-  // Logout ya está manejado en ManagementLayout
-</script>
+<script src="../../scripts/management/vouchers.ts"></script>

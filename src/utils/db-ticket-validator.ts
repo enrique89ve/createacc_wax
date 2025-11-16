@@ -1,12 +1,12 @@
 import { db } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
-import { 
+import {
   ALL_ERROR_CODES,
   BLOCKCHAIN_ERROR_CODES,
   DATABASE_ERROR_CODES,
   VALIDATION_ERROR_CODES,
-  type UnifiedErrorCode
+  type UnifiedErrorCode,
 } from '@/consts/unified-errors'
 
 /**
@@ -33,30 +33,26 @@ const TICKET_CODE_MAX = 24
 
 function sanitizeTicketCode(raw: string): string | null {
   if (typeof raw !== 'string') {
-
     return null
   }
-  
+
   const code = raw.trim().toUpperCase()
-  
+
   // Validar longitud
   if (code.length < TICKET_CODE_MIN || code.length > TICKET_CODE_MAX) {
-
     return null
   }
-  
+
   // SEGURIDAD: Solo permitir caracteres alfanuméricos (evita inyección)
   if (!/^[A-Z0-9]+$/.test(code)) {
-
     return null
   }
-  
+
   // SEGURIDAD: No permitir solo números
   if (/^\d+$/.test(code)) {
-
     return null
   }
-  
+
   return code
 }
 
@@ -102,19 +98,18 @@ export async function validateTicketInDB(
     if (!ticket) {
       return { isValid: false, error: 'Formato de ticket inválido' }
     }
-    
+
     if (!ticket.is_active) {
       return { isValid: false, error: 'Ticket no está activo' }
     }
-    
+
     // Verificar que el ticket tenga créditos disponibles
     if (ticket.credits <= 0) {
       return { isValid: false, error: 'Ticket sin créditos disponibles' }
     }
-    
+
     return { isValid: true, ticket }
   } catch (error) {
-
     return { isValid: false, error: 'Error interno validando ticket' }
   }
 }
@@ -152,7 +147,6 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
 
     return true
   } catch (error) {
-
     return false
   }
 }
@@ -180,7 +174,6 @@ export async function saveCreatedAccount(
 
     return true
   } catch (error) {
-
     return false
   }
 }
@@ -200,7 +193,6 @@ export async function accountExistsInDB(username: string): Promise<boolean> {
 
     return result.rows.length > 0
   } catch (error) {
-
     return false
   }
 }
@@ -225,7 +217,6 @@ export async function isTicketAlreadyUsed(
     const row = result.rows[0] as { has_been_used?: unknown }
     return Boolean(row.has_been_used)
   } catch (error) {
-
     return false
   }
 }
@@ -283,7 +274,6 @@ export async function checkIdempotency(
       message: 'Can proceed with account creation',
     }
   } catch (error) {
-
     return {
       canProceed: false,
       accountExists: false,
@@ -299,7 +289,7 @@ export async function checkIdempotency(
 export interface DBOperationResult {
   readonly success: boolean
   readonly error?: string
-  readonly errorCode?: ErrorCode | DatabaseErrorCode
+  readonly errorCode?: ErrorCode
   readonly correlationId?: string
 }
 
@@ -330,7 +320,9 @@ export async function completeAccountCreationInDB(
       return {
         success: accountSaved,
         error: accountSaved ? undefined : 'Failed to save account',
-        errorCode: accountSaved ? undefined : ErrorCode.DB_ERROR,
+        errorCode: accountSaved
+          ? undefined
+          : DATABASE_ERROR_CODES.INTERNAL_ERROR,
         correlationId,
       }
     } catch (error) {
@@ -387,15 +379,6 @@ export async function completeAccountCreationInDB(
           throw new Error('TICKET_RACE_CONDITION')
         }
       }
-
-      const row = updateResult.rows[0] as unknown as {
-        id: number
-        code: string
-        remaining_credits: number
-      }
-      const ticketRow = row
-      
-      // Log para verificar que se descontaron los créditos
 
       // 2. Guardar cuenta (puede fallar por UNIQUE constraint)
       try {

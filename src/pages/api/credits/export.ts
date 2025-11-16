@@ -36,54 +36,13 @@ export const GET: APIRoute = async ({ request, url }) => {
     // Determinar si el usuario es Admin o Builder
     const username = session.user.username
 
-    // Primero intentar encontrar como Builder
-    const builderResult = await db.execute({
-      sql: 'SELECT id, hive_username FROM Builders WHERE hive_username = ? AND is_active = TRUE',
+    // Obtener usuario de tabla unificada Users
+    const userResult = await db.execute({
+      sql: 'SELECT id, username, role FROM Users WHERE username = ? AND is_active = TRUE',
       args: [username],
     })
 
-    // Si no es Builder, intentar como Admin
-    const adminResult = await db.execute({
-      sql: 'SELECT id, username FROM Admins WHERE username = ? AND is_active = TRUE',
-      args: [username],
-    })
-
-    let historyQuery: string
-    let queryArgs: string[]
-
-    if (builderResult.rows.length > 0) {
-      // Es un Builder - obtener tickets creados por este builder
-      const builderId = builderResult.rows[0].id as number
-      historyQuery = `
-        SELECT
-          t.id, t.code, t.type, t.description,
-          t.original_credits, t.credits, t.created_at,
-          ta.action, ta.timestamp,
-          b.hive_username as created_by_username
-        FROM Tickets t
-        LEFT JOIN TicketAudit ta ON t.code = ta.ticket
-        LEFT JOIN Builders b ON t.created_by_builder = b.id
-        WHERE t.created_by_builder = ?
-        ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
-      `
-      queryArgs = [builderId.toString()]
-    } else if (adminResult.rows.length > 0) {
-      // Es un Admin - obtener tickets creados por este admin
-      const adminId = adminResult.rows[0].id as number
-      historyQuery = `
-        SELECT
-          t.id, t.code, t.type, t.description,
-          t.original_credits, t.credits, t.created_at,
-          ta.action, ta.timestamp,
-          a.username as created_by_username
-        FROM Tickets t
-        LEFT JOIN TicketAudit ta ON t.code = ta.ticket
-        LEFT JOIN Admins a ON t.created_by_admin = a.id
-        WHERE t.created_by_admin = ?
-        ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
-      `
-      queryArgs = [adminId.toString()]
-    } else {
+    if (userResult.rows.length === 0) {
       return new Response(
         JSON.stringify({ success: false, error: 'Usuario no encontrado' }),
         {
@@ -92,6 +51,25 @@ export const GET: APIRoute = async ({ request, url }) => {
         }
       )
     }
+
+    const user = userResult.rows[0]
+    const userId = user.id as number
+
+    // Query unificada para obtener tickets creados por el usuario
+    const historyQuery = `
+      SELECT
+        t.id, t.code, t.description,
+        t.original_credits, t.credits, t.created_at,
+        ta.action, ta.timestamp,
+        u.username as created_by_username,
+        u.role as creator_role
+      FROM Tickets t
+      LEFT JOIN TicketAudit ta ON t.code = ta.ticket
+      LEFT JOIN Users u ON t.created_by = u.id
+      WHERE t.created_by = ?
+      ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
+    `
+    const queryArgs = [userId.toString()]
 
     // Obtener historial completo de créditos
     const historyResult = await db.execute({

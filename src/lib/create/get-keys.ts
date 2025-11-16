@@ -226,6 +226,7 @@ export async function generateHiveKeys(
         publicKey: keyData.associatedPublicKey as TPublicKey,
       }
     }
+  )
   return {
     masterPrivateKey,
     keys,

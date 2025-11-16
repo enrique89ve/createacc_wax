@@ -31,7 +31,6 @@ export interface DashboardStats {
  */
 export interface RecentTicketInfo {
 	readonly code: string
-	readonly type: string
 	readonly original_credits: number
 	readonly credits: number
 	readonly is_active: boolean
@@ -87,7 +86,7 @@ export class DashboardService {
 			const result = await db.execute({
 				sql: `
 					SELECT
-						(SELECT COUNT(*) FROM Builders WHERE is_active = TRUE) as total_builders,
+						(SELECT COUNT(*) FROM Users WHERE role = 'builder' AND is_active = TRUE) as total_builders,
 						(SELECT COUNT(*) FROM Tickets) as total_tickets,
 						(SELECT COUNT(*) FROM Tickets WHERE has_been_used = TRUE) as used_tickets,
 						(SELECT COUNT(*) FROM Accounts) as total_accounts,
@@ -119,21 +118,15 @@ export class DashboardService {
 				sql: `
 					SELECT
 						t.code,
-						t.type,
 						t.original_credits,
 						t.credits,
 						t.is_active,
 						t.has_been_used,
 						t.created_at,
-						COALESCE(b.hive_username, a.username) as created_by_username,
-						CASE
-							WHEN t.created_by_builder IS NOT NULL THEN 'builder'
-							WHEN t.created_by_admin IS NOT NULL THEN 'admin'
-							ELSE NULL
-						END as creator_type
+						u.username as created_by_username,
+						u.role as creator_type
 					FROM Tickets t
-					LEFT JOIN Builders b ON t.created_by_builder = b.id
-					LEFT JOIN Admins a ON t.created_by_admin = a.id
+					LEFT JOIN Users u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
@@ -142,7 +135,6 @@ export class DashboardService {
 
 			return result.rows.map((row: Record<string, unknown>) => ({
 				code: String(row.code),
-				type: String(row.type),
 				original_credits: Number(row.original_credits),
 				credits: Number(row.credits),
 				is_active: sqliteToBoolean(row.is_active),
@@ -215,9 +207,9 @@ export class DashboardService {
 			const result = await db.execute({
 				sql: `
 					SELECT
-						b.id as builder_id,
-						b.hive_username,
-						b.is_active,
+						u.id as builder_id,
+						u.username as hive_username,
+						u.is_active,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
 						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
@@ -225,12 +217,12 @@ export class DashboardService {
 						COALESCE(c.available_amount, 0) as available_credits,
 						COALESCE(c.total_assigned, 0) as total_assigned,
 						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Builders b
-					LEFT JOIN Tickets t ON b.id = t.created_by_builder
+					FROM Users u
+					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
-					LEFT JOIN Credits c ON b.id = c.builder_id
-					WHERE b.id = ?
-					GROUP BY b.id, b.hive_username, b.is_active, c.pending_amount, c.available_amount, c.total_assigned, c.total_consumed
+					LEFT JOIN Credits c ON u.id = c.builder_id
+					WHERE u.id = ? AND u.role = 'builder'
+					GROUP BY u.id, u.username, u.is_active, c.pending_amount, c.available_amount, c.total_assigned, c.total_consumed
 				`,
 				args: [builderId],
 			})
@@ -266,9 +258,9 @@ export class DashboardService {
 			const result = await db.execute({
 				sql: `
 					SELECT
-						b.id as builder_id,
-						b.hive_username,
-						b.is_active,
+						u.id as builder_id,
+						u.username as hive_username,
+						u.is_active,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
 						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
@@ -276,12 +268,13 @@ export class DashboardService {
 						COALESCE(c.available_amount, 0) as available_credits,
 						COALESCE(c.total_assigned, 0) as total_assigned,
 						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Builders b
-					LEFT JOIN Tickets t ON b.id = t.created_by_builder
+					FROM Users u
+					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
-					LEFT JOIN Credits c ON b.id = c.builder_id
-					GROUP BY b.id, b.hive_username, b.is_active, c.pending_amount, c.available_amount, c.total_assigned, c.total_consumed
-					ORDER BY b.created_at DESC
+					LEFT JOIN Credits c ON u.id = c.builder_id
+					WHERE u.role = 'builder'
+					GROUP BY u.id, u.username, u.is_active, c.pending_amount, c.available_amount, c.total_assigned, c.total_consumed
+					ORDER BY u.created_at DESC
 				`,
 				args: [],
 			})
@@ -371,13 +364,14 @@ export class DashboardService {
 			const result = await db.execute({
 				sql: `
 					SELECT
-						b.hive_username,
+						u.username as hive_username,
 						COUNT(DISTINCT a.id) as total_accounts,
 						COUNT(DISTINCT t.id) as total_tickets
-					FROM Builders b
-					LEFT JOIN Tickets t ON b.id = t.created_by_builder
+					FROM Users u
+					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
-					GROUP BY b.id, b.hive_username
+					WHERE u.role = 'builder'
+					GROUP BY u.id, u.username
 					ORDER BY total_accounts DESC
 					LIMIT ?
 				`,

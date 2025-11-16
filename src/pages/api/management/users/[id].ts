@@ -50,7 +50,7 @@ export const PATCH: APIRoute = async context => {
 
       // Verificar que el builder existe
       const builderResult = await db.execute({
-        sql: 'SELECT id, hive_username FROM Builders WHERE id = ?',
+        sql: 'SELECT id, username FROM Users WHERE id = ? AND role = \'builder\'',
         args: [builderId],
       })
 
@@ -65,7 +65,7 @@ export const PATCH: APIRoute = async context => {
 
       // Actualizar estado
       await db.execute({
-        sql: 'UPDATE Builders SET is_active = ? WHERE id = ?',
+        sql: 'UPDATE Users SET is_active = ? WHERE id = ? AND role = \'builder\'',
         args: [is_active, builderId],
       })
 
@@ -75,7 +75,7 @@ export const PATCH: APIRoute = async context => {
           message: 'Builder actualizado exitosamente',
           user: {
             id: builderId,
-            hive_username: builder.hive_username,
+            hive_username: builder.username,
             is_active,
           },
         }),
@@ -119,7 +119,7 @@ export const DELETE: APIRoute = async context => {
 
       // Verificar que el builder existe
       const builderResult = await db.execute({
-        sql: 'SELECT id, hive_username FROM Builders WHERE id = ?',
+        sql: 'SELECT id, username FROM Users WHERE id = ? AND role = \'builder\'',
         args: [userId],
       })
 
@@ -132,7 +132,7 @@ export const DELETE: APIRoute = async context => {
 
       // Eliminar builder
       await db.execute({
-        sql: 'DELETE FROM Builders WHERE id = ?',
+        sql: 'DELETE FROM Users WHERE id = ? AND role = \'builder\'',
         args: [userId],
       })
 

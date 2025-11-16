@@ -4,7 +4,7 @@ import BuildersTabs from '@/components/ui/BuildersTabs.astro'
 import BuildersCard from '@/components/ui/BuildersCard.astro'
 import BuildersTable from '@/components/ui/BuildersTable.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
-import { buildersRepository } from '@/lib/repositories/builders-repository'
+import { usersRepository } from '@/lib/repositories/users-repository'
 
 // Verificar autenticación y obtener usuario
 const currentUser = await getAuthenticatedUser(Astro, 'builders')
@@ -17,9 +17,13 @@ if (currentUser instanceof Response) {
 // Obtener datos usando el servicio centralizado
 // currentUser garantizado (ya se manejó el redirect arriba)
 const username = (currentUser as any).username as string
+const builder = await usersRepository.findByUsername(username)
+const builderId = builder?.id
+
+// Obtener cuentas y estadísticas
 const [accounts, stats] = await Promise.all([
-  buildersRepository.getAccountsByUser(username),
-  buildersRepository.getBuildersStats(username),
+  builderId ? usersRepository.getAccountsByUser(builderId) : [],
+  builderId ? usersRepository.getBuildersStats(builderId) : { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 },
 ])
 
 // Configurar columnas para la tabla de cuentas
@@ -60,25 +64,6 @@ const accountColumns = [
     key: 'creation_date',
     label: 'Fecha de Creación',
     type: 'date' as const,
-  },
-  {
-    key: 'actions',
-    label: 'Acciones',
-    type: 'actions' as const,
-    actions: [
-      {
-        label: 'Ver Detalles',
-        icon: '👁️',
-        onClick: 'viewAccountDetails',
-        variant: 'primary' as const,
-      },
-      {
-        label: 'Descargar Claves',
-        icon: '💾',
-        onClick: 'downloadKeys',
-        variant: 'secondary' as const,
-      },
-    ],
   },
 ]
 
@@ -180,11 +165,3 @@ const accountsByType = accounts.reduce(
     </div>
   </div>
 </BuildersLayout>
-
-<script>
-  // Funciones para las acciones de la tabla
-  function viewAccountDetails(accountId: string) {
-    // Redirigir a la página de detalles
-    window.location.href = `/details/${accountId}`
-  }
-</script>

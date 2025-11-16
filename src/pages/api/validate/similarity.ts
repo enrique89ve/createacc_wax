@@ -4,7 +4,6 @@ import {
   findSimilarUsernames,
   isWithinTimeRange,
   generateSimilarityErrorMessage,
-  generateUsernameSuggestions,
   type SimilarityCheckResult,
 } from '@/utils/username-similarity'
 
@@ -24,7 +23,6 @@ interface SimilarityValidationResponse {
   threshold: number
   timeRangeHours: number
   errorMessage?: string
-  suggestions?: string[]
   totalAccountsChecked: number
 }
 
@@ -170,9 +168,6 @@ export const GET: APIRoute = async ({ url }) => {
           totalAccountsChecked: recentAccounts.length,
           errorMessage: similarityResult.isSimilar
             ? generateSimilarityErrorMessage(similarityResult.similarUsernames)
-            : null,
-          suggestions: similarityResult.isSimilar
-            ? generateUsernameSuggestions(testUsername)
             : null,
         }),
         {

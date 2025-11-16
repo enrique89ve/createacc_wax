@@ -29,7 +29,7 @@ export class CreationSessionManager {
     try {
       if (!this.context.session) return
 
-      await this.context.session.set(SESSION_KEYS.CREATE_FLOW, data)
+      this.context.session.set(SESSION_KEYS.CREATE_FLOW, data)
     } catch (error) {
       throw error
     }
@@ -48,7 +48,7 @@ export class CreationSessionManager {
     try {
       if (!this.context.session) return
 
-      await this.context.session.set(SESSION_KEYS.CREATE_FLOW, null)
+      this.context.session.set(SESSION_KEYS.CREATE_FLOW, null)
     } catch (error) {
       throw error
     }

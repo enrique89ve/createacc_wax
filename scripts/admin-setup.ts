@@ -15,7 +15,7 @@ function question(query: string): Promise<string> {
 
 async function checkAdminExists(): Promise<boolean> {
 	try {
-		const result = await db.execute('SELECT COUNT(*) as count FROM Admins')
+		const result = await db.execute("SELECT COUNT(*) as count FROM Users WHERE role = 'admin'")
 		const row = result.rows[0]
 		return row && (row.count as number) > 0
 	} catch {
@@ -28,14 +28,14 @@ async function createAdmin(username: string, password: string) {
 		const passwordHash = await bcrypt.hash(password, 10)
 
 		await db.execute({
-			sql: `INSERT INTO Admins (username, password_hash, is_active)
-				  VALUES (?, ?, TRUE)`,
+			sql: `INSERT INTO Users (username, password_hash, role, is_active)
+				  VALUES (?, ?, 'admin', TRUE)`,
 			args: [username, passwordHash],
 		})
 
 		console.log(`✅ Admin account created successfully!`)
 		console.log(`   Username: ${username}`)
-		console.log(`   You can now login at /admin/login`)
+		console.log(`   You can now login at /management/access`)
 	} catch (error) {
 		if (
 			error instanceof Error &&
@@ -57,7 +57,7 @@ async function resetAdminPassword(password: string) {
 		const passwordHash = await bcrypt.hash(password, 10)
 
 		await db.execute({
-			sql: `UPDATE Admins SET password_hash = ?, updated_at = CURRENT_TIMESTAMP`,
+			sql: `UPDATE Users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE role = 'admin'`,
 			args: [passwordHash],
 		})
 
@@ -70,7 +70,7 @@ async function resetAdminPassword(password: string) {
 
 async function getAdminInfo() {
 	try {
-		const result = await db.execute('SELECT username, is_active FROM Admins')
+		const result = await db.execute("SELECT username, is_active FROM Users WHERE role = 'admin'")
 		if (result.rows.length > 0) {
 			const admin = result.rows[0]
 			console.log('👤 Current Admin Account:')

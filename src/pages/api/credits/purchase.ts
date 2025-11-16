@@ -61,6 +61,7 @@ export const POST: APIRoute = async ({ request }) => {
     // Obtener información del usuario usando el nuevo servicio
     const userCredits = await creditsService.getUserCredits(
       session.user.username
+    )
     if (!userCredits) {
       return new Response(
         JSON.stringify({

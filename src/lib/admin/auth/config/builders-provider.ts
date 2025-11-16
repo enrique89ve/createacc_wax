@@ -42,32 +42,47 @@ export const buildersProvider = Credentials({
     },
   },
 
-  async authorize(credentials) {
-    if (!credentials?.username || !credentials?.message) {
+  async authorize(rawCredentials) {
+    const credentials = rawCredentials ?? {}
+    const username =
+      typeof credentials.username === 'string'
+        ? credentials.username.trim()
+        : ''
+    const message =
+      typeof credentials.message === 'string' ? credentials.message : ''
+
+    if (!username || !message) {
       return null
     }
 
-    const result = await validateCredentials(
-      {
-        username: credentials.username as string,
-        message: credentials.message as string,
-        publicKey: (credentials.publicKey as string) || '',
-        signature: (credentials.signature as string) || '',
-        timestamp: credentials.timestamp
-          ? Number(credentials.timestamp)
-          : Date.now(),
-      },
-      'keychain'
-    if (result.success && result.user) {
-      return {
-        id: result.user.id || result.user.username, // Use database ID if available, fallback to username
-        username: result.user.username,
-        role: 'builder', // Unified role system
-        auth_method: 'keychain',
-        loginTime: Date.now(),
-      }
+    const keychainCredentials: KeychainCredentials = {
+      type: 'keychain',
+      username,
+      message,
+      publicKey: credentials.publicKey
+        ? String(credentials.publicKey)
+        : undefined,
+      signature: credentials.signature
+        ? String(credentials.signature)
+        : undefined,
+      timestamp: credentials.timestamp
+        ? Number(credentials.timestamp)
+        : Date.now(),
     }
 
-    return null
+    const result = await validateCredentials(keychainCredentials, 'keychain')
+    if (!result.success) {
+      return null
+    }
+
+    const { user } = result
+
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      auth_method: user.auth_method,
+      loginTime: user.loginTime,
+    }
   },
 })

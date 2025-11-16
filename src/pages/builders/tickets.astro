@@ -1,8 +1,10 @@
 ---
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import BuildersTabs from '@/components/ui/BuildersTabs.astro'
-import { db } from '@/lib/database'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
+import { ticketsRepository } from '@/lib/repositories/tickets-repository'
+import type { BuilderUser } from '@/lib/admin/auth/helpers/auth-guards'
+import type { TicketWithCreator } from '@/types/database'
 
 // Autenticación centralizada - si no está autenticado, se redirige automáticamente
 const currentUser = await getAuthenticatedUser(Astro, 'builders')
@@ -12,39 +14,31 @@ if (currentUser instanceof Response) {
   return currentUser
 }
 
-// Obtener tickets del usuario (misma lógica que management pero solo propios siempre)
-interface BuilderTicketRow {
-  readonly id: number
-  readonly code: string
-  readonly type: string
-  readonly description: string | null
-  readonly original_credits: number
-  readonly credits: number
-  readonly is_active: number | boolean
-  readonly has_been_used: number | boolean
-  readonly created_at: string
-  readonly updated_at: string | null
-  readonly created_by: number
-}
+// Obtener tickets del usuario usando repository
+let tickets: TicketWithCreator[] = []
 
-let tickets: BuilderTicketRow[] = []
-try {
-  const result = await db.execute({
-    sql: `SELECT id, code, type, description, original_credits, credits, is_active, has_been_used, created_at, updated_at, created_by_builder as created_by
-          FROM Tickets
-          WHERE created_by_builder = (SELECT id FROM Builders WHERE hive_username = ?)
-          ORDER BY created_at DESC`,
-    args: [(currentUser as any).username],
-  })
-  tickets = result.rows as unknown as BuilderTicketRow[]
-} catch (error) {}
+// Asegurar que tenemos un BuilderUser válido
+if (!currentUser || currentUser.role !== 'builder') {
+  console.error('Invalid builder user:', currentUser)
+} else {
+  try {
+    const builderUser = currentUser as BuilderUser
+    tickets = await ticketsRepository.getBuilderTicketsWithCreator(
+      builderUser.id
+    )
+  } catch (error) {
+    console.error('Error loading tickets:', error)
+  }
+}
 ---
 
 <BuildersLayout title="Dashboard" currentPage="tickets">
   <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <div class="mb-6">
       <h1 class="mb-2 text-3xl font-bold text-white">
-        Hola {(currentUser as any).username}! 👋
+        Hola {
+          currentUser?.role === 'builder' ? currentUser.username : 'Builder'
+        }! 👋
       </h1>
       <p class="text-gray-400">
         Gestiona tus tickets y crea cuentas Hive desde un solo lugar.
@@ -81,9 +75,6 @@ try {
                     Código
                   </th>
                   <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
-                    Tipo
-                  </th>
-                  <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
                     Créditos
                   </th>
                   <th class="px-4 py-2 text-left font-medium uppercase tracking-wide text-gray-300">
@@ -105,13 +96,6 @@ try {
                       {t.description && (
                         <div class="text-xs text-gray-400">{t.description}</div>
                       )}
-                    </td>
-                    <td class="px-4 py-2 align-top">
-                      <span
-                        class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium capitalize ${t.type === 'premium' ? 'bg-purple-500/20 text-purple-300' : t.type === 'admin' ? 'bg-pink-500/20 text-pink-300' : 'bg-gray-500/20 text-gray-300'}`}
-                      >
-                        {t.type}
-                      </span>
                     </td>
                     <td class="px-4 py-2 align-top">
                       <span class="font-semibold text-white">{t.credits}</span>
@@ -195,19 +179,27 @@ try {
           >
             Nombre del Ticket
           </label>
-          <input
-            type="text"
-            id="ticket-name"
-            name="ticketName"
-            maxlength="16"
-            placeholder="Ej: PROMO2025"
-            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 uppercase text-white focus:border-transparent focus:outline-none focus:ring-2"
-            required
-          />
+          <div class="relative">
+            <input
+              type="text"
+              id="ticket-name"
+              name="ticketName"
+              maxlength="16"
+              placeholder="Ej: PROMO2025"
+              class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 uppercase text-white focus:border-transparent focus:outline-none focus:ring-2"
+              required
+            />
+            <div
+              id="ticket-check-icon"
+              class="absolute right-3 top-1/2 hidden -translate-y-1/2"
+            >
+              <!-- Icons will be injected here -->
+            </div>
+          </div>
           <p class="mt-1 text-xs text-gray-400">
             4-16 caracteres, letras y números (no solo números)
           </p>
-          <p id="ticket-error" class="mt-1 hidden text-xs text-red-400"></p>
+          <p id="ticket-availability" class="mt-1 text-xs"></p>
         </div>
         <div class="mb-4">
           <label
@@ -266,9 +258,18 @@ try {
   </div>
 
   <!-- Navegación interna eliminada: cubierta por las pestañas -->
+
+  <!-- Notification Toast -->
+  <div
+    id="notification-toast"
+    class="fixed bottom-4 right-4 z-50 hidden max-w-sm rounded-lg border p-4"
+  >
+    <!-- Notifications will be injected here -->
+  </div>
 </BuildersLayout>
 
 <script>
+  // ===== TYPES =====
   declare global {
     interface Window {
       updateCredits?: (code: string) => Promise<void>
@@ -276,20 +277,59 @@ try {
     }
   }
 
-  // Validación de ticket (mismo formato que validate-ticket.ts)
-  const MIN_TICKET_LENGTH = 4
-  const MAX_TICKET_LENGTH = 16 // Cambiado de 24 a 16 según requisitos
-  const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
+  type NotifyType = 'success' | 'error' | 'info'
+
+  // ===== CONSTANTS =====
   const ONLY_NUMBERS_REGEX = /^\d+$/
+  const MIN_TICKET_NAME_LENGTH = 4
+  const MAX_TICKET_NAME_LENGTH = 16
+
+  // ===== HELPER FUNCTIONS =====
+  function notify(type: NotifyType, message: string): void {
+    const resultDiv = document.getElementById('notification-toast')
+    if (!resultDiv) {
+      console.log(`[${type.toUpperCase()}]`, message)
+      return
+    }
+
+    const colors: Record<NotifyType, string> = {
+      success: 'bg-green-900/20 border-green-500/30 text-green-400',
+      error: 'bg-red-900/20 border-red-500/30 text-red-400',
+      info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
+    }
+
+    const icons: Record<NotifyType, string> = {
+      success: '✅',
+      error: '❌',
+      info: 'ℹ️',
+    }
+
+    resultDiv.className = `fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border p-4 ${colors[type]}`
+    resultDiv.innerHTML = `
+			<div class="font-medium">
+				${icons[type]} ${message}
+			</div>
+		`
+    resultDiv.classList.remove('hidden')
+
+    setTimeout(() => {
+      resultDiv.classList.add('hidden')
+    }, 5000)
+  }
 
   function validateTicketName(name: string): string | null {
-    if (!name) return 'El nombre no puede estar vacío'
-    if (name.length < MIN_TICKET_LENGTH)
-      return `Mínimo ${MIN_TICKET_LENGTH} caracteres`
-    if (name.length > MAX_TICKET_LENGTH)
-      return `Máximo ${MAX_TICKET_LENGTH} caracteres`
-    if (!ALPHANUMERIC_REGEX.test(name)) return 'Solo letras y números'
-    if (ONLY_NUMBERS_REGEX.test(name)) return 'No puede ser solo números'
+    if (!name || name.trim().length === 0) {
+      return 'El nombre del ticket es requerido'
+    }
+    if (name.length < MIN_TICKET_NAME_LENGTH) {
+      return `El nombre debe tener al menos ${MIN_TICKET_NAME_LENGTH} caracteres`
+    }
+    if (name.length > MAX_TICKET_NAME_LENGTH) {
+      return `El nombre no puede exceder ${MAX_TICKET_NAME_LENGTH} caracteres`
+    }
+    if (ONLY_NUMBERS_REGEX.test(name)) {
+      return 'No puede ser solo números'
+    }
     return null
   }
 
@@ -303,7 +343,94 @@ try {
   const ticketNameInput = document.getElementById(
     'ticket-name'
   ) as HTMLInputElement | null
-  const ticketErrorEl = document.getElementById('ticket-error')
+  const ticketAvailabilityEl = document.getElementById('ticket-availability')
+  const ticketCheckIcon = document.getElementById('ticket-check-icon')
+
+  // Debounce timer para validación en tiempo real
+  let validationTimeout: ReturnType<typeof setTimeout> | null = null
+  let isCodeAvailable = false
+
+  // Validación en tiempo real del código del ticket
+  ticketNameInput?.addEventListener('input', async e => {
+    const input = e.target as HTMLInputElement
+    const code = input.value.trim().toUpperCase()
+
+    // Limpiar timeout anterior
+    if (validationTimeout) {
+      clearTimeout(validationTimeout)
+    }
+
+    // Resetear UI
+    if (ticketCheckIcon) {
+      ticketCheckIcon.classList.add('hidden')
+      ticketCheckIcon.innerHTML = ''
+    }
+    if (ticketAvailabilityEl) {
+      ticketAvailabilityEl.textContent = ''
+      ticketAvailabilityEl.className = 'mt-1 text-xs'
+    }
+
+    isCodeAvailable = false
+
+    // Si el campo está vacío, no validar
+    if (code.length === 0) return
+
+    // Validación básica de formato
+    const formatError = validateTicketName(code)
+    if (formatError) {
+      if (ticketAvailabilityEl) {
+        ticketAvailabilityEl.textContent = formatError
+        ticketAvailabilityEl.className = 'mt-1 text-xs text-red-400'
+      }
+      return
+    }
+
+    // Mostrar estado de carga
+    if (ticketCheckIcon) {
+      ticketCheckIcon.classList.remove('hidden')
+      ticketCheckIcon.innerHTML = '<span class="text-gray-400">⏳</span>'
+    }
+
+    // Validar disponibilidad con debounce (500ms)
+    validationTimeout = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/tickets/check-code?code=${encodeURIComponent(code)}`
+        )
+        const data = await response.json()
+
+        if (data.available) {
+          isCodeAvailable = true
+          if (ticketCheckIcon) {
+            ticketCheckIcon.innerHTML = '<span class="text-green-400">✓</span>'
+          }
+          if (ticketAvailabilityEl) {
+            ticketAvailabilityEl.textContent = '✓ Código disponible'
+            ticketAvailabilityEl.className = 'mt-1 text-xs text-green-400'
+          }
+        } else {
+          isCodeAvailable = false
+          if (ticketCheckIcon) {
+            ticketCheckIcon.innerHTML = '<span class="text-red-400">✗</span>'
+          }
+          if (ticketAvailabilityEl) {
+            ticketAvailabilityEl.textContent =
+              data.error || data.message || 'Código no disponible'
+            ticketAvailabilityEl.className = 'mt-1 text-xs text-red-400'
+          }
+        }
+      } catch (error) {
+        // Error de red - no bloquear
+        if (ticketCheckIcon) {
+          ticketCheckIcon.classList.add('hidden')
+        }
+        if (ticketAvailabilityEl) {
+          ticketAvailabilityEl.textContent = 'Error al verificar disponibilidad'
+          ticketAvailabilityEl.className = 'mt-1 text-xs text-yellow-400'
+        }
+      }
+    }, 500)
+  })
 
   createTicketBtn?.addEventListener('click', () => {
     createTicketModal?.classList.remove('hidden')
@@ -315,23 +442,12 @@ try {
     createTicketModal?.classList.add('hidden')
     createTicketModal?.classList.remove('flex')
     createTicketForm?.reset()
-    ticketErrorEl?.classList.add('hidden')
-  })
-
-  // Validación en tiempo real
-  ticketNameInput?.addEventListener('input', e => {
-    const target = e.target as HTMLInputElement
-    const value = target.value.toUpperCase()
-    target.value = value
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .slice(0, MAX_TICKET_LENGTH)
-
-    const error = validateTicketName(target.value)
-    if (error && target.value.length > 0) {
-      ticketErrorEl!.textContent = error
-      ticketErrorEl?.classList.remove('hidden')
-    } else {
-      ticketErrorEl?.classList.add('hidden')
+    // Limpiar mensajes de validación
+    if (ticketAvailabilityEl) {
+      ticketAvailabilityEl.textContent = ''
+    }
+    if (ticketCheckIcon) {
+      ticketCheckIcon.classList.add('hidden')
     }
   })
 
@@ -349,14 +465,22 @@ try {
     // Validar nombre
     const error = validateTicketName(ticketName)
     if (error) {
-      ticketErrorEl!.textContent = error
-      ticketErrorEl?.classList.remove('hidden')
+      notify('error', error)
+      return
+    }
+
+    // Validar disponibilidad antes de enviar
+    if (!isCodeAvailable) {
+      notify(
+        'error',
+        'El código del ticket no está disponible o no ha sido validado'
+      )
       return
     }
 
     // Validar créditos
     if (!credits || credits < 1 || credits > 100) {
-      alert('Los créditos deben estar entre 1 y 100')
+      notify('error', 'Los créditos deben estar entre 1 y 100')
       return
     }
 
@@ -374,16 +498,16 @@ try {
       const data = await resp.json()
 
       if (resp.ok && data.success) {
-        alert(`Ticket "${ticketName}" creado exitosamente!`)
+        notify('success', `Ticket "${ticketName}" creado exitosamente!`)
         createTicketModal?.classList.add('hidden')
         createTicketModal?.classList.remove('flex')
         createTicketForm?.reset()
         location.reload()
       } else {
-        alert(data.error || 'Error al crear el ticket')
+        notify('error', data.error || 'Error al crear el ticket')
       }
     } catch (error) {
-      alert('Error de conexión')
+      notify('error', 'Error de conexión')
     }
   })
 
@@ -393,15 +517,21 @@ try {
       createTicketModal.classList.add('hidden')
       createTicketModal.classList.remove('flex')
       createTicketForm?.reset()
-      ticketErrorEl?.classList.add('hidden')
+      // Limpiar mensajes de validación
+      if (ticketAvailabilityEl) {
+        ticketAvailabilityEl.textContent = ''
+      }
+      if (ticketCheckIcon) {
+        ticketCheckIcon.classList.add('hidden')
+      }
     }
   })
-  ;(window as any).updateCredits = async (code: string) => {
+  window.updateCredits = async (code: string) => {
     const deltaStr = prompt('Ingresa el delta de créditos (ej. 1 o -1)')
     if (!deltaStr) return
     const delta = parseInt(deltaStr, 10)
     if (isNaN(delta) || delta === 0) {
-      alert('Delta inválido')
+      notify('error', 'Delta inválido')
       return
     }
     try {
@@ -412,16 +542,19 @@ try {
       })
       const data = await resp.json()
       if (resp.ok && data.ok) {
-        alert(`Créditos actualizados: ${data.oldCredits} -> ${data.newCredits}`)
+        notify(
+          'success',
+          `Créditos actualizados: ${data.oldCredits} → ${data.newCredits}`
+        )
         location.reload()
       } else {
-        alert(data.error || 'Error al actualizar créditos')
+        notify('error', data.error || 'Error al actualizar créditos')
       }
     } catch (e) {
-      alert('Error de red')
+      notify('error', 'Error de red')
     }
   }
-  ;(window as any).deleteTicket = async (id: number) => {
+  window.deleteTicket = async (id: number) => {
     if (
       !confirm('¿Eliminar ticket? Esta acción devolverá créditos originales.')
     )
@@ -432,13 +565,13 @@ try {
       })
       const data = await resp.json()
       if (resp.ok && data.success) {
-        alert('Ticket eliminado')
+        notify('success', 'Ticket eliminado')
         location.reload()
       } else {
-        alert(data.error || 'Error al eliminar')
+        notify('error', data.error || 'Error al eliminar')
       }
     } catch (e) {
-      alert('Error de red')
+      notify('error', 'Error de red')
     }
   }
 </script>

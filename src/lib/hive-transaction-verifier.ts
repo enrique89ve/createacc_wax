@@ -98,6 +98,7 @@ export async function verifyClaimTransaction(
     const customJsonOp = transaction.transaction_json.operations?.find(
       op =>
         op.type === 'custom_json_operation' && op.value.id === 'claim_credits'
+    )
     if (!customJsonOp) {
       return {
         valid: false,
@@ -192,7 +193,7 @@ export async function cleanupExpiredHashes(): Promise<void> {
   try {
     const { db } = await import('./database')
 
-    const result = await db.execute({
+    await db.execute({
       sql: `DELETE FROM TempClaimHashes
 			      WHERE expires_at < datetime('now') AND used = FALSE`,
       args: [],

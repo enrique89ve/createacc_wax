@@ -3,7 +3,6 @@ import { getSession } from 'auth-astro/server'
 import { db } from '@/lib/database'
 import { HTTP_STATUS } from '@/consts/constants'
 // Logger removed
-import { creditsService } from '@/lib/credits-service'
 import { claimHashCache } from '@/lib/claim-hash-cache'
 
 export const POST: APIRoute = async ({ request }) => {
@@ -22,7 +21,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Verificar que el usuario es un builder activo
     const builderResult = await db.execute({
-      sql: 'SELECT id FROM Builders WHERE hive_username = ? AND is_active = TRUE',
+      sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder' AND is_active = TRUE",
       args: [session.user.username],
     })
 
@@ -74,6 +73,8 @@ export const POST: APIRoute = async ({ request }) => {
       session.user.username,
       claimCode,
       creditsToGrant
+    )
+
     // Crear la estructura del custom JSON para Keychain
     const customJson = {
       id: 'claim_credits',

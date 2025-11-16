@@ -15,13 +15,13 @@ export interface AuthResult {
 
 /**
  * Get admin user for password authentication
- * Uses Admins table (only 1 admin allowed)
+ * Uses Users table with role='admin' (only 1 admin allowed)
  */
 async function getSuperAdminUser(): Promise<NewUser | null> {
   try {
     const result = await db.execute({
-      sql: `SELECT id, username, password_hash, created_at, updated_at FROM Admins WHERE is_active = TRUE LIMIT 1`,
-      args: []
+      sql: `SELECT id, username, password_hash, created_at, updated_at FROM Users WHERE role = ? AND is_active = TRUE LIMIT 1`,
+      args: ['admin']
     })
 
     if (result.rows.length === 0) return null

@@ -5,51 +5,61 @@
 
 import Credentials from '@auth/core/providers/credentials'
 import { validatePasswordCredentials } from '@/lib/admin/auth/validators/password-validator'
+import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 
 /**
  * Credentials provider for management area
  * Supports admin and referral user authentication
  */
 export const managementProvider = Credentials({
-	id: 'management-credentials',
-	name: 'Management Login',
-	credentials: {
-		username: {
-			label: 'Username',
-			type: 'text',
-			placeholder: 'Enter your username'
-		},
-		password: {
-			label: 'Password',
-			type: 'password',
-			placeholder: 'Enter your password'
-		}
-	},
+  id: 'management-credentials',
+  name: 'Management Login',
+  credentials: {
+    username: {
+      label: 'Username',
+      type: 'text',
+      placeholder: 'Enter your username',
+    },
+    password: {
+      label: 'Password',
+      type: 'password',
+      placeholder: 'Enter your password',
+    },
+  },
 
-	async authorize(credentials) {
+  async authorize(rawCredentials) {
+    const credentials = rawCredentials ?? {}
 
-		if (!credentials?.username || !credentials?.password) {
+    const username =
+      typeof credentials.username === 'string'
+        ? credentials.username.trim()
+        : ''
+    const password =
+      typeof credentials.password === 'string' ? credentials.password : ''
 
-			return null
-		}
+    if (!username || !password) {
+      return null
+    }
 
-		const result = await validatePasswordCredentials({
-			username: credentials.username as string,
-			password: credentials.password as string
-		})
+    const passwordCredentials: PasswordCredentials = {
+      type: 'password',
+      username,
+      password,
+    }
 
-		if (result.success && result.user) {
-			const user = {
-				id: result.user.id,
-				username: result.user.username,
-				role: 'admin', // Unified role system
-				auth_method: 'password',
-				loginTime: Date.now()
-			}
+    const result = await validatePasswordCredentials(passwordCredentials)
+    if (!result.success) {
+      return null
+    }
 
-			return user
-		}
+    const { user } = result
 
-		return null
-	}
+    return {
+      id: user.id,
+      username: user.username,
+      role: user.role,
+      auth_method: user.auth_method,
+      loginTime: user.loginTime,
+    }
+  },
 })

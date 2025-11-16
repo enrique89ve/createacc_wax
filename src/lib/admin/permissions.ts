@@ -9,15 +9,20 @@ import type {
   Permission,
   SuperAdminPermission,
   ModeratorPermission,
-  UserPermission
+  UserPermission,
 } from '@/types/auth'
 import type { NewUser } from '@/lib/schemas/users'
 
 export interface UserWithPermissions extends NewUser {
-	permissions: string[]
+  readonly permissions: readonly Permission[]
+  readonly role: 'superadmin' | 'moderator' | 'user'
 }
 
-export type SessionLike = UniversalSession | UserWithPermissions | null | undefined
+export type SessionLike =
+  | UniversalSession
+  | UserWithPermissions
+  | null
+  | undefined
 
 // ===== PERMISSION CHECKING =====
 
@@ -37,8 +42,10 @@ export function hasPermission(
     if (role === 'superadmin') return true
 
     // Check permissions array
-    const permissions = 'permissions' in user ? user.permissions : []
-    return permissions.includes(permission)
+    const permissions: readonly Permission[] =
+      'permissions' in user ? (user.permissions as readonly Permission[]) : []
+    const normalizedPermission = String(permission) as Permission
+    return permissions.includes(normalizedPermission)
   } catch (error) {
     console.error('Error checking permission:', error)
     return false
@@ -50,13 +57,13 @@ export function hasPermission(
  */
 export function hasAnyPermission(
   user: SessionLike,
-  permissions: (Permission | string)[]
+  permissions: readonly Permission[]
 ): boolean {
   if (!user) return false
-  
+
   const role = 'role' in user ? user.role : undefined
   if (role === 'superadmin') return true
-  
+
   return permissions.some(permission => hasPermission(user, permission))
 }
 
@@ -65,13 +72,13 @@ export function hasAnyPermission(
  */
 export function hasAllPermissions(
   user: SessionLike,
-  permissions: (Permission | string)[]
+  permissions: readonly Permission[]
 ): boolean {
   if (!user) return false
-  
+
   const role = 'role' in user ? user.role : undefined
   if (role === 'superadmin') return true
-  
+
   return permissions.every(permission => hasPermission(user, permission))
 }
 
@@ -105,15 +112,21 @@ export function isRegularUser(user: SessionLike): boolean {
  * Check if user uses keychain auth
  */
 export function usesKeychain(user: SessionLike): boolean {
-  const authMethod = user && 'authMethod' in user ? user.authMethod : 
-                    user && 'auth_method' in user ? user.auth_method : undefined
+  const authMethod =
+    user && 'authMethod' in user
+      ? user.authMethod
+      : user && 'auth_method' in user
+        ? user.auth_method
+        : undefined
   return authMethod === 'keychain'
 }
 
 /**
  * Get user role string
  */
-export function getUserRole(user: SessionLike): 'superadmin' | 'moderator' | 'user' | 'anonymous' {
+export function getUserRole(
+  user: SessionLike
+): 'superadmin' | 'moderator' | 'user' | 'anonymous' {
   if (!user) return 'anonymous'
   const role = 'role' in user ? user.role : undefined
   return role || 'anonymous'
@@ -128,26 +141,21 @@ export const DEFAULT_PERMISSIONS = {
   superadmin: [
     'manage_system',
     'manage_users',
-    'manage_tickets', 
+    'manage_tickets',
     'manage_moderators',
     'view_analytics',
   ],
-  moderator: [
-    'create_tickets',
-    'moderate_users',
-    'view_user_activity',
-  ],
-  user: [
-    'create_accounts',
-    'buy_credits', 
-    'view_own_activity',
-  ],
+  moderator: ['create_tickets', 'moderate_users', 'view_user_activity'],
+  user: ['create_accounts', 'buy_credits', 'view_own_activity'],
 } as const
 
 /**
  * Get default permissions for a role
  */
-export function getDefaultPermissions(role: 'superadmin' | 'moderator' | 'user'): Permission[] {
+export function getDefaultPermissions(
+  role: 'superadmin' | 'moderator' | 'user'
+): Permission[] {
+  // Returning the default permissions for the specified role
   return [...DEFAULT_PERMISSIONS[role]] as Permission[]
 }
 
@@ -159,13 +167,13 @@ export function getDefaultPermissions(role: 'superadmin' | 'moderator' | 'user')
  */
 export function requirePermission(
   user: SessionLike,
-  permission: Permission | string,
+  permission: Permission,
   redirectTo: string = '/management/access'
 ): asserts user is NonNullable<SessionLike> {
   if (!hasPermission(user, permission)) {
     throw new Response(null, {
       status: 302,
-      headers: { Location: redirectTo }
+      headers: { Location: redirectTo },
     })
   }
 }
@@ -181,7 +189,7 @@ export function requireAuth(
   if (!user) {
     throw new Response(null, {
       status: 302,
-      headers: { Location: redirectTo }
+      headers: { Location: redirectTo },
     })
   }
 }
@@ -194,25 +202,25 @@ export function requireAuth(
 export const OPERATION_PERMISSIONS = {
   // Management Console Access
   ACCESS_CONSOLE: ['manage_system', 'create_tickets'],
-  
-  // User Management  
+
+  // User Management
   MANAGE_ALL_USERS: ['manage_users'],
   VIEW_USER_LIST: ['manage_users', 'moderate_users'],
-  
+
   // Ticket Operations
-  CREATE_ANY_TICKET: ['manage_tickets', 'create_tickets'], 
+  CREATE_ANY_TICKET: ['manage_tickets', 'create_tickets'],
   DELETE_ANY_TICKET: ['manage_tickets'],
   VIEW_ALL_TICKETS: ['manage_tickets', 'create_tickets'],
-  
+
   // System Operations
   VIEW_SYSTEM_STATS: ['manage_system', 'view_analytics'],
   MANAGE_SYSTEM_CONFIG: ['manage_system'],
-  
+
   // Account Creation
   CREATE_HIVE_ACCOUNT: ['create_accounts'],
-  
+
   // Credits
-  PURCHASE_CREDITS: ['buy_credits']
+  PURCHASE_CREDITS: ['buy_credits'],
 } as const
 
 /**
@@ -222,7 +230,7 @@ export function canPerformOperation(
   user: SessionLike,
   operation: keyof typeof OPERATION_PERMISSIONS
 ): boolean {
-  const requiredPermissions = [...OPERATION_PERMISSIONS[operation]]
+  const requiredPermissions = OPERATION_PERMISSIONS[operation]
   return hasAnyPermission(user, requiredPermissions)
 }
 
@@ -236,6 +244,8 @@ export function assertCanPerformOperation(
 ): asserts user is NonNullable<SessionLike> {
   if (!canPerformOperation(user, operation)) {
     const contextMsg = context ? ` in ${context}` : ''
-    throw new Error(`Insufficient permissions for operation: ${operation}${contextMsg}`)
+    throw new Error(
+      `Insufficient permissions for operation: ${operation}${contextMsg}`
+    )
   }
 }

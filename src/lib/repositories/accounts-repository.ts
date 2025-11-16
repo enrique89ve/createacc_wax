@@ -17,19 +17,15 @@ import {
 	parseAccountRow,
 	type DatabaseAccountRow,
 	type CreateAccountData,
-	type AccountWithTicketInfo,
 } from '@/types/database'
 
 /**
  * Cuenta con información completa del ticket usado
  */
 export interface AccountWithFullTicketInfo extends DatabaseAccountRow {
-	readonly ticket_type: string
 	readonly ticket_description: string | null
 	readonly ticket_original_credits: number
 	readonly ticket_remaining_credits: number
-	readonly created_by_builder_id: number | null
-	readonly created_by_admin_id: number | null
 	readonly creator_username: string | null
 }
 
@@ -277,7 +273,7 @@ export class AccountsRepository {
 
 			// Si se filtra por builder, necesitamos JOIN con Tickets
 			if (filters.builderId) {
-				conditions.push('EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.created_by_builder = ?)')
+				conditions.push('EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.created_by = ?)')
 				args.push(filters.builderId)
 			}
 
@@ -312,17 +308,13 @@ export class AccountsRepository {
 				sql: `
 					SELECT
 						a.*,
-						t.type as ticket_type,
 						t.description as ticket_description,
 						t.original_credits as ticket_original_credits,
 						t.credits as ticket_remaining_credits,
-						t.created_by_builder as created_by_builder_id,
-						t.created_by_admin as created_by_admin_id,
-						COALESCE(b.hive_username, ad.username) as creator_username
+						u.username as creator_username
 					FROM Accounts a
 					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Builders b ON t.created_by_builder = b.id
-					LEFT JOIN Admins ad ON t.created_by_admin = ad.id
+					LEFT JOIN Users u ON t.created_by = u.id
 					ORDER BY a.creation_date DESC
 				`,
 				args: [],
@@ -334,12 +326,9 @@ export class AccountsRepository {
 				ticket: String(row.ticket),
 				creation_date: String(row.creation_date),
 				registered_at: String(row.registered_at),
-				ticket_type: String(row.ticket_type || 'regular'),
 				ticket_description: row.ticket_description as string | null,
 				ticket_original_credits: Number(row.ticket_original_credits || 0),
 				ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-				created_by_builder_id: row.created_by_builder_id as number | null,
-				created_by_admin_id: row.created_by_admin_id as number | null,
 				creator_username: row.creator_username as string | null,
 			}))
 		} catch (error) {
@@ -360,17 +349,13 @@ export class AccountsRepository {
 				sql: `
 					SELECT
 						a.*,
-						t.type as ticket_type,
 						t.description as ticket_description,
 						t.original_credits as ticket_original_credits,
 						t.credits as ticket_remaining_credits,
-						t.created_by_builder as created_by_builder_id,
-						t.created_by_admin as created_by_admin_id,
-						COALESCE(b.hive_username, ad.username) as creator_username
+						u.username as creator_username
 					FROM Accounts a
 					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Builders b ON t.created_by_builder = b.id
-					LEFT JOIN Admins ad ON t.created_by_admin = ad.id
+					LEFT JOIN Users u ON t.created_by = u.id
 					ORDER BY a.creation_date DESC
 					LIMIT ?
 				`,
@@ -383,12 +368,9 @@ export class AccountsRepository {
 				ticket: String(row.ticket),
 				creation_date: String(row.creation_date),
 				registered_at: String(row.registered_at),
-				ticket_type: String(row.ticket_type || 'regular'),
 				ticket_description: row.ticket_description as string | null,
 				ticket_original_credits: Number(row.ticket_original_credits || 0),
 				ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-				created_by_builder_id: row.created_by_builder_id as number | null,
-				created_by_admin_id: row.created_by_admin_id as number | null,
 				creator_username: row.creator_username as string | null,
 			}))
 		} catch (error) {
@@ -407,17 +389,14 @@ export class AccountsRepository {
 				sql: `
 					SELECT
 						a.*,
-						t.type as ticket_type,
 						t.description as ticket_description,
 						t.original_credits as ticket_original_credits,
 						t.credits as ticket_remaining_credits,
-						t.created_by_builder as created_by_builder_id,
-						t.created_by_admin as created_by_admin_id,
-						b.hive_username as creator_username
+						u.username as creator_username
 					FROM Accounts a
 					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Builders b ON t.created_by_builder = b.id
-					WHERE t.created_by_builder = ?
+					LEFT JOIN Users u ON t.created_by = u.id
+					WHERE t.created_by = ? AND u.role = 'builder'
 					ORDER BY a.creation_date DESC
 				`,
 				args: [builderId],
@@ -429,12 +408,9 @@ export class AccountsRepository {
 				ticket: String(row.ticket),
 				creation_date: String(row.creation_date),
 				registered_at: String(row.registered_at),
-				ticket_type: String(row.ticket_type || 'regular'),
 				ticket_description: row.ticket_description as string | null,
 				ticket_original_credits: Number(row.ticket_original_credits || 0),
 				ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-				created_by_builder_id: row.created_by_builder_id as number | null,
-				created_by_admin_id: row.created_by_admin_id as number | null,
 				creator_username: row.creator_username as string | null,
 			}))
 		} catch (error) {
@@ -520,7 +496,7 @@ export class AccountsRepository {
 					SELECT COUNT(*) as total
 					FROM Accounts a
 					JOIN Tickets t ON a.ticket = t.code
-					WHERE t.created_by_builder = ?
+					WHERE t.created_by = ?
 				`,
 				args: [builderId],
 			})

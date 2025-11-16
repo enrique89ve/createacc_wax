@@ -1,93 +1,32 @@
 /**
- * Database types for HolaHive - Nueva arquitectura Admins y Builders
- * Provides type-safe database operations with clean architecture principles
+ * Database types for HolaHive - Simplified architecture
+ * Two roles: admin and builder
  */
 
-import {
-  TICKET_TYPE_LIST,
-  type TicketType as TicketTypeLiteral,
-} from '@/consts/constants'
-
 // ===== CORE DATABASE ENUMS =====
-
-export const TICKET_TYPES = TICKET_TYPE_LIST
-export type TicketType = TicketTypeLiteral
 
 export const AUDIT_ACTIONS = ['create', 'update', 'delete'] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
-/**
- * @deprecated UserRole solo existe para compatibilidad legacy.
- * En el nuevo sistema, usar tablas separadas: Admins y Builders
- */
 export const USER_ROLES = ['admin', 'builder'] as const
 export type UserRole = (typeof USER_ROLES)[number]
-
-/**
- * @deprecated CREDIT_STATUS y CREDIT_TYPES eliminados
- * El nuevo sistema Credits usa columnas: pending_amount, available_amount, total_assigned, total_consumed
- * No hay estados ni tipos - solo operaciones registradas en CreditAudit
- */
 
 // ===== DATABASE ROW INTERFACES =====
 
 /**
- * @deprecated DatabaseUserRow - LEGACY TYPE - Solo para compatibilidad
- *
- * ⚠️ La tabla Users NO EXISTE en la base de datos actual.
- *
- * Este tipo se mantiene para:
- * - Type guards en código legacy
- * - Backward compatibility en APIs antiguas
- *
- * NUEVO SISTEMA:
- * - Use `DatabaseAdminRow` para administradores
- * - Use `DatabaseBuilderRow` para builders
- *
- * Campos obsoletos:
- * - `user_credits` → Ahora en tabla Credits
- * - `credit_limit` → Concepto eliminado
+ * Users table - Unified table for both admins and builders
+ * role: 'admin' | 'builder'
+ * password_hash: Required for admins, null for builders (use Keychain)
  */
 export interface DatabaseUserRow {
   readonly id: number
   readonly username: string
-  readonly password_hash: string
+  readonly password_hash: string | null
   readonly role: UserRole
-  readonly user_credits: number
-  readonly credit_limit: number
-  readonly is_active: boolean
-  readonly created_at: string
-  readonly updated_at: string
-  readonly last_login?: string | null
-}
-
-/**
- * @deprecated Type alias for backward compatibility
- * Use DatabaseAdminRow or DatabaseBuilderRow instead
- */
-export type User = DatabaseUserRow
-
-/**
- * Admins table - Solo 1 admin permitido
- */
-export interface DatabaseAdminRow {
-  readonly id: number
-  readonly username: string
-  readonly password_hash: string
-  readonly is_active: boolean
-  readonly created_at: string
-  readonly updated_at: string
-}
-
-/**
- * Builders table - Usuarios que crean cuentas vía Keychain
- */
-export interface DatabaseBuilderRow {
-  readonly id: number
-  readonly hive_username: string
   readonly is_active: boolean
   readonly last_claim_at: string | null
   readonly created_at: string
+  readonly updated_at: string
 }
 
 /**
@@ -95,7 +34,7 @@ export interface DatabaseBuilderRow {
  * pending_amount: Créditos asignados pero no reclamados
  * available_amount: Créditos reclamados y disponibles para crear tickets
  * total_assigned: Total histórico de créditos asignados (solo aumenta)
- * total_consumed: Total histórico de créditos consumidos al crear cuentas (solo aumenta)
+ * total_consumed: Total histórico de créditos consumados al crear cuentas (solo aumenta)
  */
 export interface DatabaseCreditRow {
   readonly id: number
@@ -109,19 +48,18 @@ export interface DatabaseCreditRow {
 }
 
 /**
- * Tickets table - With computed virtual columns
+ * Tickets table - Simplified without type field
  */
 export interface DatabaseTicketRow {
   readonly id: number
   readonly code: string
-  readonly type: TicketType
+  readonly type?: string | null
   readonly description: string | null
   readonly original_credits: number
   readonly credits: number
   readonly is_active: boolean // VIRTUAL: credits > 0
   readonly has_been_used: boolean // VIRTUAL: original_credits > credits
-  readonly created_by_builder: number | null
-  readonly created_by_admin: number | null
+  readonly created_by: number | null
   readonly created_at: string
   readonly updated_at: string
 }
@@ -144,28 +82,16 @@ export interface DatabaseTicketAuditRow {
   readonly id: number
   readonly ticket: string
   readonly action: AuditAction
-  readonly performed_by_builder: number | null
-  readonly performed_by_admin: number | null
+  readonly performed_by: number | null
   readonly timestamp: string
 }
 
 /**
- * AdminSessions table
+ * UserSessions table (unified for admin and builder)
  */
-export interface DatabaseAdminSessionRow {
+export interface DatabaseUserSessionRow {
   readonly id: number
-  readonly admin_id: number
-  readonly session_token: string
-  readonly expires_at: string
-  readonly created_at: string
-}
-
-/**
- * BuilderSessions table
- */
-export interface DatabaseBuilderSessionRow {
-  readonly id: number
-  readonly builder_id: number
+  readonly user_id: number
   readonly session_token: string
   readonly expires_at: string
   readonly created_at: string
@@ -180,16 +106,31 @@ export interface DatabaseCreditAuditRow {
   readonly operation: string
   readonly amount: number
   readonly reason: string | null
-  readonly performed_by_admin: number | null
+  readonly performed_by: number | null
   readonly timestamp: string
+}
+
+/**
+ * LoginAttempts table
+ */
+export interface DatabaseLoginAttemptRow {
+  readonly id: number
+  readonly username: string
+  readonly role: string | null
+  readonly auth_method: 'password' | 'keychain'
+  readonly success: boolean
+  readonly ip_address: string | null
+  readonly user_agent: string | null
+  readonly error_message: string | null
+  readonly attempted_at: string
 }
 
 // ===== EXTENDED/JOINED QUERY TYPES =====
 
 /**
- * Builder with credits info (joined query)
+ * User with credits info (joined query for builders)
  */
-export interface BuilderWithCredits extends DatabaseBuilderRow {
+export interface UserWithCredits extends DatabaseUserRow {
   readonly pending_amount: number
   readonly available_amount: number
   readonly total_assigned: number
@@ -200,58 +141,43 @@ export interface BuilderWithCredits extends DatabaseBuilderRow {
  * Ticket with creator info (common join query)
  */
 export interface TicketWithCreator extends DatabaseTicketRow {
-  readonly creator_type: 'admin' | 'builder' | null
-  readonly creator_name: string | null
-  readonly created_by_username?: string | null // Alias for compatibility
+  readonly creator_username: string | null
+  readonly creator_role: UserRole | null
 }
 
 /**
  * Account with ticket info
  */
 export interface AccountWithTicketInfo extends DatabaseAccountRow {
-  readonly ticket_type?: TicketType
   readonly ticket_description?: string | null
+  readonly ticket_original_credits?: number
+  readonly ticket_remaining_credits?: number
+  readonly ticket_type?: string
 }
 
 // ===== CRUD OPERATION TYPES =====
 
 /**
- * Data required to create a new admin
+ * Data required to create a new user (admin or builder)
  */
-export interface CreateAdminData {
+export interface CreateUserData {
   readonly username: string
-  readonly password_hash: string
+  readonly password_hash?: string | null
+  readonly role: UserRole
   readonly is_active?: boolean
 }
 
 /**
- * Data allowed to update for an admin
+ * Data allowed to update for a user
  */
-export interface UpdateAdminData {
-  readonly password_hash?: string
-  readonly is_active?: boolean
-}
-
-/**
- * Data required to create a new builder
- */
-export interface CreateBuilderData {
-  readonly hive_username: string
-  readonly is_active?: boolean
-}
-
-/**
- * Data allowed to update for a builder
- */
-export interface UpdateBuilderData {
+export interface UpdateUserData {
+  readonly password_hash?: string | null
   readonly is_active?: boolean
   readonly last_claim_at?: string
 }
 
 /**
  * Data required to create/update credits
- * En el nuevo sistema, credits se manejan con operaciones atómicas,
- * no con inserts/updates directos
  */
 export interface CreateCreditData {
   readonly builder_id: number
@@ -276,12 +202,10 @@ export interface UpdateCreditData {
  */
 export interface CreateTicketData {
   readonly code: string
-  readonly type: TicketType
   readonly description?: string | null
   readonly original_credits: number
   readonly credits: number
-  readonly created_by_builder?: number | null
-  readonly created_by_admin?: number | null
+  readonly created_by?: number | null
 }
 
 /**
@@ -307,8 +231,7 @@ export interface CreateAccountData {
 export interface CreateTicketAuditData {
   readonly ticket: string
   readonly action: AuditAction
-  readonly performed_by_builder?: number | null
-  readonly performed_by_admin?: number | null
+  readonly performed_by?: number | null
 }
 
 /**
@@ -319,25 +242,29 @@ export interface CreateCreditAuditData {
   readonly operation: string
   readonly amount: number
   readonly reason?: string | null
-  readonly performed_by_admin?: number | null
+  readonly performed_by?: number | null
 }
 
 /**
- * Data required to create admin session
+ * Data required to create user session
  */
-export interface CreateAdminSessionData {
-  readonly admin_id: number
+export interface CreateUserSessionData {
+  readonly user_id: number
   readonly session_token: string
   readonly expires_at: string
 }
 
 /**
- * Data required to create builder session
+ * Data required to create login attempt entry
  */
-export interface CreateBuilderSessionData {
-  readonly builder_id: number
-  readonly session_token: string
-  readonly expires_at: string
+export interface CreateLoginAttemptData {
+  readonly username: string
+  readonly role?: string | null
+  readonly auth_method: 'password' | 'keychain'
+  readonly success: boolean
+  readonly ip_address?: string | null
+  readonly user_agent?: string | null
+  readonly error_message?: string | null
 }
 
 // ===== QUERY RESULT TYPES =====
@@ -385,13 +312,6 @@ export function isUserRole(value: unknown): value is UserRole {
 }
 
 /**
- * Type guard for TicketType
- */
-export function isTicketType(value: unknown): value is TicketType {
-  return typeof value === 'string' && TICKET_TYPES.includes(value as TicketType)
-}
-
-/**
  * Type guard for AuditAction
  */
 export function isAuditAction(value: unknown): value is AuditAction {
@@ -401,13 +321,7 @@ export function isAuditAction(value: unknown): value is AuditAction {
 }
 
 /**
- * @deprecated isCreditStatus y isCreditType eliminados
- * El nuevo sistema Credits no usa estados ni tipos
- */
-
-/**
- * @deprecated Type guard for database user row (LEGACY)
- * La tabla Users no existe. Use isDatabaseAdminRow o isDatabaseBuilderRow
+ * Type guard for database user row from libsql result
  */
 export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
   if (typeof row !== 'object' || row === null) return false
@@ -419,55 +333,12 @@ export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
   return (
     typeof r.id === 'number' &&
     typeof r.username === 'string' &&
-    typeof r.password_hash === 'string' &&
+    (r.password_hash === null || typeof r.password_hash === 'string') &&
     isUserRole(r.role) &&
-    typeof r.user_credits === 'number' &&
-    typeof r.credit_limit === 'number' &&
-    isActiveValid &&
-    typeof r.created_at === 'string' &&
-    typeof r.updated_at === 'string' &&
-    (r.last_login === null ||
-      r.last_login === undefined ||
-      typeof r.last_login === 'string')
-  )
-}
-
-/**
- * Type guard for database admin row from libsql result
- */
-export function isDatabaseAdminRow(row: unknown): row is DatabaseAdminRow {
-  if (typeof row !== 'object' || row === null) return false
-  const r = row as Record<string, unknown>
-
-  const isActiveValid =
-    typeof r.is_active === 'boolean' || r.is_active === 0 || r.is_active === 1
-
-  return (
-    typeof r.id === 'number' &&
-    typeof r.username === 'string' &&
-    typeof r.password_hash === 'string' &&
-    isActiveValid &&
-    typeof r.created_at === 'string' &&
-    typeof r.updated_at === 'string'
-  )
-}
-
-/**
- * Type guard for database builder row from libsql result
- */
-export function isDatabaseBuilderRow(row: unknown): row is DatabaseBuilderRow {
-  if (typeof row !== 'object' || row === null) return false
-  const r = row as Record<string, unknown>
-
-  const isActiveValid =
-    typeof r.is_active === 'boolean' || r.is_active === 0 || r.is_active === 1
-
-  return (
-    typeof r.id === 'number' &&
-    typeof r.hive_username === 'string' &&
     isActiveValid &&
     (r.last_claim_at === null || typeof r.last_claim_at === 'string') &&
-    typeof r.created_at === 'string'
+    typeof r.created_at === 'string' &&
+    typeof r.updated_at === 'string'
   )
 }
 
@@ -510,15 +381,12 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
   return (
     typeof r.id === 'number' &&
     typeof r.code === 'string' &&
-    isTicketType(r.type) &&
     (r.description === null || typeof r.description === 'string') &&
     typeof r.original_credits === 'number' &&
     typeof r.credits === 'number' &&
     typeof isActiveBool === 'boolean' &&
     typeof hasBeenUsedBool === 'boolean' &&
-    (r.created_by_builder === null ||
-      typeof r.created_by_builder === 'number') &&
-    (r.created_by_admin === null || typeof r.created_by_admin === 'number') &&
+    (r.created_by === null || typeof r.created_by === 'number') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -549,18 +417,15 @@ export function isTicketWithCreator(row: unknown): row is TicketWithCreator {
 
   return (
     isDatabaseTicketRow(row) &&
-    (r.creator_type === 'admin' ||
-      r.creator_type === 'builder' ||
-      r.creator_type === null) &&
-    (r.creator_name === null || typeof r.creator_name === 'string')
+    (r.creator_username === null || typeof r.creator_username === 'string') &&
+    (r.creator_role === null || isUserRole(r.creator_role))
   )
 }
 
 // ===== UTILITY FUNCTIONS =====
 
 /**
- * @deprecated Safely converts libsql row to typed user row (LEGACY)
- * La tabla Users no existe. Use parseAdminRow o parseBuilderRow
+ * Safely converts libsql row to typed user row
  */
 export function parseUserRow(raw: unknown): DatabaseUserRow | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -576,46 +441,6 @@ export function parseUserRow(raw: unknown): DatabaseUserRow | null {
   }
 
   if (!isDatabaseUserRow(converted)) return null
-  return converted
-}
-
-/**
- * Safely converts libsql row to typed admin row
- */
-export function parseAdminRow(raw: unknown): DatabaseAdminRow | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const r = raw as Record<string, unknown>
-
-  // Convert SQLite boolean values (0/1) to actual booleans
-  const isActive =
-    r.is_active === 1 || r.is_active === true || r.is_active === '1'
-
-  const converted = {
-    ...r,
-    is_active: isActive,
-  }
-
-  if (!isDatabaseAdminRow(converted)) return null
-  return converted
-}
-
-/**
- * Safely converts libsql row to typed builder row
- */
-export function parseBuilderRow(raw: unknown): DatabaseBuilderRow | null {
-  if (typeof raw !== 'object' || raw === null) return null
-  const r = raw as Record<string, unknown>
-
-  // Convert SQLite boolean values (0/1) to actual booleans
-  const isActive =
-    r.is_active === 1 || r.is_active === true || r.is_active === '1'
-
-  const converted = {
-    ...r,
-    is_active: isActive,
-  }
-
-  if (!isDatabaseBuilderRow(converted)) return null
   return converted
 }
 
@@ -669,7 +494,6 @@ export function parseTicketWithCreatorRow(
 }
 
 // ===== ERROR CODES =====
-// Re-exportar del sistema unificado para mantener compatibilidad
 import {
   DATABASE_ERROR_CODES as UNIFIED_DATABASE_CODES,
   type DatabaseErrorCode as UnifiedDatabaseErrorCode,
@@ -686,6 +510,3 @@ export interface DatabaseError {
   readonly message: string
   readonly details?: Record<string, unknown>
 }
-
-// Fin del archivo - Las interfaces de créditos legacy fueron eliminadas
-// Ver nuevos tipos en la sección DATABASE ROW INTERFACES arriba

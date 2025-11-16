@@ -44,6 +44,7 @@ export const POST: APIRoute = async ({ request }) => {
     const hashData = claimHashCache.validateAndConsume(
       hash,
       session.user.username
+    )
     if (!hashData) {
       return new Response(
         JSON.stringify({
@@ -62,6 +63,7 @@ export const POST: APIRoute = async ({ request }) => {
       transactionId,
       hash,
       session.user.username
+    )
     if (!verificationResult.valid) {
       return new Response(
         JSON.stringify({
@@ -77,7 +79,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Verificar que el usuario es un builder activo
     const builderResult = await db.execute({
-      sql: 'SELECT id FROM Builders WHERE hive_username = ? AND is_active = TRUE',
+      sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder' AND is_active = TRUE",
       args: [session.user.username],
     })
 
@@ -133,7 +135,6 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const credit = creditResult.rows[0] as any
     const creditsToAdd = hashData.creditsAvailable
 
     // Procesar el claim usando transacción

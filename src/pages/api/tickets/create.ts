@@ -82,7 +82,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const builderResult = await db.execute({
-      sql: 'SELECT id FROM Builders WHERE hive_username = ?',
+      sql: 'SELECT id FROM Users WHERE username = ? AND role = \'builder\'',
       args: [hiveUsername],
     })
 
@@ -148,9 +148,9 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Crear el ticket (type se establece automáticamente como 'regular' por default en BD)
+    // Crear el ticket usando campo unificado created_by
     const result = await db.execute({
-      sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by_builder)
+      sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
 					VALUES (?, ?, ?, ?, ?)`,
       args: [
         code.toUpperCase(),

@@ -15,22 +15,6 @@ import type {
 import { getBooleanEnv } from '@/lib/env'
 
 /**
- * Type for the structure of Hive API errors
- * Based on the actual error structure returned by Hive nodes
- */
-interface HiveApiErrorObject {
-  error?: {
-    code?: number
-    message?: string
-    data?: {
-      code?: number
-      name?: string
-      message?: string
-      stack?: unknown[]
-    }
-  }
-}
-/**
  * Sistema de failover híbrido "try-default-first + smart-backup"
  * - Siempre intenta API default primero
  * - Si falla, usa HealthChecker para elegir el mejor backup
@@ -246,4 +230,3 @@ export const hiveChain = async (): Promise<IHiveChainInterface> => {
     }
   }
 }
-

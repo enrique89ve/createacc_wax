@@ -41,8 +41,8 @@ export async function verifyKeychainAuth(
 
     // Validar que no sea admin intentando usar Keychain
     const adminCheck = await db.execute({
-      sql: 'SELECT username FROM Admins WHERE username = ?',
-      args: [username as string],
+      sql: 'SELECT username FROM Users WHERE username = ? AND role = ?',
+      args: [username as string, 'admin'],
     })
 
     if (adminCheck.rows.length > 0) {
@@ -106,8 +106,8 @@ export async function verifyKeychainAuth(
 
     // Buscar builder en la base de datos
     const builderResult = await db.execute({
-      sql: 'SELECT * FROM Builders WHERE hive_username = ? AND is_active = TRUE',
-      args: [username as string],
+      sql: 'SELECT * FROM Users WHERE username = ? AND role = ? AND is_active = TRUE',
+      args: [username as string, 'builder'],
     })
 
     let user: NewUser
@@ -132,13 +132,13 @@ export async function verifyKeychainAuth(
       // Mapear builder a formato de usuario para compatibilidad con sesión
       user = {
         id: builder.id,
-        username: builder.hive_username,
-        hive_account: builder.hive_username,
+        username: builder.username,
+        hive_account: builder.username,
         auth_method: 'keychain',
         password_hash: null,
         credits: 0, // Los créditos se obtienen de la tabla Credits
         created_at: builder.created_at,
-        updated_at: builder.created_at,
+        updated_at: builder.updated_at,
       } as NewUser
     }
 

@@ -63,7 +63,7 @@ export const PATCH: APIRoute = async context => {
 
       // Verificar que el builder existe
       const builderResult = await db.execute({
-        sql: 'SELECT id FROM Builders WHERE hive_username = ?',
+        sql: 'SELECT id FROM Users WHERE username = ? AND role = \'builder\'',
         args: [username.toLowerCase()],
       })
 

@@ -6,35 +6,19 @@
  */
 
 import {
-	validateCredentials,
-	type PasswordCredentials,
-	type ValidationResult
+  validateCredentials,
+  type PasswordCredentials,
+  type ValidationResult,
 } from './unified-validator'
 
-export interface PasswordValidationResult extends ValidationResult {
-	readonly user?: {
-		readonly id: string
-		readonly username: string
-		readonly role: string
-	}
-}
+export type PasswordValidationResult = ValidationResult
 
 /**
  * Validates password-based authentication for management area
  * @deprecated Use validateCredentials(credentials, 'password') from unified-validator
  */
 export async function validatePasswordCredentials(
-	credentials: PasswordCredentials
+  credentials: PasswordCredentials
 ): Promise<PasswordValidationResult> {
-	const result = await validateCredentials(credentials, 'password')
-
-	return {
-		success: result.success,
-		user: result.user ? {
-			id: result.user.id || '',
-			username: result.user.username,
-			role: result.user.role
-		} : undefined,
-		error: result.error
-	}
+  return validateCredentials(credentials, 'password')
 }
