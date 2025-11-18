@@ -104,3 +104,41 @@ export function createJsonResponse(
 ): Response {
   return createResponseWithOptions(body, status, options)
 }
+
+/**
+ * Helper para respuestas de éxito simples
+ * Uso: return apiSuccess({ data: result })
+ */
+export function apiSuccess<T>(
+  data: T,
+  status: number = 200,
+  options?: ResponseOptions
+): Response {
+  const body = {
+    success: true,
+    ...data,
+  }
+  return createResponseWithOptions(body, status, options)
+}
+
+/**
+ * Helper para respuestas de error simples
+ * Uso: return apiError('Error message', 400)
+ */
+export function apiError(
+  error: string,
+  status: number,
+  details?: unknown,
+  options?: ResponseOptions
+): Response {
+  const body: Record<string, unknown> = {
+    success: false,
+    error,
+  }
+
+  if (details !== undefined) {
+    body.details = details
+  }
+
+  return createResponseWithOptions(body, status, options)
+}

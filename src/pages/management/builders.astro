@@ -112,14 +112,16 @@ try {
                     <div class="flex gap-2">
                       <button
                         class="text-primary hover:text-primary/80 text-sm font-medium"
-                        onclick={`assignMoreCredits('${builder.hive_username}')`}
+                        data-action="assign-credits"
+                        data-username={builder.hive_username}
                         title="Asignar más créditos"
                       >
                         💳 Asignar
                       </button>
                       <button
                         class="text-destructive hover:text-destructive/80 text-sm font-medium"
-                        onclick={`deleteBuilder(${builder.id})`}
+                        data-action="delete-builder"
+                        data-builder-id={builder.id}
                         title="Eliminar builder"
                       >
                         🗑️ Eliminar

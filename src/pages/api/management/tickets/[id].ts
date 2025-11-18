@@ -3,6 +3,7 @@ import { withAdminSession } from '@/lib/session-helpers'
 import { db } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
+import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 // Logger removed
 
@@ -139,7 +140,7 @@ export const DELETE: APIRoute = async context => {
 
       // Devolver créditos al creador directamente como 'claimed' (disponibles de inmediato)
       try {
-        const creatorCredits = await creditsService.getBuilderCredits(
+        const creatorCredits = await creditBalanceTracker.getBalance(
           creator.username
         )
         if (creatorCredits) {
@@ -172,14 +173,14 @@ export const DELETE: APIRoute = async context => {
       })
 
       // Obtener balance final
-      const finalCredits = await creditsService.getUserCredits(creator.username)
+      const finalCredits = await creditBalanceTracker.getBalance(creator.username)
 
       const result: TicketDeletionResult = {
         success: true,
         message: 'Ticket eliminado exitosamente',
         credits_info: {
           credits_returned: ticket.original_credits,
-          new_credits: finalCredits?.active_credits || 0,
+          new_credits: finalCredits?.available_amount || 0,
         },
       }
 

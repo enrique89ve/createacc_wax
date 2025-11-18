@@ -226,8 +226,11 @@ export const POST: APIRoute = async context => {
     }
 
     // PASO 8: Limpiar la sesión (marcar como completada y limpiar ticket)
-    const sessionManager = new CreationSessionManager(context)
-    await sessionManager.set({
+    const sessionManager = new CreationSessionManager(
+      context.cookies,
+      context.request
+    )
+    sessionManager.set({
       ...creationSession,
       accountCreated: true,
       ticket: undefined, // Limpiar ticket para prevenir reutilización

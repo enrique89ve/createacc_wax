@@ -102,13 +102,16 @@ async function protectManagementRoutes(
  * Cargar sessions disponibles en locals para todas las páginas
  */
 async function loadCreationSession(context: APIContext): Promise<void> {
-  try {
-    if (context.locals.creation !== undefined) return
-    const creation = await new CreationSessionManager(context).get()
-    if (creation) context.locals.creation = creation
-  } catch (error) {
-    // Silently fail - session will be undefined
-  }
+	try {
+		if (context.locals.creation !== undefined) return
+		const creation = new CreationSessionManager(
+			context.cookies,
+			context.request
+		).get()
+		if (creation) context.locals.creation = creation
+	} catch (error) {
+		// Silently fail - session will be undefined
+	}
 }
 
 /**

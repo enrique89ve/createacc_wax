@@ -47,7 +47,8 @@ export function validateEnvironment(): void {
 		ENV_KEYS.HIVE_CREATOR_ACCOUNT as keyof ImportMetaEnv,
 		ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY as keyof ImportMetaEnv,
 		ENV_KEYS.HIVE_DELEGATOR_ACCOUNT as keyof ImportMetaEnv,
-		ENV_KEYS.HIVE_DELEGATOR_ACTIVE_KEY as keyof ImportMetaEnv
+		ENV_KEYS.HIVE_DELEGATOR_ACTIVE_KEY as keyof ImportMetaEnv,
+		ENV_KEYS.SESSION_SECRET as keyof ImportMetaEnv,
 	]
 
 	for (const key of required) {

@@ -227,8 +227,8 @@ export class UsersRepository {
 						u.last_claim_at,
 						u.created_at,
 						COUNT(DISTINCT t.id) as tickets_created,
-						COALESCE(c.available_amount, 0) as available_credits,
-						COALESCE(c.pending_amount, 0) as pending_credits
+						COALESCE(MAX(c.available_amount), 0) as available_credits,
+						COALESCE(MAX(c.pending_amount), 0) as pending_credits
 					FROM Users u
 					LEFT JOIN Tickets t ON t.created_by = u.id
 					LEFT JOIN Credits c ON c.builder_id = u.id
@@ -454,7 +454,6 @@ export class UsersRepository {
         ticket: String(row.ticket),
         creation_date: String(row.creation_date),
         registered_at: String(row.registered_at),
-        ticket_type: 'standard',
         ticket_description: (row.ticket_description as string) || null,
         ticket_original_credits: Number(row.ticket_original_credits || 0),
         ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
@@ -530,7 +529,6 @@ export interface AccountWithTicketInfo {
   readonly ticket: string
   readonly creation_date: string
   readonly registered_at: string
-  readonly ticket_type: string
   readonly ticket_description: string | null
   readonly ticket_original_credits: number
   readonly ticket_remaining_credits: number

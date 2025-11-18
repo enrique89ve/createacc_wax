@@ -15,21 +15,26 @@ export interface ToastConfig {
 // Representa un toast en cola (runtime)
 export interface ToastItem extends ToastConfig {
   readonly id: string
+  readonly key: string
   readonly createdAt: number
 }
-
-export const TOAST_TYPES = {
-  SUCCESS: 'success' as const,
-  ERROR: 'error' as const,
-  WARNING: 'warning' as const,
-  INFO: 'info' as const,
-} as const
 
 export const TOAST_CONFIG = {
   DEFAULT_DURATION: 4000,
   ANIMATION_DURATION: 250,
   MAX_VISIBLE: 4 as const,
 } as const
+
+// Constantes semánticas de duración
+export const TOAST_DURATIONS = {
+  QUICK: 2000, // Mensajes breves (copiado, etc.)
+  DEFAULT: 4000, // Mensajes normales
+  EXTENDED: 6000, // Warnings importantes
+  PERSISTENT: 8000, // Errores críticos
+} as const
+
+export type ToastDuration =
+  (typeof TOAST_DURATIONS)[keyof typeof TOAST_DURATIONS]
 
 // Clases base para cada variante (Flowbite-inspired + modo oscuro)
 export const TOAST_VARIANT_STYLES: Readonly<Record<ToastType, string>> = {
@@ -54,7 +59,8 @@ export const TOAST_VARIANT_ICON_COLORS: Readonly<Record<ToastType, string>> = {
 // Declaraciones globales para funciones de toast disponibles en window
 declare global {
   interface Window {
-    showToast: (type: ToastType, message: string, duration?: number) => void
+    showToast: (type: ToastType, message: string, duration?: number) => string
     dismissToast: (id: string) => void
+    __TOAST_INITIALIZED__?: boolean
   }
 }

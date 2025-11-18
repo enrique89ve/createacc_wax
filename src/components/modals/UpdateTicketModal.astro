@@ -1,0 +1,215 @@
+---
+/**
+ * 🔄 UPDATE TICKET MODAL
+ * Modal nativo de Astro para actualizar créditos de tickets con slider
+ */
+
+interface Props {
+	availableCredits: number
+	maxTicketCredits: number
+}
+
+const { availableCredits, maxTicketCredits } = Astro.props
+---
+
+<div id="update-modal-content" class="hidden">
+	<h3 class="mb-4 text-lg font-semibold text-white">🔄 Actualizar Ticket</h3>
+	<form id="update-ticket-form">
+		<!-- Código del Ticket -->
+		<div class="mb-4">
+			<label class="mb-2 block text-sm font-medium text-gray-300">
+				Código del Ticket
+			</label>
+			<input
+				type="text"
+				id="update-ticket-code-display"
+				disabled
+				class="bg-background border-border w-full rounded-lg border px-3 py-2 text-gray-500 opacity-50"
+			/>
+		</div>
+
+		<!-- Créditos Actuales -->
+		<div class="mb-4">
+			<label class="mb-2 block text-sm font-medium text-gray-300">
+				Créditos Actuales
+			</label>
+			<input
+				type="text"
+				id="update-ticket-credits-display"
+				disabled
+				class="bg-background border-border w-full rounded-lg border px-3 py-2 text-gray-500 opacity-50"
+			/>
+		</div>
+
+		<!-- SLIDER: Ajustar Créditos -->
+		<div class="mb-4">
+			<label for="delta-slider" class="mb-2 block text-sm font-medium text-gray-300">
+				Ajustar Créditos
+			</label>
+
+			<!-- Display del Delta -->
+			<div class="mb-3 text-center">
+				<span id="delta-value-display" class="text-3xl font-bold text-white">
+					0
+				</span>
+				<span class="ml-2 text-sm text-gray-400">créditos</span>
+			</div>
+
+			<!-- Slider -->
+			<div class="relative mb-2">
+				<input
+					type="range"
+					id="delta-slider"
+					value="0"
+					min="-50"
+					max="50"
+					step="1"
+					class="slider w-full"
+				/>
+				<!-- Labels de límites -->
+				<div class="mt-1 flex justify-between text-xs text-gray-500">
+					<span id="slider-min-label">-50</span>
+					<span class="text-gray-400">0</span>
+					<span id="slider-max-label">+50</span>
+				</div>
+			</div>
+
+			<p class="mt-2 text-xs text-gray-400">
+				← Desliza para restar | Desliza para aumentar →
+			</p>
+		</div>
+
+		<!-- Vista Previa -->
+		<div id="preview-box" class="preview-box mb-4 hidden">
+			<div class="text-sm text-white">
+				<strong>📊 Vista previa:</strong>
+			</div>
+			<div id="preview-content" class="mt-2 text-sm"></div>
+		</div>
+
+		<!-- Info Adicional -->
+		<div class="mb-4 space-y-1 text-xs">
+			<div class="flex justify-between text-gray-400">
+				<span>💳 Créditos disponibles:</span>
+				<span id="available-credits-info" class="font-semibold text-white">
+					{availableCredits}
+				</span>
+			</div>
+			<div class="flex justify-between text-gray-400">
+				<span>⚠️ Límite máximo por ticket:</span>
+				<span class="font-semibold text-white">{maxTicketCredits}</span>
+			</div>
+		</div>
+
+		<!-- Mensaje de Error -->
+		<div
+			id="error-message"
+			class="mb-4 hidden rounded-lg border border-red-500/30 bg-red-900/20 p-3 text-sm text-red-400"
+		>
+		</div>
+
+		<!-- Botones -->
+		<div class="flex gap-3">
+			<button
+				type="button"
+				id="cancel-update"
+				class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 transition-colors hover:bg-gray-800"
+			>
+				Cancelar
+			</button>
+			<button
+				type="submit"
+				id="confirm-update"
+				class="bg-primary flex-1 rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90"
+			>
+				Actualizar
+			</button>
+		</div>
+	</form>
+</div>
+
+<style>
+	.preview-box {
+		background-color: rgba(228, 47, 77, 0.1);
+		border: 1px solid rgba(228, 47, 77, 0.3);
+		border-radius: 0.5rem;
+		padding: 1rem;
+	}
+
+	/* ========== SLIDER CUSTOM STYLES ========== */
+
+	.slider {
+		height: 8px;
+		border-radius: 4px;
+		outline: none;
+		-webkit-appearance: none;
+		appearance: none;
+		background: linear-gradient(
+			to right,
+			#ef4444 0%,
+			#6b7280 50%,
+			#10b981 100%
+		);
+	}
+
+	/* Chrome, Safari, Edge */
+	.slider::-webkit-slider-thumb {
+		-webkit-appearance: none;
+		appearance: none;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: #e42f4d;
+		cursor: pointer;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+		transition: all 0.2s ease;
+	}
+
+	.slider::-webkit-slider-thumb:hover {
+		transform: scale(1.15);
+		box-shadow: 0 0 12px rgba(228, 47, 77, 0.6);
+	}
+
+	.slider::-webkit-slider-thumb:active {
+		transform: scale(1.25);
+		box-shadow: 0 0 16px rgba(228, 47, 77, 0.8);
+	}
+
+	/* Firefox */
+	.slider::-moz-range-thumb {
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: #e42f4d;
+		cursor: pointer;
+		border: none;
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+		transition: all 0.2s ease;
+	}
+
+	.slider::-moz-range-thumb:hover {
+		transform: scale(1.15);
+		box-shadow: 0 0 12px rgba(228, 47, 77, 0.6);
+	}
+
+	.slider::-moz-range-thumb:active {
+		transform: scale(1.25);
+		box-shadow: 0 0 16px rgba(228, 47, 77, 0.8);
+	}
+
+	.slider::-moz-range-track {
+		background: transparent;
+	}
+
+	/* Focus state */
+	.slider:focus {
+		outline: 2px solid rgba(228, 47, 77, 0.3);
+		outline-offset: 2px;
+	}
+
+	/* Disabled state */
+	.slider:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+</style>

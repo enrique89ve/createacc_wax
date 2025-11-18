@@ -1,58 +1,40 @@
 import type { CreationSession } from '@/types/auth'
-import type { SessionContext } from '@/lib/session'
-import { SESSION_KEYS } from '@/consts/constants'
+import type { AstroCookies } from 'astro'
+import {
+	getCreationCookie,
+	setCreationCookie,
+	clearCreationCookie,
+	updateCreationCookie,
+} from '@/lib/session-cookies'
 
 /**
  * Type-safe session manager for the public account creation flow.
- * Keeps using Astro's built-in session storage while admin/auth flows
- * are handled by Auth.js.
+ * Now uses signed cookies instead of Astro.session to avoid requiring
+ * a storage driver (Vercel KV, Redis, etc.).
+ *
+ * Inspired by Supabase SSR approach used by midudev.
  */
 export class CreationSessionManager {
-  constructor(private readonly context: SessionContext) {}
+	constructor(
+		private readonly cookies: AstroCookies,
+		private readonly request?: Request
+	) {}
 
-  async get(): Promise<CreationSession | null> {
-    try {
-      if (!this.context.session) return null
+	get(): CreationSession | null {
+		return getCreationCookie(this.cookies)
+	}
 
-      const session = (await this.context.session.get(
-        SESSION_KEYS.CREATE_FLOW
-      )) as CreationSession | undefined
-      if (!session || !session.username) return null
+	set(data: CreationSession): void {
+		setCreationCookie(this.cookies, data, this.request)
+	}
 
-      return session
-    } catch (error) {
-      return null
-    }
-  }
+	update(partial: Partial<CreationSession>): void {
+		updateCreationCookie(this.cookies, partial, this.request)
+	}
 
-  async set(data: CreationSession): Promise<void> {
-    try {
-      if (!this.context.session) return
-
-      this.context.session.set(SESSION_KEYS.CREATE_FLOW, data)
-    } catch (error) {
-      throw error
-    }
-  }
-
-  async update(partial: Partial<CreationSession>): Promise<void> {
-    const existing = await this.get()
-    if (!existing) {
-      throw new Error('Cannot update non-existent creation session')
-    }
-
-    await this.set({ ...existing, ...partial })
-  }
-
-  async clear(): Promise<void> {
-    try {
-      if (!this.context.session) return
-
-      this.context.session.set(SESSION_KEYS.CREATE_FLOW, null)
-    } catch (error) {
-      throw error
-    }
-  }
+	clear(): void {
+		clearCreationCookie(this.cookies)
+	}
 }
 
 /**

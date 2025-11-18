@@ -1,0 +1,442 @@
+/**
+ * 🎫 TICKET MODAL HANDLERS
+ * Manejadores de eventos para modales de gestión de tickets con slider
+ * Usa componentes Astro nativos en lugar de innerHTML
+ */
+
+import {
+  TicketAction,
+  BUILDERS_UI,
+  MAX_TICKET_CREDITS,
+} from '@/consts/constants'
+
+export interface TicketData {
+  id: number
+  code: string
+  credits: number
+  original_credits: number
+}
+
+type NotifyType = 'success' | 'error' | 'info'
+
+// Elementos del DOM
+let ticketActionModal: HTMLElement | null
+let updateModalContent: HTMLElement | null
+let deleteModalContent: HTMLElement | null
+let currentTicket: TicketData | null = null
+
+// Elementos del modal de actualización (SLIDER)
+let updateForm: HTMLFormElement | null
+let updateCodeDisplay: HTMLInputElement | null
+let updateCreditsDisplay: HTMLInputElement | null
+let deltaSlider: HTMLInputElement | null // Cambiado de deltaInput a deltaSlider
+let deltaValueDisplay: HTMLElement | null // Nuevo: display del valor
+let sliderMinLabel: HTMLElement | null // Nuevo: label mínimo
+let sliderMaxLabel: HTMLElement | null // Nuevo: label máximo
+let availableCreditsInfo: HTMLElement | null // Nuevo: info de créditos
+let previewBox: HTMLElement | null
+let previewContent: HTMLElement | null
+let errorMessage: HTMLElement | null
+let confirmBtn: HTMLButtonElement | null
+
+// Elementos del modal de borrado
+let deleteTicketCode: HTMLElement | null
+let deleteTicketCredits: HTMLElement | null
+let deleteRefundAmount: HTMLElement | null
+
+// Función de notificación (ahora acepta parámetro duration opcional)
+let notify: (type: NotifyType, message: string, duration?: number) => void
+
+export function initializeTicketModals(
+  notifyFn: (type: NotifyType, message: string, duration?: number) => void
+) {
+  notify = notifyFn
+
+  // Inicializar referencias a elementos
+  ticketActionModal = document.getElementById('ticket-action-modal')
+  updateModalContent = document.getElementById('update-modal-content')
+  deleteModalContent = document.getElementById('delete-modal-content')
+
+  updateForm = document.querySelector<HTMLFormElement>('#update-ticket-form')
+  updateCodeDisplay = document.querySelector<HTMLInputElement>(
+    '#update-ticket-code-display'
+  )
+  updateCreditsDisplay = document.querySelector<HTMLInputElement>(
+    '#update-ticket-credits-display'
+  )
+
+  // Referencias al slider y sus elementos asociados
+  deltaSlider = document.querySelector<HTMLInputElement>('#delta-slider')
+  deltaValueDisplay = document.getElementById('delta-value-display')
+  sliderMinLabel = document.getElementById('slider-min-label')
+  sliderMaxLabel = document.getElementById('slider-max-label')
+  availableCreditsInfo = document.getElementById('available-credits-info')
+
+  previewBox = document.getElementById('preview-box')
+  previewContent = document.getElementById('preview-content')
+  errorMessage = document.getElementById('error-message')
+  confirmBtn = document.querySelector<HTMLButtonElement>('#confirm-update')
+
+  deleteTicketCode = document.getElementById('delete-ticket-code')
+  deleteTicketCredits = document.getElementById('delete-ticket-credits')
+  deleteRefundAmount = document.getElementById('delete-refund-amount')
+
+  // Event listeners
+  setupUpdateModalListeners()
+  setupDeleteModalListeners()
+  setupTicketButtons()
+  setupModalCloseHandlers()
+}
+
+/**
+ * Obtener créditos disponibles del builder en tiempo real
+ * Hace fetch al servidor para obtener el balance actualizado
+ */
+async function getBuilderCredits(): Promise<number> {
+  try {
+    // Intentar obtener desde el servidor (datos más actualizados)
+    const resp = await fetch('/api/builders/credits/balance')
+    if (resp.ok) {
+      const data = await resp.json()
+      // El endpoint retorna: {success: true, balance: {available_amount: X}}
+      return data.balance?.available_amount || 0
+    }
+  } catch (error) {
+    console.warn('[getBuilderCredits] Error fetching from API:', error)
+  }
+
+  // Fallback: leer del DOM si el fetch falla
+  const layout = document.querySelector('[data-builder-credits]')
+  return parseInt(layout?.getAttribute('data-builder-credits') || '0', 10)
+}
+
+/**
+ * Configurar límites dinámicos del slider basados en:
+ * - Créditos actuales del ticket
+ * - Créditos disponibles del builder
+ * - Límite máximo de 100 créditos por ticket
+ */
+async function setupSlider(ticket: TicketData) {
+  if (
+    !deltaSlider ||
+    !sliderMinLabel ||
+    !sliderMaxLabel ||
+    !availableCreditsInfo
+  )
+    return
+
+  // Obtener créditos disponibles en tiempo real
+  const availableCredits = await getBuilderCredits()
+
+  // Calcular límites
+  const maxDecrease = ticket.credits - 1 // Mínimo 1 crédito en el ticket
+  const maxIncrease = Math.min(
+    availableCredits,
+    MAX_TICKET_CREDITS - ticket.credits // No exceder 100 créditos
+  )
+
+  // Configurar atributos del slider
+  deltaSlider.min = String(-maxDecrease)
+  deltaSlider.max = String(maxIncrease)
+  deltaSlider.value = '0'
+
+  // Actualizar labels
+  sliderMinLabel.textContent = String(-maxDecrease)
+  sliderMaxLabel.textContent = `+${maxIncrease}`
+
+  // Actualizar info de créditos disponibles
+  availableCreditsInfo.textContent = String(availableCredits)
+
+  // Actualizar display del delta
+  if (deltaValueDisplay) {
+    deltaValueDisplay.textContent = '0'
+    deltaValueDisplay.className = 'text-3xl font-bold text-white'
+  }
+}
+
+export async function openUpdateModal(ticket: TicketData) {
+  if (!ticketActionModal || !updateModalContent) return
+
+  currentTicket = ticket
+
+  // Mostrar modal de actualización, ocultar el de borrado
+  updateModalContent.classList.remove('hidden')
+  deleteModalContent?.classList.add('hidden')
+
+  // Poblar campos readonly
+  if (updateCodeDisplay) updateCodeDisplay.value = ticket.code
+  if (updateCreditsDisplay) {
+    updateCreditsDisplay.value = `${ticket.credits} / ${ticket.original_credits}`
+  }
+
+  // Configurar slider con límites dinámicos
+  await setupSlider(ticket)
+
+  // Resetear estados
+  previewBox?.classList.add('hidden')
+  errorMessage?.classList.add('hidden')
+  if (confirmBtn) confirmBtn.disabled = false
+
+  // Mostrar modal
+  ticketActionModal.classList.remove('hidden')
+  ticketActionModal.classList.add('flex')
+
+  // Focus en el slider
+  deltaSlider?.focus()
+}
+
+export function openDeleteModal(ticket: TicketData) {
+  if (!ticketActionModal || !deleteModalContent) return
+
+  currentTicket = ticket
+
+  // Mostrar modal de borrado, ocultar el de actualización
+  deleteModalContent.classList.remove('hidden')
+  updateModalContent?.classList.add('hidden')
+
+  // Poblar campos
+  if (deleteTicketCode) deleteTicketCode.textContent = ticket.code
+  if (deleteTicketCredits)
+    deleteTicketCredits.textContent = String(ticket.original_credits)
+  if (deleteRefundAmount)
+    deleteRefundAmount.textContent = String(ticket.original_credits)
+
+  // Mostrar modal
+  ticketActionModal.classList.remove('hidden')
+  ticketActionModal.classList.add('flex')
+}
+
+function closeModal() {
+  ticketActionModal?.classList.add('hidden')
+  ticketActionModal?.classList.remove('flex')
+  currentTicket = null
+
+  // Limpiar estados del slider
+  if (deltaSlider) deltaSlider.value = '0'
+  if (deltaValueDisplay) {
+    deltaValueDisplay.textContent = '0'
+    deltaValueDisplay.className = 'text-3xl font-bold text-white'
+  }
+
+  previewBox?.classList.add('hidden')
+  errorMessage?.classList.add('hidden')
+}
+
+function setupUpdateModalListeners() {
+  if (!deltaSlider) return
+
+  // Validación en tiempo real del slider
+  deltaSlider.addEventListener('input', async () => {
+    if (!currentTicket || !deltaSlider || !deltaValueDisplay) return
+
+    const delta = parseInt(deltaSlider.value, 10)
+
+    // Actualizar display del valor delta
+    const deltaText =
+      delta === 0 ? '0' : delta > 0 ? `+${delta}` : String(delta)
+    deltaValueDisplay.textContent = deltaText
+
+    // Cambiar color según dirección
+    if (delta > 0) {
+      deltaValueDisplay.className = 'text-3xl font-bold text-green-400'
+    } else if (delta < 0) {
+      deltaValueDisplay.className = 'text-3xl font-bold text-red-400'
+    } else {
+      deltaValueDisplay.className = 'text-3xl font-bold text-white'
+    }
+
+    // Si delta es 0, ocultar preview
+    if (delta === 0) {
+      previewBox?.classList.add('hidden')
+      errorMessage?.classList.add('hidden')
+      if (confirmBtn) confirmBtn.disabled = true // Deshabilitar si no hay cambios
+      return
+    }
+
+    // Calcular nuevos valores
+    const newCredits = currentTicket.credits + delta
+    const newOriginal = currentTicket.original_credits + delta
+
+    // Validar límites de créditos
+    if (newCredits < 1 || newOriginal < 1) {
+      showError(BUILDERS_UI.MESSAGES.MIN_CREDIT_REMAINING)
+      return
+    }
+
+    if (newOriginal > MAX_TICKET_CREDITS) {
+      showError(`Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`)
+      return
+    }
+
+    // Validar créditos disponibles si delta es positivo
+    if (delta > 0) {
+      const availableCredits = await getBuilderCredits()
+      if (delta > availableCredits) {
+        showError(
+          `No tienes suficientes créditos. Disponibles: ${availableCredits}`
+        )
+        return
+      }
+    }
+
+    // Todo OK - mostrar preview
+    errorMessage?.classList.add('hidden')
+    if (confirmBtn) confirmBtn.disabled = false
+
+    if (previewContent) {
+      const colorClass = delta > 0 ? 'text-green-400' : 'text-red-400'
+      previewContent.innerHTML = `
+				<div class="${colorClass}">
+					Créditos actuales: <strong>${currentTicket.credits}</strong> → Nuevos: <strong>${newCredits}</strong>
+				</div>
+				<div class="mt-1 ${colorClass}">
+					Original: <strong>${currentTicket.original_credits}</strong> → Nuevo: <strong>${newOriginal}</strong>
+				</div>
+			`
+    }
+    previewBox?.classList.remove('hidden')
+  })
+
+  // Submit del formulario
+  updateForm?.addEventListener('submit', async e => {
+    e.preventDefault()
+    if (!currentTicket || !deltaSlider) return
+
+    const delta = parseInt(deltaSlider.value, 10)
+
+    // Validar que hay cambios
+    if (delta === 0) {
+      notify('info', 'No hay cambios que aplicar')
+      return
+    }
+
+    try {
+      const resp = await fetch(BUILDERS_UI.API_ENDPOINTS.TICKETS_MANAGE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticketId: currentTicket.id,
+          code: currentTicket.code,
+          action: TicketAction.Update,
+          delta: delta,
+        }),
+      })
+
+      const data = await resp.json()
+
+      if (resp.ok && data.success) {
+        const deltaText = delta > 0 ? `+${delta}` : String(delta)
+        notify(
+          'success',
+          `Créditos actualizados: ${currentTicket.credits} → ${currentTicket.credits + delta} (${deltaText})`,
+          3000
+        )
+        closeModal()
+
+        // Esperar 3 segundos para que el usuario vea el toast antes de recargar
+        setTimeout(() => {
+          location.reload()
+        }, 3000)
+      } else {
+        notify('error', data.error || 'Error al actualizar créditos')
+      }
+    } catch (e) {
+      notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
+    }
+  })
+
+  // Cancelar
+  document
+    .getElementById('cancel-update')
+    ?.addEventListener('click', closeModal)
+}
+
+function setupDeleteModalListeners() {
+  // Confirmar borrado
+  document
+    .getElementById('confirm-delete')
+    ?.addEventListener('click', async () => {
+      if (!currentTicket) return
+
+      try {
+        const resp = await fetch(BUILDERS_UI.API_ENDPOINTS.TICKETS_MANAGE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ticketId: currentTicket.id,
+            code: currentTicket.code,
+            action: TicketAction.Delete,
+          }),
+        })
+
+        const data = await resp.json()
+
+        if (resp.ok && data.success) {
+          notify('success', BUILDERS_UI.MESSAGES.TICKET_DELETED, 3000)
+          closeModal()
+
+          // Esperar 3 segundos para que el usuario vea el toast antes de recargar
+          setTimeout(() => {
+            location.reload()
+          }, 3000)
+        } else {
+          notify('error', data.error || 'Error al eliminar')
+        }
+      } catch (e) {
+        notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
+      }
+    })
+
+  // Cancelar
+  document
+    .getElementById('cancel-delete')
+    ?.addEventListener('click', closeModal)
+}
+
+function setupTicketButtons() {
+  // Event listeners para botones de actualizar
+  document.querySelectorAll<HTMLElement>('.ticket-update-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const target = e.currentTarget as HTMLElement
+      const ticket: TicketData = {
+        id: parseInt(target.dataset.ticketId || '0', 10),
+        code: target.dataset.ticketCode || '',
+        credits: parseInt(target.dataset.ticketCredits || '0', 10),
+        original_credits: parseInt(target.dataset.ticketOriginal || '0', 10),
+      }
+      openUpdateModal(ticket)
+    })
+  })
+
+  // Event listeners para botones de borrar
+  document.querySelectorAll<HTMLElement>('.ticket-delete-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const target = e.currentTarget as HTMLElement
+      const ticket: TicketData = {
+        id: parseInt(target.dataset.ticketId || '0', 10),
+        code: target.dataset.ticketCode || '',
+        credits: parseInt(target.dataset.ticketCredits || '0', 10),
+        original_credits: parseInt(target.dataset.ticketOriginal || '0', 10),
+      }
+      openDeleteModal(ticket)
+    })
+  })
+}
+
+function setupModalCloseHandlers() {
+  // Cerrar modal al hacer clic fuera
+  ticketActionModal?.addEventListener('click', e => {
+    if (e.target === ticketActionModal) {
+      closeModal()
+    }
+  })
+}
+
+function showError(message: string) {
+  if (errorMessage) {
+    errorMessage.textContent = message
+    errorMessage.classList.remove('hidden')
+  }
+  if (confirmBtn) confirmBtn.disabled = true
+  previewBox?.classList.add('hidden')
+}

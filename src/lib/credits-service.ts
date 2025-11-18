@@ -6,6 +6,7 @@
  */
 
 import { db } from './database'
+import { creditBalanceTracker } from './credit-balance-tracker'
 
 /**
  * Información completa de créditos de un builder
@@ -48,72 +49,6 @@ class CreditsService {
 				`,
         args: [builder_id],
       })
-    }
-  }
-
-  /**
-   * Obtener información completa de créditos por hive_username
-   */
-  async getBuilderCredits(
-    hive_username: string
-  ): Promise<BuilderCreditsInfo | null> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT
-						u.id as builder_id,
-						u.username as hive_username,
-						COALESCE(c.pending_amount, 0) as pending_amount,
-						COALESCE(c.available_amount, 0) as available_amount,
-						COALESCE(c.total_assigned, 0) as total_assigned,
-						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Users u
-					LEFT JOIN Credits c ON u.id = c.builder_id
-					WHERE u.role = 'builder' AND u.username = ?
-				`,
-        args: [hive_username],
-      })
-
-      if (result.rows.length === 0) {
-        return null
-      }
-
-      return result.rows[0] as unknown as BuilderCreditsInfo
-    } catch (error) {
-      throw error
-    }
-  }
-
-  /**
-   * Obtener información completa de créditos por builder_id
-   */
-  async getBuilderCreditsByBuilderId(
-    builder_id: number
-  ): Promise<BuilderCreditsInfo | null> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT
-						u.id as builder_id,
-						u.username as hive_username,
-						COALESCE(c.pending_amount, 0) as pending_amount,
-						COALESCE(c.available_amount, 0) as available_amount,
-						COALESCE(c.total_assigned, 0) as total_assigned,
-						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Users u
-					LEFT JOIN Credits c ON u.id = c.builder_id
-					WHERE u.role = 'builder' AND u.id = ?
-				`,
-        args: [builder_id],
-      })
-
-      if (result.rows.length === 0) {
-        return null
-      }
-
-      return result.rows[0] as unknown as BuilderCreditsInfo
-    } catch (error) {
-      throw error
     }
   }
 
@@ -178,11 +113,18 @@ class CreditsService {
       })
 
       // Retornar información actualizada
-      const credits = await this.getBuilderCreditsByBuilderId(builder_id)
+      const credits = await creditBalanceTracker.getBalanceById(builder_id)
       if (!credits) {
         throw new Error('Failed to retrieve updated credits')
       }
-      return credits
+      return {
+        builder_id: credits.builder_id,
+        hive_username: credits.hive_username,
+        pending_amount: credits.pending_amount,
+        available_amount: credits.available_amount,
+        total_assigned: credits.total_assigned,
+        total_consumed: credits.total_consumed,
+      }
     } catch (error) {
       throw error
     }
@@ -196,7 +138,7 @@ class CreditsService {
   async claimCredits(builder_id: number, amount: number): Promise<void> {
     try {
       // Verificar que hay suficientes créditos pendientes
-      const credits = await this.getBuilderCreditsByBuilderId(builder_id)
+      const credits = await creditBalanceTracker.getBalanceById(builder_id)
       if (!credits || credits.pending_amount < amount) {
         throw new Error()
       }
@@ -239,7 +181,7 @@ class CreditsService {
   ): Promise<void> {
     try {
       // Verificar que hay suficientes créditos disponibles
-      const credits = await this.getBuilderCreditsByBuilderId(builder_id)
+      const credits = await creditBalanceTracker.getBalanceById(builder_id)
       if (!credits || credits.available_amount < amount) {
         throw new Error()
       }
@@ -359,22 +301,6 @@ class CreditsService {
   }
 
   /**
-   * Obtener créditos disponibles de un builder
-   */
-  async getAvailableCredits(builder_id: number): Promise<number> {
-    const result = await db.execute({
-      sql: 'SELECT COALESCE(available_amount, 0) as available FROM Credits WHERE builder_id = ?',
-      args: [builder_id],
-    })
-
-    if (result.rows.length === 0) {
-      return 0
-    }
-
-    return (result.rows[0] as any).available
-  }
-
-  /**
    * Obtener historial de auditoría de créditos de un builder
    */
   async getCreditAuditHistory(builder_id: number) {
@@ -399,8 +325,21 @@ class CreditsService {
     amount: number
   ): Promise<void> {
     try {
+      // Obtener username del builder origen
+      const fromBuilderResult = await db.execute({
+        sql: "SELECT username FROM Users WHERE role = 'builder' AND id = ?",
+        args: [from_builder_id],
+      })
+
+      if (fromBuilderResult.rows.length === 0) {
+        throw new Error('Builder origen no encontrado')
+      }
+
+      const fromUsername = (fromBuilderResult.rows[0] as any).username
+
       // Verificar créditos suficientes
-      const fromCredits = await this.getAvailableCredits(from_builder_id)
+      const fromCredits =
+        await creditBalanceTracker.getAvailableCredits(fromUsername)
       if (fromCredits < amount) {
         throw new Error('Créditos disponibles insuficientes para transferencia')
       }
@@ -483,32 +422,11 @@ class CreditsService {
   }
 
   /**
-   * Alias para compatibilidad con código existente
-   */
-  async getUserCredits(hive_username: string) {
-    const builderCredits = await this.getBuilderCredits(hive_username)
-
-    if (!builderCredits) {
-      return null
-    }
-
-    // Retornar en formato compatible
-    return {
-      active_credits: builderCredits.pending_amount, // Créditos pendientes de reclamar
-      total_credits: builderCredits.available_amount, // Créditos disponibles para usar
-      consumed_credits: builderCredits.total_consumed,
-      credit_limit: 0,
-    }
-  }
-
-  /**
    * Obtener historial de créditos de un builder
    * @param builderId - ID del builder
    * @returns Array de operaciones de créditos ordenadas por timestamp DESC
    */
-  async getCreditHistory(
-    builderId: number
-  ): Promise<
+  async getCreditHistory(builderId: number): Promise<
     Array<{
       readonly id: number
       readonly operation: string

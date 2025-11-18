@@ -151,6 +151,7 @@ const { ticket = '' } = Astro.props as Props
   import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
   import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
   import { createHiveChain, HealthChecker } from '@hiveio/wax/vite'
+  import { notify } from '@/utils/toast'
 
   let debounceTimer: ReturnType<typeof setTimeout>
   let ticketDebounceTimer: ReturnType<typeof setTimeout>
@@ -666,14 +667,7 @@ const { ticket = '' } = Astro.props as Props
     } catch (error) {
 
       // Mostrar toast de error
-      // @ts-ignore - showToast is available globally from Layout.astro
-      if (window.showToast) {
-        // @ts-ignore
-        window.showToast(
-          'error',
-          'Error al crear la sesión. Inténtalo de nuevo.'
-        )
-      }
+      notify('error', 'Error al crear la sesión. Inténtalo de nuevo.')
 
       // Mostrar error también en el botón como fallback
       submitButton.textContent = 'Error - Inténtalo de nuevo'

@@ -1,6 +1,6 @@
 import type { APIContext } from 'astro'
 import { CreationSessionManager } from '@/lib/session-manager'
-import type { AdminSession, UniversalSession } from '@/types/auth'
+import type { AdminSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getSession } from 'auth-astro/server'
 
@@ -42,37 +42,37 @@ export async function getAdminSession(
  * Carga sesiones usando managers sólo si aún no están en locals.
  */
 export async function loadSessions(
-  context: APIContext
+	context: APIContext
 ): Promise<RetrievedSessions> {
-  const result: RetrievedSessions = {
-    admin: context.locals.adminUser ?? null,
-    creation: context.locals.creation ?? null,
-  }
+	const result: RetrievedSessions = {
+		admin: context.locals.adminUser ?? null,
+		creation: context.locals.creation ?? null,
+	}
 
-  const needsAdmin = context.locals.adminUser === undefined
-  const needsCreation = context.locals.creation === undefined
+	const needsAdmin = context.locals.adminUser === undefined
+	const needsCreation = context.locals.creation === undefined
 
-  if (!needsAdmin && !needsCreation) return result
+	if (!needsAdmin && !needsCreation) return result
 
-  const [adminSession, creationSession] = await Promise.all([
-    needsAdmin
-      ? getAdminSession(context.request)
-      : Promise.resolve(result.admin ?? null),
-    needsCreation
-      ? new CreationSessionManager(context).get()
-      : Promise.resolve(result.creation ?? null),
-  ])
+	const [adminSession, creationSession] = await Promise.all([
+		needsAdmin
+			? getAdminSession(context.request)
+			: Promise.resolve(result.admin ?? null),
+		needsCreation
+			? new CreationSessionManager(context.cookies, context.request).get()
+			: Promise.resolve(result.creation ?? null),
+	])
 
-  if (needsAdmin) {
-    context.locals.adminUser = adminSession ?? undefined
-    result.admin = adminSession ?? null
-  }
-  if (needsCreation && creationSession) {
-    context.locals.creation = creationSession
-    result.creation = creationSession
-  }
+	if (needsAdmin) {
+		context.locals.adminUser = adminSession ?? undefined
+		result.admin = adminSession ?? null
+	}
+	if (needsCreation && creationSession) {
+		context.locals.creation = creationSession
+		result.creation = creationSession
+	}
 
-  return result
+	return result
 }
 
 /** Obtiene admin session si existe */
@@ -114,13 +114,16 @@ export async function withAdminSession<T>(
 
 /** Asegura creation session presente o devuelve null (no redirect) */
 export async function ensureCreation(context: APIContext) {
-  if (!context.locals.creation) {
-    const session = await new CreationSessionManager(context).get()
-    if (session) {
-      context.locals.creation = session
-      return session
-    }
-    return null
-  }
-  return context.locals.creation
+	if (!context.locals.creation) {
+		const session = new CreationSessionManager(
+			context.cookies,
+			context.request
+		).get()
+		if (session) {
+			context.locals.creation = session
+			return session
+		}
+		return null
+	}
+	return context.locals.creation
 }

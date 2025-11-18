@@ -53,8 +53,11 @@ export const POST: APIRoute = async context => {
     }
 
     // Marcar como descargado en la sesión
-    const sessionManager = new CreationSessionManager(context)
-    await sessionManager.set({
+    const sessionManager = new CreationSessionManager(
+      context.cookies,
+      context.request
+    )
+    sessionManager.set({
       ...existing,
       confirmedDownload: true,
     })

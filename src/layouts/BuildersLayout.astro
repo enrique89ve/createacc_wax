@@ -2,6 +2,7 @@
 import '@/styles/global.css'
 import '@fontsource-variable/sora'
 import UserMenu from '@/components/ui/UserMenu.astro'
+import Toasts from '@/components/ui/Toasts.astro'
 import { getSession } from 'auth-astro/server'
 
 export interface Props {
@@ -15,37 +16,18 @@ const { title, currentPage } = Astro.props
 const session = await getSession(Astro.request)
 const user = session?.user
 
-// Get user credits if authenticated
+// Get user credits if authenticated using balance tracker
 let userCredits: number | undefined = undefined
 if (user?.username) {
 	try {
-		const { db } = await import('@/lib/database')
-
-		// Obtener builder_id desde Users
-		const builderResult = await db.execute({
-			sql: 'SELECT id FROM Users WHERE username = ? AND role = ?',
-			args: [user.username, 'builder'],
-		})
-
-		if (builderResult.rows.length > 0) {
-			const builderId = (builderResult.rows[0] as any).id
-
-			// Obtener créditos disponibles de la tabla Credits
-			const creditsResult = await db.execute({
-				sql: 'SELECT available_amount FROM Credits WHERE builder_id = ?',
-				args: [builderId],
-			})
-
-			if (creditsResult.rows.length > 0) {
-				userCredits = (creditsResult.rows[0] as any).available_amount
-			} else {
-				// Si no existe registro, el builder tiene 0 créditos
-				userCredits = 0
-			}
-		}
+		const { creditBalanceTracker } = await import('@/lib/credit-balance-tracker')
+		userCredits = await creditBalanceTracker.getAvailableCredits(user.username)
 	} catch (error) {
+		userCredits = 0
 	}
 }
+
+const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 0
 ---
 
 <!DOCTYPE html>
@@ -58,7 +40,7 @@ if (user?.username) {
   <title>{title} - HolaHive Builders</title>
 </head>
 
-<body class="min-h-screen bg-background text-foreground">
+<body class="min-h-screen bg-background text-foreground" data-builder-credits={builderCreditsAttribute}>
   <!-- Navigation Header - Hide on login page -->
   {user && currentPage !== 'login' && (
     <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -104,5 +86,8 @@ if (user?.username) {
   <main class="flex-1 space-y-4 p-4 md:p-6">
     <slot />
   </main>
+
+  <!-- Toast Notifications -->
+  <Toasts />
 </body>
 </html>

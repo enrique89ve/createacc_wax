@@ -1,0 +1,33 @@
+---
+/**
+ * 🎟️ TICKET ACTION MODAL
+ * Modal reutilizable para actualizar o borrar tickets
+ * Usa componentes Astro nativos en lugar de innerHTML
+ */
+
+import UpdateTicketModal from '@/components/modals/UpdateTicketModal.astro'
+import DeleteTicketModal from '@/components/modals/DeleteTicketModal.astro'
+import { MAX_TICKET_CREDITS } from '@/consts/constants'
+
+interface Props {
+	availableCredits: number
+}
+
+const { availableCredits } = Astro.props
+---
+
+<div
+	id="ticket-action-modal"
+	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
+>
+	<div
+		class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
+	>
+		<!-- Modales como componentes Astro nativos -->
+		<UpdateTicketModal
+			availableCredits={availableCredits}
+			maxTicketCredits={MAX_TICKET_CREDITS}
+		/>
+		<DeleteTicketModal />
+	</div>
+</div>

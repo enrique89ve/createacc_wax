@@ -29,8 +29,11 @@ async function signOutViaAuth(
 
 async function clearCreationSession(context: Parameters<APIRoute>[0]) {
   try {
-    const creationManager = new CreationSessionManager(context)
-    await creationManager.clear()
+    const creationManager = new CreationSessionManager(
+      context.cookies,
+      context.request
+    )
+    creationManager.clear()
   } catch (error) {
     // Silently handle cleanup errors
   }
@@ -57,7 +60,6 @@ export const POST: APIRoute = async context => {
     await clearCreationSession(context)
 
     context.locals.adminUser = undefined
-    context.locals.user = undefined
     context.locals.creation = undefined
 
     return json(

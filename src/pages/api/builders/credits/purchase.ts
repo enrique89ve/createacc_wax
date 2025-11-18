@@ -1,9 +1,20 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
-import { db } from '@/lib/database'
 import { HTTP_STATUS } from '@/consts/constants'
 // Logger removed
-import { creditsService } from '@/lib/credits-service'
+import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
+
+interface CreditPurchaseResponse {
+  success: boolean
+  error?: string
+  requiresImplementation?: boolean
+}
+
+const jsonResponse = (body: CreditPurchaseResponse, status: number): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
 
 export interface CreditPurchaseRequest {
   amount: number
@@ -16,12 +27,9 @@ export const POST: APIRoute = async ({ request }) => {
     const session = await getSession(request)
 
     if (!session?.user?.username) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No autorizado' }),
-        {
-          status: HTTP_STATUS.UNAUTHORIZED,
-          headers: { 'Content-Type': 'application/json' },
-        }
+      return jsonResponse(
+        { success: false, error: 'No autorizado' },
+        HTTP_STATUS.UNAUTHORIZED
       )
     }
 
@@ -30,15 +38,12 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Validaciones básicas
     if (!amount || amount <= 0 || amount > 1000) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           success: false,
           error: 'Cantidad inválida. Debe ser entre 1 y 1000 créditos',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: { 'Content-Type': 'application/json' },
-        }
+        },
+        HTTP_STATUS.BAD_REQUEST
       )
     }
 
@@ -46,32 +51,26 @@ export const POST: APIRoute = async ({ request }) => {
       !paymentMethod ||
       !['hive', 'paypal', 'crypto'].includes(paymentMethod)
     ) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           success: false,
           error: 'Método de pago inválido',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: { 'Content-Type': 'application/json' },
-        }
+        },
+        HTTP_STATUS.BAD_REQUEST
       )
     }
 
     // Obtener información del usuario usando el nuevo servicio
-    const userCredits = await creditsService.getUserCredits(
+    const userCredits = await creditBalanceTracker.getBalance(
       session.user.username
     )
     if (!userCredits) {
-      return new Response(
-        JSON.stringify({
+      return jsonResponse(
+        {
           success: false,
           error: 'Usuario no encontrado en la base de datos',
-        }),
-        {
-          status: HTTP_STATUS.NOT_FOUND,
-          headers: { 'Content-Type': 'application/json' },
-        }
+        },
+        HTTP_STATUS.NOT_FOUND
       )
     }
 
@@ -84,25 +83,19 @@ export const POST: APIRoute = async ({ request }) => {
     // 2. Método creditsService.addCredits() para agregar créditos comprados
     // 3. Sistema de aprobación manual para compras grandes
 
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         success: false,
         error:
           'Sistema de compra de créditos no implementado aún. Contacta al administrador para obtener créditos.',
         requiresImplementation: true,
-      }),
-      {
-        status: HTTP_STATUS.NOT_FOUND,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      },
+      HTTP_STATUS.NOT_FOUND
     )
   } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Error interno del servidor' }),
-      {
-        status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-        headers: { 'Content-Type': 'application/json' },
-      }
+    return jsonResponse(
+      { success: false, error: 'Error interno del servidor' },
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     )
   }
 }

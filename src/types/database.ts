@@ -3,13 +3,12 @@
  * Two roles: admin and builder
  */
 
+import { USER_ROLES, type UserRole } from '@/consts/constants'
+
 // ===== CORE DATABASE ENUMS =====
 
 export const AUDIT_ACTIONS = ['create', 'update', 'delete'] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
-
-export const USER_ROLES = ['admin', 'builder'] as const
-export type UserRole = (typeof USER_ROLES)[number]
 
 // ===== DATABASE ROW INTERFACES =====
 

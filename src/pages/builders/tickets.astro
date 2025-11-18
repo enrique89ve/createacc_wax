@@ -1,8 +1,11 @@
 ---
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import BuildersTabs from '@/components/ui/BuildersTabs.astro'
+import TicketActionModal from '@/components/ui/TicketActionModal.astro'
+import Toasts from '@/components/ui/Toasts.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
+import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import type { BuilderUser } from '@/lib/admin/auth/helpers/auth-guards'
 import type { TicketWithCreator } from '@/types/database'
 
@@ -16,6 +19,7 @@ if (currentUser instanceof Response) {
 
 // Obtener tickets del usuario usando repository
 let tickets: TicketWithCreator[] = []
+let availableCredits = 0
 
 // Asegurar que tenemos un BuilderUser válido
 if (!currentUser || currentUser.role !== 'builder') {
@@ -25,6 +29,11 @@ if (!currentUser || currentUser.role !== 'builder') {
     const builderUser = currentUser as BuilderUser
     tickets = await ticketsRepository.getBuilderTicketsWithCreator(
       builderUser.id
+    )
+
+    // Obtener créditos disponibles del builder usando credit-balance-tracker
+    availableCredits = await creditBalanceTracker.getAvailableCredits(
+      builderUser.username
     )
   } catch (error) {
     console.error('Error loading tickets:', error)
@@ -117,15 +126,21 @@ if (!currentUser || currentUser.role !== 'builder') {
                     </td>
                     <td class="space-x-3 px-4 py-2 align-top">
                       <button
-                        class="text-xs font-medium text-blue-400 hover:text-blue-300"
-                        onclick={`updateCredits('${t.code}')`}
+                        class="ticket-update-btn text-xs font-medium text-blue-400 hover:text-blue-300"
+                        data-ticket-id={t.id}
+                        data-ticket-code={t.code}
+                        data-ticket-credits={t.credits}
+                        data-ticket-original={t.original_credits}
                       >
                         Actualizar
                       </button>
                       {!t.has_been_used && (
                         <button
-                          class="text-xs font-medium text-red-400 hover:text-red-300"
-                          onclick={`deleteTicket(${t.id})`}
+                          class="ticket-delete-btn text-xs font-medium text-red-400 hover:text-red-300"
+                          data-ticket-id={t.id}
+                          data-ticket-code={t.code}
+                          data-ticket-credits={t.credits}
+                          data-ticket-original={t.original_credits}
                         >
                           Borrar
                         </button>
@@ -259,63 +274,21 @@ if (!currentUser || currentUser.role !== 'builder') {
 
   <!-- Navegación interna eliminada: cubierta por las pestañas -->
 
+  <!-- Ticket Action Modal -->
+  <TicketActionModal availableCredits={availableCredits} />
+
   <!-- Notification Toast -->
-  <div
-    id="notification-toast"
-    class="fixed bottom-4 right-4 z-50 hidden max-w-sm rounded-lg border p-4"
-  >
-    <!-- Notifications will be injected here -->
-  </div>
+  <Toasts />
 </BuildersLayout>
 
 <script>
-  // ===== TYPES =====
-  declare global {
-    interface Window {
-      updateCredits?: (code: string) => Promise<void>
-      deleteTicket?: (id: number) => Promise<void>
-    }
-  }
-
-  type NotifyType = 'success' | 'error' | 'info'
+  import { BUILDERS_UI } from '@/consts/constants'
+  import { notify } from '@/utils/toast'
 
   // ===== CONSTANTS =====
-  const ONLY_NUMBERS_REGEX = /^\d+$/
-  const MIN_TICKET_NAME_LENGTH = 4
-  const MAX_TICKET_NAME_LENGTH = 16
-
-  // ===== HELPER FUNCTIONS =====
-  function notify(type: NotifyType, message: string): void {
-    const resultDiv = document.getElementById('notification-toast')
-    if (!resultDiv) {
-      console.log(`[${type.toUpperCase()}]`, message)
-      return
-    }
-
-    const colors: Record<NotifyType, string> = {
-      success: 'bg-green-900/20 border-green-500/30 text-green-400',
-      error: 'bg-red-900/20 border-red-500/30 text-red-400',
-      info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
-    }
-
-    const icons: Record<NotifyType, string> = {
-      success: '✅',
-      error: '❌',
-      info: 'ℹ️',
-    }
-
-    resultDiv.className = `fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border p-4 ${colors[type]}`
-    resultDiv.innerHTML = `
-			<div class="font-medium">
-				${icons[type]} ${message}
-			</div>
-		`
-    resultDiv.classList.remove('hidden')
-
-    setTimeout(() => {
-      resultDiv.classList.add('hidden')
-    }, 5000)
-  }
+  const ONLY_NUMBERS_REGEX = BUILDERS_UI.TICKET_VALIDATION.ONLY_NUMBERS_REGEX
+  const MIN_TICKET_NAME_LENGTH = BUILDERS_UI.TICKET_VALIDATION.MIN_LENGTH
+  const MAX_TICKET_NAME_LENGTH = BUILDERS_UI.TICKET_VALIDATION.MAX_LENGTH
 
   function validateTicketName(name: string): string | null {
     if (!name || name.trim().length === 0) {
@@ -395,7 +368,7 @@ if (!currentUser || currentUser.role !== 'builder') {
     validationTimeout = setTimeout(async () => {
       try {
         const response = await fetch(
-          `/api/tickets/check-code?code=${encodeURIComponent(code)}`
+          `/api/builders/tickets/check-code?code=${encodeURIComponent(code)}`
         )
         const data = await response.json()
 
@@ -485,7 +458,7 @@ if (!currentUser || currentUser.role !== 'builder') {
     }
 
     try {
-      const resp = await fetch('/api/tickets/create', {
+      const resp = await fetch('/api/management/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -498,11 +471,15 @@ if (!currentUser || currentUser.role !== 'builder') {
       const data = await resp.json()
 
       if (resp.ok && data.success) {
-        notify('success', `Ticket "${ticketName}" creado exitosamente!`)
+        notify('success', `Ticket "${ticketName}" creado exitosamente!`, 3000)
         createTicketModal?.classList.add('hidden')
         createTicketModal?.classList.remove('flex')
         createTicketForm?.reset()
-        location.reload()
+
+        // Wait 3 seconds for user to see toast before reload
+        setTimeout(() => {
+          location.reload()
+        }, 3000)
       } else {
         notify('error', data.error || 'Error al crear el ticket')
       }
@@ -526,52 +503,10 @@ if (!currentUser || currentUser.role !== 'builder') {
       }
     }
   })
-  window.updateCredits = async (code: string) => {
-    const deltaStr = prompt('Ingresa el delta de créditos (ej. 1 o -1)')
-    if (!deltaStr) return
-    const delta = parseInt(deltaStr, 10)
-    if (isNaN(delta) || delta === 0) {
-      notify('error', 'Delta inválido')
-      return
-    }
-    try {
-      const resp = await fetch('/api/tickets/update-credits', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, delta }),
-      })
-      const data = await resp.json()
-      if (resp.ok && data.ok) {
-        notify(
-          'success',
-          `Créditos actualizados: ${data.oldCredits} → ${data.newCredits}`
-        )
-        location.reload()
-      } else {
-        notify('error', data.error || 'Error al actualizar créditos')
-      }
-    } catch (e) {
-      notify('error', 'Error de red')
-    }
-  }
-  window.deleteTicket = async (id: number) => {
-    if (
-      !confirm('¿Eliminar ticket? Esta acción devolverá créditos originales.')
-    )
-      return
-    try {
-      const resp = await fetch(`/api/management/tickets/${id}`, {
-        method: 'DELETE',
-      })
-      const data = await resp.json()
-      if (resp.ok && data.success) {
-        notify('success', 'Ticket eliminado')
-        location.reload()
-      } else {
-        notify('error', data.error || 'Error al eliminar')
-      }
-    } catch (e) {
-      notify('error', 'Error de red')
-    }
-  }
+
+  // ===== TICKET ACTION MODAL =====
+  import { initializeTicketModals } from '@/lib/admin_ui/ticket-modal-handlers'
+
+  // Inicializar modales una vez que el DOM esté listo
+  initializeTicketModals(notify)
 </script>

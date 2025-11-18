@@ -14,58 +14,72 @@ interface Body {
 }
 
 export const POST: APIRoute = async context => {
-  try {
-    const data: Body = await context.request.json()
-    const { username, ticket } = data
-    
-    // Log para rastrear el ticket
-    
-    if (!username) {
-      return createCompatibleErrorResponse(
-        new Error(VALIDATION_ERROR_MESSAGES.USERNAME_REQUIRED),
-        HTTP_STATUS.BAD_REQUEST,
-        { noCache: true }
-      )
-    }
+	try {
+		const data: Body = await context.request.json()
+		const { username, ticket } = data
 
-    const sessionManager = new CreationSessionManager(context)
-    
-    // Verificar si ya existe una sesión
-    const existingSession = await sessionManager.get()
-    
-    if (existingSession && existingSession.username === username) {
-      
-      // Si la petición NO tiene ticket, preservar la sesión completa tal como está
-      if (!ticket || !ticket.trim()) {
-        return createCompatibleSuccessResponse({ success: true, username }, HTTP_STATUS.OK, { noCache: true })
-      }
-      
-      // Si la petición SÍ tiene ticket, actualizar sesión preservando otros campos
-      const updatedSession: CreationSession = {
-        ...existingSession,
-        ticket: ticket.trim()
-      }
-      await sessionManager.set(updatedSession)
-      
-      return createCompatibleSuccessResponse({ success: true, username }, HTTP_STATUS.OK, { noCache: true })
-    }
-    
-    // Si no existe sesión, crear nueva
-    const sessionData: CreationSession = {
-      username,
-      confirmedDownload: false,
-      // Solo añadir ticket si no está vacío
-      ...(ticket && ticket.trim() && { ticket: ticket.trim() })
-    }
-    
-    await sessionManager.set(sessionData)
+		// Log para rastrear el ticket
 
-    return createCompatibleSuccessResponse({ success: true, username }, HTTP_STATUS.OK, { noCache: true })
-  } catch (error) {
-    return createCompatibleErrorResponse(
-      error,
-      HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      { noCache: true }
-    )
-  }
+		if (!username) {
+			return createCompatibleErrorResponse(
+				new Error(VALIDATION_ERROR_MESSAGES.USERNAME_REQUIRED),
+				HTTP_STATUS.BAD_REQUEST,
+				{ noCache: true }
+			)
+		}
+
+		const sessionManager = new CreationSessionManager(
+			context.cookies,
+			context.request
+		)
+
+		// Verificar si ya existe una sesión
+		const existingSession = sessionManager.get()
+
+		if (existingSession && existingSession.username === username) {
+			// Si la petición NO tiene ticket, preservar la sesión completa tal como está
+			if (!ticket || !ticket.trim()) {
+				return createCompatibleSuccessResponse(
+					{ success: true, username },
+					HTTP_STATUS.OK,
+					{ noCache: true }
+				)
+			}
+
+			// Si la petición SÍ tiene ticket, actualizar sesión preservando otros campos
+			const updatedSession: CreationSession = {
+				...existingSession,
+				ticket: ticket.trim(),
+			}
+			sessionManager.set(updatedSession)
+
+			return createCompatibleSuccessResponse(
+				{ success: true, username },
+				HTTP_STATUS.OK,
+				{ noCache: true }
+			)
+		}
+
+		// Si no existe sesión, crear nueva
+		const sessionData: CreationSession = {
+			username,
+			confirmedDownload: false,
+			// Solo añadir ticket si no está vacío
+			...(ticket && ticket.trim() && { ticket: ticket.trim() }),
+		}
+
+		sessionManager.set(sessionData)
+
+		return createCompatibleSuccessResponse(
+			{ success: true, username },
+			HTTP_STATUS.OK,
+			{ noCache: true }
+		)
+	} catch (error) {
+		return createCompatibleErrorResponse(
+			error,
+			HTTP_STATUS.INTERNAL_SERVER_ERROR,
+			{ noCache: true }
+		)
+	}
 }

@@ -7,7 +7,7 @@ import KeychainSection from '@/sections/success/KeychainSection.astro'
 import AppsSection from '@/sections/success/AppsSection.astro'
 import CommunityCTASection from '@/sections/success/CommunityCTASection.astro'
 import type { CreationSession } from '@/types/auth'
-import { getBooleanEnv } from '@/lib/env'
+import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
 
 // Obtener username de params
 const { user } = Astro.params
@@ -41,29 +41,16 @@ if (
   via = 'session'
   // Limpiar sesión (solo una vez). Ignorar errores silenciosamente.
   try {
-    if (Astro.session) {
-      await Astro.session.set('createFlow', null)
-    }
+    const { clearCreationCookie } = await import('@/lib/session-cookies')
+    clearCreationCookie(Astro.cookies)
   } catch (error) {}
-  // Set cookie (15 min)
-  // Usar API nativa de Astro para cookies (evita sobrescribir otros Set-Cookie)
-  // Definir si la cookie debe ser Secure: true en MAINNET o si la request llega por HTTPS
-  const isMainnet = getBooleanEnv('MAINNET')
-  const xfProto = Astro.request.headers.get('x-forwarded-proto') || ''
-  const viaHttpsHeader = xfProto.split(',')[0]?.trim().toLowerCase() === 'https'
-  const forwarded = Astro.request.headers.get('forwarded') || ''
-  const viaForwarded = /proto=https/i.test(forwarded)
-  const isHttps =
-    (typeof Astro.url !== 'undefined' && Astro.url.protocol === 'https:') ||
-    viaHttpsHeader ||
-    viaForwarded
-  const cookieSecure = isMainnet || isHttps
+  // Set cookie (15 min) - allows re-access to success page
   Astro.cookies.set('success_account', user, {
     httpOnly: true,
     sameSite: 'strict',
     path: `/success/${user}`,
-    maxAge: 15 * 60, // segundos
-    secure: cookieSecure,
+    maxAge: 15 * 60, // seconds
+    secure: shouldUseSecureCookie(Astro.request),
   })
 } else {
   // No hay sesión válida; intentar cookie

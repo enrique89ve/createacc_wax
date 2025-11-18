@@ -1,0 +1,47 @@
+---
+/**
+ * 🗑️ DELETE TICKET MODAL
+ * Modal nativo de Astro para confirmar borrado de tickets
+ */
+---
+
+<div id="delete-modal-content" class="hidden">
+	<h3 class="mb-4 text-lg font-semibold text-white">🗑️ Borrar Ticket</h3>
+
+	<div
+		class="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-900/20 p-4"
+	>
+		<p class="text-sm text-yellow-400">
+			⚠️ Esta acción eliminará el ticket y te devolverá <strong
+				id="delete-refund-amount"></strong> créditos a tu saldo disponible.
+		</p>
+	</div>
+
+	<div class="mb-4">
+		<div class="mb-2 text-sm text-gray-400">Código del ticket:</div>
+		<div class="text-lg font-semibold text-white" id="delete-ticket-code"></div>
+	</div>
+
+	<div class="mb-6">
+		<div class="mb-2 text-sm text-gray-400">Créditos originales:</div>
+		<div class="text-lg font-semibold text-white" id="delete-ticket-credits">
+		</div>
+	</div>
+
+	<div class="flex gap-3">
+		<button
+			type="button"
+			id="cancel-delete"
+			class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
+		>
+			Cancelar
+		</button>
+		<button
+			type="button"
+			id="confirm-delete"
+			class="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white hover:opacity-90"
+		>
+			Confirmar Borrado
+		</button>
+	</div>
+</div>

@@ -42,14 +42,12 @@ import Layout from '@/layouts/Layout.astro'
 </Layout>
 
 <script>
+  import { notify } from '@/utils/toast'
+
   // Mostrar toast explicativo al cargar la página
   document.addEventListener('DOMContentLoaded', () => {
-    // @ts-ignore - showToast is available globally from Layout.astro
-    if (window.showToast) {
-      setTimeout(() => {
-        // @ts-ignore
-        window.showToast('warning', 'Completa el formulario de registro para continuar')
-      }, 1000)
-    }
+    setTimeout(() => {
+      notify('warning', 'Completa el formulario de registro para continuar')
+    }, 1000)
   })
 </script>

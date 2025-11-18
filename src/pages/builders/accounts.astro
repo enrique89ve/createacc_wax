@@ -23,7 +23,9 @@ const builderId = builder?.id
 // Obtener cuentas y estadísticas
 const [accounts, stats] = await Promise.all([
   builderId ? usersRepository.getAccountsByUser(builderId) : [],
-  builderId ? usersRepository.getBuildersStats(builderId) : { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 },
+  builderId
+    ? usersRepository.getBuildersStats(builderId)
+    : { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 },
 ])
 
 // Configurar columnas para la tabla de cuentas
@@ -41,41 +43,11 @@ const accountColumns = [
     width: 'w-32',
   },
   {
-    key: 'ticket_type',
-    label: 'Tipo de Ticket',
-    type: 'badge' as const,
-    badgeVariant: (value: string) => {
-      const variants = {
-        standard: 'info' as const,
-        premium: 'success' as const,
-        special: 'warning' as const,
-      }
-      return variants[value as keyof typeof variants] || ('info' as const)
-    },
-  },
-  {
-    key: 'public_key',
-    label: 'Clave Pública',
-    type: 'key' as const,
-    truncate: true,
-    width: 'w-48',
-  },
-  {
     key: 'creation_date',
     label: 'Fecha de Creación',
     type: 'date' as const,
   },
 ]
-
-// Agrupar cuentas por tipo de ticket para estadísticas adicionales
-const accountsByType = accounts.reduce(
-  (acc, account) => {
-    const type = account.ticket_type
-    acc[type] = (acc[type] || 0) + 1
-    return acc
-  },
-  {} as Record<string, number>
-)
 ---
 
 <BuildersLayout title="Cuentas Creadas - Builders" currentPage="accounts">
@@ -89,30 +61,14 @@ const accountsByType = accounts.reduce(
     </div>
     <BuildersTabs active="accounts" />
 
-    <!-- Cards de estadísticas -->
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <!-- Cards de estadísticas (2 columnas) -->
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
       <BuildersCard
         title="Total de Cuentas"
         value={stats.totalAccounts}
         description="Cuentas creadas exitosamente"
         icon="👥"
         variant="success"
-      />
-
-      <BuildersCard
-        title="Cuentas Standard"
-        value={accountsByType.standard || 0}
-        description="Usando tickets estándar"
-        icon="🎫"
-        variant="info"
-      />
-
-      <BuildersCard
-        title="Cuentas Premium"
-        value={accountsByType.premium || 0}
-        description="Usando tickets premium"
-        icon="⭐"
-        variant="warning"
       />
 
       <BuildersCard
@@ -133,35 +89,5 @@ const accountsByType = accounts.reduce(
       showSearch={true}
       searchPlaceholder="Buscar por usuario o ticket..."
     />
-
-    <!-- Acciones Rápidas (alineadas al estilo de tickets, opcionales) -->
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <a
-        href="/"
-        class="group flex flex-col items-center space-y-4 rounded-lg border border-green-500/30 bg-green-600/20 p-8 text-green-400 transition-colors hover:bg-green-600/30"
-      >
-        <span class="text-6xl transition-transform group-hover:scale-110"
-          >➕</span
-        >
-        <div class="text-center">
-          <div class="mb-2 text-xl font-semibold">Crear Nueva Cuenta</div>
-          <div class="text-sm opacity-80">
-            Usar el formulario principal para crear más cuentas Hive
-          </div>
-        </div>
-      </a>
-      <a
-        href="/builders/tickets"
-        class="group flex flex-col items-center space-y-4 rounded-lg border border-blue-500/30 bg-blue-600/20 p-8 text-blue-400 transition-colors hover:bg-blue-600/30"
-      >
-        <span class="text-6xl transition-transform group-hover:scale-110"
-          >🎟️</span
-        >
-        <div class="text-center">
-          <div class="mb-2 text-xl font-semibold">Gestionar Tickets</div>
-          <div class="text-sm opacity-80">Ver y administrar tus tickets</div>
-        </div>
-      </a>
-    </div>
   </div>
 </BuildersLayout>

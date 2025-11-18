@@ -7,18 +7,18 @@ export type SessionContext = Parameters<
 >[0]
 
 export async function setCreationSession(
-  context: SessionContext,
-  data: CreationSession
+	context: SessionContext,
+	data: CreationSession
 ): Promise<void> {
-  const { CreationSessionManager } = await import('./session-manager')
-  const manager = new CreationSessionManager(context)
-  await manager.set(data)
+	const { CreationSessionManager } = await import('./session-manager')
+	const manager = new CreationSessionManager(context.cookies, context.request)
+	manager.set(data)
 }
 
 export async function getCreationSession(
-  context: SessionContext
+	context: SessionContext
 ): Promise<CreationSession | null> {
-  const { CreationSessionManager } = await import('./session-manager')
-  const manager = new CreationSessionManager(context)
-  return await manager.get()
+	const { CreationSessionManager } = await import('./session-manager')
+	const manager = new CreationSessionManager(context.cookies, context.request)
+	return manager.get()
 }

@@ -1,7 +1,9 @@
 ---
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import BuildersTabs from '@/components/ui/BuildersTabs.astro'
+import Toasts from '@/components/ui/Toasts.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
+import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 
 // Autenticación centralizada - si no está autenticado, se redirige automáticamente
@@ -37,7 +39,7 @@ let creditHistory: Array<{
 }> = []
 
 try {
-  const credits = await creditsService.getBuilderCredits(builderUsername)
+  const credits = await creditBalanceTracker.getBalance(builderUsername)
 
   if (credits) {
     builderCredits = {
@@ -353,17 +355,12 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     </div>
   </div>
 
-  <!-- Resultado de operaciones -->
-  <div
-    id="result"
-    class="fixed bottom-4 right-4 z-50 hidden max-w-sm rounded-lg border p-4"
-  >
-    <!-- Resultado aparecerá aquí -->
-  </div>
+  <!-- Toast Notifications -->
+  <Toasts />
 </BuildersLayout>
 
 <script>
-  type ResultType = 'success' | 'error' | 'info'
+  import { notify } from '@/utils/toast'
 
   interface HiveKeychainResponse {
     readonly success: boolean
@@ -457,10 +454,10 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       claimBtn.disabled = true
       claimBtn.textContent = 'Generando hash...'
 
-      showResult('info', 'Preparando operación de claim...')
+      notify('info', 'Preparando operación de claim...')
 
       // 1. Solicitar hash de validación al servidor
-      const hashResponse = await fetch('/api/credits/claim-hash', {
+      const hashResponse = await fetch('/api/builders/credits/claim-hash', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -469,33 +466,30 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
 
       if (!hashResponse.ok || !hashData.success) {
         // Mostrar solo el toast, sin error en consola
-        showResult(
-          'error',
-          hashData.error || 'Error generando hash de validación'
-        )
+        notify('error', hashData.error || 'Error generando hash de validación')
         return
       }
 
       claimBtn.textContent = 'Conectando Keychain...'
-      showResult('info', 'Preparando custom JSON para Keychain...')
+      notify('info', 'Preparando custom JSON para Keychain...')
 
       // 2. Verificar que Keychain esté disponible
       const hiveKeychain = getHiveKeychain()
       if (!hiveKeychain) {
-        showResult('error', 'Hive Keychain no está instalado')
+        notify('error', 'Hive Keychain no está instalado')
         return
       }
 
       // 3. Crear custom JSON operation
       const username = getCurrentUsername()
       if (!username) {
-        showResult('error', 'No se pudo determinar el usuario actual')
+        notify('error', 'No se pudo determinar el usuario actual')
         return
       }
       const customJsonData = hashData.customJson
 
       claimBtn.textContent = 'Firmando operación...'
-      showResult('info', 'Solicitando firma de custom JSON...')
+      notify('info', 'Solicitando firma de custom JSON...')
 
       // 4. Solicitar firma de custom JSON a Keychain
       const keyResult: HiveKeychainResponse = await new Promise(resolve => {
@@ -521,19 +515,19 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       })
 
       if (!keyResult.success) {
-        showResult('error', keyResult.message || 'Error firmando con Keychain')
+        notify('error', keyResult.message || 'Error firmando con Keychain')
         return
       }
 
       const transactionId = keyResult.result.id
 
       claimBtn.textContent = 'Verificando blockchain...'
-      showResult('info', 'Verificando transacción en blockchain...')
+      notify('info', 'Verificando transacción en blockchain...')
       // 5. Esperar un momento para que la transacción se propague
       await new Promise(resolve => setTimeout(resolve, 3000))
 
       // 6. Verificar la transacción en el servidor
-      const verifyResponse = await fetch('/api/credits/claim-verify', {
+      const verifyResponse = await fetch('/api/builders/credits/claim-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -545,7 +539,7 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       const verifyData = await verifyResponse.json()
 
       if (verifyResponse.ok && verifyData.success) {
-        showResult(
+        notify(
           'success',
           `¡Créditos reclamados! Disponible: ${verifyData.available || 0}, Pendiente: ${verifyData.pending || 0}`
         )
@@ -553,13 +547,10 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
         // Recargar página después de un momento
         setTimeout(() => location.reload(), 3000)
       } else {
-        showResult(
-          'error',
-          verifyData.error || 'Error verificando la transacción'
-        )
+        notify('error', verifyData.error || 'Error verificando la transacción')
       }
     } catch (error) {
-      showResult('error', 'Error de conexión o procesamiento')
+      notify('error', 'Error de conexión o procesamiento')
     } finally {
       // Restaurar botón
       claimBtn.disabled = false
@@ -582,12 +573,12 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       typeof amountValue === 'string' ? parseInt(amountValue, 10) : 0
 
     if (!amount || !paymentMethod) {
-      showResult('error', 'Todos los campos son requeridos')
+      notify('error', 'Todos los campos son requeridos')
       return
     }
 
     try {
-      const response = await fetch('/api/credits/purchase', {
+      const response = await fetch('/api/builders/credits/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount, paymentMethod, paymentReference }),
@@ -596,22 +587,22 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       const data = await response.json()
 
       if (response.ok && data.success) {
-        showResult('success', '¡Compra exitosa! Créditos añadidos a tu cuenta')
+        notify('success', '¡Compra exitosa! Créditos añadidos a tu cuenta')
         // Cerrar modal
         document.getElementById('buy-modal')?.classList.add('hidden')
         // Recargar página después de un momento
-        setTimeout(() => location.reload(), 2000)
+        setTimeout(() => location.reload(), 3000)
       } else {
-        showResult('error', data.error || 'Error al comprar créditos')
+        notify('error', data.error || 'Error al comprar créditos')
       }
     } catch (error) {
-      showResult('error', 'Error de conexión')
+      notify('error', 'Error de conexión')
     }
   }
 
   function handleExportHistory() {
     const format = 'csv' // Por defecto CSV, se puede hacer configurable
-    const url = `/api/credits/export?format=${format}`
+    const url = `/api/builders/credits/export?format=${format}`
 
     // Crear enlace temporal para descargar
     const link = document.createElement('a')
@@ -621,7 +612,7 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     link.click()
     document.body.removeChild(link)
 
-    showResult('success', 'Descarga iniciada')
+    notify('success', 'Descarga iniciada')
   }
 
   function setupModalCloseOnOutsideClick() {
@@ -636,35 +627,5 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
         }
       })
     })
-  }
-
-  function showResult(type: ResultType, message: string) {
-    const resultDiv = document.getElementById('result') as HTMLDivElement | null
-    if (!resultDiv) return
-
-    const colors: Record<ResultType, string> = {
-      success: 'bg-green-900/20 border-green-500/30 text-green-400',
-      error: 'bg-red-900/20 border-red-500/30 text-red-400',
-      info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
-    }
-
-    const icons: Record<ResultType, string> = {
-      success: '✅',
-      error: '❌',
-      info: 'ℹ️',
-    }
-
-    resultDiv.className = `fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border p-4 ${colors[type]}`
-    resultDiv.innerHTML = `
-			<div class="font-medium">
-				${icons[type]} ${message}
-			</div>
-		`
-    resultDiv.classList.remove('hidden')
-
-    // Auto hide after 5 seconds
-    setTimeout(() => {
-      resultDiv.classList.add('hidden')
-    }, 5000)
   }
 </script>

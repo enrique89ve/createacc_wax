@@ -28,16 +28,4 @@ export interface PublicKeysPayload {
   readonly memoPublicKey?: string
 }
 
-export interface KeysetMetadata {
-  readonly id: string
-  readonly username: string
-  readonly createdAt: Date
-  readonly downloaded: boolean
-}
-
 export type HiveKeyRole = 'owner' | 'active' | 'posting' | 'memo'
-
-export interface KeyValidationResult {
-  readonly isValid: boolean
-  readonly errors: string[]
-}

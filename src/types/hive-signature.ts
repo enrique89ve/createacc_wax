@@ -111,12 +111,6 @@ export type HiveSignatureErrorCode =
   | 'WAX_INITIALIZATION_FAILED'
   | 'BLOCKCHAIN_CONNECTION_ERROR'
 
-export interface HiveSignatureError {
-  readonly code: HiveSignatureErrorCode
-  readonly message: string
-  readonly details?: Record<string, unknown>
-}
-
 // ===== HELPER FUNCTIONS =====
 
 export const createHiveUsername = (username: string): HiveUsername =>

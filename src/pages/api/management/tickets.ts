@@ -2,6 +2,7 @@ import type { APIRoute } from 'astro'
 import { withAdminSession } from '@/lib/session-helpers'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { usersRepository } from '@/lib/repositories/users-repository'
+import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 // Logger removed
 import { db } from '@/lib/database'
@@ -129,14 +130,14 @@ export const POST: APIRoute = async context => {
 
       // Verificar créditos disponibles para builders
       if (session.role === 'builder') {
-        const userCredits = await creditsService.getUserCredits(username)
+        const userCredits = await creditBalanceTracker.getBalance(username)
 
-        if (!userCredits || userCredits.active_credits < credits) {
+        if (!userCredits || userCredits.available_amount < credits) {
           return jsonResponse(
             {
-              error: `Créditos insuficientes. Necesitas ${credits} créditos, pero solo tienes ${userCredits?.active_credits || 0} disponibles.`,
+              error: `Créditos insuficientes. Necesitas ${credits} créditos, pero solo tienes ${userCredits?.available_amount || 0} disponibles.`,
               required_credits: credits,
-              available_credits: userCredits?.active_credits || 0,
+              available_credits: userCredits?.available_amount || 0,
             },
             403
           )
@@ -180,7 +181,7 @@ export const POST: APIRoute = async context => {
       await createTicketAudit(cleanCode, session.userId)
 
       // Obtener balance final
-      const finalUserCredits = await creditsService.getUserCredits(username)
+      const finalUserCredits = await creditBalanceTracker.getBalance(username)
 
       const result: TicketCreationResult = {
         success: true,
@@ -193,7 +194,7 @@ export const POST: APIRoute = async context => {
         },
         credits_info: {
           credits_deducted: credits,
-          new_credits: finalUserCredits?.active_credits || 0,
+          new_credits: finalUserCredits?.available_amount || 0,
         },
       }
 

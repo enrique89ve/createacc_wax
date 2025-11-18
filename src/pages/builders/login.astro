@@ -3,6 +3,7 @@
  * Página de login para builders usando Keychain
  */
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
+import Toasts from '@/components/ui/Toasts.astro'
 ---
 
 <BuildersLayout title="Login - Builders" currentPage="login">
@@ -67,16 +68,16 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           </div>
         </div>
 
-        <!-- Result Display -->
-        <div id="result" class="hidden rounded-lg border p-4">
-          <!-- Resultado aparecerá aquí -->
-        </div>
       </div>
     </div>
   </main>
 
+  <!-- Toast Notifications -->
+  <Toasts />
+
   <script>
     import { quickLogin, isKeychainReady } from '@/lib/keychain-service'
+    import { notify } from '@/utils/toast'
 
     document.addEventListener('DOMContentLoaded', async () => {
       await initPage()
@@ -136,7 +137,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
       const username = ((formData.get('username') as string) || '').trim()
 
       if (!username) {
-        showResult('error', 'Por favor ingresa tu usuario de Hive')
+        notify('error', 'Por favor ingresa tu usuario de Hive')
         return
       }
 
@@ -147,16 +148,16 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 
       try {
         // 1. Login con Keychain
-        showResult('info', 'Solicitando firma de Keychain...')
+        notify('info', 'Solicitando firma de Keychain...')
 
         const keychainResult = await quickLogin(username, 'Posting')
 
         if (!keychainResult.success) {
-          showResult('error', keychainResult.error || 'Error en Keychain')
+          notify('error', keychainResult.error || 'Error en Keychain')
           return
         }
 
-        showResult('info', 'Verificando credenciales en servidor...')
+        notify('info', 'Verificando credenciales en servidor...')
 
         // 2. Obtener CSRF token para Auth.js
         const csrfResponse = await fetch('/api/auth/csrf')
@@ -183,7 +184,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 
         // Check if it's a successful response
         if (response.ok || response.status === 302) {
-          showResult('success', '¡Login exitoso! Redirigiendo...')
+          notify('success', '¡Login exitoso! Redirigiendo...')
 
           // For successful auth, redirect to tickets page
           setTimeout(() => {
@@ -208,43 +209,19 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
             errorMessage = `Error ${response.status}: ${response.statusText}`
           }
 
-          showResult('error', errorMessage)
+          notify('error', errorMessage)
         } catch (parseError) {
 
-          showResult('error', 'Error de comunicación con el servidor')
+          notify('error', 'Error de comunicación con el servidor')
         }
       } catch (error) {
 
-        showResult('error', 'Error de conexión. Inténtalo de nuevo.')
+        notify('error', 'Error de conexión. Inténtalo de nuevo.')
       } finally {
         loginBtn.disabled = false
         loginBtn.textContent = 'Login con Keychain'
       }
     }
 
-    // Mostrar resultados
-    function showResult(type: 'success' | 'error' | 'info', message: string) {
-      const resultDiv = document.getElementById('result')!
-
-      const colors = {
-        success: 'bg-green-900/20 border-green-500/30 text-green-400',
-        error: 'bg-red-900/20 border-red-500/30 text-red-400',
-        info: 'bg-blue-900/20 border-blue-500/30 text-blue-400',
-      }
-
-      const icons = {
-        success: '✅',
-        error: '❌',
-        info: 'ℹ️',
-      }
-
-      resultDiv.className = `p-4 rounded-lg border ${colors[type]}`
-      resultDiv.innerHTML = `
-				<div class="font-medium">
-					${icons[type]} ${message}
-				</div>
-			`
-      resultDiv.classList.remove('hidden')
-    }
   </script>
 </BuildersLayout>
