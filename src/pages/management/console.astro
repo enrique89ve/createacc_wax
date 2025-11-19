@@ -2,35 +2,34 @@
 import Layout from '@/layouts/Layout.astro'
 import { dashboardService } from '@/lib/repositories/dashboard-service'
 import type {
-	RecentTicketInfo,
-	RecentAccountInfo,
+  RecentTicketInfo,
+  RecentAccountInfo,
 } from '@/lib/repositories/dashboard-service'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
 
 if (!session) {
-	return Astro.redirect('/management/access')
+  return Astro.redirect('/management/access')
 }
 
 // Obtener todas las estadísticas y datos del dashboard
 let stats = {
-	totalBuilders: 0,
-	totalTickets: 0,
-	usedTickets: 0,
-	totalAccounts: 0,
-	todayAccounts: 0,
+  totalBuilders: 0,
+  totalTickets: 0,
+  usedTickets: 0,
+  totalAccounts: 0,
+  todayAccounts: 0,
 }
 let recentTickets: RecentTicketInfo[] = []
 let recentAccounts: RecentAccountInfo[] = []
 
 try {
-	const summary = await dashboardService.getSystemActivitySummary(5)
-	stats = summary.stats
-	recentTickets = summary.recentTickets
-	recentAccounts = summary.recentAccounts
-} catch (error) {
-}
+  const summary = await dashboardService.getSystemActivitySummary(5)
+  stats = summary.stats
+  recentTickets = summary.recentTickets
+  recentAccounts = summary.recentAccounts
+} catch (error) {}
 ---
 
 <Layout title="Console de Gestión - HolaHive">
@@ -179,8 +178,9 @@ try {
                           {ticket.code}
                         </p>
                         <p class="text-muted-foreground text-xs">
-                          Por {ticket.created_by_username} • {ticket.creator_type ?? 'manual'} •{' '}
-                          {ticket.credits}/{ticket.original_credits} créditos
+                          Por {ticket.created_by_username} •{' '}
+                          {ticket.creator_type ?? 'manual'} • {ticket.credits}/
+                          {ticket.original_credits} créditos
                         </p>
                       </div>
                       <div class="text-right">
@@ -259,20 +259,15 @@ try {
 
   logoutBtn?.addEventListener('click', async () => {
     try {
-      const response = await fetch('/api/auth/logout', {
+      // Use custom management logout endpoint
+      await fetch('/api/auth/management-logout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
       })
-
-      const result = await response.json()
-
-      if (response.ok && result.success) {
-        window.location.href = result.redirectTo || '/management/access'
-      } else {
-      }
     } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      // Always redirect to login page
+      window.location.href = '/management/access'
     }
   })
 </script>

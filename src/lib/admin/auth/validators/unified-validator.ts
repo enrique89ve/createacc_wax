@@ -192,7 +192,6 @@ const keychainStrategy: AuthenticationStrategy<KeychainCredentials> = {
       signature: credentials.signature
         ? createHiveSignature(credentials.signature)
         : undefined,
-      timestamp: credentials.timestamp || Date.now(),
     })
 
     if (!keychainResult.success || !keychainResult.user) {

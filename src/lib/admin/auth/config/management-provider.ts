@@ -4,7 +4,7 @@
  */
 
 import Credentials from '@auth/core/providers/credentials'
-import { validatePasswordCredentials } from '@/lib/admin/auth/validators/password-validator'
+import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 
 /**
@@ -47,8 +47,12 @@ export const managementProvider = Credentials({
       password,
     }
 
-    const result = await validatePasswordCredentials(passwordCredentials)
+    const result = await validateCredentials(passwordCredentials, 'password')
     if (!result.success) {
+      console.warn(
+        `Management login failed for user ${username}:`,
+        result.error
+      )
       return null
     }
 

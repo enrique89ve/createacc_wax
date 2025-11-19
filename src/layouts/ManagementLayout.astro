@@ -126,19 +126,18 @@ const navItems = [
 
   <!-- Logout Script -->
   <script>
-    // Unified logout functionality using auth-astro standard API
     const logoutBtn = document.getElementById('logout-btn')
 
     logoutBtn?.addEventListener('click', async () => {
       try {
-        // Use auth-astro standard signOut function
-        const { signOut } = await import('auth-astro/client')
-        await signOut()
-
-        // Redirect after successful logout
-        window.location.href = '/management/access'
+        // Call custom logout endpoint to clear cookies
+        await fetch('/api/auth/management-logout', {
+          method: 'POST',
+        })
       } catch (error) {
-        // Fallback: redirect manually if signOut fails
+        console.error('Logout error:', error)
+      } finally {
+        // Always redirect to login page
         window.location.href = '/management/access'
       }
     })

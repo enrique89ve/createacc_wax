@@ -10,7 +10,6 @@ import type {
 export interface KeychainAuthRequest {
   readonly username: HiveUsername
   readonly message: HiveMessage
-  readonly timestamp: number
   readonly publicKey?: HivePublicKey
   readonly signature?: HiveSignature
 }
@@ -29,7 +28,7 @@ export async function verifyKeychainAuth(
   request: KeychainAuthRequest
 ): Promise<AuthResult> {
   try {
-    const { username, message, publicKey, signature, timestamp } = request
+    const { username, message, publicKey, signature } = request
 
     // Validar campos requeridos
     if (!username || !message) {
@@ -53,7 +52,8 @@ export async function verifyKeychainAuth(
     }
 
     // Validación básica de formato del mensaje
-    const messageRegex = /Login to HiveAccount Creation at .+\nUsername: (.+)\nTimestamp: (\d+)$/
+    const messageRegex =
+      /Login to HiveAccount Creation at .+\nUsername: (.+)\nTimestamp: (\d+)$/
     const messageMatch = message.match(messageRegex)
 
     if (!messageMatch) {
@@ -74,15 +74,22 @@ export async function verifyKeychainAuth(
       }
     }
 
-    // Validar timestamp del mensaje (no más de 1 minuto de diferencia)
-    const now = timestamp || Date.now()
-    const maxDiff = 60_000 // 1 minuto en milisegundos
+    // Validar timestamp del mensaje
+    // IMPORTANTE: Usar siempre la hora del servidor (Date.now()) para evitar ataques de replay.
+    // Date.now() es UTC universal, por lo que la zona horaria del usuario no afecta,
+    // pero sí afecta si su reloj está desajustado (adelantado o atrasado).
+    const now = Date.now()
+
+    // Aumentamos tolerancia a 5 minutos (300s) para evitar rechazar usuarios con relojes
+    // ligeramente desincronizados, manteniendo seguridad contra replay attacks.
+    const maxDiff = 5 * 60 * 1000
     const messageTimeDiff = Math.abs(now - messageTimestamp)
 
     if (messageTimeDiff > maxDiff) {
       return {
         success: false,
-        error: 'Timestamp del mensaje inválido. El mensaje es muy antiguo.',
+        error:
+          'La hora de tu dispositivo está desajustada. Por favor verifica tu reloj e intenta de nuevo.',
       }
     }
 

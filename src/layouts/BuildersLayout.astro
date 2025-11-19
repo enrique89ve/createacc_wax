@@ -69,14 +69,13 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
           />
 
           <!-- Logout Button -->
-          <form action="/api/auth/signout" method="post" class="contents">
-            <button
-              type="submit"
-              class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-            >
-              Salir
-            </button>
-          </form>
+          <button
+            id="builders-logout-btn"
+            type="button"
+            class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            Salir
+          </button>
         </div>
       </div>
     </header>
@@ -89,5 +88,23 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
 
   <!-- Toast Notifications -->
   <Toasts />
+
+  <script>
+    const logoutBtn = document.getElementById('builders-logout-btn')
+
+    logoutBtn?.addEventListener('click', async () => {
+      try {
+        // Call custom builders logout endpoint to clear cookies
+        await fetch('/api/auth/builders-logout', {
+          method: 'POST',
+        })
+      } catch (error) {
+        console.error('Logout error:', error)
+      } finally {
+        // Always redirect to builders login page
+        window.location.href = '/builders/login'
+      }
+    })
+  </script>
 </body>
 </html>

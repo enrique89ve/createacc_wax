@@ -9,42 +9,46 @@ export interface PasswordAuthRequest {
 
 export interface AuthResult {
   readonly success: boolean
-  readonly user?: NewUser
+  readonly user?: NewUser & { role?: string }
   readonly error?: string
 }
 
 /**
- * Get admin user for password authentication
- * Uses Users table with role='admin' (only 1 admin allowed)
+ * Get user by username for password authentication
+ * Case-insensitive username lookup
  */
-async function getSuperAdminUser(): Promise<NewUser | null> {
+async function getUserByUsername(
+  username: string
+): Promise<(NewUser & { role: string }) | null> {
   try {
+    // Enforce role='admin' to ensure only admins can use password authentication
     const result = await db.execute({
-      sql: `SELECT id, username, password_hash, created_at, updated_at FROM Users WHERE role = ? AND is_active = TRUE LIMIT 1`,
-      args: ['admin']
+      sql: `SELECT id, username, password_hash, role, created_at, updated_at FROM Users WHERE LOWER(username) = LOWER(?) AND role = 'admin' AND is_active = TRUE LIMIT 1`,
+      args: [username],
     })
 
     if (result.rows.length === 0) return null
 
-    const admin = result.rows[0] as any
+    const user = result.rows[0] as any
     return {
-      id: admin.id,
-      username: admin.username,
+      id: user.id,
+      username: user.username,
+      role: user.role,
       hive_account: null,
       auth_method: 'password',
-      password_hash: admin.password_hash,
+      password_hash: user.password_hash,
       credits: 0,
-      created_at: admin.created_at,
-      updated_at: admin.updated_at,
-    } as NewUser
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+    }
   } catch (error) {
-    console.error('Error getting admin user:', error)
+    console.error('Error getting user:', error)
     return null
   }
 }
 
 /**
- * Verifica autenticación por usuario/contraseña para superadmins
+ * Verifica autenticación por usuario/contraseña
  */
 export async function verifyPasswordAuth(
   request: PasswordAuthRequest
@@ -60,35 +64,24 @@ export async function verifyPasswordAuth(
       }
     }
 
-    // Obtener usuario superadmin
-    const superAdminUser = await getSuperAdminUser()
-    if (!superAdminUser) {
+    // Obtener usuario
+    const user = await getUserByUsername(username)
+    if (!user) {
       return {
         success: false,
         error: 'Usuario no encontrado',
       }
     }
 
-    // Verificar username
-    if (superAdminUser.username !== username) {
-      return {
-        success: false,
-        error: 'Credenciales inválidas',
-      }
-    }
-
     // Verificar contraseña
-    if (!superAdminUser.password_hash) {
+    if (!user.password_hash) {
       return {
         success: false,
         error: 'Configuración de usuario inválida',
       }
     }
 
-    const passwordMatch = await bcrypt.compare(
-      password,
-      superAdminUser.password_hash
-    )
+    const passwordMatch = await bcrypt.compare(password, user.password_hash)
     if (!passwordMatch) {
       return {
         success: false,
@@ -98,7 +91,7 @@ export async function verifyPasswordAuth(
 
     return {
       success: true,
-      user: superAdminUser,
+      user,
     }
   } catch (error) {
     console.error('Error en verificación de contraseña:', error)

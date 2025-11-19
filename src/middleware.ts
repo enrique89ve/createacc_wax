@@ -3,7 +3,10 @@ import { defineMiddleware } from 'astro:middleware'
 import '@/lib/error-normalizer'
 import { ROUTES } from '@/consts/constants'
 import { CreationSessionManager } from '@/lib/session-manager'
-import { requireAdminAuth } from '@/lib/admin/auth/helpers/auth-guards'
+import {
+  requireAdminAuth,
+  requireBuildersAuth,
+} from '@/lib/admin/auth/helpers/auth-guards'
 import type { APIContext } from 'astro'
 import type { AdminSession } from '@/types/auth'
 
@@ -14,6 +17,8 @@ const PROTECTED_ROUTES = {
   MANAGEMENT_PREFIX: ROUTES.MANAGEMENT,
   LOGIN_PATH: ROUTES.LOGIN,
   CONSOLE_REDIRECT: ROUTES.CONSOLE,
+  BUILDERS_PREFIX: '/builders/',
+  BUILDERS_LOGIN_PATH: ROUTES.BUILDERS_LOGIN,
 } as const
 
 /**
@@ -40,13 +45,13 @@ function mapGuardResultToAdmin(guardResult: any): AdminSession {
 
   // Usuarios temporales (ID 0) no deben acceder a management
   if (Number.isNaN(userId) || userId === 0) {
-    throw new Error(
-    )
+    throw new Error()
   }
 
   // Type-safe role mapping
   const sessionRole = guardResult.role
-  const role: 'admin' | 'builder' = sessionRole === 'admin' ? 'admin' : 'builder'
+  const role: 'admin' | 'builder' =
+    sessionRole === 'admin' ? 'admin' : 'builder'
 
   return {
     userId,
@@ -99,19 +104,53 @@ async function protectManagementRoutes(
 }
 
 /**
+ * Protege rutas bajo /builders usando los auth guards
+ */
+async function protectBuildersRoutes(
+  context: APIContext
+): Promise<Response | null> {
+  const { pathname } = context.url
+
+  // Only check builders routes
+  if (!pathname.startsWith(PROTECTED_ROUTES.BUILDERS_PREFIX)) {
+    return null
+  }
+
+  // Handle login page - redirect if already authenticated
+  if (pathname === PROTECTED_ROUTES.BUILDERS_LOGIN_PATH) {
+    const authResult = await requireBuildersAuth(context.request)
+    if (authResult.isAuthenticated) {
+      return context.redirect('/builders/accounts')
+    }
+    return null
+  }
+
+  // Check authentication for protected routes
+  const authResult = await requireBuildersAuth(context.request)
+
+  if (!authResult.isAuthenticated) {
+    return context.redirect(
+      authResult.redirectTo || PROTECTED_ROUTES.BUILDERS_LOGIN_PATH
+    )
+  }
+
+  return null
+}
+
+/**
  * Cargar sessions disponibles en locals para todas las páginas
  */
 async function loadCreationSession(context: APIContext): Promise<void> {
-	try {
-		if (context.locals.creation !== undefined) return
-		const creation = new CreationSessionManager(
-			context.cookies,
-			context.request
-		).get()
-		if (creation) context.locals.creation = creation
-	} catch (error) {
-		// Silently fail - session will be undefined
-	}
+  try {
+    if (context.locals.creation !== undefined) return
+    const creation = new CreationSessionManager(
+      context.cookies,
+      context.request
+    ).get()
+    if (creation) context.locals.creation = creation
+  } catch (error) {
+    // Silently fail - session will be undefined
+  }
 }
 
 /**
@@ -124,6 +163,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
   try {
     const protectionResult = await protectManagementRoutes(context)
     if (protectionResult) return protectionResult
+
+    const buildersProtectionResult = await protectBuildersRoutes(context)
+    if (buildersProtectionResult) return buildersProtectionResult
 
     await loadCreationSession(context)
   } catch (error) {
