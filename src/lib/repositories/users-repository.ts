@@ -408,11 +408,6 @@ export class UsersRepository {
       })
 
       await db.execute({
-        sql: 'DELETE FROM UserSessions WHERE user_id = ?',
-        args: [builderId],
-      })
-
-      await db.execute({
         sql: `DELETE FROM Users WHERE id = ? AND role = 'builder'`,
         args: [builderId],
       })

@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { withAdminSession } from '@/lib/session-helpers'
+import { withAdminApiSession } from '@/lib/session-helpers'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditsService } from '@/lib/credits-service'
 import {
@@ -9,7 +9,7 @@ import {
 
 // GET: Listar usuarios builders
 export const GET: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission
       try {
@@ -49,7 +49,7 @@ export const GET: APIRoute = async context => {
 
 // POST: Crear nuevo usuario builder
 export const POST: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission
       try {
@@ -67,14 +67,11 @@ export const POST: APIRoute = async context => {
         readonly hive_username?: string
       }
 
-      const { hive_username } = data as BuilderCreateRequest
+      const { hive_username, amount } = data as BuilderCreateRequest & {
+        amount?: number
+      }
 
-      // Validar campos
-      if (
-        !hive_username ||
-        typeof hive_username !== 'string' ||
-        hive_username.trim().length < 3
-      ) {
+      if (!hive_username || hive_username.length < 3) {
         return new Response(
           JSON.stringify({
             error: 'Hive username debe tener al menos 3 caracteres',
@@ -87,6 +84,8 @@ export const POST: APIRoute = async context => {
       }
 
       const cleanUsername = hive_username.trim().toLowerCase()
+      const initialCredits =
+        typeof amount === 'number' && amount > 0 ? amount : 100
 
       // Verificar que el builder no exista usando el unified repository
       const exists =
@@ -111,7 +110,7 @@ export const POST: APIRoute = async context => {
       // Asignar créditos iniciales usando el creditsService
       await creditsService.assignCredits({
         hive_username: cleanUsername,
-        amount: 100,
+        amount: initialCredits,
         source: 'Créditos iniciales al crear builder',
         assigned_by_admin: session.userId,
       })
@@ -153,7 +152,7 @@ export const POST: APIRoute = async context => {
 
 // DELETE: Eliminar usuario builder
 export const DELETE: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission
       try {

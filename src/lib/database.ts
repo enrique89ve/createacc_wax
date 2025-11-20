@@ -108,18 +108,6 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Crear tabla UserSessions (unificada)
-    await db.execute(`
-		CREATE TABLE IF NOT EXISTS UserSessions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			user_id INTEGER NOT NULL,
-			session_token TEXT UNIQUE NOT NULL,
-			expires_at DATETIME NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (user_id) REFERENCES Users (id)
-		)
-	`)
-
     // Crear tabla Credits
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Credits (

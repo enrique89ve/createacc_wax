@@ -114,11 +114,12 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     const creditId = parseInt(creditIdMatch[1])
+    const creditsToAdd = hashData.creditsAvailable
 
-    // Verificar que el crédito aún está pendiente
+    // Obtener registro de créditos del builder
     const creditResult = await db.execute({
-      sql: `SELECT id, amount, builder_id, status FROM Credits
-			      WHERE id = ? AND builder_id = ? AND status = 'pending'`,
+      sql: `SELECT id, pending_amount FROM Credits
+			      WHERE id = ? AND builder_id = ?`,
       args: [creditId, builderId],
     })
 
@@ -126,7 +127,7 @@ export const POST: APIRoute = async ({ request }) => {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Crédito no disponible o ya reclamado',
+          error: 'Registro de créditos no encontrado',
         }),
         {
           status: HTTP_STATUS.NOT_FOUND,
@@ -135,20 +136,34 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const creditsToAdd = hashData.creditsAvailable
+    const currentPending = Number((creditResult.rows[0] as any).pending_amount)
+
+    if (currentPending < creditsToAdd) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error:
+            'La cantidad de créditos pendientes ha cambiado o es insuficiente',
+        }),
+        {
+          status: HTTP_STATUS.CONFLICT,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      )
+    }
 
     // Procesar el claim usando transacción
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // 1. Cambiar estado del crédito de 'pending' a 'claimed'
+      // 1. Mover créditos de pending a available
       await db.execute({
         sql: `UPDATE Credits
-				      SET status = 'claimed',
-				          claimed_at = CURRENT_TIMESTAMP,
+				      SET pending_amount = pending_amount - ?,
+                  available_amount = available_amount + ?,
 				          updated_at = CURRENT_TIMESTAMP
 				      WHERE id = ?`,
-        args: [creditId],
+        args: [creditsToAdd, creditsToAdd, creditId],
       })
 
       // 2. Crear entrada de auditoría
@@ -166,12 +181,12 @@ export const POST: APIRoute = async ({ request }) => {
 
       await db.execute({ sql: 'COMMIT', args: [] })
 
-      // Obtener el nuevo balance de créditos claimed
+      // Obtener el nuevo balance de créditos disponibles
       const balanceResult = await db.execute({
-        sql: `SELECT COALESCE(SUM(amount), 0) as total
+        sql: `SELECT available_amount as total
 				      FROM Credits
-				      WHERE builder_id = ? AND status = 'claimed'`,
-        args: [builderId],
+				      WHERE id = ?`,
+        args: [creditId],
       })
 
       const newBalance = (balanceResult.rows[0] as any).total
@@ -195,6 +210,7 @@ export const POST: APIRoute = async ({ request }) => {
       throw dbError
     }
   } catch (error) {
+    console.error('Error en claim-verify:', error)
     return new Response(
       JSON.stringify({ success: false, error: 'Error interno del servidor' }),
       {

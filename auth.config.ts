@@ -1,5 +1,4 @@
 import { defineConfig } from 'auth-astro'
-import { managementProvider } from '@/lib/admin/auth/config/management-provider'
 import { buildersProvider } from '@/lib/admin/auth/config/builders-provider'
 import {
   jwtCallback,
@@ -30,8 +29,8 @@ declare module '@auth/core/types' {
 
 export default defineConfig({
   providers: [
-    // Management area provider (admin/referral users with password auth)
-    managementProvider,
+    // Management login is handled via custom endpoint (/api/auth/management-login)
+    // to avoid Auth.js redirect loops. See src/pages/api/auth/management-login.ts
 
     // Builders area provider (any Hive user with keychain auth)
     buildersProvider,

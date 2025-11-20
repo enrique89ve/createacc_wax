@@ -115,6 +115,7 @@ export async function verifyClaimTransaction(
       return {
         valid: false,
         error: 'El usuario no tiene autorización posting en la transacción',
+        transaction,
       }
     }
 

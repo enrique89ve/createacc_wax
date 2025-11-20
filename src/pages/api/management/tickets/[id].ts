@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { withAdminSession } from '@/lib/session-helpers'
+import { withAdminApiSession } from '@/lib/session-helpers'
 import { db } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
@@ -66,16 +66,12 @@ const canDeleteTicket = (
 // Helper: Crear auditor�a de eliminaci�n
 const createDeletionAudit = async (
   ticketCode: string,
-  sessionRole: string,
   sessionUserId: number
 ): Promise<void> => {
-  const performedByBuilder = sessionRole === 'builder' ? sessionUserId : null
-  const performedByAdmin = sessionRole === 'admin' ? sessionUserId : null
-
   await db.execute({
-    sql: `INSERT INTO TicketAudit (ticket, action, performed_by_builder, performed_by_admin)
-			VALUES (?, 'delete', ?, ?)`,
-    args: [ticketCode, performedByBuilder, performedByAdmin],
+    sql: `INSERT INTO TicketAudit (ticket, action, performed_by)
+			VALUES (?, 'delete', ?)`,
+    args: [ticketCode, sessionUserId],
   })
 }
 
@@ -89,7 +85,7 @@ const cleanupTicketAudit = async (ticketCode: string): Promise<void> => {
 
 // DELETE: Eliminar ticket
 export const DELETE: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminApiSession(context, async session => {
     try {
       const ticketId = context.params.id
 
@@ -160,8 +156,8 @@ export const DELETE: APIRoute = async context => {
         )
       }
 
-      // Crear auditor�a de eliminaci�n
-      await createDeletionAudit(ticket.code, session.role, session.userId)
+      // Crear auditoría de eliminación
+      await createDeletionAudit(ticket.code, session.userId)
 
       // Limpiar auditor�as previas
       await cleanupTicketAudit(ticket.code)
@@ -173,7 +169,9 @@ export const DELETE: APIRoute = async context => {
       })
 
       // Obtener balance final
-      const finalCredits = await creditBalanceTracker.getBalance(creator.username)
+      const finalCredits = await creditBalanceTracker.getBalance(
+        creator.username
+      )
 
       const result: TicketDeletionResult = {
         success: true,

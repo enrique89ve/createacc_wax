@@ -1,9 +1,9 @@
 import type { APIRoute } from 'astro'
-import { withAdminSession } from '@/lib/session-helpers'
+import { withAdminApiSession } from '@/lib/session-helpers'
 import { db } from '@/lib/database'
 import {
-	assertCanPerform,
-	unauthorizedResponse,
+  assertCanPerform,
+  unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
 
 /**
@@ -11,11 +11,15 @@ import {
  * Los créditos se agregan a pending_amount para que el builder los reclame
  */
 export const PATCH: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission
       try {
-        assertCanPerform(session, 'ASSIGN_CREDITS', 'PATCH /api/management/users/[username]/credits')
+        assertCanPerform(
+          session,
+          'ASSIGN_CREDITS',
+          'PATCH /api/management/users/[username]/credits'
+        )
       } catch {
         return unauthorizedResponse()
       }
@@ -63,7 +67,7 @@ export const PATCH: APIRoute = async context => {
 
       // Verificar que el builder existe
       const builderResult = await db.execute({
-        sql: 'SELECT id FROM Users WHERE username = ? AND role = \'builder\'',
+        sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder'",
         args: [username.toLowerCase()],
       })
 
@@ -79,21 +83,30 @@ export const PATCH: APIRoute = async context => {
 
       const builderId = builderResult.rows[0]?.id
 
-      // Actualizar créditos pendientes
-      await db.execute({
-        sql: `UPDATE Credits
-              SET pending_amount = pending_amount + ?,
-                  total_assigned = total_assigned + ?
-              WHERE builder_id = ?`,
-        args: [amount, amount, builderId],
-      })
+      // Actualizar créditos pendientes y registrar auditoría en una transacción
+      await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
-      // Registrar en auditoría
-      await db.execute({
-        sql: `INSERT INTO CreditAudit (builder_id, operation, amount, reason, performed_by_admin)
-              VALUES (?, 'assign', ?, 'Créditos asignados por admin', ?)`,
-        args: [builderId, amount, session.userId],
-      })
+      try {
+        await db.execute({
+          sql: `UPDATE Credits
+                SET pending_amount = pending_amount + ?,
+                    total_assigned = total_assigned + ?
+                WHERE builder_id = ?`,
+          args: [amount, amount, builderId],
+        })
+
+        // Registrar en auditoría
+        await db.execute({
+          sql: `INSERT INTO CreditAudit (builder_id, operation, amount, reason, performed_by)
+                VALUES (?, 'assign', ?, 'Créditos asignados por admin', ?)`,
+          args: [builderId, amount, session.userId],
+        })
+
+        await db.execute({ sql: 'COMMIT', args: [] })
+      } catch (error) {
+        await db.execute({ sql: 'ROLLBACK', args: [] })
+        throw error
+      }
 
       // Obtener nuevos totales
       const creditsResult = await db.execute({

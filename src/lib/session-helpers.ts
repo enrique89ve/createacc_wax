@@ -33,7 +33,6 @@ export async function getAdminSession(
       loginTime: new Date(session.user.loginTime).toISOString(),
     }
   } catch (error) {
-
     return null
   }
 }
@@ -42,37 +41,37 @@ export async function getAdminSession(
  * Carga sesiones usando managers sólo si aún no están en locals.
  */
 export async function loadSessions(
-	context: APIContext
+  context: APIContext
 ): Promise<RetrievedSessions> {
-	const result: RetrievedSessions = {
-		admin: context.locals.adminUser ?? null,
-		creation: context.locals.creation ?? null,
-	}
+  const result: RetrievedSessions = {
+    admin: context.locals.adminUser ?? null,
+    creation: context.locals.creation ?? null,
+  }
 
-	const needsAdmin = context.locals.adminUser === undefined
-	const needsCreation = context.locals.creation === undefined
+  const needsAdmin = context.locals.adminUser === undefined
+  const needsCreation = context.locals.creation === undefined
 
-	if (!needsAdmin && !needsCreation) return result
+  if (!needsAdmin && !needsCreation) return result
 
-	const [adminSession, creationSession] = await Promise.all([
-		needsAdmin
-			? getAdminSession(context.request)
-			: Promise.resolve(result.admin ?? null),
-		needsCreation
-			? new CreationSessionManager(context.cookies, context.request).get()
-			: Promise.resolve(result.creation ?? null),
-	])
+  const [adminSession, creationSession] = await Promise.all([
+    needsAdmin
+      ? getAdminSession(context.request)
+      : Promise.resolve(result.admin ?? null),
+    needsCreation
+      ? new CreationSessionManager(context.cookies, context.request).get()
+      : Promise.resolve(result.creation ?? null),
+  ])
 
-	if (needsAdmin) {
-		context.locals.adminUser = adminSession ?? undefined
-		result.admin = adminSession ?? null
-	}
-	if (needsCreation && creationSession) {
-		context.locals.creation = creationSession
-		result.creation = creationSession
-	}
+  if (needsAdmin) {
+    context.locals.adminUser = adminSession ?? undefined
+    result.admin = adminSession ?? null
+  }
+  if (needsCreation && creationSession) {
+    context.locals.creation = creationSession
+    result.creation = creationSession
+  }
 
-	return result
+  return result
 }
 
 /** Obtiene admin session si existe */
@@ -112,18 +111,48 @@ export async function withAdminSession<T>(
   return handler(result)
 }
 
+/**
+ * Helper específico para APIs REST que requieren admin session
+ * Retorna 401 Unauthorized en lugar de redireccionar
+ */
+export async function withAdminApiSession<T>(
+  context: APIContext,
+  handler: (session: AdminSession) => T | Promise<T>
+): Promise<T | Response> {
+  // Intentar obtener sesión de locals primero
+  if (context.locals.adminUser) {
+    return handler(context.locals.adminUser)
+  }
+
+  // Intentar obtener sesión de Auth.js
+  const session = await getAdminSession(context.request)
+
+  if (!session) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized: Session required' }),
+      {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  }
+
+  context.locals.adminUser = session
+  return handler(session)
+}
+
 /** Asegura creation session presente o devuelve null (no redirect) */
 export async function ensureCreation(context: APIContext) {
-	if (!context.locals.creation) {
-		const session = new CreationSessionManager(
-			context.cookies,
-			context.request
-		).get()
-		if (session) {
-			context.locals.creation = session
-			return session
-		}
-		return null
-	}
-	return context.locals.creation
+  if (!context.locals.creation) {
+    const session = new CreationSessionManager(
+      context.cookies,
+      context.request
+    ).get()
+    if (session) {
+      context.locals.creation = session
+      return session
+    }
+    return null
+  }
+  return context.locals.creation
 }

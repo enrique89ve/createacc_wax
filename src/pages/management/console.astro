@@ -264,7 +264,7 @@ try {
         method: 'POST',
       })
     } catch (error) {
-      console.error('Logout error:', error)
+      // Ignore logout errors
     } finally {
       // Always redirect to login page
       window.location.href = '/management/access'

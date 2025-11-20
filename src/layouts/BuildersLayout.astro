@@ -99,7 +99,7 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
           method: 'POST',
         })
       } catch (error) {
-        console.error('Logout error:', error)
+        // Ignore logout errors
       } finally {
         // Always redirect to builders login page
         window.location.href = '/builders/login'

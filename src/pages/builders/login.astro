@@ -52,22 +52,7 @@ import Toasts from '@/components/ui/Toasts.astro'
               Login con Keychain
             </button>
           </form>
-
-          <!-- Info -->
-          <div class="bg-muted mt-4 rounded p-3 text-sm">
-            <p>
-              <strong>Nota:</strong> Solo moderadores y usuarios autorizados pueden
-              acceder.
-            </p>
-            <p class="mt-1">
-              Los superadmins deben usar el <a
-                href="/management/access"
-                class="text-primary underline">login con contraseña</a
-              >.
-            </p>
-          </div>
         </div>
-
       </div>
     </div>
   </main>
@@ -211,17 +196,14 @@ import Toasts from '@/components/ui/Toasts.astro'
 
           notify('error', errorMessage)
         } catch (parseError) {
-
           notify('error', 'Error de comunicación con el servidor')
         }
       } catch (error) {
-
         notify('error', 'Error de conexión. Inténtalo de nuevo.')
       } finally {
         loginBtn.disabled = false
         loginBtn.textContent = 'Login con Keychain'
       }
     }
-
   </script>
 </BuildersLayout>

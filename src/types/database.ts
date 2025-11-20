@@ -86,17 +86,6 @@ export interface DatabaseTicketAuditRow {
 }
 
 /**
- * UserSessions table (unified for admin and builder)
- */
-export interface DatabaseUserSessionRow {
-  readonly id: number
-  readonly user_id: number
-  readonly session_token: string
-  readonly expires_at: string
-  readonly created_at: string
-}
-
-/**
  * CreditAudit table
  */
 export interface DatabaseCreditAuditRow {
@@ -242,15 +231,6 @@ export interface CreateCreditAuditData {
   readonly amount: number
   readonly reason?: string | null
   readonly performed_by?: number | null
-}
-
-/**
- * Data required to create user session
- */
-export interface CreateUserSessionData {
-  readonly user_id: number
-  readonly session_token: string
-  readonly expires_at: string
 }
 
 /**
