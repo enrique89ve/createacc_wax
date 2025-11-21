@@ -200,6 +200,27 @@ export class AccountsRepository {
 	}
 
 	/**
+	 * Obtener todas las cuentas
+	 */
+	async getAll(): Promise<DatabaseAccountRow[]> {
+		try {
+			const result = await db.execute({
+				sql: `
+					SELECT * FROM Accounts
+					ORDER BY creation_date DESC
+				`,
+				args: [],
+			})
+
+			return result.rows
+				.map(row => parseAccountRow(row))
+				.filter((account): account is DatabaseAccountRow => account !== null)
+		} catch (error) {
+			throw error
+		}
+	}
+
+	/**
 	 * Obtener cuentas recientes (últimas N)
 	 */
 	async getRecent(limit: number = 5): Promise<DatabaseAccountRow[]> {

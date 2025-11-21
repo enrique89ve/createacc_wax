@@ -4,14 +4,19 @@
  * Incluye header, navegación y funcionalidad de logout
  * Elimina duplicación de código entre páginas de administración
  */
-import Layout from './Layout.astro'
+import Base from './Base.astro'
+import Toasts from '@/components/ui/Toasts.astro'
+import { TITLE_SUFFIXES } from '@/consts/seo'
 
 interface Props {
   title: string
-  activeTab: 'dashboard' | 'tickets' | 'usuarios' | 'actividad' | 'builders'
+  activeTab: 'dashboard' | 'tickets' | 'accounts' | 'logs' | 'builders'
 }
 
 const { title, activeTab } = Astro.props
+
+// Add suffix to title for consistency
+const pageTitle = `${title} - ${TITLE_SUFFIXES.MANAGEMENT}`
 
 // Utilizar helper de Auth.js para obtener sesión
 import { getAdminSession } from '@/lib/session-helpers'
@@ -37,9 +42,9 @@ const navItems = [
     adminOnly: false,
   },
   {
-    key: 'usuarios',
-    label: 'Usuarios',
-    href: '/management/agents',
+    key: 'accounts',
+    label: 'Accounts',
+    href: '/management/accounts',
     adminOnly: true,
   },
   {
@@ -49,15 +54,15 @@ const navItems = [
     adminOnly: true,
   },
   {
-    key: 'actividad',
-    label: 'Actividad',
-    href: '/management/activity',
-    adminOnly: false,
+    key: 'logs',
+    label: 'Logs',
+    href: '/management/logs',
+    adminOnly: true,
   },
 ] as const
 ---
 
-<Layout title={title}>
+<Base title={pageTitle} noindex={true} enhancedSecurity={true}>
   <div class="bg-background min-h-screen">
     <!-- Header -->
     <header class="bg-card border-border border-b">
@@ -124,6 +129,8 @@ const navItems = [
     </main>
   </div>
 
+  <Toasts />
+
   <!-- Logout Script -->
   <script>
     const logoutBtn = document.getElementById('logout-btn')
@@ -142,4 +149,4 @@ const navItems = [
       }
     })
   </script>
-</Layout>
+</Base>

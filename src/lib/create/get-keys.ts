@@ -3,7 +3,7 @@ import {
   type TPublicKey,
   type IPrivateKeyData,
   isPublicKey,
-} from '@hiveio/wax/vite'
+} from '@hiveio/wax'
 import type { ICreateAccountParams } from './create-account'
 import type { HiveKeyRole } from '@/types/keys'
 
@@ -60,8 +60,7 @@ export function generateRandomP5Key(): string {
       result += chars.charAt(randomIndex)
     }
   } catch (error) {
-    throw new Error(
-    )
+    throw new Error()
   }
 
   // Validar que la clave generada tiene el formato correcto
@@ -74,7 +73,6 @@ export function generateRandomP5Key(): string {
 
   return result
 }
-
 
 export interface KeyPair extends IPrivateKeyData {
   role: HiveKeyRole

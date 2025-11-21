@@ -150,7 +150,7 @@ const { ticket = '' } = Astro.props as Props
   import { validateAccountName } from '@/utils/validate-username'
   import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
   import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
-  import { createHiveChain, HealthChecker } from '@hiveio/wax/vite'
+  import { createHiveChain, HealthChecker } from '@hiveio/wax'
   import { notify } from '@/utils/toast'
 
   let debounceTimer: ReturnType<typeof setTimeout>
@@ -215,7 +215,7 @@ const { ticket = '' } = Astro.props as Props
       'border-red-500',
       'border-green-500',
       'border-blue-500'
-      )
+    )
     switch (state) {
       case 'neutral':
         statusIcon?.classList.add('hidden')
@@ -290,9 +290,7 @@ const { ticket = '' } = Astro.props as Props
     // 1. Default
     try {
       return await createHiveChain()
-    } catch (err) {
-
-    }
+    } catch (err) {}
 
     // 2. HealthChecker
     const healthChecker = new HealthChecker([...HIVE_HEALTH_ENDPOINTS], 4000)
@@ -306,9 +304,7 @@ const { ticket = '' } = Astro.props as Props
           {},
           (data): true | string => (data?.id === 0 ? true : 'invalid dgp')
         )
-      } catch (regErr) {
-
-      }
+      } catch (regErr) {}
       await sleep(1200)
       const best = healthChecker
         .list()
@@ -317,9 +313,7 @@ const { ticket = '' } = Astro.props as Props
       if (best) {
         try {
           return await createHiveChain({ apiEndpoint: best.endpointUrl })
-        } catch (bestErr) {
-
-        }
+        } catch (bestErr) {}
       }
     } finally {
       healthChecker.unregisterAll(true)
@@ -352,9 +346,7 @@ const { ticket = '' } = Astro.props as Props
     if (cachedChain) {
       try {
         cachedChain.delete()
-      } catch (e) {
-
-      }
+      } catch (e) {}
       cachedChain = null
     }
   }
@@ -439,7 +431,6 @@ const { ticket = '' } = Astro.props as Props
           return
         }
       } catch (suspiciousError) {
-
         // Continuar con la validación aunque falle la verificación de sospechosos
       }
 
@@ -470,7 +461,6 @@ const { ticket = '' } = Astro.props as Props
           return
         }
       } catch (similarityError) {
-
         // Continuar con la validación aunque falle la verificación de similitud
       }
 
@@ -497,7 +487,6 @@ const { ticket = '' } = Astro.props as Props
       showSuccessState()
     } catch (error) {
       showErrorState('Error al validar username')
-
     }
   }
 
@@ -557,7 +546,6 @@ const { ticket = '' } = Astro.props as Props
         }
       }
     } catch (error) {
-
       showTicketErrorState('Error validando ticket. Inténtalo de nuevo.')
       const ticketInfo = document.querySelector('#ticket-info')
       if (ticketInfo) {
@@ -665,7 +653,6 @@ const { ticket = '' } = Astro.props as Props
       disposeHiveChain()
       window.location.href = `/details/${username}`
     } catch (error) {
-
       // Mostrar toast de error
       notify('error', 'Error al crear la sesión. Inténtalo de nuevo.')
 

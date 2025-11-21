@@ -1,7 +1,5 @@
 ---
-import '@/styles/global.css'
-
-import '@fontsource-variable/sora'
+import Base from './Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import Navbar from '@/components/ui/Navbar.astro'
 
@@ -9,37 +7,14 @@ interface Props {
   title?: string
   description?: string
   ogImage?: string
+  noindex?: boolean
 }
 
-const {
-  title = 'Crea una cuenta en la blockchain Hive',
-  description = 'Crea una cuenta en Hive y comienza una camino innovador en Web3.',
-  ogImage = 'https://holahive.com/og.jpg',
-} = Astro.props
+const { title, description, ogImage, noindex = false } = Astro.props
 ---
 
-<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title}</title>
-    <meta name="description" content={description} />
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:type" content="website" />
-  </head>
-  <body>
-    <Navbar />
-    <slot />
-    <Toasts />
-
-    <!-- jsPDF Library for PDF generation -->
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-    ></script>
-
-  </body>
-</html>
+<Base title={title} description={description} ogImage={ogImage} noindex={noindex}>
+  <Navbar />
+  <slot />
+  <Toasts />
+</Base>

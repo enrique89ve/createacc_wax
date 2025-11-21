@@ -1,0 +1,481 @@
+---
+import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { auditRepository } from '@/lib/repositories/audit-repository'
+import type {
+  TicketAuditLog,
+  CreditAuditLog,
+} from '@/lib/repositories/audit-repository'
+
+// Get session data from middleware
+const session = Astro.locals.adminUser
+
+if (!session) {
+  return Astro.redirect('/management/access')
+}
+
+// Obtener parámetros de filtros desde URL
+const url = new URL(Astro.request.url)
+const logType = url.searchParams.get('type') || 'tickets' // tickets | credits
+const actionFilter = url.searchParams.get('action') || ''
+const sortOrder = url.searchParams.get('sort') || 'desc'
+
+// Obtener logs según el tipo seleccionado
+let ticketLogs: TicketAuditLog[] = []
+let creditLogs: CreditAuditLog[] = []
+let error: string | null = null
+let stats = {
+  ticketLogs: 0,
+  creditLogs: 0,
+}
+
+try {
+  // Obtener estadísticas
+  stats = await auditRepository.getTotalLogsCount()
+
+  if (logType === 'tickets') {
+    // Logs de tickets
+    if (actionFilter) {
+      ticketLogs = await auditRepository.getTicketLogsWithFilters({
+        action: actionFilter as 'create' | 'update' | 'delete',
+      })
+    } else {
+      ticketLogs = await auditRepository.getAllTicketLogs()
+    }
+
+    // Aplicar ordenamiento
+    if (sortOrder === 'asc') {
+      ticketLogs = ticketLogs.sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      )
+    } else {
+      ticketLogs = ticketLogs.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+    }
+  } else {
+    // Logs de créditos
+    creditLogs = await auditRepository.getAllCreditLogs()
+
+    // Aplicar ordenamiento
+    if (sortOrder === 'asc') {
+      creditLogs = creditLogs.sort(
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      )
+    } else {
+      creditLogs = creditLogs.sort(
+        (a, b) =>
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      )
+    }
+  }
+} catch (err) {
+  error = 'Error al cargar los logs'
+  console.error('Error loading logs:', err)
+}
+
+// Helper para formatear fechas
+function formatDateTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('es-ES', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+// Helper para obtener badge de acción
+function getActionBadge(action: string): {
+  class: string
+  label: string
+  icon: string
+} {
+  switch (action) {
+    case 'create':
+      return {
+        class: 'bg-green-500/20 text-green-400 border-green-500/30',
+        label: 'Creado',
+        icon: '➕',
+      }
+    case 'update':
+      return {
+        class: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+        label: 'Actualizado',
+        icon: '✏️',
+      }
+    case 'delete':
+      return {
+        class: 'bg-red-500/20 text-red-400 border-red-500/30',
+        label: 'Eliminado',
+        icon: '🗑️',
+      }
+    default:
+      return {
+        class: 'bg-muted text-foreground border-border',
+        label: action,
+        icon: '📝',
+      }
+  }
+}
+---
+
+<ManagementLayout title="Logs del Sistema" activeTab="logs">
+  <div class="bg-background min-h-screen">
+    <!-- Main Content -->
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <!-- Header -->
+      <div class="mb-8">
+        <h1 class="text-foreground text-3xl font-bold">Logs del Sistema</h1>
+        <p class="text-muted-foreground mt-2">
+          Registro completo de todas las acciones administrativas
+        </p>
+      </div>
+
+      <!-- Type Selector -->
+      <div class="mb-6 flex gap-3">
+        <a
+          href="/management/logs?type=tickets"
+          class={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            logType === 'tickets'
+              ? 'bg-primary text-white'
+              : 'bg-card text-foreground hover:bg-muted border border-border'
+          }`}
+        >
+          📋 Logs de Tickets ({stats.ticketLogs})
+        </a>
+        <a
+          href="/management/logs?type=credits"
+          class={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+            logType === 'credits'
+              ? 'bg-primary text-white'
+              : 'bg-card text-foreground hover:bg-muted border border-border'
+          }`}
+        >
+          💰 Logs de Créditos ({stats.creditLogs})
+        </a>
+      </div>
+
+      <!-- Filtros (solo para tickets) -->
+      {
+        logType === 'tickets' && (
+          <div class="bg-card border-border mb-6 rounded-lg border p-6">
+            <form method="GET" action="/management/logs" class="space-y-4">
+              <input type="hidden" name="type" value="tickets" />
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* Filtro por Acción */}
+                <div>
+                  <label
+                    for="action"
+                    class="text-foreground mb-2 block text-sm font-medium"
+                  >
+                    Acción
+                  </label>
+                  <select
+                    id="action"
+                    name="action"
+                    class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                  >
+                    <option value="">Todas las acciones</option>
+                    <option value="create" selected={actionFilter === 'create'}>
+                      Creado
+                    </option>
+                    <option value="update" selected={actionFilter === 'update'}>
+                      Actualizado
+                    </option>
+                    <option value="delete" selected={actionFilter === 'delete'}>
+                      Eliminado
+                    </option>
+                  </select>
+                </div>
+
+                {/* Ordenar por Fecha */}
+                <div>
+                  <label
+                    for="sort"
+                    class="text-foreground mb-2 block text-sm font-medium"
+                  >
+                    Ordenar por Fecha
+                  </label>
+                  <select
+                    id="sort"
+                    name="sort"
+                    class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
+                  >
+                    <option value="desc" selected={sortOrder === 'desc'}>
+                      Más recientes primero
+                    </option>
+                    <option value="asc" selected={sortOrder === 'asc'}>
+                      Más antiguas primero
+                    </option>
+                  </select>
+                </div>
+
+                {/* Spacer */}
+                <div />
+              </div>
+
+              {/* Botones de acción */}
+              <div class="flex gap-3">
+                <button
+                  type="submit"
+                  class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
+                >
+                  Aplicar Filtros
+                </button>
+                <a
+                  href="/management/logs?type=tickets"
+                  class="bg-muted hover:bg-muted/80 text-foreground rounded-md px-4 py-2 text-sm font-medium transition-colors"
+                >
+                  Limpiar Filtros
+                </a>
+              </div>
+            </form>
+          </div>
+        )
+      }
+
+      <!-- Error Message -->
+      {
+        error && (
+          <div class="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-500">
+            <p class="text-sm">{error}</p>
+          </div>
+        )
+      }
+
+      <!-- Tabla de Logs de Tickets -->
+      {
+        logType === 'tickets' && (
+          <div class="bg-card border-border overflow-hidden rounded-lg border">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-muted">
+                  <tr>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Ticket
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Acción
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Usuario
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Fecha y Hora
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-border divide-y">
+                  {ticketLogs.length === 0 ? (
+                    <tr>
+                      <td colspan="5" class="px-6 py-8 text-center">
+                        <p class="text-muted-foreground text-sm">
+                          No se encontraron logs
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    ticketLogs.map(log => {
+                      const badge = getActionBadge(log.action)
+                      return (
+                        <tr class="hover:bg-muted/50 transition-colors">
+                          <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                            {log.id}
+                          </td>
+                          <td class="text-foreground whitespace-nowrap px-6 py-4 font-mono text-sm">
+                            <a
+                              href={`/management/accounts?ticket=${encodeURIComponent(log.ticket)}`}
+                              class="text-primary hover:underline"
+                            >
+                              {log.ticket}
+                            </a>
+                          </td>
+                          <td class="whitespace-nowrap px-6 py-4">
+                            <span
+                              class={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium ${badge.class}`}
+                            >
+                              <span>{badge.icon}</span>
+                              {badge.label}
+                            </span>
+                          </td>
+                          <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                            {log.performed_by_username ? (
+                              <div>
+                                <span class="font-medium">
+                                  {log.performed_by_username}
+                                </span>
+                                <span class="text-muted-foreground text-xs">
+                                  {' '}
+                                  ({log.performed_by_role})
+                                </span>
+                              </div>
+                            ) : (
+                              <span class="text-muted-foreground italic">
+                                Sistema
+                              </span>
+                            )}
+                          </td>
+                          <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
+                            {formatDateTime(log.timestamp)}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+      <!-- Tabla de Logs de Créditos -->
+      {
+        logType === 'credits' && (
+          <div class="bg-card border-border overflow-hidden rounded-lg border">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-muted">
+                  <tr>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Builder
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Operación
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Monto
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Razón
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Realizado Por
+                    </th>
+                    <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                      Fecha y Hora
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-border divide-y">
+                  {creditLogs.length === 0 ? (
+                    <tr>
+                      <td colspan="7" class="px-6 py-8 text-center">
+                        <p class="text-muted-foreground text-sm">
+                          No se encontraron logs
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    creditLogs.map(log => (
+                      <tr class="hover:bg-muted/50 transition-colors">
+                        <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                          {log.id}
+                        </td>
+                        <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm font-medium">
+                          {log.builder_username}
+                        </td>
+                        <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                          <code class="bg-muted rounded px-2 py-1 text-xs">
+                            {log.operation}
+                          </code>
+                        </td>
+                        <td class="whitespace-nowrap px-6 py-4 text-sm">
+                          <span
+                            class={`font-medium ${
+                              log.amount > 0
+                                ? 'text-green-400'
+                                : log.amount < 0
+                                  ? 'text-red-400'
+                                  : 'text-foreground'
+                            }`}
+                          >
+                            {log.amount > 0 ? '+' : ''}
+                            {log.amount}
+                          </span>
+                        </td>
+                        <td class="text-muted-foreground max-w-xs truncate px-6 py-4 text-sm">
+                          {log.reason || '-'}
+                        </td>
+                        <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
+                          {log.performed_by_username ? (
+                            <div>
+                              <span class="font-medium">
+                                {log.performed_by_username}
+                              </span>
+                              <span class="text-muted-foreground text-xs">
+                                {' '}
+                                ({log.performed_by_role})
+                              </span>
+                            </div>
+                          ) : (
+                            <span class="text-muted-foreground italic">
+                              Sistema
+                            </span>
+                          )}
+                        </td>
+                        <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
+                          {formatDateTime(log.timestamp)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+      <!-- Información adicional -->
+      <div class="bg-card border-border mt-6 rounded-lg border p-4">
+        <div class="flex items-start gap-2">
+          <svg
+            class="text-primary h-5 w-5 flex-shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
+          <div class="text-muted-foreground text-sm">
+            <p class="font-medium">Sobre los logs:</p>
+            <ul class="mt-2 list-inside list-disc space-y-1">
+              <li>
+                <strong>Logs de Tickets:</strong> Registra todas las acciones de
+                creación, actualización y eliminación de tickets
+              </li>
+              <li>
+                <strong>Logs de Créditos:</strong> Registra todas las operaciones
+                de asignación y consumo de créditos de builders
+              </li>
+              <li>
+                Los logs son inmutables y no pueden ser modificados o eliminados
+              </li>
+              <li>
+                Haz clic en un código de ticket para ver las cuentas creadas con
+                él
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</ManagementLayout>

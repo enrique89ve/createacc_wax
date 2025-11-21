@@ -1,5 +1,5 @@
 ---
-import Layout from '@/layouts/Layout.astro'
+import ManagementLayout from '@/layouts/ManagementLayout.astro'
 import { dashboardService } from '@/lib/repositories/dashboard-service'
 import type {
   RecentTicketInfo,
@@ -32,7 +32,7 @@ try {
 } catch (error) {}
 ---
 
-<Layout title="Console de Gestión - HolaHive">
+<ManagementLayout title="Console de Gestión - HolaHive" activeTab="dashboard">
   <div class="bg-background min-h-screen">
     <!-- Header -->
     <header class="bg-card border-border border-b">
@@ -60,38 +60,6 @@ try {
         </div>
       </div>
     </header>
-
-    <!-- Navigation -->
-    <nav class="bg-card border-border border-b">
-      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="flex space-x-8">
-          <a
-            href="/management/console"
-            class="border-primary text-primary border-b-2 px-1 py-4 text-sm font-medium"
-          >
-            Dashboard
-          </a>
-          <a
-            href="/management/vouchers"
-            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
-          >
-            Tickets
-          </a>
-          <a
-            href="/management/builders"
-            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
-          >
-            Builders
-          </a>
-          <a
-            href="/management/activity"
-            class="text-muted-foreground hover:text-foreground hover:border-border border-b-2 border-transparent px-1 py-4 text-sm font-medium transition-colors"
-          >
-            Actividad
-          </a>
-        </div>
-      </div>
-    </nav>
 
     <!-- Main Content -->
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -252,7 +220,7 @@ try {
       </div>
     </main>
   </div>
-</Layout>
+</ManagementLayout>
 
 <script>
   const logoutBtn = document.getElementById('logout-btn')

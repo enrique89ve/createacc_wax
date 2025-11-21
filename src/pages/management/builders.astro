@@ -1,15 +1,27 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
 import {
-  usersRepository,
-  type BuilderWithStats,
+	usersRepository,
+	type BuilderWithStats,
 } from '@/lib/repositories/users-repository'
+
+// Get session data from middleware
+const session = Astro.locals.adminUser
+
+if (!session) {
+	return Astro.redirect('/management/access')
+}
+
+// Verificar que sea admin (solo admins pueden gestionar builders)
+if (session.role !== 'admin') {
+	return Astro.redirect('/management/console')
+}
 
 // Obtener builders con estadísticas
 let builders: BuilderWithStats[] = []
 
 try {
-  builders = await usersRepository.getBuildersWithStats()
+	builders = await usersRepository.getBuildersWithStats()
 } catch (error) {}
 ---
 

@@ -1,6 +1,5 @@
 ---
-import '@/styles/global.css'
-import '@fontsource-variable/sora'
+import Base from './Base.astro'
 import UserMenu from '@/components/ui/UserMenu.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { getSession } from 'auth-astro/server'
@@ -30,17 +29,13 @@ if (user?.username) {
 const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 0
 ---
 
-<!DOCTYPE html>
-<html lang="es" class="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="description" content="HolaHive - Área de Builders" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <title>{title} - HolaHive Builders</title>
-</head>
-
-<body class="min-h-screen bg-background text-foreground" data-builder-credits={builderCreditsAttribute}>
+<Base 
+  title={`${title} - HolaHive Builders`} 
+  description="HolaHive - Área de Builders"
+  noindex={true}
+  htmlClass="dark"
+  bodyAttributes={{ 'data-builder-credits': builderCreditsAttribute }}
+>
   <!-- Navigation Header - Hide on login page -->
   {user && currentPage !== 'login' && (
     <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -106,5 +101,4 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
       }
     })
   </script>
-</body>
-</html>
+</Base>

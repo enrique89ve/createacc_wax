@@ -1,0 +1,60 @@
+---
+import '@/styles/global.css'
+import '@fontsource-variable/sora'
+import { SEO_DEFAULTS, ROBOTS_META } from '@/consts/seo'
+
+interface Props {
+  title?: string
+  description?: string
+  ogImage?: string
+  noindex?: boolean
+  enhancedSecurity?: boolean
+  htmlClass?: string
+  bodyClass?: string
+  bodyAttributes?: Record<string, any>
+}
+
+const {
+  title = SEO_DEFAULTS.SITE_TITLE,
+  description = SEO_DEFAULTS.SITE_DESCRIPTION,
+  ogImage = SEO_DEFAULTS.OG_IMAGE,
+  noindex = false,
+  enhancedSecurity = false,
+  htmlClass = '',
+  bodyClass = 'min-h-screen bg-background text-foreground',
+  bodyAttributes = {},
+} = Astro.props
+
+// Determine robots meta tag value
+const robotsValue = noindex
+  ? enhancedSecurity
+    ? ROBOTS_META.NOINDEX_SECURE
+    : ROBOTS_META.NOINDEX
+  : undefined
+---
+
+<!doctype html>
+<html lang="es" class={htmlClass}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:type" content="website" />
+    {robotsValue && <meta name="robots" content={robotsValue} />}
+    {enhancedSecurity && <meta name="googlebot" content="noindex, nofollow" />}
+    <slot name="head" />
+  </head>
+  <body class={bodyClass} {...bodyAttributes}>
+    <slot />
+
+    <!-- jsPDF Library for PDF generation -->
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+    ></script>
+  </body>
+</html>

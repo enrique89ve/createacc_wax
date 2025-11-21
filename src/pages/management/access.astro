@@ -1,12 +1,16 @@
 ---
-import Layout from '@/layouts/Layout.astro'
+import Base from '@/layouts/Base.astro'
+import Toasts from '@/components/ui/Toasts.astro'
+import { PAGE_TITLES, TITLE_SUFFIXES } from '@/consts/seo'
 
 // Check if user is already authenticated (handled by middleware)
 // If authenticated, middleware will redirect to console
 // If not, this page will be shown
+
+const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT}`
 ---
 
-<Layout title="Acceso de Gestión - HolaHive">
+<Base title={pageTitle} noindex={true} enhancedSecurity={true}>
   <main class="flex min-h-screen items-center justify-center px-4 py-12">
     <div class="w-full max-w-md">
       <!-- Card de Login -->
@@ -40,9 +44,10 @@ import Layout from '@/layouts/Layout.astro'
               autocapitalize="none"
               autocorrect="off"
               spellcheck="false"
-              maxlength="20"
+              maxlength="50"
               minlength="3"
-              pattern="[a-zA-Z0-9\\-_]{3,20}"
+              pattern="[^<>{};()]+"
+              title="Por favor, no incluyas caracteres especiales de código como < > { } ; ( )"
               placeholder="Ingresa tu usuario"
               aria-describedby="username-hint"
               class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -98,7 +103,9 @@ import Layout from '@/layouts/Layout.astro'
       </div>
     </div>
   </main>
-</Layout>
+
+  <Toasts />
+</Base>
 
 <script>
   import '@/lib/admin_ui/access-login'

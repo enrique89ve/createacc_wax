@@ -13,3 +13,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
 	readonly env: ImportMetaEnv
 }
+
+// Declaraciones de módulos para importaciones de efectos secundarios (side-effect imports)
+declare module '@fontsource-variable/sora' {
+	// Esta es una importación de efectos secundarios (CSS/fuentes)
+	// No exporta nada, solo carga los estilos
+}
