@@ -113,7 +113,7 @@ export class TicketsRepository {
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT * FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [id],
       })
 
@@ -133,7 +133,7 @@ export class TicketsRepository {
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT * FROM Tickets WHERE code = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE code = ?',
         args: [code],
       })
 
@@ -209,7 +209,7 @@ export class TicketsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT * FROM Tickets
+					SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
 					WHERE created_by = ?
 					ORDER BY created_at DESC
 				`,
@@ -233,7 +233,7 @@ export class TicketsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT * FROM Tickets
+					SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
 					WHERE is_active = TRUE
 					ORDER BY created_at DESC
 				`,
@@ -277,7 +277,7 @@ export class TicketsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT * FROM Tickets
+				SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
 				${whereClause}
 				ORDER BY created_at DESC
 			`

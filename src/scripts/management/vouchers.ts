@@ -28,6 +28,9 @@ const cancelBtn = document.getElementById(
 const submitBtn = document.getElementById(
   'submit-btn'
 ) as HTMLButtonElement | null
+const copyToast = document.getElementById(
+  'copy-toast'
+) as HTMLDivElement | null
 
 // Event Listeners for Main "Create Ticket" Button
 if (createTicketBtn && createModal) {
@@ -112,12 +115,27 @@ if (createForm) {
   })
 }
 
-// Handle Table Actions (Delete)
+// Handle Table Actions (Delete & Copy Link)
 document.addEventListener('click', async e => {
   const target = e.target as HTMLElement
   const button = target.closest('button')
 
   if (!button) return
+
+  // Handle "Copy Link" button in table row
+  if (button.dataset.action === 'copy-link') {
+    const ticketCode = button.dataset.ticketCode
+    if (ticketCode) {
+      try {
+        const ticketUrl = `${window.location.origin}/?ticket=${ticketCode}`
+        await navigator.clipboard.writeText(ticketUrl)
+        showCopyToast()
+      } catch (error) {
+        console.error('Error copying to clipboard:', error)
+        alert('Error al copiar el link')
+      }
+    }
+  }
 
   // Handle "Delete" button in table row
   if (button.dataset.action === 'delete-ticket') {
@@ -181,4 +199,14 @@ function showError(message: string) {
   if (!createError) return
   createError.textContent = message
   createError.classList.remove('hidden')
+}
+
+function showCopyToast() {
+  if (!copyToast) return
+
+  copyToast.classList.remove('hidden')
+
+  setTimeout(() => {
+    copyToast.classList.add('hidden')
+  }, 2000)
 }

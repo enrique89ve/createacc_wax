@@ -15,7 +15,7 @@
     "admin:check": "tsx scripts/admin-setup.ts check"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.4",
+    "@astrojs/check": "^0.9.5",
     "@astrojs/vercel": "^9.0.1",
     "@auth/core": "^0.37.4",
     "@fontsource-variable/sora": "^5.2.6",
@@ -24,7 +24,7 @@
     "@libsql/client": "^0.15.12",
     "@tailwindcss/vite": "^4.1.12",
     "@types/bcryptjs": "^3.0.0",
-    "astro": "^5.15.9",
+    "astro": "^5.16.0",
     "auth-astro": "^4.2.0",
     "bcryptjs": "^3.0.2",
     "tailwindcss": "^4.1.12",

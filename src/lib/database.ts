@@ -170,6 +170,104 @@ export async function initializeDatabase() {
 		WHERE success = 0
 	`)
 
+    // Crear tabla Notifications
+    await db.execute(`
+		CREATE TABLE IF NOT EXISTS Notifications (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			type TEXT NOT NULL CHECK (type IN ('pending_credits', 'account_created', 'credit_assigned', 'system')),
+			title TEXT NOT NULL,
+			message TEXT NOT NULL,
+			metadata TEXT,
+			is_read BOOLEAN DEFAULT FALSE,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			read_at DATETIME,
+			viewed_at DATETIME,
+			FOREIGN KEY (user_id) REFERENCES Users (id) ON DELETE CASCADE
+		)
+	`)
+
+    // Índices para Notifications
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
+		ON Notifications(user_id, is_read, created_at DESC)
+		WHERE is_read = FALSE
+	`)
+
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_notifications_user_all
+		ON Notifications(user_id, created_at DESC)
+	`)
+
+    // Índice para limpieza eficiente de notificaciones antiguas
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_notifications_cleanup
+		ON Notifications(user_id, is_read, viewed_at)
+		WHERE viewed_at IS NOT NULL AND is_read = TRUE
+	`)
+
+    // Trigger: Auto-eliminar notificaciones al marcar como leídas (opcional)
+    // Comentado por defecto - se puede activar si se quiere auto-limpieza
+    /*
+	await db.execute(`
+		CREATE TRIGGER IF NOT EXISTS auto_delete_read_notifications
+		AFTER UPDATE OF is_read ON Notifications
+		FOR EACH ROW
+		WHEN NEW.is_read = TRUE
+		BEGIN
+			DELETE FROM Notifications WHERE id = NEW.id;
+		END
+	`)
+	*/
+
+    // Trigger: Limpieza automática de notificaciones antiguas al marcar como leída
+    await db.execute(`
+		CREATE TRIGGER IF NOT EXISTS cleanup_old_read_notifications
+		AFTER UPDATE OF is_read ON Notifications
+		FOR EACH ROW
+		WHEN NEW.is_read = TRUE AND NEW.viewed_at IS NOT NULL
+		BEGIN
+			DELETE FROM Notifications
+			WHERE user_id = NEW.user_id
+				AND is_read = TRUE
+				AND viewed_at IS NOT NULL
+				AND datetime(viewed_at, '+24 hours') <= datetime('now');
+		END
+	`)
+
+    // Trigger: Limpieza automática al insertar nueva notificación
+    await db.execute(`
+		CREATE TRIGGER IF NOT EXISTS cleanup_on_new_notification
+		AFTER INSERT ON Notifications
+		FOR EACH ROW
+		BEGIN
+			DELETE FROM Notifications
+			WHERE user_id = NEW.user_id
+				AND is_read = TRUE
+				AND viewed_at IS NOT NULL
+				AND datetime(viewed_at, '+24 hours') <= datetime('now');
+		END
+	`)
+
+    // Trigger: Crear notificación cuando se crea una cuenta
+    await db.execute(`
+		CREATE TRIGGER IF NOT EXISTS notify_account_created
+		AFTER INSERT ON Accounts
+		FOR EACH ROW
+		BEGIN
+			INSERT INTO Notifications (user_id, type, title, message, metadata)
+			SELECT
+				t.created_by,
+				'account_created',
+				'Cuenta Creada',
+				'Se creó la cuenta @' || NEW.username || ' usando tu ticket',
+				json_object('account_username', NEW.username, 'ticket_code', NEW.ticket)
+			FROM Tickets t
+			WHERE t.code = NEW.ticket
+			AND t.created_by IS NOT NULL;
+		END
+	`)
+
     return true
   } catch (error) {
     console.error('Database initialization error:', error)

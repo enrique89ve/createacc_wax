@@ -40,7 +40,9 @@ export class BeekeeperService {
         BEEKEEPER_CONFIG.WALLET_NAME
       )
       const unlockedWallet = await lockedWallet.unlock(
-        getRequiredEnvString(ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv)
+        getRequiredEnvString(
+          ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv
+        )
       )
       const publicKeys = unlockedWallet.getPublicKeys()
 
@@ -50,7 +52,22 @@ export class BeekeeperService {
 
       return { wallet: unlockedWallet, publicKey: publicKeys[0] }
     } catch (openErr) {
-      return await this.createNewWallet(session)
+      try {
+        return await this.createNewWallet(session)
+      } catch (createErr: any) {
+        // Si falla la creación porque ya existe, el error crítico es el de apertura (openErr)
+        // Esto nos revelará por qué no se pudo abrir la wallet existente (ej: password incorrecto, archivo corrupto, lock)
+        if (
+          createErr?.message?.includes('already exists') ||
+          String(createErr).includes('already exists')
+        ) {
+          console.error(`[Beekeeper] Failed to open existing wallet:`, openErr)
+          throw new Error(
+            `${ERROR_MESSAGES.WALLET.SESSION_CREATION_FAILED}: Unable to open existing wallet. Cause: ${openErr instanceof Error ? openErr.message : String(openErr)}`
+          )
+        }
+        throw createErr
+      }
     }
   }
 
@@ -61,7 +78,9 @@ export class BeekeeperService {
 
     const { wallet } = await session.createWallet(
       BEEKEEPER_CONFIG.WALLET_NAME,
-      getRequiredEnvString(ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv),
+      getRequiredEnvString(
+        ENV_KEYS.BEEKEEPER_WALLET_PASSWORD as keyof ImportMetaEnv
+      ),
       false
     )
     const publicKey = await wallet.importKey(this.config.privateKey)

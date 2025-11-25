@@ -178,10 +178,10 @@ export const MANAGEMENT_UI = {
     REMAINING_ATTEMPTS: 'Te quedan',
   },
   API_ENDPOINTS: {
+    // Auth endpoints (generados por Auth.js)
     CSRF: '/api/auth/csrf',
-    LOGIN: '/api/auth/callback/management-credentials',
+    // Management endpoints
     TICKETS: '/api/management/tickets',
-    CREDITS_ASSIGN: '/api/management/credits/assign',
     USERS: '/api/management/users',
   },
   RATE_LIMIT: {
@@ -232,7 +232,7 @@ export const BUILDERS_UI = {
     // Nuevas rutas builders (organizadas por recurso)
     TICKETS: '/api/builders/tickets',
     TICKETS_CHECK: '/api/builders/tickets/check-code',
-    TICKETS_MANAGE: '/api/tickets/manage', // Ruta legacy usada por modals
+    TICKETS_BY_ID: '/api/builders/tickets', // Base para PATCH/DELETE con /:id
     CREDITS_BALANCE: '/api/builders/credits/balance',
     CREDITS_CLAIM_HASH: '/api/builders/credits/claim-hash',
     CREDITS_CLAIM_VERIFY: '/api/builders/credits/claim-verify',

@@ -23,33 +23,33 @@ const BUILDER_ROLE = 'builder' as const
  * Error lanzado cuando no hay sesión autenticada
  */
 export class UnauthenticatedError extends Error {
-	readonly status = HTTP_STATUS.UNAUTHORIZED
-	constructor(message = 'No autenticado') {
-		super(message)
-		this.name = 'UnauthenticatedError'
-	}
+  readonly status = HTTP_STATUS.UNAUTHORIZED
+  constructor(message = 'No autenticado') {
+    super(message)
+    this.name = 'UnauthenticatedError'
+  }
 }
 
 /**
  * Error lanzado cuando el usuario no es un builder
  */
 export class NotBuilderError extends Error {
-	readonly status = HTTP_STATUS.FORBIDDEN
-	constructor(message = 'Usuario no es un builder') {
-		super(message)
-		this.name = 'NotBuilderError'
-	}
+  readonly status = HTTP_STATUS.FORBIDDEN
+  constructor(message = 'Usuario no es un builder') {
+    super(message)
+    this.name = 'NotBuilderError'
+  }
 }
 
 /**
  * Error lanzado cuando el builder no está activo
  */
 export class InactiveBuilderError extends Error {
-	readonly status = HTTP_STATUS.FORBIDDEN
-	constructor(message = 'Builder inactivo') {
-		super(message)
-		this.name = 'InactiveBuilderError'
-	}
+  readonly status = HTTP_STATUS.FORBIDDEN
+  constructor(message = 'Builder inactivo') {
+    super(message)
+    this.name = 'InactiveBuilderError'
+  }
 }
 
 /**
@@ -60,26 +60,26 @@ export class InactiveBuilderError extends Error {
  * @returns Builder ID
  */
 export async function getAuthenticatedBuilderId(
-	request: Request
+  request: Request
 ): Promise<number> {
-	const session = await getSession(request)
+  const session = await getSession(request)
 
-	if (!session?.user?.username) {
-		throw new UnauthenticatedError('No hay sesión activa')
-	}
+  if (!session?.user?.username) {
+    throw new UnauthenticatedError('No hay sesión activa')
+  }
 
-	const hiveUsername = session.user.username
+  const hiveUsername = session.user.username
 
-	const builderResult = await db.execute({
-		sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
-		args: [hiveUsername, BUILDER_ROLE],
-	})
+  const builderResult = await db.execute({
+    sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
+    args: [hiveUsername, BUILDER_ROLE],
+  })
 
-	if (builderResult.rows.length === 0) {
-		throw new NotBuilderError('Builder no encontrado')
-	}
+  if (builderResult.rows.length === 0) {
+    throw new NotBuilderError('Builder no encontrado')
+  }
 
-	return Number(builderResult.rows[0].id)
+  return Number(builderResult.rows[0].id)
 }
 
 /**
@@ -90,32 +90,33 @@ export async function getAuthenticatedBuilderId(
  * @returns Datos completos del builder
  */
 export async function getAuthenticatedBuilder(
-	request: Request
+  request: Request
 ): Promise<DatabaseUserRow> {
-	const session = await getSession(request)
+  const session = await getSession(request)
 
-	if (!session?.user?.username) {
-		throw new UnauthenticatedError('No hay sesión activa')
-	}
+  if (!session?.user?.username) {
+    throw new UnauthenticatedError('No hay sesión activa')
+  }
 
-	const hiveUsername = session.user.username
+  const hiveUsername = session.user.username
 
-	const builderResult = await db.execute({
-		sql: `SELECT * FROM Users WHERE username = ? AND role = ?`,
-		args: [hiveUsername, BUILDER_ROLE],
-	})
+  const builderResult = await db.execute({
+    // SEGURIDAD: Columnas explícitas - NO incluir password_hash
+    sql: `SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ? AND role = ?`,
+    args: [hiveUsername, BUILDER_ROLE],
+  })
 
-	if (builderResult.rows.length === 0) {
-		throw new NotBuilderError('Builder no encontrado')
-	}
+  if (builderResult.rows.length === 0) {
+    throw new NotBuilderError('Builder no encontrado')
+  }
 
-	const builder = parseUserRow(builderResult.rows[0])
+  const builder = parseUserRow(builderResult.rows[0])
 
-	if (!builder) {
-		throw new Error('Error al parsear datos del builder')
-	}
+  if (!builder) {
+    throw new Error('Error al parsear datos del builder')
+  }
 
-	return builder
+  return builder
 }
 
 /**
@@ -127,33 +128,33 @@ export async function getAuthenticatedBuilder(
  * @returns Builder ID
  */
 export async function getActiveBuilderId(request: Request): Promise<number> {
-	const session = await getSession(request)
+  const session = await getSession(request)
 
-	if (!session?.user?.username) {
-		throw new UnauthenticatedError('No hay sesión activa')
-	}
+  if (!session?.user?.username) {
+    throw new UnauthenticatedError('No hay sesión activa')
+  }
 
-	const hiveUsername = session.user.username
+  const hiveUsername = session.user.username
 
-	const builderResult = await db.execute({
-		sql: `SELECT id, is_active FROM Users WHERE username = ? AND role = ?`,
-		args: [hiveUsername, BUILDER_ROLE],
-	})
+  const builderResult = await db.execute({
+    sql: `SELECT id, is_active FROM Users WHERE username = ? AND role = ?`,
+    args: [hiveUsername, BUILDER_ROLE],
+  })
 
-	if (builderResult.rows.length === 0) {
-		throw new NotBuilderError('Builder no encontrado')
-	}
+  if (builderResult.rows.length === 0) {
+    throw new NotBuilderError('Builder no encontrado')
+  }
 
-	// Usar parseUserRow parcial para type safety
-	const rawRow = builderResult.rows[0]
-	const builderId = Number(rawRow.id)
-	const isActive = Boolean(rawRow.is_active)
+  // Usar parseUserRow parcial para type safety
+  const rawRow = builderResult.rows[0]
+  const builderId = Number(rawRow.id)
+  const isActive = Boolean(rawRow.is_active)
 
-	if (!isActive) {
-		throw new InactiveBuilderError('Builder inactivo')
-	}
+  if (!isActive) {
+    throw new InactiveBuilderError('Builder inactivo')
+  }
 
-	return builderId
+  return builderId
 }
 
 /**
@@ -172,32 +173,32 @@ export async function getActiveBuilderId(request: Request): Promise<number> {
  * ```
  */
 export function handleAuthError(error: unknown): Response {
-	if (
-		error instanceof UnauthenticatedError ||
-		error instanceof NotBuilderError ||
-		error instanceof InactiveBuilderError
-	) {
-		return new Response(
-			JSON.stringify({
-				success: false,
-				error: error.message,
-			}),
-			{
-				status: error.status,
-				headers: { 'Content-Type': 'application/json' },
-			}
-		)
-	}
+  if (
+    error instanceof UnauthenticatedError ||
+    error instanceof NotBuilderError ||
+    error instanceof InactiveBuilderError
+  ) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
+      {
+        status: error.status,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  }
 
-	// Error no esperado
-	return new Response(
-		JSON.stringify({
-			success: false,
-			error: 'Error interno del servidor',
-		}),
-		{
-			status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-			headers: { 'Content-Type': 'application/json' },
-		}
-	)
+  // Error no esperado
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: 'Error interno del servidor',
+    }),
+    {
+      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      headers: { 'Content-Type': 'application/json' },
+    }
+  )
 }

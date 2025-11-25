@@ -32,7 +32,7 @@ function assertNotSelfRemoval(delegator: string, delegatee: string): void {
 
 export async function delegateResourceCredits(
   params: IDelegateRCParams
-): Promise<ITransactionBase> {
+): Promise<{ id: string }> {
   const service = createDelegatorService()
 
   // Validation centralizada
@@ -54,7 +54,7 @@ export async function delegateResourceCredits(
 
 export async function removeDelegation(
   params: IRemoveDelegationParams
-): Promise<ITransactionBase> {
+): Promise<{ id: string }> {
   const service = createDelegatorService()
 
   // Validation centralizada

@@ -7,6 +7,7 @@
 
 import { db } from './database'
 import { creditBalanceTracker } from './credit-balance-tracker'
+import { notifyPendingCredits } from './notification-service'
 
 /**
  * Información completa de créditos de un builder
@@ -111,6 +112,14 @@ class CreditsService {
           operation.assigned_by_admin,
         ],
       })
+
+      // Crear notificación de créditos pendientes
+      try {
+        await notifyPendingCredits(builder_id, operation.amount)
+      } catch (notificationError) {
+        // No fallar si la notificación falla, solo loguear
+        console.error('Failed to create notification:', notificationError)
+      }
 
       // Retornar información actualizada
       const credits = await creditBalanceTracker.getBalanceById(builder_id)
@@ -306,7 +315,7 @@ class CreditsService {
   async getCreditAuditHistory(builder_id: number) {
     const result = await db.execute({
       sql: `
-				SELECT * FROM CreditAudit
+				SELECT id, builder_id, operation, amount, reason, performed_by, timestamp FROM CreditAudit
 				WHERE builder_id = ?
 				ORDER BY timestamp DESC
 			`,

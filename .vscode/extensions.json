@@ -1,4 +1,4 @@
 {
   "recommendations": ["astro-build.astro-vscode"],
-  "unwantedRecommendations": []
+  "unwantedRecommendations": ["nickolasdegrande.console-ninja", "nickolasdegrande.console-ninja-nightly"]
 }

@@ -86,7 +86,7 @@ export async function validateTicketInDB(
     }
 
     const result = await db.execute({
-      sql: `SELECT * FROM Tickets WHERE code = ?`,
+      sql: `SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
 

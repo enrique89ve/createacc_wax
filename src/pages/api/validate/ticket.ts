@@ -64,7 +64,6 @@ export const POST: APIRoute = async ({ request, clientAddress }) => {
         valid: true,
         ticket: {
           code: validation.ticket?.code,
-          type: validation.ticket?.type,
           description: validation.ticket?.description,
         },
       }),

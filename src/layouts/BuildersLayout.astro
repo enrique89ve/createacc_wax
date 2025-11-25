@@ -1,8 +1,10 @@
 ---
 import Base from './Base.astro'
 import UserMenu from '@/components/ui/UserMenu.astro'
+import NotificationBell from '@/components/ui/NotificationBell.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { getSession } from 'auth-astro/server'
+import { UsersRepository } from '@/lib/repositories/users-repository'
 
 export interface Props {
   title: string
@@ -15,12 +17,19 @@ const { title, currentPage } = Astro.props
 const session = await getSession(Astro.request)
 const user = session?.user
 
-// Get user credits if authenticated using balance tracker
+// Get user credits and user ID if authenticated
 let userCredits: number | undefined = undefined
+let userId: number | undefined = undefined
+
 if (user?.username) {
 	try {
 		const { creditBalanceTracker } = await import('@/lib/credit-balance-tracker')
 		userCredits = await creditBalanceTracker.getAvailableCredits(user.username)
+
+		// Get user ID from database for notifications
+		const usersRepo = new UsersRepository()
+		const dbUser = await usersRepo.getByUsername(user.username)
+		userId = dbUser?.id
 	} catch (error) {
 		userCredits = 0
 	}
@@ -56,12 +65,11 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
             <span>Créditos Disponibles: {typeof userCredits === 'number' ? userCredits : 0}</span>
           </a>
 
-          <!-- User Menu -->
-          <UserMenu
-            username={user.username}
-            role={user.role}
-            credits={userCredits}
-          />
+          <!-- Notification Bell -->
+          {userId && <NotificationBell userId={userId} />}
+
+          <!-- User Menu (without role and credits) -->
+          <UserMenu username={user.username} />
 
           <!-- Logout Button -->
           <button

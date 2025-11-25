@@ -96,7 +96,7 @@ export const DELETE: APIRoute = async context => {
 
       // Obtener ticket
       const ticketResult = await db.execute({
-        sql: 'SELECT * FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [Number(ticketId)],
       })
 

@@ -129,8 +129,6 @@ const { ticket = '' } = Astro.props as Props
             class="text-destructive hidden text-xs font-medium"
           >
           </div>
-          <div id="ticket-info" class="text-muted-foreground hidden text-xs">
-          </div>
         </div>
 
         <!-- Botón -->
@@ -531,26 +529,11 @@ const { ticket = '' } = Astro.props as Props
 
       if (response.ok && result.valid) {
         showTicketSuccessState()
-        if (result.ticket?.description) {
-          const ticketInfo = document.querySelector('#ticket-info')
-          if (ticketInfo) {
-            ticketInfo.textContent = `${result.ticket.type.toUpperCase()}: ${result.ticket.description}`
-            ticketInfo.classList.remove('hidden')
-          }
-        }
       } else {
         showTicketErrorState(result.error || 'Ticket inválido')
-        const ticketInfo = document.querySelector('#ticket-info')
-        if (ticketInfo) {
-          ticketInfo.classList.add('hidden')
-        }
       }
     } catch (error) {
       showTicketErrorState('Error validando ticket. Inténtalo de nuevo.')
-      const ticketInfo = document.querySelector('#ticket-info')
-      if (ticketInfo) {
-        ticketInfo.classList.add('hidden')
-      }
     }
   }
 

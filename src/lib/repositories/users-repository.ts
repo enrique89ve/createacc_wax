@@ -68,11 +68,12 @@ export class UsersRepository {
 
   /**
    * Obtener usuario por ID
+   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
    */
   async getById(id: number): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT * FROM Users WHERE id = ?',
+        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE id = ?',
         args: [id],
       })
 
@@ -88,11 +89,12 @@ export class UsersRepository {
 
   /**
    * Obtener usuario por username
+   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
    */
   async getByUsername(username: string): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT * FROM Users WHERE username = ?',
+        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ?',
         args: [username],
       })
 
@@ -163,12 +165,13 @@ export class UsersRepository {
 
   /**
    * Obtener todos los usuarios con rol 'admin'
+   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
    */
   async getAdmins(): Promise<DatabaseUserRow[]> {
     try {
       const result = await db.execute({
         sql: `
-					SELECT * FROM Users
+					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users
 					WHERE role = 'admin'
 					ORDER BY created_at DESC
 				`,
@@ -185,12 +188,13 @@ export class UsersRepository {
 
   /**
    * Obtener todos los usuarios con rol 'builder'
+   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
    */
   async getBuilders(): Promise<DatabaseUserRow[]> {
     try {
       const result = await db.execute({
         sql: `
-					SELECT * FROM Users
+					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users
 					WHERE role = 'builder'
 					ORDER BY created_at DESC
 				`,

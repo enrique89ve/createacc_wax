@@ -112,8 +112,9 @@ export async function verifyKeychainAuth(
     }
 
     // Buscar builder en la base de datos
+    // SEGURIDAD: Columnas explícitas - NO incluir password_hash
     const builderResult = await db.execute({
-      sql: 'SELECT * FROM Users WHERE username = ? AND role = ? AND is_active = TRUE',
+      sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ? AND role = ? AND is_active = TRUE',
       args: [username as string, 'builder'],
     })
 

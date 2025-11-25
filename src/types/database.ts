@@ -10,6 +10,14 @@ import { USER_ROLES, type UserRole } from '@/consts/constants'
 export const AUDIT_ACTIONS = ['create', 'update', 'delete'] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
+export const NOTIFICATION_TYPES = [
+	'pending_credits',
+	'account_created',
+	'credit_assigned',
+	'system',
+] as const
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
 // ===== DATABASE ROW INTERFACES =====
 
 /**
@@ -52,7 +60,6 @@ export interface DatabaseCreditRow {
 export interface DatabaseTicketRow {
   readonly id: number
   readonly code: string
-  readonly type?: string | null
   readonly description: string | null
   readonly original_credits: number
   readonly credits: number
@@ -113,6 +120,22 @@ export interface DatabaseLoginAttemptRow {
   readonly attempted_at: string
 }
 
+/**
+ * Notifications table
+ */
+export interface DatabaseNotificationRow {
+  readonly id: number
+  readonly user_id: number
+  readonly type: NotificationType
+  readonly title: string
+  readonly message: string
+  readonly metadata: string | null
+  readonly is_read: boolean
+  readonly created_at: string
+  readonly read_at: string | null
+  readonly viewed_at: string | null
+}
+
 // ===== EXTENDED/JOINED QUERY TYPES =====
 
 /**
@@ -140,7 +163,6 @@ export interface AccountWithTicketInfo extends DatabaseAccountRow {
   readonly ticket_description?: string | null
   readonly ticket_original_credits?: number
   readonly ticket_remaining_credits?: number
-  readonly ticket_type?: string
 }
 
 // ===== CRUD OPERATION TYPES =====
@@ -246,6 +268,25 @@ export interface CreateLoginAttemptData {
   readonly error_message?: string | null
 }
 
+/**
+ * Data required to create notification entry
+ */
+export interface CreateNotificationData {
+  readonly user_id: number
+  readonly type: NotificationType
+  readonly title: string
+  readonly message: string
+  readonly metadata?: string | null
+}
+
+/**
+ * Data allowed to update for a notification
+ */
+export interface UpdateNotificationData {
+  readonly is_read?: boolean
+  readonly read_at?: string | null
+}
+
 // ===== QUERY RESULT TYPES =====
 
 /**
@@ -300,6 +341,18 @@ export function isAuditAction(value: unknown): value is AuditAction {
 }
 
 /**
+ * Type guard for NotificationType
+ */
+export function isNotificationType(
+  value: unknown
+): value is NotificationType {
+  return (
+    typeof value === 'string' &&
+    NOTIFICATION_TYPES.includes(value as NotificationType)
+  )
+}
+
+/**
  * Type guard for database user row from libsql result
  */
 export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
@@ -312,10 +365,14 @@ export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
   return (
     typeof r.id === 'number' &&
     typeof r.username === 'string' &&
-    (r.password_hash === null || typeof r.password_hash === 'string') &&
+    (r.password_hash === undefined ||
+      r.password_hash === null ||
+      typeof r.password_hash === 'string') &&
     isUserRole(r.role) &&
     isActiveValid &&
-    (r.last_claim_at === null || typeof r.last_claim_at === 'string') &&
+    (r.last_claim_at === undefined ||
+      r.last_claim_at === null ||
+      typeof r.last_claim_at === 'string') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -470,6 +527,52 @@ export function parseTicketWithCreatorRow(
 ): TicketWithCreator | null {
   if (!isTicketWithCreator(raw)) return null
   return raw
+}
+
+/**
+ * Type guard for database notification row from libsql result
+ */
+export function isDatabaseNotificationRow(
+  row: unknown
+): row is DatabaseNotificationRow {
+  if (typeof row !== 'object' || row === null) return false
+  const r = row as Record<string, unknown>
+
+  const isReadValue = r.is_read
+  const isReadBool =
+    isReadValue === 1 || isReadValue === true || isReadValue === '1'
+
+  return (
+    typeof r.id === 'number' &&
+    typeof r.user_id === 'number' &&
+    isNotificationType(r.type) &&
+    typeof r.title === 'string' &&
+    typeof r.message === 'string' &&
+    (r.metadata === null || typeof r.metadata === 'string') &&
+    typeof isReadBool === 'boolean' &&
+    typeof r.created_at === 'string' &&
+    (r.read_at === null || typeof r.read_at === 'string')
+  )
+}
+
+/**
+ * Safely converts libsql row to typed notification row with boolean conversion
+ */
+export function parseNotificationRow(
+  raw: unknown
+): DatabaseNotificationRow | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+
+  const isRead = r.is_read === 1 || r.is_read === true || r.is_read === '1'
+
+  const converted = {
+    ...r,
+    is_read: isRead,
+  }
+
+  if (!isDatabaseNotificationRow(converted)) return null
+  return converted
 }
 
 // ===== ERROR CODES =====

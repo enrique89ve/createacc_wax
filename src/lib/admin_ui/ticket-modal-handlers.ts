@@ -4,11 +4,7 @@
  * Usa componentes Astro nativos en lugar de innerHTML
  */
 
-import {
-  TicketAction,
-  BUILDERS_UI,
-  MAX_TICKET_CREDITS,
-} from '@/consts/constants'
+import { BUILDERS_UI, MAX_TICKET_CREDITS } from '@/consts/constants'
 
 export interface TicketData {
   id: number
@@ -311,16 +307,17 @@ function setupUpdateModalListeners() {
     }
 
     try {
-      const resp = await fetch(BUILDERS_UI.API_ENDPOINTS.TICKETS_MANAGE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticketId: currentTicket.id,
-          code: currentTicket.code,
-          action: TicketAction.Update,
-          delta: delta,
-        }),
-      })
+      const resp = await fetch(
+        `${BUILDERS_UI.API_ENDPOINTS.TICKETS_BY_ID}/${currentTicket.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: currentTicket.code,
+            delta: delta,
+          }),
+        }
+      )
 
       const data = await resp.json()
 
@@ -359,15 +356,16 @@ function setupDeleteModalListeners() {
       if (!currentTicket) return
 
       try {
-        const resp = await fetch(BUILDERS_UI.API_ENDPOINTS.TICKETS_MANAGE, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ticketId: currentTicket.id,
-            code: currentTicket.code,
-            action: TicketAction.Delete,
-          }),
-        })
+        const resp = await fetch(
+          `${BUILDERS_UI.API_ENDPOINTS.TICKETS_BY_ID}/${currentTicket.id}`,
+          {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              code: currentTicket.code,
+            }),
+          }
+        )
 
         const data = await resp.json()
 

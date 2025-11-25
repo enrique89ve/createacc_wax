@@ -44,8 +44,7 @@ export class HiveTransactionService {
   async executeTransaction(
     operationBuilder: OperationBuilder,
     successMessage?: string
-  ): Promise<ITransactionBase> {
-
+  ): Promise<{ id: string }> {
     const beekeeperService = BeekeeperService.create({
       privateKey: this.config.privateKey,
     })
@@ -63,7 +62,7 @@ export class HiveTransactionService {
         const tx = await chain.createTransaction()
 
         operationBuilder(tx, this.config.account)
-        
+
         // Validate transaction using Wax native validation
         tx.validate()
 
@@ -72,21 +71,24 @@ export class HiveTransactionService {
           throw new Error('Wallet or public key is not available')
         }
 
-        tx.sign(wallet, publicKey)
         tx.toApi()
-        chain.delete()
-        //const result = await chain.broadcast(tx)
 
-        return tx
+        // Broadcast the transaction
+        // await chain.broadcast(tx)
+
+        // Capture ID before deleting chain
+        const txId = tx.id
+
+        chain.delete()
+
+        return { id: txId }
       })
     } finally {
       // Asegurar que el wallet se bloquee siempre, incluso si hubo error en la creación
       if (wallet) {
         try {
           wallet.lock()
-        } catch (lockError) {
-
-        }
+        } catch (lockError) {}
       }
     }
   }
