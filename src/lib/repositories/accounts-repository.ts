@@ -20,16 +20,6 @@ import {
 } from '@/types/database'
 
 /**
- * Cuenta con información completa del ticket usado
- */
-export interface AccountWithFullTicketInfo extends DatabaseAccountRow {
-  readonly ticket_description: string | null
-  readonly ticket_original_credits: number
-  readonly ticket_remaining_credits: number
-  readonly creator_username: string | null
-}
-
-/**
  * Estadísticas de cuentas
  */
 export interface AccountStats {
@@ -60,11 +50,11 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					INSERT INTO Accounts (username, ticket, creation_date, registered_at)
-					VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+					INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
+					VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
 					RETURNING *
 				`,
-        args: [data.username, data.ticket, new Date().toISOString()],
+        args: [data.username, data.ticket, data.ticket_by ?? null, new Date().toISOString()],
       })
 
       if (result.rows.length === 0) {
@@ -89,7 +79,7 @@ export class AccountsRepository {
   async findById(id: number): Promise<DatabaseAccountRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, creation_date, ticket, registered_at FROM Accounts WHERE id = ?',
+        sql: 'SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts WHERE id = ?',
         args: [id],
       })
 
@@ -109,7 +99,7 @@ export class AccountsRepository {
   async findByUsername(username: string): Promise<DatabaseAccountRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, creation_date, ticket, registered_at FROM Accounts WHERE username = ?',
+        sql: 'SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts WHERE username = ?',
         args: [username],
       })
 
@@ -162,7 +152,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 					WHERE ticket = ?
 					ORDER BY creation_date DESC
 				`,
@@ -187,7 +177,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 					WHERE DATE(creation_date) BETWEEN DATE(?) AND DATE(?)
 					ORDER BY creation_date DESC
 				`,
@@ -209,7 +199,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 					ORDER BY creation_date DESC
 				`,
         args: [],
@@ -230,7 +220,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 					ORDER BY creation_date DESC
 					LIMIT ?
 				`,
@@ -252,7 +242,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 					WHERE username LIKE ?
 					ORDER BY creation_date DESC
 				`,
@@ -309,7 +299,7 @@ export class AccountsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT id, username, creation_date, ticket, registered_at FROM Accounts
+				SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
 				${whereClause}
 				ORDER BY creation_date DESC
 			`
@@ -319,129 +309,6 @@ export class AccountsRepository {
       return result.rows
         .map(row => parseAccountRow(row))
         .filter((account): account is DatabaseAccountRow => account !== null)
-    } catch (error) {
-      throw error
-    }
-  }
-
-  // ===== QUERIES COMPLEJAS CON JOINS =====
-
-  /**
-   * Obtener cuentas con información completa del ticket
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
-   */
-  async getAllWithTicketInfo(): Promise<AccountWithFullTicketInfo[]> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT
-						a.*,
-						t.description as ticket_description,
-						t.original_credits as ticket_original_credits,
-						t.credits as ticket_remaining_credits,
-						u.username as creator_username
-					FROM Accounts a
-					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Users u ON t.created_by = u.id
-					ORDER BY a.creation_date DESC
-				`,
-        args: [],
-      })
-
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        username: String(row.username),
-        ticket: String(row.ticket),
-        creation_date: String(row.creation_date),
-        registered_at: String(row.registered_at),
-        ticket_description: row.ticket_description as string | null,
-        ticket_original_credits: Number(row.ticket_original_credits || 0),
-        ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-        creator_username: row.creator_username as string | null,
-      }))
-    } catch (error) {
-      throw error
-    }
-  }
-
-  /**
-   * Obtener cuentas recientes con información del ticket
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
-   */
-  async getRecentWithTicketInfo(
-    limit: number = 5
-  ): Promise<AccountWithFullTicketInfo[]> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT
-						a.*,
-						t.description as ticket_description,
-						t.original_credits as ticket_original_credits,
-						t.credits as ticket_remaining_credits,
-						u.username as creator_username
-					FROM Accounts a
-					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Users u ON t.created_by = u.id
-					ORDER BY a.creation_date DESC
-					LIMIT ?
-				`,
-        args: [limit],
-      })
-
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        username: String(row.username),
-        ticket: String(row.ticket),
-        creation_date: String(row.creation_date),
-        registered_at: String(row.registered_at),
-        ticket_description: row.ticket_description as string | null,
-        ticket_original_credits: Number(row.ticket_original_credits || 0),
-        ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-        creator_username: row.creator_username as string | null,
-      }))
-    } catch (error) {
-      throw error
-    }
-  }
-
-  /**
-   * Obtener cuentas creadas por un builder específico
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
-   */
-  async getByBuilder(builderId: number): Promise<AccountWithFullTicketInfo[]> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT
-						a.*,
-						t.description as ticket_description,
-						t.original_credits as ticket_original_credits,
-						t.credits as ticket_remaining_credits,
-						u.username as creator_username
-					FROM Accounts a
-					LEFT JOIN Tickets t ON a.ticket = t.code
-					LEFT JOIN Users u ON t.created_by = u.id
-					WHERE t.created_by = ? AND u.role = 'builder'
-					ORDER BY a.creation_date DESC
-				`,
-        args: [builderId],
-      })
-
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        username: String(row.username),
-        ticket: String(row.ticket),
-        creation_date: String(row.creation_date),
-        registered_at: String(row.registered_at),
-        ticket_description: row.ticket_description as string | null,
-        ticket_original_credits: Number(row.ticket_original_credits || 0),
-        ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-        creator_username: row.creator_username as string | null,
-      }))
     } catch (error) {
       throw error
     }
