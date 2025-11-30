@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { db } from '@/lib/database'
-import { HTTP_STATUS } from '@/consts/constants'
+import { HTTP_STATUS, USER_ROLES } from '@/consts/constants'
 // Logger removed
 import { claimHashCache } from '@/lib/claim-hash-cache'
 
@@ -21,8 +21,8 @@ export const POST: APIRoute = async ({ request }) => {
 
     // Verificar que el usuario es un builder activo
     const builderResult = await db.execute({
-      sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder' AND is_active = TRUE",
-      args: [session.user.username],
+      sql: `SELECT id FROM Users WHERE username = ? AND role = ? AND is_active = TRUE`,
+      args: [session.user.username, USER_ROLES.BUILDER],
     })
 
     if (builderResult.rows.length === 0) {

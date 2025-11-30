@@ -5,6 +5,7 @@ import {
   assertCanPerform,
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
+import { USER_ROLES } from '@/consts/constants'
 
 /**
  * POST: Reactivar un builder previamente baneado
@@ -50,7 +51,7 @@ export const POST: APIRoute = async context => {
         )
       }
 
-      if (builder.role !== 'builder') {
+      if (builder.role !== USER_ROLES.BUILDER) {
         return new Response(
           JSON.stringify({ error: 'El usuario no es un builder' }),
           {

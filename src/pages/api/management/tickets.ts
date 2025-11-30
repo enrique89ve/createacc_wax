@@ -4,6 +4,7 @@ import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
+import { USER_ROLES } from '@/consts/constants'
 // Logger removed
 import { db } from '@/lib/database'
 // Types
@@ -42,7 +43,7 @@ export const GET: APIRoute = async context => {
     try {
       let tickets
 
-      if (session.role === 'admin') {
+      if (session.role === USER_ROLES.ADMIN) {
         // Admin puede ver todos los tickets
         tickets = await ticketsRepository.getAllWithCreators()
       } else {
@@ -129,7 +130,7 @@ export const POST: APIRoute = async context => {
       const username = userData.username
 
       // Verificar créditos disponibles para builders
-      if (session.role === 'builder') {
+      if (session.role === USER_ROLES.BUILDER) {
         const userCredits = await creditBalanceTracker.getBalance(username)
 
         if (!userCredits || userCredits.available_amount < credits) {
@@ -150,7 +151,7 @@ export const POST: APIRoute = async context => {
       }
 
       // Consumir créditos (solo para builders)
-      if (session.role === 'builder') {
+      if (session.role === USER_ROLES.BUILDER) {
         try {
           await creditsService.deductCreditsForTicket(
             session.userId,

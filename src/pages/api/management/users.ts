@@ -6,6 +6,7 @@ import {
   assertCanPerform,
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
+import { USER_ROLES } from '@/consts/constants'
 
 // GET: Listar usuarios builders
 export const GET: APIRoute = async context => {
@@ -28,7 +29,7 @@ export const GET: APIRoute = async context => {
       const users = builders.map(builder => ({
         id: builder.id,
         username: builder.hive_username,
-        role: 'builder' as const,
+        role: USER_ROLES.BUILDER as const,
         is_active: builder.is_active,
         last_claim_at: builder.last_claim_at,
         created_at: builder.created_at,
@@ -101,7 +102,7 @@ export const POST: APIRoute = async context => {
       // Crear builder usando the unified repository
       const newUser = await usersRepository.create({
         username: cleanUsername,
-        role: 'builder',
+        role: USER_ROLES.BUILDER,
         is_active: true,
       })
 
@@ -122,7 +123,7 @@ export const POST: APIRoute = async context => {
           user: {
             id: builderId,
             hive_username: cleanUsername,
-            role: 'builder',
+            role: USER_ROLES.BUILDER,
             initial_credits: 100,
           },
         }),
@@ -181,7 +182,7 @@ export const DELETE: APIRoute = async context => {
       // Verificar que el builder existe usando the unified repository
       const user = await usersRepository.findById(Number(userId))
 
-      if (!user || user.role !== 'builder') {
+      if (!user || user.role !== USER_ROLES.BUILDER) {
         return new Response(
           JSON.stringify({ error: 'Builder no encontrado' }),
           {

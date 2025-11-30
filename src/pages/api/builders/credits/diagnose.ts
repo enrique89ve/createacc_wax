@@ -11,7 +11,7 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { HTTP_STATUS } from '@/consts/constants'
+import { HTTP_STATUS, USER_ROLES } from '@/consts/constants'
 
 const jsonResponse = (data: unknown, status: number): Response => {
 	return new Response(JSON.stringify(data), {
@@ -25,7 +25,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		const session = await getSession(request)
 
 		// Solo admins
-		if (!session?.user || session.user.role !== 'admin') {
+		if (!session?.user || session.user.role !== USER_ROLES.ADMIN) {
 			return jsonResponse(
 				{ success: false, error: 'Acceso denegado: solo admins' },
 				HTTP_STATUS.FORBIDDEN

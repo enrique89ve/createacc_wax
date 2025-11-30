@@ -11,7 +11,7 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { HTTP_STATUS } from '@/consts/constants'
+import { HTTP_STATUS, USER_ROLES } from '@/consts/constants'
 
 const jsonResponse = (data: unknown, status: number): Response => {
 	return new Response(JSON.stringify(data), {
@@ -37,7 +37,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		// Determinar qué usuario consultar
 		const targetUsername =
-			session.user.role === 'admin' && username ? username : session.user.username
+			session.user.role === USER_ROLES.ADMIN && username ? username : session.user.username
 
 		if (!targetUsername) {
 			return jsonResponse(

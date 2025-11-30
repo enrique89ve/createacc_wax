@@ -5,6 +5,7 @@ import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
+import { USER_ROLES } from '@/consts/constants'
 // Logger removed
 
 // Types
@@ -60,7 +61,7 @@ const canDeleteTicket = (
   sessionUserId: number,
   creatorUserId: number
 ): boolean => {
-  return sessionRole === 'admin' || sessionUserId === creatorUserId
+  return sessionRole === USER_ROLES.ADMIN || sessionUserId === creatorUserId
 }
 
 // Helper: Crear auditor�a de eliminaci�n

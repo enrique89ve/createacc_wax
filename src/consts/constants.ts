@@ -37,8 +37,12 @@ export const SESSION_KEYS = {
   USER: 'user',
 } as const
 
-export const USER_ROLES = ['admin', 'builder'] as const
-export type UserRole = (typeof USER_ROLES)[number]
+export const USER_ROLES = {
+	ADMIN: 'admin',
+	BUILDER: 'builder',
+} as const
+
+export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
 
 export const AUTH_PROVIDERS = {
   CREDENTIALS: 'credentials',
@@ -236,7 +240,6 @@ export const BUILDERS_UI = {
     CREDITS_BALANCE: '/api/builders/credits/balance',
     CREDITS_CLAIM_HASH: '/api/builders/credits/claim-hash',
     CREDITS_CLAIM_VERIFY: '/api/builders/credits/claim-verify',
-    CREDITS_PURCHASE: '/api/builders/credits/purchase',
     CREDITS_EXPORT: '/api/builders/credits/export',
     ACCOUNTS: '/api/builders/accounts',
   },

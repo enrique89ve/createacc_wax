@@ -7,6 +7,7 @@ import type { APIRoute } from 'astro'
 import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import { encode } from '@auth/core/jwt'
+import { USER_ROLES } from '@/consts/constants'
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -41,7 +42,7 @@ export const POST: APIRoute = async ({ request }) => {
     const user = validationResult.user
 
     // Verificar que el usuario sea admin
-    if (user.role !== 'admin') {
+    if (user.role !== USER_ROLES.ADMIN) {
       return new Response(
         JSON.stringify({
           success: false,

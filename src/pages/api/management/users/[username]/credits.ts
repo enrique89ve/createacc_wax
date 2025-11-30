@@ -6,6 +6,7 @@ import {
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
 import { creditsService } from '@/lib/credits-service'
+import { USER_ROLES } from '@/consts/constants'
 
 /**
  * PATCH: Asignar créditos pendientes a un builder
@@ -69,8 +70,8 @@ export const PATCH: APIRoute = async context => {
 
       // Verificar que el builder existe
       const builderResult = await db.execute({
-        sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder'",
-        args: [username.toLowerCase()],
+        sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
+        args: [username.toLowerCase(), USER_ROLES.BUILDER],
       })
 
       if (builderResult.rows.length === 0) {
@@ -203,8 +204,8 @@ export const PUT: APIRoute = async context => {
 
       // Obtener builder ID
       const builderResult = await db.execute({
-        sql: "SELECT id FROM Users WHERE username = ? AND role = 'builder'",
-        args: [username.toLowerCase()],
+        sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
+        args: [username.toLowerCase(), USER_ROLES.BUILDER],
       })
 
       if (builderResult.rows.length === 0) {
