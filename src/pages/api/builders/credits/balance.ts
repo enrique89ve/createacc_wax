@@ -11,14 +11,9 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
+import { jsonResponse } from '@/utils/api-response'
 import { HTTP_STATUS, USER_ROLES } from '@/consts/constants'
-
-const jsonResponse = (data: unknown, status: number): Response => {
-	return new Response(JSON.stringify(data), {
-		status,
-		headers: { 'Content-Type': 'application/json' },
-	})
-}
+import { API_MESSAGES } from '@/consts/api-messages'
 
 export const GET: APIRoute = async ({ request, url }) => {
 	try {
@@ -26,7 +21,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		if (!session?.user) {
 			return jsonResponse(
-				{ success: false, error: 'No autorizado' },
+				{ success: false, error: API_MESSAGES.ERRORS.UNAUTHORIZED },
 				HTTP_STATUS.UNAUTHORIZED
 			)
 		}
@@ -41,7 +36,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		if (!targetUsername) {
 			return jsonResponse(
-				{ success: false, error: 'Username no especificado' },
+				{ success: false, error: API_MESSAGES.ERRORS.USERNAME_NOT_SPECIFIED },
 				HTTP_STATUS.BAD_REQUEST
 			)
 		}
@@ -53,7 +48,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 			if (!balance) {
 				return jsonResponse(
-					{ success: false, error: 'Builder no encontrado' },
+					{ success: false, error: API_MESSAGES.ERRORS.BUILDER_NOT_FOUND },
 					HTTP_STATUS.NOT_FOUND
 				)
 			}
@@ -73,7 +68,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 			if (!balance) {
 				return jsonResponse(
-					{ success: false, error: 'Builder no encontrado' },
+					{ success: false, error: API_MESSAGES.ERRORS.BUILDER_NOT_FOUND },
 					HTTP_STATUS.NOT_FOUND
 				)
 			}
@@ -93,7 +88,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 		return jsonResponse(
 			{
 				success: false,
-				error: 'Error interno del servidor',
+				error: API_MESSAGES.ERRORS.INTERNAL_ERROR,
 			},
 			HTTP_STATUS.INTERNAL_SERVER_ERROR
 		)

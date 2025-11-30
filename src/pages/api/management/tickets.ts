@@ -4,8 +4,9 @@ import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
+import { jsonResponse } from '@/utils/api-response'
 import { USER_ROLES } from '@/consts/constants'
-// Logger removed
+import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
 // Types
 interface TicketCreateRequest {
@@ -29,14 +30,6 @@ interface TicketCreationResult {
   }
 }
 
-// Helper: Crear respuesta JSON
-const jsonResponse = (data: unknown, status: number): Response => {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 // GET: Listar tickets
 export const GET: APIRoute = async context => {
   return withAdminSession(context, async session => {
@@ -55,7 +48,7 @@ export const GET: APIRoute = async context => {
 
       return jsonResponse({ success: true, tickets }, 200)
     } catch (error) {
-      return jsonResponse({ error: 'Error interno' }, 500)
+      return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)
     }
   })
 }
@@ -115,7 +108,7 @@ export const POST: APIRoute = async context => {
       // Validación: Código de ticket
       const cleanCode = validateTicketCode(code)
       if (!cleanCode) {
-        return jsonResponse({ error: 'Código de ticket inválido' }, 400)
+        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_INVALID }, 400)
       }
 
       // Normalizar créditos
@@ -124,7 +117,7 @@ export const POST: APIRoute = async context => {
       // Obtener datos del usuario
       const userData = await getUserData(session.userId)
       if (!userData) {
-        return jsonResponse({ error: 'Usuario no encontrado' }, 404)
+        return jsonResponse({ error: API_MESSAGES.ERRORS.USER_NOT_FOUND }, 404)
       }
 
       const username = userData.username
@@ -147,7 +140,7 @@ export const POST: APIRoute = async context => {
 
       // Validación: Código ya existe
       if (await ticketCodeExists(cleanCode)) {
-        return jsonResponse({ error: 'El código ya existe' }, 400)
+        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS }, 400)
       }
 
       // Consumir créditos (solo para builders)
@@ -161,7 +154,7 @@ export const POST: APIRoute = async context => {
         } catch (error) {
           return jsonResponse(
             {
-              error: 'Error al procesar los créditos',
+              error: API_MESSAGES.ERRORS.CREDITS_DEDUCTION_ERROR,
               details: error instanceof Error ? error.message : 'Unknown error',
             },
             500
@@ -186,7 +179,7 @@ export const POST: APIRoute = async context => {
 
       const result: TicketCreationResult = {
         success: true,
-        message: 'Ticket creado exitosamente',
+        message: API_MESSAGES.SUCCESS.TICKET_CREATED,
         ticket: {
           id: ticketId,
           code: cleanCode,
@@ -205,10 +198,10 @@ export const POST: APIRoute = async context => {
         error instanceof Error &&
         error.message.includes('UNIQUE constraint failed')
       ) {
-        return jsonResponse({ error: 'El código ya existe' }, 400)
+        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS }, 400)
       }
 
-      return jsonResponse({ error: 'Error interno' }, 500)
+      return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)
     }
   })
 }
