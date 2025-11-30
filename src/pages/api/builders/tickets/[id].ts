@@ -153,28 +153,31 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       )
     }
 
-    // Verificar que el ticket no haya sido usado
-    if (ticket.has_been_used) {
-      return apiError(
-        'No puedes borrar un ticket que ya ha sido usado',
-        HTTP_STATUS.BAD_REQUEST
+    // Calcular créditos a reembolsar:
+    // - Si el ticket NO fue usado: reembolsar créditos originales
+    // - Si el ticket FUE usado: reembolsar solo los créditos restantes (no los consumidos)
+    const creditsToRefund = ticket.has_been_used
+      ? ticket.credits // Solo los créditos restantes
+      : ticket.original_credits // Todos los créditos originales
+
+    // Reembolsar créditos al builder (si hay créditos que reembolsar)
+    if (creditsToRefund > 0) {
+      await creditsService.refundCreditsFromTicket(
+        builderId,
+        creditsToRefund,
+        ticket.code
       )
     }
-
-    // Reembolsar créditos originales al builder
-    await creditsService.refundCreditsFromTicket(
-      builderId,
-      ticket.original_credits,
-      ticket.code
-    )
 
     // Eliminar el ticket
     await ticketsRepository.delete(ticketId)
 
     const response: DeleteTicketResponse = {
       success: true,
-      message: 'Ticket eliminado exitosamente',
-      refundedCredits: ticket.original_credits,
+      message: ticket.has_been_used
+        ? `Ticket eliminado. Se reembolsaron ${creditsToRefund} créditos restantes.`
+        : 'Ticket eliminado exitosamente',
+      refundedCredits: creditsToRefund,
     }
 
     return apiSuccess(response, HTTP_STATUS.OK)

@@ -351,68 +351,64 @@ export class UsersRepository {
   }
 
   /**
-   * Eliminar builder y todas sus referencias (tickets, cuentas, créditos, auditorías)
+   * Desactivar/Banear builder (Soft Delete)
+   *
+   * En lugar de eliminar físicamente, marcamos como inactivo para:
+   * - Preservar el ID único (evitar colisiones con nuevos builders)
+   * - Mantener todo el historial intacto (CreditAudit, TicketAudit, Accounts)
+   * - Poder reactivar si es necesario
+   *
+   * SE HACE:
+   * - Marcar usuario como is_active = false
+   * - Desactivar todos los tickets (is_active = false)
+   * - Poner créditos a 0 (pending y available)
+   *
+   * SE PRESERVA:
+   * - El registro del usuario (con is_active = false)
+   * - Todos los tickets (marcados como inactivos)
+   * - Accounts: historial completo de cuentas creadas
+   * - CreditAudit: historial completo de créditos
+   * - TicketAudit: historial completo de tickets
    */
   async deleteBuilderWithReferences(builderId: number): Promise<void> {
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      const ticketsResult = await db.execute({
-        sql: 'SELECT code FROM Tickets WHERE created_by = ?',
+      // 1. Desactivar todos los tickets del builder (soft delete)
+      await db.execute({
+        sql: 'UPDATE Tickets SET is_active = 0 WHERE created_by = ?',
         args: [builderId],
       })
 
-      // Limpiar dependencias basadas en tickets antes de eliminar el builder
-      const ticketCodes = ticketsResult.rows
-        .map(row => {
-          const record = row as Record<string, unknown>
-          return typeof record.code === 'string' ? record.code : null
-        })
-        .filter((code): code is string => code !== null)
-        .map(code => code.trim())
-        .filter(code => code.length > 0)
-
-      if (ticketCodes.length > 0) {
-        const placeholders = ticketCodes.map(() => '?').join(', ')
-
-        await db.execute({
-          sql: `DELETE FROM Accounts WHERE ticket IN (${placeholders})`,
-          args: ticketCodes,
-        })
-
-        await db.execute({
-          sql: `DELETE FROM TicketAudit WHERE ticket IN (${placeholders})`,
-          args: ticketCodes,
-        })
-      }
-
+      // 2. Poner créditos a 0 (pero mantener el registro para referencia)
       await db.execute({
-        sql: 'UPDATE TicketAudit SET performed_by = NULL WHERE performed_by = ?',
+        sql: `UPDATE Credits 
+              SET pending_amount = 0, 
+                  available_amount = 0,
+                  updated_at = CURRENT_TIMESTAMP 
+              WHERE builder_id = ?`,
         args: [builderId],
       })
 
+      // 3. Registrar en auditoría que el builder fue desactivado
       await db.execute({
-        sql: 'UPDATE CreditAudit SET performed_by = NULL WHERE performed_by = ?',
-        args: [builderId],
+        sql: `INSERT INTO CreditAudit (
+                builder_id, operation, amount, reason, timestamp
+              ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        args: [
+          builderId,
+          'builder_deactivated',
+          0,
+          'Builder desactivado/baneado por admin',
+        ],
       })
 
+      // 4. Marcar el usuario como inactivo (Soft Delete)
       await db.execute({
-        sql: 'DELETE FROM CreditAudit WHERE builder_id = ?',
-        args: [builderId],
-      })
-
-      await db.execute({
-        sql: 'DELETE FROM Credits WHERE builder_id = ?',
-        args: [builderId],
-      })
-
-      await db.execute({
-        sql: 'DELETE FROM Tickets WHERE created_by = ?',
-        args: [builderId],
-      })
-
-      await db.execute({
-        sql: `DELETE FROM Users WHERE id = ? AND role = 'builder'`,
+        sql: `UPDATE Users 
+              SET is_active = 0, 
+                  updated_at = CURRENT_TIMESTAMP 
+              WHERE id = ? AND role = 'builder'`,
         args: [builderId],
       })
 
@@ -423,13 +419,49 @@ export class UsersRepository {
     }
   }
 
+  /**
+   * Reactivar un builder previamente desactivado
+   */
+  async reactivateBuilder(builderId: number): Promise<void> {
+    await db.execute({
+      sql: `UPDATE Users 
+            SET is_active = 1, 
+                updated_at = CURRENT_TIMESTAMP 
+            WHERE id = ? AND role = 'builder'`,
+      args: [builderId],
+    })
+
+    // Registrar en auditoría
+    await db.execute({
+      sql: `INSERT INTO CreditAudit (
+              builder_id, operation, amount, reason, timestamp
+            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      args: [
+        builderId,
+        'builder_reactivated',
+        0,
+        'Builder reactivado por admin',
+      ],
+    })
+  }
+
   // ===== MÉTODOS ESPECÍFICOS PARA BUILDERS =====
 
   /**
    * Obtener cuentas creadas por un builder específico (por ID)
+   * Usa el campo ticket_by de Accounts para mostrar cuentas incluso si el ticket fue eliminado
    */
   async getAccountsByUser(builderId: number): Promise<AccountWithTicketInfo[]> {
     try {
+      const builder = await this.getById(builderId)
+
+      if (!builder) {
+        return []
+      }
+
+      const builderUsername = builder.username
+
+      // Buscar cuentas por ticket_by (preserva historial aunque el ticket no exista)
       const accountsResult = await db.execute({
         sql: `SELECT
 					a.id,
@@ -437,14 +469,15 @@ export class UsersRepository {
 					a.ticket,
 					a.creation_date,
 					a.registered_at,
+					a.ticket_by,
 					t.description as ticket_description,
 					t.original_credits as ticket_original_credits,
 					t.credits as ticket_remaining_credits
 				FROM Accounts a
 				LEFT JOIN Tickets t ON a.ticket = t.code
-				WHERE t.created_by = ?
+				WHERE a.ticket_by = ?
 				ORDER BY a.creation_date DESC`,
-        args: [builderId],
+        args: [builderUsername],
       })
 
       return accountsResult.rows.map((row: Record<string, unknown>) => ({
@@ -464,16 +497,27 @@ export class UsersRepository {
 
   /**
    * Obtener estadísticas de un builder específico (por ID)
+   * Usa ticket_by para contar cuentas incluso si los tickets fueron eliminados
    */
   async getBuildersStats(builderId: number): Promise<BuildersStats> {
     try {
-      // Contar cuentas totales creadas por tickets del usuario
+      const builder = await this.getById(builderId)
+
+      if (!builder) {
+        return {
+          totalAccounts: 0,
+          totalActiveTickets: 0,
+          totalCreditsUsed: 0,
+          totalCreditsRemaining: 0,
+        }
+      }
+
+      const builderUsername = builder.username
+
+      // Contar cuentas totales usando ticket_by (preserva historial)
       const accountsCountResult = await db.execute({
-        sql: `SELECT COUNT(*) as total
-					FROM Accounts a
-					JOIN Tickets t ON a.ticket = t.code
-					WHERE t.created_by = ?`,
-        args: [builderId],
+        sql: `SELECT COUNT(*) as total FROM Accounts WHERE ticket_by = ?`,
+        args: [builderUsername],
       })
 
       // Contar tickets activos
@@ -484,13 +528,13 @@ export class UsersRepository {
         args: [builderId],
       })
 
-      // Calcular créditos usados y restantes
+      // Calcular créditos restantes en tickets activos
       const creditsResult = await db.execute({
         sql: `SELECT
 					SUM(t.original_credits) as total_original,
 					SUM(t.credits) as total_remaining
 				FROM Tickets t
-				WHERE t.created_by = ?`,
+				WHERE t.created_by = ? AND t.is_active = 1`,
         args: [builderId],
       })
 

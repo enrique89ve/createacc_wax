@@ -136,9 +136,20 @@ async function setupSlider(ticket: TicketData) {
   deltaSlider.max = String(maxIncrease)
   deltaSlider.value = '0'
 
-  // Actualizar labels
-  sliderMinLabel.textContent = String(-maxDecrease)
-  sliderMaxLabel.textContent = `+${maxIncrease}`
+  // Actualizar labels con formato claro y colores contextuales
+  // Izquierda: mostrar máximo a reducir (rojo)
+  sliderMinLabel.textContent = maxDecrease > 0 ? `-${maxDecrease}` : '0'
+  sliderMinLabel.className =
+    maxDecrease > 0 ? 'text-red-400 font-medium' : 'text-gray-600 font-medium'
+
+  // Derecha: mostrar máximo a aumentar (verde o gris si no hay)
+  if (maxIncrease > 0) {
+    sliderMaxLabel.textContent = `+${maxIncrease}`
+    sliderMaxLabel.className = 'text-emerald-400 font-medium'
+  } else {
+    sliderMaxLabel.textContent = 'sin créditos'
+    sliderMaxLabel.className = 'text-gray-500 font-medium italic'
+  }
 
   // Actualizar info de créditos disponibles
   availableCreditsInfo.textContent = String(availableCredits)
@@ -146,7 +157,8 @@ async function setupSlider(ticket: TicketData) {
   // Actualizar display del delta
   if (deltaValueDisplay) {
     deltaValueDisplay.textContent = '0'
-    deltaValueDisplay.className = 'text-3xl font-bold text-white'
+    deltaValueDisplay.className =
+      'text-4xl font-bold tabular-nums text-white transition-all duration-150'
   }
 }
 
@@ -211,7 +223,8 @@ function closeModal() {
   if (deltaSlider) deltaSlider.value = '0'
   if (deltaValueDisplay) {
     deltaValueDisplay.textContent = '0'
-    deltaValueDisplay.className = 'text-3xl font-bold text-white'
+    deltaValueDisplay.className =
+      'text-4xl font-bold tabular-nums text-white transition-all duration-150'
   }
 
   previewBox?.classList.add('hidden')
@@ -234,11 +247,14 @@ function setupUpdateModalListeners() {
 
     // Cambiar color según dirección
     if (delta > 0) {
-      deltaValueDisplay.className = 'text-3xl font-bold text-green-400'
+      deltaValueDisplay.className =
+        'text-4xl font-bold tabular-nums text-emerald-400 transition-all duration-150'
     } else if (delta < 0) {
-      deltaValueDisplay.className = 'text-3xl font-bold text-red-400'
+      deltaValueDisplay.className =
+        'text-4xl font-bold tabular-nums text-red-400 transition-all duration-150'
     } else {
-      deltaValueDisplay.className = 'text-3xl font-bold text-white'
+      deltaValueDisplay.className =
+        'text-4xl font-bold tabular-nums text-white transition-all duration-150'
     }
 
     // Si delta es 0, ocultar preview
@@ -275,18 +291,16 @@ function setupUpdateModalListeners() {
       }
     }
 
-    // Todo OK - mostrar preview
+    // Todo OK - mostrar preview simplificado
     errorMessage?.classList.add('hidden')
     if (confirmBtn) confirmBtn.disabled = false
 
     if (previewContent) {
-      const colorClass = delta > 0 ? 'text-green-400' : 'text-red-400'
       previewContent.innerHTML = `
-				<div class="${colorClass}">
-					Créditos actuales: <strong>${currentTicket.credits}</strong> → Nuevos: <strong>${newCredits}</strong>
-				</div>
-				<div class="mt-1 ${colorClass}">
-					Original: <strong>${currentTicket.original_credits}</strong> → Nuevo: <strong>${newOriginal}</strong>
+				<div class="flex items-center justify-center gap-2 text-sm">
+					<span class="text-gray-400">El ticket tendrá:</span>
+					<span class="font-mono text-lg font-bold text-white">${newCredits}</span>
+					<span class="text-gray-500">créditos</span>
 				</div>
 			`
     }

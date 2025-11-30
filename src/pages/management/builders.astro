@@ -1,27 +1,27 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
 import {
-	usersRepository,
-	type BuilderWithStats,
+  usersRepository,
+  type BuilderWithStats,
 } from '@/lib/repositories/users-repository'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
 
 if (!session) {
-	return Astro.redirect('/management/access')
+  return Astro.redirect('/management/access')
 }
 
 // Verificar que sea admin (solo admins pueden gestionar builders)
 if (session.role !== 'admin') {
-	return Astro.redirect('/management/console')
+  return Astro.redirect('/management/console')
 }
 
 // Obtener builders con estadísticas
 let builders: BuilderWithStats[] = []
 
 try {
-	builders = await usersRepository.getBuildersWithStats()
+  builders = await usersRepository.getBuildersWithStats()
 } catch (error) {}
 ---
 
@@ -82,10 +82,15 @@ try {
             </thead>
             <tbody class="bg-background divide-border divide-y">
               {builders.map(builder => (
-                <tr class="hover:bg-muted/20">
+                <tr
+                  class={`hover:bg-muted/20 ${!builder.is_active ? 'opacity-60' : ''}`}
+                >
                   <td class="whitespace-nowrap px-6 py-4">
                     <div class="text-foreground text-sm font-medium">
                       @{builder.hive_username}
+                      {!builder.is_active && (
+                        <span class="ml-2 text-xs text-red-500">(Baneado)</span>
+                      )}
                     </div>
                   </td>
                   <td class="whitespace-nowrap px-6 py-4">
@@ -96,7 +101,7 @@ try {
                           : 'bg-red-100 text-red-800'
                       }`}
                     >
-                      {builder.is_active ? 'Activo' : 'Inactivo'}
+                      {builder.is_active ? 'Activo' : 'Baneado'}
                     </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
@@ -122,22 +127,47 @@ try {
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <div class="flex gap-2">
-                      <button
-                        class="text-primary hover:text-primary/80 text-sm font-medium"
-                        data-action="assign-credits"
-                        data-username={builder.hive_username}
-                        title="Asignar más créditos"
-                      >
-                        💳 Asignar
-                      </button>
-                      <button
-                        class="text-destructive hover:text-destructive/80 text-sm font-medium"
-                        data-action="delete-builder"
-                        data-builder-id={builder.id}
-                        title="Eliminar builder"
-                      >
-                        🗑️ Eliminar
-                      </button>
+                      {builder.is_active ? (
+                        <>
+                          <button
+                            class="text-primary hover:text-primary/80 text-sm font-medium"
+                            data-action="assign-credits"
+                            data-username={builder.hive_username}
+                            title="Asignar más créditos"
+                          >
+                            💳 Asignar
+                          </button>
+                          <button
+                            class="text-sm font-medium text-blue-600 hover:text-blue-500"
+                            data-action="edit-credits"
+                            data-username={builder.hive_username}
+                            data-available={builder.available_credits}
+                            data-pending={builder.pending_credits}
+                            title="Editar créditos"
+                          >
+                            ✏️ Editar
+                          </button>
+                          <button
+                            class="text-destructive hover:text-destructive/80 text-sm font-medium"
+                            data-action="ban-builder"
+                            data-builder-id={builder.id}
+                            data-username={builder.hive_username}
+                            title="Banear builder"
+                          >
+                            🚫 Banear
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          class="text-sm font-medium text-green-600 hover:text-green-500"
+                          data-action="reactivate-builder"
+                          data-builder-id={builder.id}
+                          data-username={builder.hive_username}
+                          title="Reactivar builder"
+                        >
+                          ✅ Reactivar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -304,6 +334,108 @@ try {
           Entendido
         </button>
       </div>
+    </div>
+  </div>
+
+  <!-- Edit Credits Modal -->
+  <div
+    id="edit-modal"
+    class="group fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
+    data-has-pending="true"
+  >
+    <div
+      class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
+    >
+      <h3 class="text-foreground mb-4 text-lg font-semibold">
+        ✏️ Editar Créditos - @<span id="edit-username-display"></span>
+      </h3>
+
+      <form id="edit-form" class="space-y-4">
+        <input type="hidden" id="edit-username" />
+
+        <div>
+          <label
+            for="edit-available-credits"
+            class="text-foreground mb-1 block text-sm font-medium"
+          >
+            Créditos Disponibles
+          </label>
+          <input
+            id="edit-available-credits"
+            type="number"
+            min="0"
+            max="100000"
+            required
+            class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+          />
+          <p class="text-muted-foreground mt-1 text-xs">
+            Créditos que el builder puede usar para crear tickets
+          </p>
+        </div>
+
+        <div
+          id="pending-credits-container"
+          class="group-data-[has-pending=false]:hidden"
+        >
+          <label
+            for="edit-pending-credits"
+            class="text-foreground mb-1 block text-sm font-medium"
+          >
+            Créditos Pendientes
+          </label>
+          <input
+            id="edit-pending-credits"
+            type="number"
+            min="0"
+            max="100000"
+            required
+            class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+          />
+          <p class="text-muted-foreground mt-1 text-xs">
+            Créditos que el builder debe reclamar con Keychain
+          </p>
+        </div>
+
+        <div>
+          <label
+            for="edit-reason"
+            class="text-foreground mb-1 block text-sm font-medium"
+          >
+            Razón del ajuste (opcional)
+          </label>
+          <input
+            id="edit-reason"
+            type="text"
+            placeholder="Ej: Corrección de error"
+            class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
+          />
+        </div>
+
+        <div class="bg-muted/50 rounded-lg p-3">
+          <p class="text-muted-foreground text-xs">
+            ⚠️ Los cambios se registrarán en el historial de auditoría
+          </p>
+        </div>
+
+        <div id="edit-error" class="text-destructive hidden text-sm"></div>
+
+        <div class="flex gap-3 pt-4">
+          <button
+            type="button"
+            id="edit-cancel-btn"
+            class="bg-muted hover:bg-muted/80 text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            id="edit-submit-btn"
+            class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+          >
+            💾 Guardar
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </ManagementLayout>

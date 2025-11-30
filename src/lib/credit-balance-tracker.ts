@@ -52,6 +52,11 @@ export interface CreditBalanceBreakdown extends CreditBalance {
 export interface ConsistencyCheck {
   readonly builder_id: number
   readonly is_consistent: boolean
+  /** Inconsistencias críticas que bloquean operaciones (ej: available_amount incorrecto) */
+  readonly critical_issues: string[]
+  /** Inconsistencias informativas que NO bloquean operaciones (ej: total_assigned histórico) */
+  readonly warning_issues: string[]
+  /** @deprecated Use critical_issues y warning_issues */
   readonly issues: string[]
   readonly calculated_available: number
   readonly stored_available: number
@@ -139,11 +144,12 @@ class CreditBalanceTracker {
       // Calcular desglose desde auditoría
       const breakdown = await this.calculateBreakdown(balance.builder_id)
 
-      // Calcular discrepancia
+      // Calcular discrepancia (incluir admin_adjustments)
       const expectedAvailable =
         breakdown.claimed +
         breakdown.spent_on_tickets +
-        breakdown.refunded_from_tickets
+        breakdown.refunded_from_tickets +
+        breakdown.admin_adjustments
 
       const discrepancy = {
         has_discrepancy: expectedAvailable !== balance.available_amount,
@@ -165,8 +171,8 @@ class CreditBalanceTracker {
   /**
    * Calcular desglose desde auditoría
    * NOTA: Los amounts en CreditAudit tienen signo:
-   * - Positivos: assign_credits, claim_credits, claim_via_blockchain, delete_ticket_refund
-   * - Negativos: create_ticket, consume_credits
+   * - Positivos: assign_credits, claim_credits, claim_via_blockchain, delete_ticket_refund, admin_adjustment (cuando suma)
+   * - Negativos: create_ticket, consume_credits, admin_adjustment (cuando resta)
    */
   private async calculateBreakdown(builder_id: number) {
     const result = await db.execute({
@@ -176,7 +182,8 @@ class CreditBalanceTracker {
 					COALESCE(SUM(CASE WHEN operation IN ('claim_credits', 'claim_via_blockchain') THEN amount ELSE 0 END), 0) as claimed,
 					COALESCE(SUM(CASE WHEN operation = 'create_ticket' THEN amount ELSE 0 END), 0) as spent_on_tickets,
 					COALESCE(SUM(CASE WHEN operation = 'delete_ticket_refund' THEN amount ELSE 0 END), 0) as refunded_from_tickets,
-					COALESCE(SUM(CASE WHEN operation = 'consume_credits' THEN amount ELSE 0 END), 0) as consumed_on_accounts
+					COALESCE(SUM(CASE WHEN operation = 'consume_credits' THEN amount ELSE 0 END), 0) as consumed_on_accounts,
+					COALESCE(SUM(CASE WHEN operation = 'admin_adjustment' THEN amount ELSE 0 END), 0) as admin_adjustments
 				FROM CreditAudit
 				WHERE builder_id = ?
 			`,
@@ -191,14 +198,18 @@ class CreditBalanceTracker {
       spent_on_tickets: Number(row.spent_on_tickets || 0),
       refunded_from_tickets: Number(row.refunded_from_tickets || 0),
       consumed_on_accounts: Number(row.consumed_on_accounts || 0),
+      admin_adjustments: Number(row.admin_adjustments || 0),
     }
   }
 
   /**
    * Verificar consistencia entre Credits y CreditAudit
+   * NOTA: Solo available_amount es CRÍTICO y bloquea operaciones.
+   * total_assigned puede diferir por datos históricos y es solo informativo.
    */
   async checkConsistency(builder_id: number): Promise<ConsistencyCheck> {
-    const issues: string[] = []
+    const critical_issues: string[] = []
+    const warning_issues: string[] = []
 
     // Obtener datos de Credits
     const creditsResult = await db.execute({
@@ -210,6 +221,8 @@ class CreditBalanceTracker {
       return {
         builder_id,
         is_consistent: false,
+        critical_issues: ['No existe registro en tabla Credits'],
+        warning_issues: [],
         issues: ['No existe registro en tabla Credits'],
         calculated_available: 0,
         stored_available: 0,
@@ -224,30 +237,38 @@ class CreditBalanceTracker {
     // Calcular desde auditoría
     const breakdown = await this.calculateBreakdown(builder_id)
 
+    // Incluir admin_adjustments en el cálculo de available
     const calculatedAvailable =
       breakdown.claimed +
       breakdown.spent_on_tickets +
-      breakdown.refunded_from_tickets
+      breakdown.refunded_from_tickets +
+      breakdown.admin_adjustments
 
     const calculatedAssigned = breakdown.assigned
 
-    // Verificar discrepancias
+    // Verificar discrepancia de available_amount (CRÍTICO - bloquea operaciones)
     if (calculatedAvailable !== storedAvailable) {
-      issues.push(
+      critical_issues.push(
         `available_amount inconsistente: esperado ${calculatedAvailable}, actual ${storedAvailable}`
       )
     }
 
+    // Verificar discrepancia de total_assigned (ADVERTENCIA - solo informativo)
     if (calculatedAssigned !== storedAssigned) {
-      issues.push(
-        `total_assigned inconsistente: esperado ${calculatedAssigned}, actual ${storedAssigned}`
+      warning_issues.push(
+        `total_assigned inconsistente: esperado ${calculatedAssigned}, actual ${storedAssigned} (datos históricos)`
       )
     }
 
+    // is_consistent solo considera issues CRÍTICOS
+    const allIssues = [...critical_issues, ...warning_issues]
+
     return {
       builder_id,
-      is_consistent: issues.length === 0,
-      issues,
+      is_consistent: critical_issues.length === 0,
+      critical_issues,
+      warning_issues,
+      issues: allIssues,
       calculated_available: calculatedAvailable,
       stored_available: storedAvailable,
       difference: storedAvailable - calculatedAvailable,

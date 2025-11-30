@@ -189,17 +189,15 @@ if (!currentUser || currentUser.role !== 'builder') {
                       >
                         Actualizar
                       </button>
-                      {!t.has_been_used && (
-                        <button
-                          class="ticket-delete-btn text-xs font-medium text-red-400 hover:text-red-300"
-                          data-ticket-id={t.id}
-                          data-ticket-code={t.code}
-                          data-ticket-credits={t.credits}
-                          data-ticket-original={t.original_credits}
-                        >
-                          Borrar
-                        </button>
-                      )}
+                      <button
+                        class="ticket-delete-btn text-xs font-medium text-red-400 hover:text-red-300"
+                        data-ticket-id={t.id}
+                        data-ticket-code={t.code}
+                        data-ticket-credits={t.credits}
+                        data-ticket-original={t.original_credits}
+                      >
+                        Borrar
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -227,8 +225,11 @@ if (!currentUser || currentUser.role !== 'builder') {
         Actualizar créditos aplica un delta (positivo o negativo) sobre los
         créditos actuales.
       </li>
-      <li>No puedes borrar un ticket que ya fue usado.</li>
       <li>El borrado devuelve los créditos originales a tu saldo.</li>
+      <li>
+        Si el ticket ya fue usado para crear cuentas, se eliminará pero sin
+        reembolso de créditos consumidos.
+      </li>
     </ul>
   </div>
 

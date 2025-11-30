@@ -431,6 +431,111 @@ class CreditsService {
   }
 
   /**
+   * 6. Ajuste directo de créditos por admin (establecer valores absolutos)
+   * Permite establecer directamente pending_amount y/o available_amount
+   * Solo para uso de administradores en caso de correcciones
+   */
+  async adjustCredits(params: {
+    readonly builder_id: number
+    readonly pending_amount?: number
+    readonly available_amount?: number
+    readonly reason: string
+    readonly performed_by_admin: number
+  }): Promise<BuilderCreditsInfo> {
+    const {
+      builder_id,
+      pending_amount,
+      available_amount,
+      reason,
+      performed_by_admin,
+    } = params
+
+    // Obtener valores actuales
+    const currentCredits = await creditBalanceTracker.getBalanceById(builder_id)
+    if (!currentCredits) {
+      throw new Error('Builder no encontrado')
+    }
+
+    // Calcular diferencias para auditoría
+    const pendingDiff =
+      pending_amount !== undefined
+        ? pending_amount - currentCredits.pending_amount
+        : 0
+    const availableDiff =
+      available_amount !== undefined
+        ? available_amount - currentCredits.available_amount
+        : 0
+
+    // Solo actualizar si hay cambios
+    if (pendingDiff === 0 && availableDiff === 0) {
+      return currentCredits
+    }
+
+    await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+
+    try {
+      // Construir UPDATE dinámico
+      const updates: string[] = []
+      const args: (number | string)[] = []
+
+      if (pending_amount !== undefined) {
+        updates.push('pending_amount = ?')
+        args.push(pending_amount)
+      }
+      if (available_amount !== undefined) {
+        updates.push('available_amount = ?')
+        args.push(available_amount)
+      }
+      updates.push('updated_at = CURRENT_TIMESTAMP')
+      args.push(builder_id)
+
+      await db.execute({
+        sql: `UPDATE Credits SET ${updates.join(', ')} WHERE builder_id = ?`,
+        args,
+      })
+
+      // Registrar auditoría con detalles del ajuste
+      // NOTA: amount = availableDiff porque el breakdown calcula available_amount desde auditoría
+      const auditReason = `Admin adjustment: ${reason} | pending: ${currentCredits.pending_amount} → ${pending_amount ?? currentCredits.pending_amount} | available: ${currentCredits.available_amount} → ${available_amount ?? currentCredits.available_amount}`
+
+      await db.execute({
+        sql: `
+          INSERT INTO CreditAudit (
+            builder_id, operation, amount, reason, performed_by, timestamp
+          ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+        args: [
+          builder_id,
+          'admin_adjustment',
+          availableDiff,
+          auditReason,
+          performed_by_admin,
+        ],
+      })
+
+      await db.execute({ sql: 'COMMIT', args: [] })
+    } catch (error) {
+      await db.execute({ sql: 'ROLLBACK', args: [] })
+      throw error
+    }
+
+    // Retornar información actualizada
+    const updatedCredits = await creditBalanceTracker.getBalanceById(builder_id)
+    if (!updatedCredits) {
+      throw new Error('Error al obtener créditos actualizados')
+    }
+
+    return {
+      builder_id: updatedCredits.builder_id,
+      hive_username: updatedCredits.hive_username,
+      pending_amount: updatedCredits.pending_amount,
+      available_amount: updatedCredits.available_amount,
+      total_assigned: updatedCredits.total_assigned,
+      total_consumed: updatedCredits.total_consumed,
+    }
+  }
+
+  /**
    * Obtener historial de créditos de un builder
    * @param builderId - ID del builder
    * @returns Array de operaciones de créditos ordenadas por timestamp DESC

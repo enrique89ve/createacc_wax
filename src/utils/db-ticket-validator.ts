@@ -1,4 +1,5 @@
 import { db } from '@/lib/database'
+import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
 import {
@@ -158,7 +159,8 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
  */
 export async function saveCreatedAccount(
   username: string,
-  ticket?: string
+  ticket?: string,
+  ticketBy?: string | null
 ): Promise<boolean> {
   try {
     const cleanUsername = sanitizeUsername(username)
@@ -167,9 +169,9 @@ export async function saveCreatedAccount(
     const cleanTicket = ticket ? sanitizeTicketCode(ticket) : null
 
     await db.execute({
-      sql: `INSERT INTO Accounts (username, ticket, creation_date, registered_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      args: [cleanUsername, cleanTicket || 'N/A'],
+      sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+      args: [cleanUsername, cleanTicket || 'N/A', ticketBy ?? null],
     })
 
     return true
@@ -316,7 +318,7 @@ export async function completeAccountCreationInDB(
   if (!ticketCode) {
     // Sin ticket, solo guardar la cuenta
     try {
-      const accountSaved = await saveCreatedAccount(cleanUsername, ticketCode)
+      const accountSaved = await saveCreatedAccount(cleanUsername, ticketCode, null)
       return {
         success: accountSaved,
         error: accountSaved ? undefined : 'Failed to save account',
@@ -351,16 +353,17 @@ export async function completeAccountCreationInDB(
     await db.execute('BEGIN IMMEDIATE TRANSACTION')
 
     try {
-      // 1. Descontar créditos y obtener info (is_active y has_been_used se actualizan automáticamente)
+      // 1. Descontar créditos y obtener info del ticket y creador (is_active y has_been_used se actualizan automáticamente)
       const updateResult = await db.execute({
         sql: `UPDATE Tickets
-              SET credits = CASE 
-                    WHEN credits > 0 THEN credits - 1 
-                    ELSE 0 
+              SET credits = CASE
+                    WHEN credits > 0 THEN credits - 1
+                    ELSE 0
                   END,
                   updated_at = CURRENT_TIMESTAMP
               WHERE code = ? AND is_active = TRUE AND credits > 0
-              RETURNING id, code, credits as remaining_credits`,
+              RETURNING id, code, credits as remaining_credits, created_by,
+                (SELECT username FROM Users WHERE id = created_by) as creator_username`,
         args: [cleanTicketCode],
       })
 
@@ -380,12 +383,13 @@ export async function completeAccountCreationInDB(
         }
       }
 
-      // 2. Guardar cuenta (puede fallar por UNIQUE constraint)
+      // 2. Obtener username del creador y guardar cuenta (puede fallar por UNIQUE constraint)
+      const creatorUsername = updateResult.rows[0].creator_username as string | null
       try {
         await db.execute({
-          sql: `INSERT INTO Accounts (username, ticket, creation_date, registered_at)
-                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          args: [cleanUsername, cleanTicketCode],
+          sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          args: [cleanUsername, cleanTicketCode, creatorUsername],
         })
       } catch (accountError) {
         // Si falla por UNIQUE constraint, es cuenta duplicada
@@ -400,6 +404,12 @@ export async function completeAccountCreationInDB(
 
       // 3. Usage tracking through Accounts table (TicketAudit is admin-only)
       // Account creation is already logged in Accounts table with ticket reference
+
+      // 4. Marcar crédito como consumido en el balance del builder
+      const createdBy = updateResult.rows[0].created_by as number | null
+      if (createdBy) {
+        await creditsService.markCreditsAsConsumed(createdBy, 1, cleanUsername)
+      }
 
       // Commit de la transacción
       await db.execute('COMMIT')

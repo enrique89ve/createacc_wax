@@ -16,20 +16,23 @@ const ticketFilter = url.searchParams.get('ticket') || ''
 const userFilter = url.searchParams.get('user') || ''
 const sortOrder = url.searchParams.get('sort') || 'desc' // desc = más reciente primero
 
-// Obtener todas las cuentas con filtros aplicados
+// Obtener todas las cuentas (sin JOINs - ticket_by ya está poblado)
 let accounts: DatabaseAccountRow[] = []
 let error: string | null = null
 
 try {
-  // Si hay filtros, usar findWithFilters, sino obtener todas
-  if (ticketFilter || userFilter) {
-    accounts = await accountsRepository.findWithFilters({
-      ticket: ticketFilter || undefined,
-      usernamePattern: userFilter || undefined,
-    })
-  } else {
-    // Obtener todas las cuentas
-    accounts = await accountsRepository.getAll()
+  // Obtener todas las cuentas (ticket_by ya incluye el username del creador)
+  accounts = await accountsRepository.getAll()
+
+  // Aplicar filtros manualmente si es necesario
+  if (ticketFilter) {
+    accounts = accounts.filter(acc => acc.ticket === ticketFilter)
+  }
+
+  if (userFilter) {
+    accounts = accounts.filter(acc =>
+      acc.username.toLowerCase().includes(userFilter.toLowerCase())
+    )
   }
 
   // Aplicar ordenamiento
@@ -224,7 +227,7 @@ function formatShortDate(dateStr: string): string {
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Registrado
+                  Referencia
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
@@ -284,7 +287,7 @@ function formatShortDate(dateStr: string): string {
                         {formatDate(account.creation_date)}
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                        {formatShortDate(account.registered_at)}
+                        {account.ticket_by || 'Sin asignar'}
                       </td>
                       <td class="whitespace-nowrap px-6 py-4 text-sm">
                         <a

@@ -55,9 +55,8 @@ try {
 
 // Calcular estadísticas
 const creditosPendientes = builderCredits.pending
-const creditosReclamados = builderCredits.claimed
-const creditosConsumidos = builderCredits.consumed
-const creditosDisponibles = creditosReclamados - creditosConsumidos
+const creditosDisponibles = builderCredits.claimed // available_amount = créditos disponibles para crear tickets
+const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas creadas
 ---
 
 <BuildersLayout title="Créditos - Builders" currentPage="creditos">
@@ -71,89 +70,163 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
 
     <BuildersTabs active="creditos" />
 
-    <!-- Resumen de Créditos -->
-    <section class="mb-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      <!-- Créditos Pendientes -->
-      <div class="bg-card border-border rounded-lg border p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-400">Créditos Pendientes</p>
-            <p class="text-2xl font-bold text-white">
+    <!-- Resumen de Créditos - Estilo Fintech -->
+    <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <!-- Tarjeta 1: Créditos Pendientes -->
+      <div
+        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
+      >
+        <!-- Contenido principal -->
+        <div class="mb-4">
+          <p
+            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
+          >
+            Pendientes de reclamar
+          </p>
+          <div class="flex items-baseline gap-2">
+            <span
+              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
+            >
               {creditosPendientes}
-            </p>
-          </div>
-          <div class="rounded-full bg-yellow-500/20 p-3">
-            <span class="text-2xl">🎯</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Créditos Disponibles (Reclamados - Consumidos) -->
-      <div class="bg-card border-border rounded-lg border p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-400">
-              Créditos Disponibles
-            </p>
-            <p class="text-2xl font-bold text-white">
-              {creditosDisponibles}
-            </p>
-          </div>
-          <div class="rounded-full bg-green-500/20 p-3">
-            <span class="text-2xl">💳</span>
+            </span>
+            <span class="text-muted-foreground text-sm font-medium"
+              >créditos</span
+            >
           </div>
         </div>
-      </div>
 
-      <!-- Créditos Consumidos -->
-      <div class="bg-card border-border rounded-lg border p-6">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-sm font-medium text-gray-400">Créditos Consumidos</p>
-            <p class="text-2xl font-bold text-white">
-              {creditosConsumidos}
-            </p>
-          </div>
-          <div class="rounded-full bg-red-500/20 p-3">
-            <span class="text-2xl">📉</span>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Acciones Rápidas -->
-    <section class="mb-8 grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-      <!-- Reclamar Créditos -->
-      <div class="bg-card border-border rounded-lg border p-6">
-        <h3 class="mb-3 text-lg font-semibold text-white">
-          🎯 Reclamar Créditos
-        </h3>
-        <p class="mb-4 text-sm text-gray-400">
-          Firma con Keychain para reclamar créditos de forma segura.
-        </p>
-        <button
-          id="claim-credits-btn"
-          data-username={builderUsername}
-          class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <!-- Información secundaria -->
+        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
           Reclamar con Keychain
-        </button>
+        </p>
+
+        <!-- Botón integrado - Solo visible si hay créditos pendientes -->
+        {
+          creditosPendientes > 0 && (
+            <button
+              id="claim-credits-btn"
+              data-username={builderUsername}
+              class="w-full rounded-md bg-yellow-500/10 px-4 py-2.5 text-sm font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all hover:bg-yellow-500/20 hover:ring-yellow-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span class="flex items-center justify-center gap-2">
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                Reclamar ahora
+              </span>
+            </button>
+          )
+        }
       </div>
 
-      <!-- Comprar Créditos -->
-      <div class="bg-card border-border rounded-lg border p-6">
-        <h3 class="mb-3 text-lg font-semibold text-white">
-          💎 Comprar Créditos
-        </h3>
-        <p class="mb-4 text-sm text-gray-400">
-          Adquiere más créditos para crear más cuentas Hive.
+      <!-- Tarjeta 2: Créditos Disponibles -->
+      <div
+        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
+      >
+        <!-- Contenido principal -->
+        <div class="mb-4">
+          <p
+            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
+          >
+            Disponibles para usar
+          </p>
+          <div class="flex items-baseline gap-2">
+            <span
+              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
+            >
+              {creditosDisponibles}
+            </span>
+            <span class="text-muted-foreground text-sm font-medium"
+              >créditos</span
+            >
+          </div>
+        </div>
+
+        <!-- Información secundaria -->
+        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
+          Usa estos créditos para crear tickets y cuentas Hive
         </p>
+
+        <!-- Botón integrado - Deshabilitado con tooltip -->
         <button
           id="buy-credits-btn"
-          class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          disabled
+          title="Próximamente disponible"
+          class="bg-success/10 text-success ring-success/20 hover:bg-success/20 hover:ring-success/30 w-full rounded-md px-4 py-2.5 text-sm font-medium ring-1 transition-all disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Comprar Créditos
+          <span class="flex items-center justify-center gap-2">
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 4v16m8-8H4"></path>
+            </svg>
+            Comprar créditos
+          </span>
         </button>
+      </div>
+
+      <!-- Tarjeta 3: Créditos Consumidos -->
+      <div
+        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
+      >
+        <!-- Contenido principal -->
+        <div class="mb-4">
+          <p
+            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
+          >
+            Cuentas creadas
+          </p>
+          <div class="flex items-baseline gap-2">
+            <span
+              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
+            >
+              {creditosConsumidos}
+            </span>
+            <span class="text-muted-foreground text-sm font-medium">total</span>
+          </div>
+        </div>
+
+        <!-- Información secundaria -->
+        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
+          Créditos consumidos en la creación de cuentas Hive
+        </p>
+
+        <!-- Botón para ver cuentas -->
+        <a
+          href="/builders/accounts"
+          class="bg-primary/10 text-primary ring-primary/20 hover:bg-primary/20 hover:ring-primary/30 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium ring-1 transition-all"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"></path>
+          </svg>
+          Ver cuentas creadas
+        </a>
       </div>
     </section>
 
@@ -269,92 +342,6 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     </section>
   </div>
 
-  <!-- Modales y scripts -->
-
-  <!-- Modal Comprar Créditos -->
-  <div
-    id="buy-modal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
-  >
-    <div
-      class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
-    >
-      <h3 class="mb-4 text-lg font-semibold text-white">💎 Comprar Créditos</h3>
-      <form id="buy-form">
-        <div class="mb-4">
-          <label
-            for="buy-amount"
-            class="mb-2 block text-sm font-medium text-gray-300"
-          >
-            Cantidad de Créditos
-          </label>
-          <input
-            type="number"
-            id="buy-amount"
-            name="amount"
-            min="1"
-            max="10"
-            placeholder="1-10 créditos"
-            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
-            required
-          />
-          <p class="mt-1 text-xs text-gray-400">
-            Máximo 10 créditos por compra automática
-          </p>
-        </div>
-        <div class="mb-4">
-          <label
-            for="payment-method"
-            class="mb-2 block text-sm font-medium text-gray-300"
-          >
-            Método de Pago
-          </label>
-          <select
-            id="payment-method"
-            name="paymentMethod"
-            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
-            required
-          >
-            <option value="">Selecciona método</option>
-            <option value="hive">Hive/HBD</option>
-            <option value="paypal">PayPal</option>
-            <option value="crypto">Criptomonedas</option>
-          </select>
-        </div>
-        <div class="mb-4">
-          <label
-            for="payment-reference"
-            class="mb-2 block text-sm font-medium text-gray-300"
-          >
-            Referencia de Pago (opcional)
-          </label>
-          <input
-            type="text"
-            id="payment-reference"
-            name="paymentReference"
-            placeholder="ID de transacción, etc."
-            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 text-white focus:border-transparent focus:outline-none focus:ring-2"
-          />
-        </div>
-        <div class="flex gap-3">
-          <button
-            type="button"
-            id="cancel-buy"
-            class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
-          >
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            class="bg-primary flex-1 rounded-lg px-4 py-2 text-white hover:opacity-90"
-          >
-            Comprar
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- Toast Notifications -->
   <Toasts />
 </BuildersLayout>
@@ -406,39 +393,10 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     ) as HTMLButtonElement | null
     claimBtn?.addEventListener('click', handleClaimCredits)
 
-    // Comprar créditos
-    const buyBtn = document.getElementById(
-      'buy-credits-btn'
-    ) as HTMLButtonElement | null
-    const buyModal = document.getElementById(
-      'buy-modal'
-    ) as HTMLDivElement | null
-    const buyForm = document.getElementById(
-      'buy-form'
-    ) as HTMLFormElement | null
-    const cancelBuy = document.getElementById(
-      'cancel-buy'
-    ) as HTMLButtonElement | null
-
-    buyBtn?.addEventListener('click', () => {
-      buyModal?.classList.remove('hidden')
-      buyModal?.classList.add('flex')
-    })
-
-    cancelBuy?.addEventListener('click', () => {
-      buyModal?.classList.add('hidden')
-      buyModal?.classList.remove('flex')
-    })
-
-    buyForm?.addEventListener('submit', handleBuyCredits)
-
     // Exportar historial
     document
       .getElementById('export-history-btn')
       ?.addEventListener('click', handleExportHistory)
-
-    // Cerrar modales al hacer clic fuera
-    setupModalCloseOnOutsideClick()
   }
 
   async function handleClaimCredits() {
@@ -453,8 +411,6 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       // Deshabilitar botón
       claimBtn.disabled = true
       claimBtn.textContent = 'Generando hash...'
-
-      notify('info', 'Preparando operación de claim...')
 
       // 1. Solicitar hash de validación al servidor
       const hashResponse = await fetch('/api/builders/credits/claim-hash', {
@@ -471,7 +427,6 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       }
 
       claimBtn.textContent = 'Conectando Keychain...'
-      notify('info', 'Preparando custom JSON para Keychain...')
 
       // 2. Verificar que Keychain esté disponible
       const hiveKeychain = getHiveKeychain()
@@ -489,7 +444,6 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
       const customJsonData = hashData.customJson
 
       claimBtn.textContent = 'Firmando operación...'
-      notify('info', 'Solicitando firma de custom JSON...')
 
       // 4. Solicitar firma de custom JSON a Keychain
       const keyResult: HiveKeychainResponse = await new Promise(resolve => {
@@ -558,48 +512,6 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     }
   }
 
-  async function handleBuyCredits(e: SubmitEvent) {
-    e.preventDefault()
-
-    const form = e.target as HTMLFormElement | null
-    if (!form) return
-
-    const formData = new FormData(form)
-    const amountValue = formData.get('amount')
-    const paymentMethod = formData.get('paymentMethod')
-    const paymentReference = formData.get('paymentReference')
-
-    const amount =
-      typeof amountValue === 'string' ? parseInt(amountValue, 10) : 0
-
-    if (!amount || !paymentMethod) {
-      notify('error', 'Todos los campos son requeridos')
-      return
-    }
-
-    try {
-      const response = await fetch('/api/builders/credits/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount, paymentMethod, paymentReference }),
-      })
-
-      const data = await response.json()
-
-      if (response.ok && data.success) {
-        notify('success', '¡Compra exitosa! Créditos añadidos a tu cuenta')
-        // Cerrar modal
-        document.getElementById('buy-modal')?.classList.add('hidden')
-        // Recargar página después de un momento
-        setTimeout(() => location.reload(), 3000)
-      } else {
-        notify('error', data.error || 'Error al comprar créditos')
-      }
-    } catch (error) {
-      notify('error', 'Error de conexión')
-    }
-  }
-
   function handleExportHistory() {
     const format = 'csv' // Por defecto CSV, se puede hacer configurable
     const url = `/api/builders/credits/export?format=${format}`
@@ -613,19 +525,5 @@ const creditosDisponibles = creditosReclamados - creditosConsumidos
     document.body.removeChild(link)
 
     notify('success', 'Descarga iniciada')
-  }
-
-  function setupModalCloseOnOutsideClick() {
-    const modals = ['buy-modal'] as const
-
-    modals.forEach(modalId => {
-      const modal = document.getElementById(modalId) as HTMLDivElement | null
-      modal?.addEventListener('click', event => {
-        if (event.target === modal) {
-          modal.classList.add('hidden')
-          modal.classList.remove('flex')
-        }
-      })
-    })
   }
 </script>

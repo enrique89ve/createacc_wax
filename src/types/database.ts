@@ -78,6 +78,7 @@ export interface DatabaseAccountRow {
   readonly username: string
   readonly creation_date: string
   readonly ticket: string
+  readonly ticket_by: string | null
   readonly registered_at: string
 }
 
@@ -233,6 +234,7 @@ export interface UpdateTicketData {
 export interface CreateAccountData {
   readonly username: string
   readonly ticket: string
+  readonly ticket_by?: string | null
 }
 
 /**
@@ -440,6 +442,7 @@ export function isDatabaseAccountRow(row: unknown): row is DatabaseAccountRow {
     typeof r.username === 'string' &&
     typeof r.creation_date === 'string' &&
     typeof r.ticket === 'string' &&
+    (r.ticket_by === null || typeof r.ticket_by === 'string') &&
     typeof r.registered_at === 'string'
   )
 }

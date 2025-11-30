@@ -1,7 +1,6 @@
 ---
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import BuildersTabs from '@/components/ui/BuildersTabs.astro'
-import BuildersCard from '@/components/ui/BuildersCard.astro'
 import BuildersTable from '@/components/ui/BuildersTable.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { usersRepository } from '@/lib/repositories/users-repository'
@@ -62,24 +61,66 @@ const accountColumns = [
     </div>
     <BuildersTabs active="accounts" />
 
-    <!-- Cards de estadísticas (2 columnas) -->
-    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-      <BuildersCard
-        title="Total de Cuentas"
-        value={stats.totalAccounts}
-        description="Cuentas creadas exitosamente"
-        icon="👥"
-        variant="success"
-      />
+    <!-- Cards de estadísticas - Estilo Fintech -->
+    <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <!-- Tarjeta 1: Total de Cuentas -->
+      <div
+        class="bg-card group relative overflow-hidden rounded-lg border border-gray-700/60 p-6 transition-all hover:border-gray-600/80"
+      >
+        <!-- Contenido principal -->
+        <div class="mb-4">
+          <p
+            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
+          >
+            Total de cuentas
+          </p>
+          <div class="flex items-baseline gap-2">
+            <span
+              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
+            >
+              {stats.totalAccounts}
+            </span>
+            <span class="text-muted-foreground text-sm font-medium"
+              >cuentas</span
+            >
+          </div>
+        </div>
 
-      <BuildersCard
-        title="Tickets Activos"
-        value={stats.totalActiveTickets}
-        description={`Créditos restantes: ${stats.totalCreditsRemaining}`}
-        icon="🎟️"
-        variant="default"
-      />
-    </div>
+        <!-- Información secundaria -->
+        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
+          Cuentas creadas exitosamente
+        </p>
+      </div>
+
+      <!-- Tarjeta 2: Tickets Activos -->
+      <div
+        class="bg-card group relative overflow-hidden rounded-lg border border-gray-700/60 p-6 transition-all hover:border-gray-600/80"
+      >
+        <!-- Contenido principal -->
+        <div class="mb-4">
+          <p
+            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
+          >
+            Tickets activos
+          </p>
+          <div class="flex items-baseline gap-2">
+            <span
+              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
+            >
+              {stats.totalActiveTickets}
+            </span>
+            <span class="text-muted-foreground text-sm font-medium"
+              >tickets</span
+            >
+          </div>
+        </div>
+
+        <!-- Información secundaria -->
+        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
+          Créditos restantes: {stats.totalCreditsRemaining}
+        </p>
+      </div>
+    </section>
 
     <!-- Tabla de Cuentas -->
     <BuildersTable

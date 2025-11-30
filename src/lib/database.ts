@@ -92,6 +92,7 @@ export async function initializeDatabase() {
 			username TEXT UNIQUE NOT NULL,
 			creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
 			ticket TEXT NOT NULL,
+			ticket_by TEXT,
 			registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)
 	`)
