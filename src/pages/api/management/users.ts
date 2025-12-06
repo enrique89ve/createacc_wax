@@ -6,7 +6,8 @@ import {
   assertCanPerform,
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
-import { USER_ROLES } from '@/consts/constants'
+import { USER_ROLES, CREDITS_LIMITS } from '@/consts/constants'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 
 // GET: Listar usuarios builders
 export const GET: APIRoute = async context => {
@@ -29,7 +30,7 @@ export const GET: APIRoute = async context => {
       const users = builders.map(builder => ({
         id: builder.id,
         username: builder.hive_username,
-        role: USER_ROLES.BUILDER as const,
+        role: USER_ROLES.BUILDER,
         is_active: builder.is_active,
         last_claim_at: builder.last_claim_at,
         created_at: builder.created_at,
@@ -50,6 +51,10 @@ export const GET: APIRoute = async context => {
 
 // POST: Crear nuevo usuario builder
 export const POST: APIRoute = async context => {
+  // CSRF Protection
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission
@@ -85,8 +90,23 @@ export const POST: APIRoute = async context => {
       }
 
       const cleanUsername = hive_username.trim().toLowerCase()
-      const initialCredits =
-        typeof amount === 'number' && amount > 0 ? amount : 100
+
+      // Validar límites de créditos
+      let initialCredits = 100 // valor por defecto
+      if (typeof amount === 'number' && amount > 0) {
+        if (amount > CREDITS_LIMITS.MAX_ASSIGNMENT) {
+          return new Response(
+            JSON.stringify({
+              error: `El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`,
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          )
+        }
+        initialCredits = amount
+      }
 
       // Verificar que el builder no exista usando el unified repository
       const exists =
@@ -153,6 +173,10 @@ export const POST: APIRoute = async context => {
 
 // DELETE: Eliminar usuario builder
 export const DELETE: APIRoute = async context => {
+  // CSRF Protection
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   return withAdminApiSession(context, async session => {
     try {
       // RBAC: Check permission

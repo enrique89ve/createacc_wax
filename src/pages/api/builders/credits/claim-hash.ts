@@ -93,7 +93,7 @@ export const POST: APIRoute = async ({ request }) => {
         hash: hashData.hash,
         customJson: customJson,
         claimCode: claimCode,
-        creditId: creditId,
+        // creditId removido por seguridad - no exponer IDs internos
         creditsAvailable: creditsToGrant,
         expiresAt: new Date(hashData.expiresAt).toISOString(),
       }),

@@ -291,7 +291,7 @@ if (!currentUser || currentUser.role !== 'builder') {
             required
             data-available-credits={availableCredits}
           />
-          <p class="mt-1 text-xs text-gray-400">
+          <p id="credits-help-text" class="mt-1 text-xs text-gray-400">
             Tienes <span class="text-primary font-semibold"
               >{availableCredits}</span
             > créditos disponibles (máx. 100 por ticket)
@@ -378,6 +378,13 @@ if (!currentUser || currentUser.role !== 'builder') {
   ) as HTMLInputElement | null
   const ticketAvailabilityEl = document.getElementById('ticket-availability')
   const ticketCheckIcon = document.getElementById('ticket-check-icon')
+  const ticketCreditsInput = document.getElementById(
+    'ticket-credits'
+  ) as HTMLInputElement | null
+  const creditsHelpText = document.getElementById(
+    'credits-help-text'
+  ) as HTMLParagraphElement | null
+  const originalCreditsHelpText = creditsHelpText?.innerHTML ?? ''
 
   // Debounce timer para validación en tiempo real
   let validationTimeout: ReturnType<typeof setTimeout> | null = null
@@ -465,6 +472,33 @@ if (!currentUser || currentUser.role !== 'builder') {
     }, 500)
   })
 
+  // Validación en tiempo real del campo de créditos
+  ticketCreditsInput?.addEventListener('input', () => {
+    const availableCredits = parseInt(
+      ticketCreditsInput.dataset.availableCredits || '0'
+    )
+    const maxAllowed = Math.min(availableCredits, 100)
+    const currentValue = parseInt(ticketCreditsInput.value) || 0
+
+    // Si el valor excede el máximo permitido, ajustarlo automáticamente
+    if (currentValue > maxAllowed) {
+      ticketCreditsInput.value = maxAllowed.toString()
+
+      // Mostrar feedback visual temporal
+      if (creditsHelpText) {
+        creditsHelpText.innerHTML = `<span class="text-yellow-400">⚠️ Máximo permitido: ${maxAllowed}</span>`
+        setTimeout(() => {
+          creditsHelpText.innerHTML = originalCreditsHelpText
+        }, 2000)
+      }
+    }
+
+    // Si el valor es menor que 1, ajustar a 1
+    if (currentValue < 1 && ticketCreditsInput.value !== '') {
+      ticketCreditsInput.value = '1'
+    }
+  })
+
   createTicketBtn?.addEventListener('click', () => {
     // No abrir modal si el botón está deshabilitado (sin créditos disponibles)
     if (
@@ -519,10 +553,7 @@ if (!currentUser || currentUser.role !== 'builder') {
       return
     }
 
-    // Validar créditos
-    const ticketCreditsInput = document.getElementById(
-      'ticket-credits'
-    ) as HTMLInputElement | null
+    // Validar créditos (usar el elemento ya declarado al inicio del script)
     const maxCredits = parseInt(
       ticketCreditsInput?.dataset.availableCredits || '0'
     )

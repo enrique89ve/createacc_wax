@@ -143,87 +143,85 @@ class CreditsService {
    * 2. Reclamar créditos (pending → available)
    * Decrementa: pending_amount
    * Incrementa: available_amount
+   *
+   * SEGURIDAD: Operación atómica para prevenir race conditions.
    */
   async claimCredits(builder_id: number, amount: number): Promise<void> {
-    try {
-      // Verificar que hay suficientes créditos pendientes
-      const credits = await creditBalanceTracker.getBalanceById(builder_id)
-      if (!credits || credits.pending_amount < amount) {
-        throw new Error()
-      }
+    // Operación atómica: solo actualiza si hay suficientes créditos pendientes
+    const result = await db.execute({
+      sql: `
+        UPDATE Credits
+        SET
+          pending_amount = pending_amount - ?,
+          available_amount = available_amount + ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE builder_id = ? AND pending_amount >= ?
+      `,
+      args: [amount, amount, builder_id, amount],
+    })
 
-      // Mover de pending a available
-      await db.execute({
-        sql: `
-					UPDATE Credits
-					SET
-						pending_amount = pending_amount - ?,
-						available_amount = available_amount + ?,
-						updated_at = CURRENT_TIMESTAMP
-					WHERE builder_id = ?
-				`,
-        args: [amount, amount, builder_id],
-      })
-
-      // Auditoría
-      await db.execute({
-        sql: `
-					INSERT INTO CreditAudit (
-						builder_id, operation, amount, reason, timestamp
-					) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-				`,
-        args: [builder_id, 'claim_credits', amount, 'claimed by builder'],
-      })
-    } catch (error) {
-      throw error
+    // Si no se actualizó ninguna fila, no había suficientes créditos pendientes
+    if (result.rowsAffected === 0) {
+      throw new Error('Créditos pendientes insuficientes')
     }
+
+    // Auditoría (solo si el claim fue exitoso)
+    await db.execute({
+      sql: `
+        INSERT INTO CreditAudit (
+          builder_id, operation, amount, reason, timestamp
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      args: [builder_id, 'claim_credits', amount, 'claimed by builder'],
+    })
   }
 
   /**
    * 3. Descontar créditos al crear ticket
    * Decrementa: available_amount
+   *
+   * SEGURIDAD: Operación atómica para prevenir race conditions.
+   * El UPDATE solo afecta filas donde available_amount >= amount,
+   * garantizando que no se pueden gastar más créditos de los disponibles
+   * incluso con requests concurrentes.
    */
   async deductCreditsForTicket(
     builder_id: number,
     amount: number,
     ticket_code: string
   ): Promise<void> {
-    try {
-      // Verificar que hay suficientes créditos disponibles
-      const credits = await creditBalanceTracker.getBalanceById(builder_id)
-      if (!credits || credits.available_amount < amount) {
-        throw new Error()
-      }
+    // Operación atómica: solo actualiza si hay suficientes créditos
+    // El WHERE available_amount >= ? previene race conditions
+    const result = await db.execute({
+      sql: `
+        UPDATE Credits
+        SET
+          available_amount = available_amount - ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE builder_id = ? AND available_amount >= ?
+      `,
+      args: [amount, builder_id, amount],
+    })
 
-      // Descontar de available_amount
-      await db.execute({
-        sql: `
-					UPDATE Credits
-					SET
-						available_amount = available_amount - ?,
-						updated_at = CURRENT_TIMESTAMP
-					WHERE builder_id = ?
-				`,
-        args: [amount, builder_id],
-      })
-
-      // Auditoría
-      await db.execute({
-        sql: `
-					INSERT INTO CreditAudit (
-						builder_id, operation, amount, reason, timestamp
-					) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-				`,
-        args: [
-          builder_id,
-          'create_ticket',
-          -amount,
-          `ticket created: ${ticket_code}`,
-        ],
-      })
-    } catch (error) {
-      throw error
+    // Si no se actualizó ninguna fila, no había suficientes créditos
+    if (result.rowsAffected === 0) {
+      throw new Error('Créditos insuficientes')
     }
+
+    // Auditoría (solo si la deducción fue exitosa)
+    await db.execute({
+      sql: `
+        INSERT INTO CreditAudit (
+          builder_id, operation, amount, reason, timestamp
+        ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `,
+      args: [
+        builder_id,
+        'create_ticket',
+        -amount,
+        `ticket created: ${ticket_code}`,
+      ],
+    })
   }
 
   /**
@@ -327,105 +325,102 @@ class CreditsService {
 
   /**
    * Transferir créditos entre builders
+   *
+   * SEGURIDAD: Operación atómica para prevenir race conditions.
+   * El UPDATE del remitente usa WHERE available_amount >= amount
+   * para garantizar que no se transfieran más créditos de los disponibles,
+   * incluso con requests concurrentes.
    */
   async transferCredits(
     from_builder_id: number,
     to_builder_id: number,
     amount: number
   ): Promise<void> {
+    // Validación básica
+    if (from_builder_id === to_builder_id) {
+      throw new Error('No se puede transferir créditos a uno mismo')
+    }
+
+    if (amount <= 0) {
+      throw new Error('El monto debe ser mayor a 0')
+    }
+
+    // Verificar que builder destino existe
+    const toBuilderResult = await db.execute({
+      sql: "SELECT id FROM Users WHERE role = 'builder' AND id = ?",
+      args: [to_builder_id],
+    })
+
+    if (toBuilderResult.rows.length === 0) {
+      throw new Error('Builder destino no encontrado')
+    }
+
+    // Asegurar que ambos builders tienen fila de créditos
+    await this.getOrCreateCreditRow(from_builder_id)
+    await this.getOrCreateCreditRow(to_builder_id)
+
+    await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+
     try {
-      // Obtener username del builder origen
-      const fromBuilderResult = await db.execute({
-        sql: "SELECT username FROM Users WHERE role = 'builder' AND id = ?",
-        args: [from_builder_id],
+      // Operación atómica: descontar del remitente SOLO si tiene suficientes créditos
+      // El WHERE available_amount >= ? previene race conditions
+      const deductResult = await db.execute({
+        sql: `
+          UPDATE Credits
+          SET available_amount = available_amount - ?, updated_at = CURRENT_TIMESTAMP
+          WHERE builder_id = ? AND available_amount >= ?
+        `,
+        args: [amount, from_builder_id, amount],
       })
 
-      if (fromBuilderResult.rows.length === 0) {
-        throw new Error('Builder origen no encontrado')
-      }
-
-      const fromUsername = (fromBuilderResult.rows[0] as any).username
-
-      // Verificar créditos suficientes
-      const fromCredits =
-        await creditBalanceTracker.getAvailableCredits(fromUsername)
-      if (fromCredits < amount) {
+      // Si no se actualizó ninguna fila, no había suficientes créditos
+      if (deductResult.rowsAffected === 0) {
         throw new Error('Créditos disponibles insuficientes para transferencia')
       }
 
-      // Verificar que builder destino existe
-      const toBuilderResult = await db.execute({
-        sql: "SELECT id FROM Users WHERE role = 'builder' AND id = ?",
-        args: [to_builder_id],
+      // Agregar al destinatario (seguro porque ya validamos el origen)
+      await db.execute({
+        sql: `
+          UPDATE Credits
+          SET available_amount = available_amount + ?, updated_at = CURRENT_TIMESTAMP
+          WHERE builder_id = ?
+        `,
+        args: [amount, to_builder_id],
       })
 
-      if (toBuilderResult.rows.length === 0) {
-        throw new Error('Builder destino no encontrado')
-      }
+      // Auditoría para remitente
+      await db.execute({
+        sql: `
+          INSERT INTO CreditAudit (
+            builder_id, operation, amount, reason, timestamp
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+        args: [
+          from_builder_id,
+          'transfer_out',
+          -amount,
+          `transferred to builder ${to_builder_id}`,
+        ],
+      })
 
-      // Asegurar que ambos builders tienen fila de créditos
-      await this.getOrCreateCreditRow(from_builder_id)
-      await this.getOrCreateCreditRow(to_builder_id)
+      // Auditoría para destinatario
+      await db.execute({
+        sql: `
+          INSERT INTO CreditAudit (
+            builder_id, operation, amount, reason, timestamp
+          ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `,
+        args: [
+          to_builder_id,
+          'transfer_in',
+          amount,
+          `received from builder ${from_builder_id}`,
+        ],
+      })
 
-      await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-
-      try {
-        // Descontar del remitente
-        await db.execute({
-          sql: `
-						UPDATE Credits
-						SET available_amount = available_amount - ?, updated_at = CURRENT_TIMESTAMP
-						WHERE builder_id = ?
-					`,
-          args: [amount, from_builder_id],
-        })
-
-        // Agregar al destinatario
-        await db.execute({
-          sql: `
-						UPDATE Credits
-						SET available_amount = available_amount + ?, updated_at = CURRENT_TIMESTAMP
-						WHERE builder_id = ?
-					`,
-          args: [amount, to_builder_id],
-        })
-
-        // Auditoría para remitente
-        await db.execute({
-          sql: `
-						INSERT INTO CreditAudit (
-							builder_id, operation, amount, reason, timestamp
-						) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-					`,
-          args: [
-            from_builder_id,
-            'transfer_out',
-            -amount,
-            `transferred to builder ${to_builder_id}`,
-          ],
-        })
-
-        // Auditoría para destinatario
-        await db.execute({
-          sql: `
-						INSERT INTO CreditAudit (
-							builder_id, operation, amount, reason, timestamp
-						) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-					`,
-          args: [
-            to_builder_id,
-            'transfer_in',
-            amount,
-            `received from builder ${from_builder_id}`,
-          ],
-        })
-
-        await db.execute({ sql: 'COMMIT', args: [] })
-      } catch (error) {
-        await db.execute({ sql: 'ROLLBACK', args: [] })
-        throw error
-      }
+      await db.execute({ sql: 'COMMIT', args: [] })
     } catch (error) {
+      await db.execute({ sql: 'ROLLBACK', args: [] })
       throw error
     }
   }

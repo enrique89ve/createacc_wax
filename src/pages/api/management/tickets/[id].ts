@@ -8,6 +8,7 @@ import { creditsService } from '@/lib/credits-service'
 import { jsonResponse } from '@/utils/api-response'
 import { USER_ROLES } from '@/consts/constants'
 import { API_MESSAGES } from '@/consts/api-messages'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 
 // Types
 interface CreatorInfo {
@@ -79,6 +80,10 @@ const cleanupTicketAudit = async (ticketCode: string): Promise<void> => {
 
 // DELETE: Eliminar ticket
 export const DELETE: APIRoute = async context => {
+  // CSRF Protection
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   return withAdminApiSession(context, async session => {
     try {
       const ticketId = context.params.id

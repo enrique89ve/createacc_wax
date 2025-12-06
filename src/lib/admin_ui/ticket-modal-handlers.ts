@@ -21,6 +21,9 @@ let updateModalContent: HTMLElement | null
 let deleteModalContent: HTMLElement | null
 let currentTicket: TicketData | null = null
 
+// Caché de créditos disponibles (se actualiza al abrir el modal)
+let cachedAvailableCredits: number = 0
+
 // Elementos del modal de actualización (SLIDER)
 let updateForm: HTMLFormElement | null
 let updateCodeDisplay: HTMLInputElement | null
@@ -121,8 +124,9 @@ async function setupSlider(ticket: TicketData) {
   )
     return
 
-  // Obtener créditos disponibles en tiempo real
+  // Obtener créditos disponibles en tiempo real y guardar en caché
   const availableCredits = await getBuilderCredits()
+  cachedAvailableCredits = availableCredits
 
   // Calcular límites
   const maxDecrease = ticket.credits - 1 // Mínimo 1 crédito en el ticket
@@ -234,8 +238,8 @@ function closeModal() {
 function setupUpdateModalListeners() {
   if (!deltaSlider) return
 
-  // Validación en tiempo real del slider
-  deltaSlider.addEventListener('input', async () => {
+  // Validación en tiempo real del slider (usa caché, NO hace fetch)
+  deltaSlider.addEventListener('input', () => {
     if (!currentTicket || !deltaSlider || !deltaValueDisplay) return
 
     const delta = parseInt(deltaSlider.value, 10)
@@ -280,15 +284,12 @@ function setupUpdateModalListeners() {
       return
     }
 
-    // Validar créditos disponibles si delta es positivo
-    if (delta > 0) {
-      const availableCredits = await getBuilderCredits()
-      if (delta > availableCredits) {
-        showError(
-          `No tienes suficientes créditos. Disponibles: ${availableCredits}`
-        )
-        return
-      }
+    // Validar créditos disponibles si delta es positivo (usa caché)
+    if (delta > 0 && delta > cachedAvailableCredits) {
+      showError(
+        `No tienes suficientes créditos. Disponibles: ${cachedAvailableCredits}`
+      )
+      return
     }
 
     // Todo OK - mostrar preview simplificado

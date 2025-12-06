@@ -21,6 +21,7 @@ import {
 } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 import type {
 	CreateTicketRequest,
 	CreateTicketResponse,
@@ -56,6 +57,10 @@ export const GET: APIRoute = async ({ request }) => {
  * Crear un nuevo ticket
  */
 export const POST: APIRoute = async ({ request }) => {
+	// CSRF Protection
+	const csrfCheck = requireValidOrigin(request)
+	if (csrfCheck) return csrfCheck
+
 	try {
 		const builderId = await getAuthenticatedBuilderId(request)
 

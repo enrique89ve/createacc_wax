@@ -196,7 +196,7 @@ export const POST: APIRoute = async ({ request }) => {
           success: true,
           message: 'Créditos reclamados exitosamente',
           credits: creditsToAdd,
-          creditId: creditId,
+          // creditId removido por seguridad - no exponer IDs internos
           transactionId: transactionId,
           newBalance,
         }),

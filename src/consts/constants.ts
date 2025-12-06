@@ -107,6 +107,16 @@ export const AUTH_CONFIG = {
   SESSION_TIMEOUT: 86400000, // 24 hours in milliseconds
 } as const
 
+/**
+ * Límites de créditos para operaciones administrativas
+ */
+export const CREDITS_LIMITS = {
+  /** Máximo de créditos que se pueden asignar en una operación */
+  MAX_ASSIGNMENT: 100000,
+  /** Mínimo de créditos para una operación */
+  MIN_ASSIGNMENT: 1,
+} as const
+
 export const FRONTEND_KEYS = {
   SESSION_KEY: 'hh_keys_downloaded',
   KEYSET_SEPARATOR: '_',

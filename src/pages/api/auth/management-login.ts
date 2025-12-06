@@ -96,7 +96,7 @@ export const POST: APIRoute = async ({ request }) => {
       `${cookieName}=${encodedToken}`,
       `Path=/`,
       `HttpOnly`,
-      `SameSite=Lax`,
+      `SameSite=Strict`,
       `Max-Age=${24 * 60 * 60}`,
     ]
 

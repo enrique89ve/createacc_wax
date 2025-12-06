@@ -330,7 +330,7 @@ export interface DatabaseStats {
  * Type guard for UserRole
  */
 export function isUserRole(value: unknown): value is UserRole {
-  return typeof value === 'string' && USER_ROLES.includes(value as UserRole)
+  return typeof value === 'string' && Object.values(USER_ROLES).includes(value as UserRole)
 }
 
 /**
