@@ -39,26 +39,26 @@ const {
 } = Astro.props
 ---
 
-<div class="overflow-hidden rounded-lg border border-gray-700/60 bg-gray-900/40">
+<div class="overflow-hidden rounded-lg border border-border bg-card">
   <div
-    class="flex items-center justify-between border-b border-gray-700/60 px-6 py-4"
+    class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border px-4 sm:px-6 py-3 sm:py-4"
   >
-    <h2 class="flex items-center gap-2 text-lg font-semibold text-white">
+    <h2 class="flex items-center gap-2 text-base sm:text-lg font-semibold text-foreground">
       {title}
     </h2>
 
     {
       showSearch && (
-        <div class="relative">
+        <div class="relative w-full sm:w-auto">
           <input
             type="text"
             placeholder={searchPlaceholder}
-            class="bg-background border-border focus:ring-primary w-64 rounded-lg border px-3 py-2 pl-10 text-sm text-white focus:border-transparent focus:outline-none focus:ring-2"
+            class="bg-background border-border focus:ring-primary w-full sm:w-64 rounded-lg border px-3 py-2 pl-10 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2"
             id="table-search"
           />
           <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
-              class="h-5 w-5 text-gray-400"
+              class="h-5 w-5 text-muted-foreground"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -80,114 +80,250 @@ const {
     data.length === 0 ? (
       <div class="p-10 text-center">
         <div class="mb-4 text-5xl">📋</div>
-        <p class="mb-2 font-semibold text-white">Sin datos</p>
-        <p class="text-sm text-gray-400">{emptyMessage}</p>
+        <p class="mb-2 font-semibold text-foreground">Sin datos</p>
+        <p class="text-sm text-muted-foreground">{emptyMessage}</p>
       </div>
     ) : (
-      <div class="overflow-x-auto">
-        <table class="w-full table-fixed divide-y divide-gray-700 text-sm">
-          <thead class="bg-gray-800/60">
-            <tr>
-              {columns.map((column, idx) => (
-                <th
-                  class={`px-6 py-3 font-medium uppercase tracking-wide text-gray-300 ${
-                    idx === 0 ? 'text-left' : 'text-center'
-                  } ${column.width || ''}`}
-                >
-                  {column.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-700">
-            {data.map((row, index) => (
-              <tr
-                class="hover:bg-gray-800/40"
-                data-search-content={JSON.stringify(row)}
-              >
+      <>
+        {/* Desktop Table (md and up) */}
+        <div class="hidden md:block overflow-x-auto">
+          <table class="w-full divide-y divide-border text-sm">
+            <thead class="bg-muted/60">
+              <tr>
                 {columns.map((column, idx) => (
-                  <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
-                    {column.type === 'date' && (
-                      <span class="text-gray-400 text-sm">
-                        {new Date(row[column.key]).toLocaleDateString(
-                          'es-ES',
-                          {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          }
-                        )}
-                      </span>
-                    )}
+                  <th
+                    class={`px-6 py-3 font-medium uppercase tracking-wide text-muted-foreground ${
+                      idx === 0 ? 'text-left' : 'text-center'
+                    } ${column.width || ''}`}
+                  >
+                    {column.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-border">
+              {data.map((row, index) => (
+                <tr
+                  class="hover:bg-muted/40"
+                  data-search-content={JSON.stringify(row)}
+                >
+                  {columns.map((column, idx) => (
+                    <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
+                      {column.type === 'date' && (
+                        <span class="text-muted-foreground text-sm">
+                          {new Date(row[column.key]).toLocaleDateString(
+                            'es-ES',
+                            {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          )}
+                        </span>
+                      )}
 
-                    {column.type === 'badge' && (
-                      <span
-                        class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          column.badgeVariant?.(row[column.key]) === 'success'
-                            ? 'bg-green-500/20 text-green-300'
-                            : column.badgeVariant?.(row[column.key]) ===
-                                'warning'
-                              ? 'bg-yellow-500/20 text-yellow-300'
-                              : column.badgeVariant?.(row[column.key]) ===
-                                  'danger'
-                                ? 'bg-red-500/20 text-red-300'
-                                : 'bg-blue-500/20 text-blue-300'
-                        }`}
-                      >
-                        {row[column.key]}
-                      </span>
-                    )}
-
-                    {column.type === 'key' && (
-                      <div class="font-mono text-sm text-white">
+                      {column.type === 'badge' && (
                         <span
-                          class={
-                            column.truncate ? 'block max-w-xs truncate' : ''
-                          }
+                          class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            column.badgeVariant?.(row[column.key]) === 'success'
+                              ? 'bg-green-500/20 text-green-300'
+                              : column.badgeVariant?.(row[column.key]) ===
+                                  'warning'
+                                ? 'bg-yellow-500/20 text-yellow-300'
+                                : column.badgeVariant?.(row[column.key]) ===
+                                    'danger'
+                                  ? 'bg-red-500/20 text-red-300'
+                                  : 'bg-blue-500/20 text-blue-300'
+                          }`}
                         >
                           {row[column.key]}
                         </span>
-                      </div>
-                    )}
+                      )}
 
-                    {column.type === 'actions' && (
-                      <div class="flex space-x-3">
-                        {column.actions?.map(action => (
-                          <button
-                            onclick={`${action.onClick}('${row.id || index}')`}
-                            class={`text-xs font-medium transition-colors ${
-                              action.variant === 'danger'
-                                ? 'text-red-400 hover:text-red-300'
-                                : action.variant === 'secondary'
-                                  ? 'text-gray-400 hover:text-gray-300'
-                                  : 'text-blue-400 hover:text-blue-300'
-                            }`}
+                      {column.type === 'key' && (
+                        <div class="font-mono text-sm text-foreground">
+                          <span
+                            class={
+                              column.truncate ? 'block max-w-xs truncate' : ''
+                            }
                           >
-                            {action.icon && (
-                              <span class="mr-1">{action.icon}</span>
-                            )}
-                            {action.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                            {row[column.key]}
+                          </span>
+                        </div>
+                      )}
 
-                    {(!column.type || column.type === 'text') && (
-                      <span
-                        class={`text-white text-sm ${column.truncate ? 'block max-w-xs truncate' : ''}`}
-                      >
-                        {row[column.key]}
+                      {column.type === 'actions' && (
+                        <div class="flex justify-center space-x-3">
+                          {column.actions?.map(action => (
+                            <button
+                              onclick={`${action.onClick}('${row.id || index}')`}
+                              class={`text-xs font-medium transition-colors ${
+                                action.variant === 'danger'
+                                  ? 'text-red-400 hover:text-red-300'
+                                  : action.variant === 'secondary'
+                                    ? 'text-gray-400 hover:text-gray-300'
+                                    : 'text-blue-400 hover:text-blue-300'
+                              }`}
+                            >
+                              {action.icon && (
+                                <span class="mr-1">{action.icon}</span>
+                              )}
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {(!column.type || column.type === 'text') && (
+                        <>
+                          {column.key === 'username' && row[column.key] ? (
+                            <a
+                              href={`https://peakd.com/@${row[column.key]}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+                            >
+                              @{row[column.key]}
+                              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
+                          ) : (
+                            <span
+                              class={`text-foreground text-sm ${column.truncate ? 'block max-w-xs truncate' : ''}`}
+                            >
+                              {row[column.key]}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards (below md) */}
+        <div class="md:hidden space-y-3 p-3">
+          {data.map((row, index) => {
+            // Primera columna como título principal (username)
+            const primaryColumn = columns[0]
+            const secondaryColumns = columns.slice(1)
+            // Detectar si es una cuenta de usuario (tiene username)
+            const isUserAccount = primaryColumn.key === 'username' && row[primaryColumn.key]
+            const profileUrl = isUserAccount ? `https://peakd.com/@${row[primaryColumn.key]}` : null
+
+            return (
+              <a
+                href={profileUrl || '#'}
+                target={profileUrl ? '_blank' : undefined}
+                rel={profileUrl ? 'noopener noreferrer' : undefined}
+                class={`block relative bg-muted/30 rounded-lg border border-border/50 overflow-hidden transition-all ${profileUrl ? 'hover:border-primary/50 hover:bg-muted/40 cursor-pointer' : ''}`}
+                data-search-content={JSON.stringify(row)}
+              >
+                {/* Pestaña con dato principal */}
+                <div class="bg-muted/60 px-3 py-2 border-b border-border/30">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class={`font-semibold text-sm ${isUserAccount ? 'text-primary' : 'text-foreground'}`}>
+                        {isUserAccount && '@'}{row[primaryColumn.key]}
+                      </span>
+                      {profileUrl && (
+                        <svg class="h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                      )}
+                    </div>
+                    {/* Mostrar fecha si existe en las columnas */}
+                    {secondaryColumns.find(c => c.type === 'date') && (
+                      <span class="text-muted-foreground text-xs">
+                        {new Date(row[secondaryColumns.find(c => c.type === 'date')!.key]).toLocaleDateString('es-ES', {
+                          day: 'numeric',
+                          month: 'short',
+                        })}
                       </span>
                     )}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </div>
+
+                {/* Contenido */}
+                <div class="p-3">
+                  <div class="grid grid-cols-2 gap-2">
+                    {secondaryColumns.filter(c => c.type !== 'date' && c.type !== 'actions').map((column) => (
+                      <div>
+                        <dt class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
+                          {column.label}
+                        </dt>
+                        <dd class="text-sm text-foreground">
+                          {column.type === 'badge' ? (
+                            <span
+                              class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                column.badgeVariant?.(row[column.key]) === 'success'
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : column.badgeVariant?.(row[column.key]) === 'warning'
+                                    ? 'bg-yellow-500/20 text-yellow-300'
+                                    : column.badgeVariant?.(row[column.key]) === 'danger'
+                                      ? 'bg-red-500/20 text-red-300'
+                                      : 'bg-blue-500/20 text-blue-300'
+                              }`}
+                            >
+                              {row[column.key]}
+                            </span>
+                          ) : column.type === 'key' ? (
+                            <span class="font-mono text-xs break-all">
+                              {row[column.key]}
+                            </span>
+                          ) : (
+                            row[column.key]
+                          )}
+                        </dd>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Fecha completa al final si existe */}
+                  {secondaryColumns.find(c => c.type === 'date') && (
+                    <div class="mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
+                      {new Date(row[secondaryColumns.find(c => c.type === 'date')!.key]).toLocaleDateString('es-ES', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  )}
+
+                  {/* Acciones si existen */}
+                  {secondaryColumns.find(c => c.type === 'actions') && (
+                    <div class="flex gap-2 mt-3 pt-2 border-t border-border/30">
+                      {secondaryColumns.find(c => c.type === 'actions')!.actions?.map(action => (
+                        <button
+                          onclick={`event.preventDefault(); event.stopPropagation(); ${action.onClick}('${row.id || index}')`}
+                          class={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                            action.variant === 'danger'
+                              ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20'
+                              : action.variant === 'secondary'
+                                ? 'bg-muted text-muted-foreground ring-1 ring-border hover:bg-muted/80'
+                                : 'bg-primary/10 text-primary ring-1 ring-primary/20 hover:bg-primary/20'
+                          }`}
+                        >
+                          {action.icon && <span>{action.icon}</span>}
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </a>
+            )
+          })}
+        </div>
+      </>
     )
   }
 </div>

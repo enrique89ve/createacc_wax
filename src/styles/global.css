@@ -64,3 +64,44 @@ body {
   background-color: theme(colors.background);
   color: theme(colors.foreground);
 }
+
+/* ========================================
+   Clases de Componentes Reutilizables
+   Siguiendo filosofía midudev: utility-first + custom
+   ======================================== */
+
+@layer components {
+  /* Botones */
+  .btn-primary {
+    @apply bg-primary w-full rounded-lg px-4 py-2 text-white
+      transition-opacity hover:opacity-90
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply border border-border text-muted-foreground
+      hover:bg-muted rounded-lg px-4 py-2
+      transition-colors;
+  }
+
+  /* Cards */
+  .card-stat {
+    @apply bg-card border-border hover:border-muted-foreground/40
+      relative overflow-hidden rounded-lg border p-6
+      transition-all;
+  }
+
+  .card-base {
+    @apply bg-card border-border rounded-lg border p-6;
+  }
+
+  /* Tables */
+  .table-header {
+    @apply bg-muted/60;
+  }
+
+  .table-th {
+    @apply text-muted-foreground px-6 py-3 text-left
+      font-medium uppercase tracking-wide;
+  }
+}

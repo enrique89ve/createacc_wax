@@ -3,62 +3,48 @@
  * Página de login para builders usando Keychain
  */
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
-import Toasts from '@/components/ui/Toasts.astro'
 ---
 
 <BuildersLayout title="Login - Builders" currentPage="login">
-  <main class="bg-background text-foreground min-h-screen font-sans">
-    <div class="container mx-auto px-4 py-8">
-      <div class="mx-auto max-w-md">
-        <!-- Header -->
-        <div class="mb-8 text-center">
-          <h1 class="text-primary mb-2 text-3xl font-bold">Builders Login</h1>
-          <p class="text-muted">
-            Acceso exclusivo para moderadores y usuarios autorizados
-          </p>
-        </div>
-
-        <!-- Keychain Status -->
-        <div
-          id="keychain-status"
-          class="bg-card border-border mb-6 rounded-lg border p-4"
-        >
-          <div class="text-muted">Verificando Keychain...</div>
-        </div>
-
-        <!-- Login Form -->
-        <div class="bg-card border-border mb-6 rounded-lg border p-6">
-          <form id="login-form" class="space-y-4">
-            <div>
-              <label for="username" class="mb-2 block text-sm font-medium">
-                Usuario de Hive
-              </label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                placeholder="tu-usuario-hive"
-                class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              id="login-btn"
-              class="bg-primary w-full rounded-lg px-4 py-2 text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled
-            >
-              Login con Keychain
-            </button>
-          </form>
-        </div>
-      </div>
+  <div
+    class="mx-auto max-w-md space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
+  >
+    <!-- Header -->
+    <div class="mb-4 text-center sm:mb-6">
+      <h1 class="text-foreground mb-2 text-3xl font-bold">Builders Login</h1>
+      <p class="text-muted-foreground">
+        Acceso exclusivo para moderadores y usuarios autorizados
+      </p>
     </div>
-  </main>
 
-  <!-- Toast Notifications -->
-  <Toasts />
+    <!-- Keychain Status -->
+    <div id="keychain-status" class="card-base mb-4 sm:mb-6">
+      <div class="text-muted-foreground">Verificando Keychain...</div>
+    </div>
+
+    <!-- Login Form -->
+    <div class="card-base mb-4 sm:mb-6">
+      <form id="login-form" class="space-y-3 sm:space-y-4">
+        <div>
+          <label for="username" class="mb-2 block text-sm font-medium">
+            Usuario de Hive
+          </label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            placeholder="tu-usuario-hive"
+            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2"
+            required
+          />
+        </div>
+
+        <button type="submit" id="login-btn" class="btn-primary" disabled>
+          Login con Keychain
+        </button>
+      </form>
+    </div>
+  </div>
 
   <script>
     import { quickLogin, isKeychainReady } from '@/lib/keychain-service'

@@ -1,7 +1,7 @@
 ---
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
-import BuildersTabs from '@/components/ui/BuildersTabs.astro'
-import Toasts from '@/components/ui/Toasts.astro'
+import PageHeader from '@/components/ui/PageHeader.astro'
+import StatCard from '@/components/ui/StatCard.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
@@ -60,23 +60,18 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 ---
 
 <BuildersLayout title="Créditos - Builders" currentPage="creditos">
-  <div class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <div class="mb-6">
-      <h1 class="mb-2 text-3xl font-bold text-white">💰 Gestión de Créditos</h1>
-      <p class="text-gray-400">
-        Administra tus créditos, reclama tickets y consulta tu historial.
-      </p>
-    </div>
+  <div
+    class="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
+  >
+    <PageHeader
+      title="Gestión de Créditos"
+      description="Administra tus créditos, reclama tickets y consulta tu historial."
+    />
 
-    <BuildersTabs active="creditos" />
-
-    <!-- Resumen de Créditos - Estilo Fintech -->
-    <section class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <!-- Tarjeta 1: Créditos Pendientes -->
-      <div
-        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
-      >
-        <!-- Contenido principal -->
+    <!-- Resumen de Créditos -->
+    <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <!-- Tarjeta 1: Créditos Pendientes con botón -->
+      <div class="card-stat group relative">
         <div class="mb-4">
           <p
             class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
@@ -95,7 +90,6 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
           </div>
         </div>
 
-        <!-- Información secundaria -->
         <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
           Reclamar con Keychain
         </p>
@@ -106,159 +100,161 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
             <button
               id="claim-credits-btn"
               data-username={builderUsername}
-              class="w-full rounded-md bg-yellow-500/10 px-4 py-2.5 text-sm font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all hover:bg-yellow-500/20 hover:ring-yellow-500/30 disabled:cursor-not-allowed disabled:opacity-50"
+              class="flex w-full items-center justify-center gap-2 rounded-md bg-yellow-500/10 px-4 py-2.5 text-sm font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all hover:bg-yellow-500/20 hover:ring-yellow-500/30 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <span class="flex items-center justify-center gap-2">
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                Reclamar ahora
-              </span>
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              Reclamar ahora
             </button>
           )
         }
       </div>
 
       <!-- Tarjeta 2: Créditos Disponibles -->
-      <div
-        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
-      >
-        <!-- Contenido principal -->
-        <div class="mb-4">
-          <p
-            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
-          >
-            Disponibles para usar
-          </p>
-          <div class="flex items-baseline gap-2">
-            <span
-              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
-            >
-              {creditosDisponibles}
-            </span>
-            <span class="text-muted-foreground text-sm font-medium"
-              >créditos</span
-            >
-          </div>
-        </div>
-
-        <!-- Información secundaria -->
-        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
-          Usa estos créditos para crear tickets y cuentas Hive
-        </p>
-      </div>
+      <StatCard
+        title="Disponibles para usar"
+        value={creditosDisponibles}
+        unit="créditos"
+        description="Usa estos créditos para crear tickets y cuentas Hive"
+      />
 
       <!-- Tarjeta 3: Créditos Consumidos -->
-      <div
-        class="group relative overflow-hidden rounded-lg border border-gray-700/60 bg-card p-6 transition-all hover:border-gray-600/80"
+      <StatCard
+        title="Cuentas creadas"
+        value={creditosConsumidos}
+        unit="total"
+        description="Créditos consumidos en la creación de cuentas Hive"
+        action={{
+          href: '/builders/accounts',
+          label: 'Ver cuentas creadas',
+        }}
       >
-        <!-- Contenido principal -->
-        <div class="mb-4">
-          <p
-            class="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide"
-          >
-            Cuentas creadas
-          </p>
-          <div class="flex items-baseline gap-2">
-            <span
-              class="text-foreground text-4xl font-semibold tabular-nums tracking-tight"
-            >
-              {creditosConsumidos}
-            </span>
-            <span class="text-muted-foreground text-sm font-medium">total</span>
-          </div>
-        </div>
-
-        <!-- Información secundaria -->
-        <p class="text-muted-foreground mb-4 text-xs leading-relaxed">
-          Créditos consumidos en la creación de cuentas Hive
-        </p>
-
-        <!-- Botón para ver cuentas -->
-        <a
-          href="/builders/accounts"
-          class="bg-primary/10 text-primary ring-primary/20 hover:bg-primary/20 hover:ring-primary/30 flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium ring-1 transition-all"
+        <svg
+          slot="action-icon"
+          class="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M9 5l7 7-7 7"></path>
-          </svg>
-          Ver cuentas creadas
-        </a>
-      </div>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 5l7 7-7 7"></path>
+        </svg>
+      </StatCard>
     </section>
 
     <!-- Historial de Créditos -->
     <section
-      class="mb-8 overflow-hidden rounded-lg border border-gray-700/60 bg-gray-900/40"
+      class="border-border bg-card mb-8 overflow-hidden rounded-lg border"
     >
-      <div
-        class="flex items-center justify-between border-b border-gray-700/60 px-6 py-4"
-      >
-        <h2 class="flex items-center gap-2 text-lg font-semibold text-white">
-          📊 Historial de Créditos
+      <div class="border-border flex items-center border-b px-6 py-4">
+        <h2
+          class="text-foreground flex items-center gap-2 text-lg font-semibold"
+        >
+          Historial de Créditos
         </h2>
-        <div class="flex gap-2">
-          <button
-            id="export-history-btn"
-            class="text-sm font-medium text-blue-400 hover:text-blue-300"
-          >
-            Exportar CSV
-          </button>
-        </div>
       </div>
 
       {
         creditHistory.length > 0 ? (
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-700 text-sm">
-              <thead class="bg-gray-800/60">
-                <tr>
-                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
-                    Fecha
-                  </th>
-                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
-                    Operación
-                  </th>
-                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
-                    Cantidad
-                  </th>
-                  <th class="px-4 py-3 text-left font-medium uppercase tracking-wide text-gray-300">
-                    Descripción
-                  </th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-700">
-                {creditHistory.map(item => (
-                  <tr class="hover:bg-gray-800/40">
-                    <td class="px-4 py-3 text-gray-300">
-                      {new Date(item.timestamp).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                    <td class="px-4 py-3">
+          <>
+            {/* Desktop Table (md and up) */}
+            <div class="hidden overflow-x-auto md:block">
+              <table class="divide-border min-w-full divide-y text-sm">
+                <thead class="bg-muted/60">
+                  <tr>
+                    <th class="text-muted-foreground px-6 py-3 text-left font-medium uppercase tracking-wide">
+                      Fecha
+                    </th>
+                    <th class="text-muted-foreground px-6 py-3 text-left font-medium uppercase tracking-wide">
+                      Operación
+                    </th>
+                    <th class="text-muted-foreground px-6 py-3 text-left font-medium uppercase tracking-wide">
+                      Cantidad
+                    </th>
+                    <th class="text-muted-foreground px-6 py-3 text-left font-medium uppercase tracking-wide">
+                      Descripción
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-border divide-y">
+                  {creditHistory.map(item => (
+                    <tr class="hover:bg-muted/40">
+                      <td class="text-muted-foreground px-6 py-3">
+                        {new Date(item.timestamp).toLocaleDateString('es-ES', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td class="px-4 py-3">
+                        <span
+                          class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            item.operation === 'claim_via_blockchain'
+                              ? 'bg-green-500/20 text-green-300'
+                              : item.operation === 'assign_credits'
+                                ? 'bg-blue-500/20 text-blue-300'
+                                : item.operation === 'consume_credits'
+                                  ? 'bg-red-500/20 text-red-300'
+                                  : item.operation === 'purchase_credits'
+                                    ? 'bg-purple-500/20 text-purple-300'
+                                    : 'bg-gray-500/20 text-gray-300'
+                          }`}
+                        >
+                          {item.operation === 'claim_via_blockchain'
+                            ? 'Reclamado'
+                            : item.operation === 'assign_credits'
+                              ? 'Asignado'
+                              : item.operation === 'consume_credits'
+                                ? 'Consumido'
+                                : item.operation === 'purchase_credits'
+                                  ? 'Comprado'
+                                  : item.operation}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3">
+                        <span
+                          class={`font-semibold ${
+                            item.amount > 0 ? 'text-green-400' : 'text-red-400'
+                          }`}
+                        >
+                          {item.amount > 0 ? '+' : ''}
+                          {item.amount}
+                        </span>
+                      </td>
+                      <td class="text-muted-foreground px-4 py-3">
+                        <div class="text-sm">
+                          {item.reason || 'Sin descripción'}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards (below md) */}
+            <div class="space-y-3 p-3 md:hidden">
+              {creditHistory.map(item => (
+                <div class="bg-muted/30 border-border/50 relative overflow-hidden rounded-lg border">
+                  {/* Pestaña superior */}
+                  <div class="bg-muted/60 border-border/30 border-b px-3 py-2">
+                    <div class="flex items-center justify-between">
                       <span
                         class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                           item.operation === 'claim_via_blockchain'
@@ -282,34 +278,48 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
                                 ? 'Comprado'
                                 : item.operation}
                       </span>
-                    </td>
-                    <td class="px-4 py-3">
                       <span
-                        class={`font-semibold ${
+                        class={`text-sm font-semibold tabular-nums ${
                           item.amount > 0 ? 'text-green-400' : 'text-red-400'
                         }`}
                       >
                         {item.amount > 0 ? '+' : ''}
                         {item.amount}
                       </span>
-                    </td>
-                    <td class="px-4 py-3 text-gray-300">
-                      <div class="text-sm">
-                        {item.reason || 'Sin descripción'}
+                    </div>
+                  </div>
+
+                  {/* Contenido */}
+                  <div class="space-y-2 p-3">
+                    {/* Fecha */}
+                    <div class="text-muted-foreground text-xs">
+                      {new Date(item.timestamp).toLocaleDateString('es-ES', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+
+                    {/* Descripción */}
+                    {item.reason && (
+                      <div class="text-foreground border-border/30 border-t pt-2 text-sm">
+                        {item.reason}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <div class="p-10 text-center">
             <div class="mb-4 text-5xl">📊</div>
-            <p class="mb-2 font-semibold text-white">
+            <p class="text-foreground mb-2 font-semibold">
               Sin historial de créditos
             </p>
-            <p class="text-sm text-gray-400">
+            <p class="text-muted-foreground text-sm">
               Cuando recibas o uses créditos aparecerán aquí.
             </p>
           </div>
@@ -317,9 +327,6 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
       }
     </section>
   </div>
-
-  <!-- Toast Notifications -->
-  <Toasts />
 </BuildersLayout>
 
 <script>
@@ -368,11 +375,6 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
       'claim-credits-btn'
     ) as HTMLButtonElement | null
     claimBtn?.addEventListener('click', handleClaimCredits)
-
-    // Exportar historial
-    document
-      .getElementById('export-history-btn')
-      ?.addEventListener('click', handleExportHistory)
   }
 
   async function handleClaimCredits() {
@@ -486,20 +488,5 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
       claimBtn.disabled = false
       claimBtn.textContent = originalText || 'Reclamar con Keychain'
     }
-  }
-
-  function handleExportHistory() {
-    const format = 'csv' // Por defecto CSV, se puede hacer configurable
-    const url = `/api/builders/credits/export?format=${format}`
-
-    // Crear enlace temporal para descargar
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `creditos_historial_${new Date().toISOString().split('T')[0]}.${format}`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-
-    notify('success', 'Descarga iniciada')
   }
 </script>

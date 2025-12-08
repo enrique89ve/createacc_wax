@@ -1,0 +1,30 @@
+---
+/**
+ * Componente Button reutilizable
+ * Usa clases .btn-primary y .btn-secondary definidas en global.css
+ */
+interface Props {
+	variant?: 'primary' | 'secondary'
+	type?: 'button' | 'submit' | 'reset'
+	disabled?: boolean
+	class?: string
+}
+
+const {
+	variant = 'primary',
+	type = 'button',
+	disabled = false,
+	class: className,
+} = Astro.props
+---
+
+<button
+	type={type}
+	disabled={disabled}
+	class:list={[
+		variant === 'primary' ? 'btn-primary' : 'btn-secondary',
+		className,
+	]}
+>
+	<slot />
+</button>

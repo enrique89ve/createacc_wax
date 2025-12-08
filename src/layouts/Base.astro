@@ -2,6 +2,7 @@
 import '@/styles/global.css'
 import '@fontsource-variable/sora'
 import { SEO_DEFAULTS, ROBOTS_META } from '@/consts/seo'
+import { ClientRouter } from 'astro:transitions'
 
 interface Props {
   title?: string
@@ -47,6 +48,7 @@ const robotsValue = noindex
     <meta property="og:type" content="website" />
     {robotsValue && <meta name="robots" content={robotsValue} />}
     {enhancedSecurity && <meta name="googlebot" content="noindex, nofollow" />}
+    <ClientRouter />
     <slot name="head" />
   </head>
   <body class={bodyClass} {...bodyAttributes}>

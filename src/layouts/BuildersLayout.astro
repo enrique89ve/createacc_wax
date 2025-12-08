@@ -2,6 +2,7 @@
 import Base from './Base.astro'
 import UserMenu from '@/components/ui/UserMenu.astro'
 import NotificationBell from '@/components/ui/NotificationBell.astro'
+import BuildersTabs from '@/components/ui/BuildersTabs.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { getSession } from 'auth-astro/server'
 import { UsersRepository } from '@/lib/repositories/users-repository'
@@ -48,44 +49,111 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
   <!-- Navigation Header - Hide on login page -->
   {user && currentPage !== 'login' && (
     <header class="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div class="mx-auto flex h-14 max-w-7xl px-4 sm:px-6 lg:px-8 items-center">
-        <!-- Brand Title -->
-        <h1 class="text-lg font-semibold tracking-tight text-foreground">
-          Dashboard de Builders
-        </h1>
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <!-- Desktop Header (md+) -->
+        <div class="hidden md:flex h-16 items-center justify-between">
+          <!-- Left: Title + Tabs -->
+          <div class="flex items-center gap-6">
+            <h1 class="text-lg font-semibold tracking-tight text-foreground">
+              Dashboard de Builders
+            </h1>
+            {currentPage && (
+              <BuildersTabs
+                active={currentPage as 'tickets' | 'accounts' | 'creditos'}
+                variant="header"
+              />
+            )}
+          </div>
 
-        <!-- Spacer -->
-        <div class="flex flex-1 items-center justify-end space-x-4">
-          <!-- Credits link for all users -->
-          <a
-            href="/builders/creditos"
-            class="inline-flex items-center justify-center rounded-md bg-success/10 px-3 py-1.5 text-xs font-medium text-success ring-1 ring-success/20 hover:bg-success/20 hover:ring-success/30 transition-all duration-200"
-          >
-            <span class="mr-1">💳</span>
-            <span>Créditos Disponibles: {typeof userCredits === 'number' ? userCredits : 0}</span>
-          </a>
+          <!-- Right: Credits, Notifications, User Menu, Logout -->
+          <div class="flex items-center gap-4">
+            <!-- Credits link for all users -->
+            <a
+              href="/builders/creditos"
+              class="inline-flex items-center justify-center rounded-md bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-500 ring-1 ring-yellow-500/20 hover:bg-yellow-500/20 hover:ring-yellow-500/30 transition-all duration-200"
+            >
+              <span class="mr-1">💳</span>
+              <span>Créditos: </span>
+              <span>{typeof userCredits === 'number' ? userCredits : 0}</span>
+            </a>
 
-          <!-- Notification Bell -->
-          {userId && <NotificationBell userId={userId} />}
+            <!-- Notification Bell -->
+            {userId && <NotificationBell userId={userId} />}
 
-          <!-- User Menu (without role and credits) -->
-          <UserMenu username={user.username} />
+            <!-- User Menu (without role and credits) -->
+            <UserMenu username={user.username} />
 
-          <!-- Logout Button -->
-          <button
-            id="builders-logout-btn"
-            type="button"
-            class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-          >
-            Salir
-          </button>
+            <!-- Logout Button -->
+            <button
+              id="builders-logout-btn"
+              type="button"
+              class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              Salir
+            </button>
+          </div>
+        </div>
+
+        <!-- Mobile Header (sm and below) -->
+        <div class="md:hidden">
+          <!-- Top row: Avatar + Credits + Notifications + Logout -->
+          <div class="flex h-12 items-center justify-between">
+            <!-- Left: Avatar only (compact) -->
+            <div class="flex items-center gap-2">
+              <img
+                src={`https://images.hive.blog/u/${user.username}/avatar`}
+                alt={`Avatar de ${user.username}`}
+                class="h-8 w-8 rounded-full border border-border/50 object-cover"
+                onerror="this.src='/assets/default-avatar.svg'"
+              />
+              <span class="text-sm font-medium text-foreground truncate max-w-[100px]">
+                {user.username}
+              </span>
+            </div>
+
+            <!-- Right: Credits + Notifications + Logout -->
+            <div class="flex items-center gap-2">
+              <!-- Credits Badge (compact) -->
+              <a
+                href="/builders/creditos"
+                class="inline-flex items-center justify-center rounded-md bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-500 ring-1 ring-yellow-500/20"
+              >
+                💳 {typeof userCredits === 'number' ? userCredits : 0}
+              </a>
+
+              <!-- Notification Bell -->
+              {userId && <NotificationBell userId={userId} />}
+
+              <!-- Logout Button (icon only) -->
+              <button
+                id="builders-logout-btn-mobile"
+                type="button"
+                class="inline-flex items-center justify-center rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                title="Cerrar sesión"
+              >
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Bottom row: Navigation tabs (full width) -->
+          <div class="border-t border-border/30">
+            {currentPage && (
+              <BuildersTabs
+                active={currentPage as 'tickets' | 'accounts' | 'creditos'}
+                variant="mobile"
+              />
+            )}
+          </div>
         </div>
       </div>
     </header>
   )}
 
   <!-- Main Content -->
-  <main class="flex-1 space-y-4 p-4 md:p-6">
+  <main class="flex-1">
     <slot />
   </main>
 
@@ -94,8 +162,9 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
 
   <script>
     const logoutBtn = document.getElementById('builders-logout-btn')
+    const logoutBtnMobile = document.getElementById('builders-logout-btn-mobile')
 
-    logoutBtn?.addEventListener('click', async () => {
+    const handleLogout = async () => {
       try {
         // Call custom builders logout endpoint to clear cookies
         await fetch('/api/auth/builders-logout', {
@@ -107,6 +176,9 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
         // Always redirect to builders login page
         window.location.href = '/builders/login'
       }
-    })
+    }
+
+    logoutBtn?.addEventListener('click', handleLogout)
+    logoutBtnMobile?.addEventListener('click', handleLogout)
   </script>
 </Base>

@@ -1,0 +1,17 @@
+---
+/**
+ * Componente PageHeader reutilizable
+ * Usa para títulos y descripciones consistentes en todas las páginas
+ */
+interface Props {
+	title: string
+	description: string
+}
+
+const { title, description } = Astro.props
+---
+
+<div class="mb-4 sm:mb-6">
+	<h1 class="text-foreground mb-1 sm:mb-2 text-2xl sm:text-3xl font-bold">{title}</h1>
+	<p class="text-muted-foreground text-sm sm:text-base">{description}</p>
+</div>
