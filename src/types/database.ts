@@ -3,7 +3,10 @@
  * Two roles: admin and builder
  */
 
-import { USER_ROLES, type UserRole } from '@/consts/constants'
+import { UserRole } from '@/lib/roles'
+
+// Re-export UserRole for convenience
+export { UserRole }
 
 // ===== CORE DATABASE ENUMS =====
 
@@ -11,10 +14,10 @@ export const AUDIT_ACTIONS = ['create', 'update', 'delete'] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
 
 export const NOTIFICATION_TYPES = [
-	'pending_credits',
-	'account_created',
-	'credit_assigned',
-	'system',
+  'pending_credits',
+  'account_created',
+  'credit_assigned',
+  'system',
 ] as const
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
@@ -330,7 +333,10 @@ export interface DatabaseStats {
  * Type guard for UserRole
  */
 export function isUserRole(value: unknown): value is UserRole {
-  return typeof value === 'string' && Object.values(USER_ROLES).includes(value as UserRole)
+  return (
+    typeof value === 'string' &&
+    (value === UserRole.Admin || value === UserRole.Builder)
+  )
 }
 
 /**
@@ -345,9 +351,7 @@ export function isAuditAction(value: unknown): value is AuditAction {
 /**
  * Type guard for NotificationType
  */
-export function isNotificationType(
-  value: unknown
-): value is NotificationType {
+export function isNotificationType(value: unknown): value is NotificationType {
   return (
     typeof value === 'string' &&
     NOTIFICATION_TYPES.includes(value as NotificationType)

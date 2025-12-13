@@ -37,12 +37,8 @@ export const SESSION_KEYS = {
   USER: 'user',
 } as const
 
-export const USER_ROLES = {
-	ADMIN: 'admin',
-	BUILDER: 'builder',
-} as const
-
-export type UserRole = (typeof USER_ROLES)[keyof typeof USER_ROLES]
+// Re-export UserRole enum from centralized roles module
+export { UserRole } from '@/lib/roles'
 
 export const AUTH_PROVIDERS = {
   CREDENTIALS: 'credentials',
@@ -58,6 +54,7 @@ export const HTTP_STATUS = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  TOO_MANY_REQUESTS: 429,
   INTERNAL_SERVER_ERROR: 500,
 } as const
 

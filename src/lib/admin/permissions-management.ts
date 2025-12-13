@@ -1,39 +1,40 @@
 /**
  * RBAC Permission System for Management Area
- * Extends the base permissions.ts to work with AdminSession ('admin' | 'builder')
+ * Extends the base permissions.ts to work with AdminSession (UserRole.Admin | UserRole.Builder)
  * Eliminates code duplication in permission checks
  */
 
 import type { AdminSession } from '@/types/auth'
+import { UserRole } from '@/lib/roles'
 
 // ===== MANAGEMENT PERMISSIONS =====
 
 /**
  * Permission requirements for management operations
- * Maps to AdminSession roles: 'admin' | 'builder'
+ * Maps to AdminSession roles using UserRole enum
  */
 export const MANAGEMENT_OPERATIONS = {
 	// User Management (Admin only)
-	MANAGE_BUILDERS: 'admin',
-	CREATE_BUILDER: 'admin',
-	DELETE_BUILDER: 'admin',
-	ASSIGN_CREDITS: 'admin',
+	MANAGE_BUILDERS: UserRole.Admin,
+	CREATE_BUILDER: UserRole.Admin,
+	DELETE_BUILDER: UserRole.Admin,
+	ASSIGN_CREDITS: UserRole.Admin,
 
 	// Ticket Management
-	VIEW_ALL_TICKETS: 'admin', // Admin can see all tickets
-	VIEW_OWN_TICKETS: 'builder', // Builder can see only their tickets
-	CREATE_TICKET: ['admin', 'builder'], // Both can create
-	DELETE_OWN_TICKET: 'builder', // Builder can delete their own
-	DELETE_ANY_TICKET: 'admin', // Admin can delete any
+	VIEW_ALL_TICKETS: UserRole.Admin, // Admin can see all tickets
+	VIEW_OWN_TICKETS: UserRole.Builder, // Builder can see only their tickets
+	CREATE_TICKET: [UserRole.Admin, UserRole.Builder], // Both can create
+	DELETE_OWN_TICKET: UserRole.Builder, // Builder can delete their own
+	DELETE_ANY_TICKET: UserRole.Admin, // Admin can delete any
 
 	// Console Access
-	ACCESS_CONSOLE: ['admin', 'builder'], // Both can access
-	VIEW_SYSTEM_STATS: 'admin', // Only admin sees full stats
+	ACCESS_CONSOLE: [UserRole.Admin, UserRole.Builder], // Both can access
+	VIEW_SYSTEM_STATS: UserRole.Admin, // Only admin sees full stats
 
 	// Credits Operations
-	CLAIM_CREDITS: 'builder', // Builder claims pending credits
-	VIEW_OWN_CREDITS: 'builder', // Builder views their credits
-	MANAGE_ALL_CREDITS: 'admin', // Admin manages all credits
+	CLAIM_CREDITS: UserRole.Builder, // Builder claims pending credits
+	VIEW_OWN_CREDITS: UserRole.Builder, // Builder views their credits
+	MANAGE_ALL_CREDITS: UserRole.Admin, // Admin manages all credits
 } as const
 
 export type ManagementOperation = keyof typeof MANAGEMENT_OPERATIONS
@@ -83,7 +84,7 @@ export function assertCanPerform(
 export function isAdmin(
 	session: AdminSession | null | undefined
 ): session is AdminSession {
-	return session?.role === 'admin'
+	return session?.role === UserRole.Admin
 }
 
 /**
@@ -93,7 +94,7 @@ export function isAdmin(
 export function isBuilder(
 	session: AdminSession | null | undefined
 ): session is AdminSession {
-	return session?.role === 'builder'
+	return session?.role === UserRole.Builder
 }
 
 /**

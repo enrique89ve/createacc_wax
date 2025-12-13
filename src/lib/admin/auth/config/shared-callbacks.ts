@@ -5,9 +5,11 @@
 
 import type { JWT } from '@auth/core/jwt'
 import type { Session, User } from '@auth/core/types'
+import { type UserRole, isValidRole } from '@/lib/roles'
 
 /**
  * JWT callback - Stores user data in token
+ * Validates role before storing to prevent invalid roles in tokens
  */
 export async function jwtCallback({
   token,
@@ -18,6 +20,12 @@ export async function jwtCallback({
 }) {
   // On sign in, store user data in token
   if (user) {
+    // Validate role BEFORE storing in token
+    if (!isValidRole(user.role)) {
+      console.error('JWT callback: Invalid role rejected:', user.role)
+      throw new Error(`Invalid role in user object: ${user.role}`)
+    }
+
     token.userId = user.id
     token.username = user.username
     token.role = user.role
@@ -30,6 +38,7 @@ export async function jwtCallback({
 
 /**
  * Session callback - Transforms token data into session
+ * Validates role from token to prevent invalid roles in sessions
  */
 export async function sessionCallback({
   session,
@@ -40,10 +49,17 @@ export async function sessionCallback({
 }) {
   // Send properties to the client
   if (token && session.user) {
+    // Validate role from token - do NOT cast, validate
+    const role = token.role
+    if (!isValidRole(role)) {
+      console.error('Session callback: Invalid role in token:', role)
+      throw new Error(`Invalid role in token: ${role}`)
+    }
+
     session.user.id = token.userId as string
     session.user.username = token.username as string
-    session.user.role = token.role as string
-    session.user.auth_method = token.auth_method as string
+    session.user.role = role as UserRole
+    session.user.auth_method = token.auth_method as 'password' | 'keychain'
     session.user.loginTime = token.loginTime as number
   }
 
@@ -52,10 +68,16 @@ export async function sessionCallback({
 
 /**
  * Sign in callback - Controls access based on user data
+ * Rejects sign in if role is invalid
  */
 export async function signInCallback({ user }: { user: User }) {
+  // Validate that user has a valid role - reject if invalid
+  if (!isValidRole(user?.role)) {
+    console.error('Sign in rejected: invalid role', user?.role)
+    return false
+  }
+
   // Allow sign in if user object exists and has required fields
-  // Note: role is optional for admin users (type='admin')
   const isValidUser = Boolean(
     user?.id && user?.username && user?.auth_method && user?.role
   )

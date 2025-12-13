@@ -5,7 +5,7 @@ import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 import { jsonResponse } from '@/utils/api-response'
-import { USER_ROLES } from '@/consts/constants'
+import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
 // Types
@@ -36,7 +36,7 @@ export const GET: APIRoute = async context => {
     try {
       let tickets
 
-      if (session.role === USER_ROLES.ADMIN) {
+      if (session.role === UserRole.Admin) {
         // Admin puede ver todos los tickets
         tickets = await ticketsRepository.getAllWithCreators()
       } else {
@@ -108,7 +108,10 @@ export const POST: APIRoute = async context => {
       // Validación: Código de ticket
       const cleanCode = validateTicketCode(code)
       if (!cleanCode) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_INVALID }, 400)
+        return jsonResponse(
+          { error: API_MESSAGES.ERRORS.TICKET_CODE_INVALID },
+          400
+        )
       }
 
       // Normalizar créditos
@@ -123,7 +126,7 @@ export const POST: APIRoute = async context => {
       const username = userData.username
 
       // Verificar créditos disponibles para builders
-      if (session.role === USER_ROLES.BUILDER) {
+      if (session.role === UserRole.Builder) {
         const userCredits = await creditBalanceTracker.getBalance(username)
 
         if (!userCredits || userCredits.available_amount < credits) {
@@ -140,11 +143,14 @@ export const POST: APIRoute = async context => {
 
       // Validación: Código ya existe
       if (await ticketCodeExists(cleanCode)) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS }, 400)
+        return jsonResponse(
+          { error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS },
+          400
+        )
       }
 
       // Consumir créditos (solo para builders)
-      if (session.role === USER_ROLES.BUILDER) {
+      if (session.role === UserRole.Builder) {
         try {
           await creditsService.deductCreditsForTicket(
             session.userId,
@@ -198,7 +204,10 @@ export const POST: APIRoute = async context => {
         error instanceof Error &&
         error.message.includes('UNIQUE constraint failed')
       ) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS }, 400)
+        return jsonResponse(
+          { error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS },
+          400
+        )
       }
 
       return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)

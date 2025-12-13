@@ -2,7 +2,7 @@
  * Authentication and session types for HolaHive
  */
 
-import type { UserRole } from '@/consts/constants'
+import type { UserRole } from '@/lib/roles'
 
 export type AuthMethod = 'password' | 'keychain'
 

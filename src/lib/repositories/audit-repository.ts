@@ -64,6 +64,10 @@ export class AuditRepository {
 	 */
 	async getAllTicketLogs(limit?: number): Promise<TicketAuditLog[]> {
 		try {
+			const args: number[] = []
+			const limitClause = limit ? 'LIMIT ?' : ''
+			if (limit) args.push(limit)
+
 			const sql = `
 				SELECT
 					ta.*,
@@ -72,10 +76,10 @@ export class AuditRepository {
 				FROM TicketAudit ta
 				LEFT JOIN Users u ON ta.performed_by = u.id
 				ORDER BY ta.timestamp DESC
-				${limit ? `LIMIT ${limit}` : ''}
+				${limitClause}
 			`
 
-			const result = await db.execute({ sql, args: [] })
+			const result = await db.execute({ sql, args })
 
 			return result.rows.map((row: Record<string, unknown>) => ({
 				id: Number(row.id),
@@ -134,6 +138,9 @@ export class AuditRepository {
 			const whereClause =
 				conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
+			const limitClause = limit ? 'LIMIT ?' : ''
+			if (limit) args.push(limit)
+
 			const sql = `
 				SELECT
 					ta.*,
@@ -143,7 +150,7 @@ export class AuditRepository {
 				LEFT JOIN Users u ON ta.performed_by = u.id
 				${whereClause}
 				ORDER BY ta.timestamp DESC
-				${limit ? `LIMIT ${limit}` : ''}
+				${limitClause}
 			`
 
 			const result = await db.execute({ sql, args })
@@ -187,6 +194,10 @@ export class AuditRepository {
 	 */
 	async getAllCreditLogs(limit?: number): Promise<CreditAuditLog[]> {
 		try {
+			const args: number[] = []
+			const limitClause = limit ? 'LIMIT ?' : ''
+			if (limit) args.push(limit)
+
 			const sql = `
 				SELECT
 					ca.*,
@@ -197,10 +208,10 @@ export class AuditRepository {
 				LEFT JOIN Users b ON ca.builder_id = b.id
 				LEFT JOIN Users u ON ca.performed_by = u.id
 				ORDER BY ca.timestamp DESC
-				${limit ? `LIMIT ${limit}` : ''}
+				${limitClause}
 			`
 
-			const result = await db.execute({ sql, args: [] })
+			const result = await db.execute({ sql, args })
 
 			return result.rows.map((row: Record<string, unknown>) => ({
 				id: Number(row.id),
@@ -262,6 +273,9 @@ export class AuditRepository {
 			const whereClause =
 				conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
+			const limitClause = limit ? 'LIMIT ?' : ''
+			if (limit) args.push(limit)
+
 			const sql = `
 				SELECT
 					ca.*,
@@ -273,7 +287,7 @@ export class AuditRepository {
 				LEFT JOIN Users u ON ca.performed_by = u.id
 				${whereClause}
 				ORDER BY ca.timestamp DESC
-				${limit ? `LIMIT ${limit}` : ''}
+				${limitClause}
 			`
 
 			const result = await db.execute({ sql, args })

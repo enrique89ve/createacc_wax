@@ -3,6 +3,7 @@ import { CreationSessionManager } from '@/lib/session-manager'
 import type { AdminSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getSession } from 'auth-astro/server'
+import { parseRole } from '@/lib/roles'
 
 export interface RetrievedSessions {
   admin: import('@/types/auth').AdminSession | null
@@ -23,13 +24,18 @@ export async function getAdminSession(
       return null
     }
 
-    // DEBUG: Log session data
+    // Validate role - DO NOT degrade to builder if invalid
+    const role = parseRole(session.user.role)
+    if (!role) {
+      console.error('Invalid role in session, rejecting:', session.user.role)
+      return null // REJECT session with invalid role
+    }
 
     // Convertir sesión de Auth.js al formato AdminSession
     return {
       userId: parseInt(session.user.id),
       username: session.user.username || '',
-      role: (session.user.role as 'admin' | 'builder') || 'builder',
+      role,
       loginTime: new Date(session.user.loginTime).toISOString(),
     }
   } catch (error) {

@@ -5,6 +5,7 @@ import StatCard from '@/components/ui/StatCard.astro'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
+import { UserRole } from '@/lib/roles'
 
 // Autenticación centralizada - si no está autenticado, se redirige automáticamente
 const currentUser = await getAuthenticatedUser(Astro, 'builders')
@@ -15,7 +16,7 @@ if (currentUser instanceof Response) {
 }
 
 // Asegurar que tenemos un BuilderUser
-if (!currentUser || currentUser.role !== 'builder') {
+if (!currentUser || currentUser.role !== UserRole.Builder) {
   return Astro.redirect('/builders/login')
 }
 
@@ -97,26 +98,37 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
         <!-- Botón integrado - Solo visible si hay créditos pendientes -->
         {
           creditosPendientes > 0 && (
-            <button
-              id="claim-credits-btn"
-              data-username={builderUsername}
-              class="flex w-full items-center justify-center gap-2 rounded-md bg-yellow-500/10 px-4 py-2.5 text-sm font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all hover:bg-yellow-500/20 hover:ring-yellow-500/30 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <>
+              <button
+                id="claim-credits-btn"
+                data-username={builderUsername}
+                class="flex w-full items-center justify-center gap-2 rounded-md bg-yellow-500/10 px-4 py-2.5 text-sm font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all hover:bg-yellow-500/20 hover:ring-yellow-500/30 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              Reclamar ahora
-            </button>
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                Reclamar ahora
+              </button>
+
+              {/* Mensaje de advertencia si Keychain no está disponible */}
+              <div
+                id="keychain-warning"
+                class="mt-2 hidden rounded-md bg-amber-500/10 px-3 py-2 text-xs text-amber-500 ring-1 ring-amber-500/20"
+              >
+                <span class="font-medium">⚠️ Keychain no detectado.</span> Por
+                favor, instala la extensión Hive Keychain y recarga la página.
+              </div>
+            </>
           )
         }
       </div>
@@ -359,9 +371,19 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
     return window.hive_keychain as HiveKeychainWithCustomJson
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    setupEventListeners()
-  })
+  // Función para esperar a que Keychain esté disponible
+  async function waitForKeychain(
+    maxAttempts = 10,
+    delayMs = 300
+  ): Promise<boolean> {
+    for (let i = 0; i < maxAttempts; i++) {
+      if (getHiveKeychain()) {
+        return true
+      }
+      await new Promise(resolve => setTimeout(resolve, delayMs))
+    }
+    return false
+  }
 
   function getCurrentUsername() {
     const claimBtn = document.getElementById('claim-credits-btn')
@@ -374,8 +396,32 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
     const claimBtn = document.getElementById(
       'claim-credits-btn'
     ) as HTMLButtonElement | null
-    claimBtn?.addEventListener('click', handleClaimCredits)
+
+    if (claimBtn) {
+      // Remover listener anterior si existe para evitar duplicados
+      claimBtn.removeEventListener('click', handleClaimCredits)
+      claimBtn.addEventListener('click', handleClaimCredits)
+    }
+
+    // Verificar disponibilidad de Keychain después de un momento
+    setTimeout(checkKeychainAvailability, 1500)
   }
+
+  function checkKeychainAvailability() {
+    const warning = document.getElementById('keychain-warning')
+    if (!warning) return
+
+    if (!getHiveKeychain()) {
+      warning.classList.remove('hidden')
+    } else {
+      warning.classList.add('hidden')
+    }
+  }
+
+  // Usar astro:page-load para inicializar en cada navegación (View Transitions)
+  document.addEventListener('astro:page-load', () => {
+    setupEventListeners()
+  })
 
   async function handleClaimCredits() {
     const claimBtn = document.getElementById(
@@ -406,10 +452,19 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 
       claimBtn.textContent = 'Conectando Keychain...'
 
-      // 2. Verificar que Keychain esté disponible
+      // 2. Verificar que Keychain esté disponible (con reintentos)
+      const keychainAvailable = await waitForKeychain()
+      if (!keychainAvailable) {
+        notify(
+          'error',
+          'Hive Keychain no está instalado o no está disponible. Por favor, instala la extensión y recarga la página.'
+        )
+        return
+      }
+
       const hiveKeychain = getHiveKeychain()
       if (!hiveKeychain) {
-        notify('error', 'Hive Keychain no está instalado')
+        notify('error', 'Error al acceder a Hive Keychain')
         return
       }
 
@@ -423,7 +478,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 
       claimBtn.textContent = 'Firmando operación...'
 
-      // 4. Solicitar firma de custom JSON a Keychain
+      // 4. Solicitar firma de custom JSON a Keychain con timeout y manejo de cancelación
       const keyResult: HiveKeychainResponse = await new Promise(resolve => {
         const hiveKeychain = getHiveKeychain()
         if (!hiveKeychain) {
@@ -434,20 +489,112 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
           })
         }
 
-        hiveKeychain.requestCustomJson(
-          username,
-          customJsonData.id,
-          'Posting',
-          JSON.stringify(customJsonData.json),
-          'Claim Credits - HolaHive',
-          (response: HiveKeychainResponse) => {
-            resolve(response)
-          }
-        )
+        let isResolved = false
+        let timeoutId: number | null = null
+
+        // Función para resolver solo una vez
+        const resolveOnce = (response: HiveKeychainResponse) => {
+          if (isResolved) return
+          isResolved = true
+          if (timeoutId) clearTimeout(timeoutId)
+          resolve(response)
+        }
+
+        // Timeout de 60 segundos para la respuesta de Keychain
+        timeoutId = window.setTimeout(() => {
+          resolveOnce({
+            success: false,
+            message:
+              'Tiempo de espera agotado. Por favor, verifica que respondiste en Keychain.',
+            result: { id: '' },
+          })
+        }, 60000)
+
+        try {
+          // Keychain puede llamar al callback con diferentes firmas dependiendo de cómo se cancela
+          hiveKeychain.requestCustomJson(
+            username,
+            customJsonData.id,
+            'Posting',
+            JSON.stringify(customJsonData.json),
+            'Claim Credits - HolaHive',
+            function (response: any) {
+              // Usar function() en lugar de arrow function para evitar problemas de contexto
+              try {
+                // Si ya se resolvió, simplemente salir sin hacer nada
+                if (isResolved) return
+
+                // Manejar diferentes tipos de respuesta que puede devolver Keychain
+                if (!response) {
+                  resolveOnce({
+                    success: false,
+                    message: 'Operación cancelada',
+                    result: { id: '' },
+                  })
+                  return
+                }
+
+                // Keychain a veces devuelve una string en lugar de objeto cuando cancela
+                if (typeof response === 'string') {
+                  resolveOnce({
+                    success: false,
+                    message: response,
+                    result: { id: '' },
+                  })
+                  return
+                }
+
+                // Respuesta normal de Keychain
+                if (typeof response === 'object' && 'success' in response) {
+                  resolveOnce(response as HiveKeychainResponse)
+                } else {
+                  resolveOnce({
+                    success: false,
+                    message: 'Respuesta inválida de Keychain',
+                    result: { id: '' },
+                  })
+                }
+              } catch (callbackError) {
+                // Capturar cualquier error dentro del callback sin propagarlo
+                if (!isResolved) {
+                  resolveOnce({
+                    success: false,
+                    message: 'Error procesando respuesta de Keychain',
+                    result: { id: '' },
+                  })
+                }
+              }
+            }
+          )
+        } catch (error) {
+          resolveOnce({
+            success: false,
+            message:
+              error instanceof Error
+                ? error.message
+                : 'Error al comunicar con Keychain',
+            result: { id: '' },
+          })
+        }
       })
 
       if (!keyResult.success) {
-        notify('error', keyResult.message || 'Error firmando con Keychain')
+        const message = keyResult.message || 'Error firmando con Keychain'
+        // Detectar diferentes tipos de cancelación o timeout
+        if (
+          message.toLowerCase().includes('cancel') ||
+          message.toLowerCase().includes('user cancel') ||
+          message.toLowerCase().includes('operación cancelada')
+        ) {
+          notify('info', 'Operación cancelada por el usuario')
+        } else if (
+          message.toLowerCase().includes('timeout') ||
+          message.toLowerCase().includes('tiempo de espera')
+        ) {
+          notify('warning', 'Tiempo de espera agotado. Intenta nuevamente.')
+        } else {
+          notify('error', message)
+        }
         return
       }
 

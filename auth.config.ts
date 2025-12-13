@@ -6,22 +6,23 @@ import {
   signInCallback,
   redirectCallback,
 } from '@/lib/admin/auth/config/shared-callbacks'
+import type { UserRole } from '@/lib/roles'
 
-// Extend Auth.js types for our application
+// Extend Auth.js types for our application with strict typing
 declare module '@auth/core/types' {
   interface User {
-    username?: string
-    role?: string
-    auth_method?: string
-    loginTime?: number
+    username: string
+    role: UserRole
+    auth_method: 'password' | 'keychain'
+    loginTime: number
   }
 
   interface Session {
     user: {
       id: string
       username: string
-      role: string
-      auth_method: string
+      role: UserRole
+      auth_method: 'password' | 'keychain'
       loginTime: number
     }
   }

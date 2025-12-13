@@ -4,6 +4,7 @@ import {
   usersRepository,
   type BuilderWithStats,
 } from '@/lib/repositories/users-repository'
+import { UserRole } from '@/lib/roles'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -13,7 +14,7 @@ if (!session) {
 }
 
 // Verificar que sea admin (solo admins pueden gestionar builders)
-if (session.role !== 'admin') {
+if (session.role !== UserRole.Admin) {
   return Astro.redirect('/management/console')
 }
 

@@ -6,7 +6,7 @@ import type { DatabaseTicketRow } from '@/types/database'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 import { jsonResponse } from '@/utils/api-response'
-import { USER_ROLES } from '@/consts/constants'
+import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 
@@ -14,7 +14,7 @@ import { requireValidOrigin } from '@/utils/csrf-protection'
 interface CreatorInfo {
   readonly userId: number
   readonly username: string
-  readonly role: 'builder' | 'admin'
+  readonly role: UserRole
 }
 
 interface TicketDeletionResult {
@@ -45,17 +45,17 @@ const getTicketCreator = async (
   return {
     userId: user.id as number,
     username: user.username as string,
-    role: user.role as 'admin' | 'builder',
+    role: user.role as UserRole,
   }
 }
 
-// Helper: Verificar permisos de eliminaci�n
+// Helper: Verificar permisos de eliminación
 const canDeleteTicket = (
   sessionRole: string,
   sessionUserId: number,
   creatorUserId: number
 ): boolean => {
-  return sessionRole === USER_ROLES.ADMIN || sessionUserId === creatorUserId
+  return sessionRole === UserRole.Admin || sessionUserId === creatorUserId
 }
 
 // Helper: Crear auditor�a de eliminaci�n
@@ -90,7 +90,10 @@ export const DELETE: APIRoute = async context => {
 
       // Validaci�n: ID de ticket
       if (!ticketId || isNaN(Number(ticketId))) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_ID_INVALID }, 400)
+        return jsonResponse(
+          { error: API_MESSAGES.ERRORS.TICKET_ID_INVALID },
+          400
+        )
       }
 
       // Obtener ticket
@@ -100,7 +103,10 @@ export const DELETE: APIRoute = async context => {
       })
 
       if (ticketResult.rows.length === 0) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_NOT_FOUND }, 404)
+        return jsonResponse(
+          { error: API_MESSAGES.ERRORS.TICKET_NOT_FOUND },
+          404
+        )
       }
 
       const ticket = parseTicketRow(ticketResult.rows[0])

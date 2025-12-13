@@ -6,7 +6,8 @@ import {
   assertCanPerform,
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
-import { USER_ROLES, CREDITS_LIMITS } from '@/consts/constants'
+import { CREDITS_LIMITS } from '@/consts/constants'
+import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 
 // GET: Listar usuarios builders
@@ -30,7 +31,7 @@ export const GET: APIRoute = async context => {
       const users = builders.map(builder => ({
         id: builder.id,
         username: builder.hive_username,
-        role: USER_ROLES.BUILDER,
+        role: UserRole.Builder,
         is_active: builder.is_active,
         last_claim_at: builder.last_claim_at,
         created_at: builder.created_at,
@@ -122,7 +123,7 @@ export const POST: APIRoute = async context => {
       // Crear builder usando the unified repository
       const newUser = await usersRepository.create({
         username: cleanUsername,
-        role: USER_ROLES.BUILDER,
+        role: UserRole.Builder,
         is_active: true,
       })
 
@@ -143,7 +144,7 @@ export const POST: APIRoute = async context => {
           user: {
             id: builderId,
             hive_username: cleanUsername,
-            role: USER_ROLES.BUILDER,
+            role: UserRole.Builder,
             initial_credits: 100,
           },
         }),
@@ -192,8 +193,15 @@ export const DELETE: APIRoute = async context => {
 
       const url = new URL(context.request.url)
       const userId = url.searchParams.get('id')
+      const parsedId = Number(userId)
 
-      if (!userId || !Number.isInteger(Number(userId))) {
+      // Validación estricta: debe ser entero positivo y dentro de rango seguro
+      if (
+        !userId ||
+        !Number.isInteger(parsedId) ||
+        parsedId <= 0 ||
+        parsedId > Number.MAX_SAFE_INTEGER
+      ) {
         return new Response(
           JSON.stringify({ error: 'ID de usuario inválido' }),
           {
@@ -204,9 +212,9 @@ export const DELETE: APIRoute = async context => {
       }
 
       // Verificar que el builder existe usando the unified repository
-      const user = await usersRepository.findById(Number(userId))
+      const user = await usersRepository.findById(parsedId)
 
-      if (!user || user.role !== USER_ROLES.BUILDER) {
+      if (!user || user.role !== UserRole.Builder) {
         return new Response(
           JSON.stringify({ error: 'Builder no encontrado' }),
           {
@@ -217,7 +225,7 @@ export const DELETE: APIRoute = async context => {
       }
 
       // Eliminar builder y limpiar dependencias
-      await usersRepository.deleteBuilderWithReferences(Number(userId))
+      await usersRepository.deleteBuilderWithReferences(parsedId)
 
       return new Response(
         JSON.stringify({

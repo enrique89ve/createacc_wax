@@ -11,11 +11,12 @@ import { getSession } from 'auth-astro/server'
 import type { APIContext } from 'astro'
 import type { Session } from '@auth/core/types'
 import { ROUTES } from '@/consts/constants'
+import { UserRole } from '@/lib/roles'
 
 export interface AdminUser {
   readonly id: number
   readonly username: string
-  readonly role: 'admin'
+  readonly role: typeof UserRole.Admin
   readonly auth_method: 'password'
   readonly loginTime: number
 }
@@ -23,7 +24,7 @@ export interface AdminUser {
 export interface BuilderUser {
   readonly id: number
   readonly username: string
-  readonly role: 'builder'
+  readonly role: typeof UserRole.Builder
   readonly auth_method: 'keychain'
   readonly loginTime: number
 }
@@ -70,7 +71,7 @@ async function validateSession(
       user: {
         id: Number(user.id),
         username: user.username,
-        role: 'admin' as const,
+        role: UserRole.Admin,
         auth_method: 'password' as const,
         loginTime: user.loginTime || Date.now(),
       },
@@ -81,7 +82,7 @@ async function validateSession(
       user: {
         id: Number(user.id),
         username: user.username,
-        role: 'builder' as const,
+        role: UserRole.Builder,
         auth_method: 'keychain' as const,
         loginTime: user.loginTime || Date.now(),
       } satisfies BuilderUser,
@@ -100,8 +101,8 @@ function validateAdminSession(session: Session | null): {
     return { isValid: false, redirectTo: ROUTES.LOGIN }
   }
 
-  // Admin debe tener role === 'admin'
-  if (session.user.role !== 'admin') {
+  // Admin debe tener role === UserRole.Admin
+  if (session.user.role !== UserRole.Admin) {
     return { isValid: false, redirectTo: ROUTES.LOGIN }
   }
 
@@ -119,8 +120,8 @@ function validateBuildersSession(session: Session | null): {
     return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
   }
 
-  // Builder debe tener role === 'builder'
-  if (session.user.role !== 'builder') {
+  // Builder debe tener role === UserRole.Builder
+  if (session.user.role !== UserRole.Builder) {
     return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
   }
 
@@ -171,26 +172,26 @@ export async function getAuthenticatedUser(
  * Check if user is admin
  */
 export function isAdmin(user: AuthenticatedUser): boolean {
-  return user.role === 'admin'
+  return user.role === UserRole.Admin
 }
 
 /**
  * Check if user is builder
  */
 export function isBuilder(user: AuthenticatedUser): boolean {
-  return user.role === 'builder'
+  return user.role === UserRole.Builder
 }
 
 /**
  * Type guard for AdminUser
  */
 export function isAdminUser(user: AuthenticatedUser): user is AdminUser {
-  return user.role === 'admin'
+  return user.role === UserRole.Admin
 }
 
 /**
  * Type guard for BuilderUser
  */
 export function isBuilderUser(user: AuthenticatedUser): user is BuilderUser {
-  return user.role === 'builder'
+  return user.role === UserRole.Builder
 }

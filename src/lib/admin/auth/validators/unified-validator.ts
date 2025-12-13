@@ -11,6 +11,7 @@ import {
   createHiveSignature,
   createHiveUsername,
 } from '@/types/hive-signature'
+import { UserRole } from '@/lib/roles'
 
 export interface BaseCredentials {
   readonly username: string
@@ -38,7 +39,7 @@ export type AuthCredentials = PasswordCredentials | KeychainCredentials
 export interface AuthenticatedUserResult {
   readonly id: string
   readonly username: string
-  readonly role: 'admin' | 'builder'
+  readonly role: UserRole
   readonly auth_method: 'password' | 'keychain'
   readonly loginTime: number
 }
@@ -163,7 +164,7 @@ const passwordStrategy: AuthenticationStrategy<PasswordCredentials> = {
       user: {
         id: passwordResult.user.id.toString(),
         username: passwordResult.user.username || credentials.username,
-        role: 'admin',
+        role: UserRole.Admin,
         auth_method: 'password',
         loginTime: Date.now(),
       },
@@ -206,7 +207,7 @@ const keychainStrategy: AuthenticationStrategy<KeychainCredentials> = {
       user: {
         id: keychainResult.user.id?.toString() || credentials.username,
         username: keychainResult.user.username || credentials.username,
-        role: 'builder',
+        role: UserRole.Builder,
         auth_method: 'keychain',
         loginTime: Date.now(),
       },

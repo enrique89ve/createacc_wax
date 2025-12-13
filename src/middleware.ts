@@ -9,6 +9,7 @@ import {
 } from '@/lib/admin/auth/helpers/auth-guards'
 import type { APIContext } from 'astro'
 import type { AdminSession } from '@/types/auth'
+import { parseRole } from '@/lib/roles'
 
 /**
  * Route protection configuration
@@ -38,6 +39,7 @@ function isLoginPage(pathname: string): boolean {
 /**
  * Convierte el resultado del guard al formato legacy esperado en la app
  * Maneja usuarios temporales (ID 0) rechazándolos para evitar acceso no autorizado
+ * Validates role strictly - does NOT assume unknown roles are 'builder'
  */
 function mapGuardResultToAdmin(guardResult: any): AdminSession {
   const rawId = guardResult.id ?? ''
@@ -45,13 +47,14 @@ function mapGuardResultToAdmin(guardResult: any): AdminSession {
 
   // Usuarios temporales (ID 0) no deben acceder a management
   if (Number.isNaN(userId) || userId === 0) {
-    throw new Error()
+    throw new Error('Invalid user ID: temporary users cannot access management')
   }
 
-  // Type-safe role mapping
-  const sessionRole = guardResult.role
-  const role: 'admin' | 'builder' =
-    sessionRole === 'admin' ? 'admin' : 'builder'
+  // Validate role strictly - reject if not a valid UserRole
+  const role = parseRole(guardResult.role)
+  if (!role) {
+    throw new Error(`Invalid role: ${guardResult.role}`)
+  }
 
   return {
     userId,

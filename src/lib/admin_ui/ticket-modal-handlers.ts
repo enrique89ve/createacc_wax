@@ -297,13 +297,27 @@ function setupUpdateModalListeners() {
     if (confirmBtn) confirmBtn.disabled = false
 
     if (previewContent) {
-      previewContent.innerHTML = `
-				<div class="flex items-center justify-center gap-2 text-sm">
-					<span class="text-gray-400">El ticket tendrá:</span>
-					<span class="font-mono text-lg font-bold text-white">${newCredits}</span>
-					<span class="text-gray-500">créditos</span>
-				</div>
-			`
+      // Usar createElement para prevenir XSS
+      previewContent.textContent = ''
+      const container = document.createElement('div')
+      container.className = 'flex items-center justify-center gap-2 text-sm'
+
+      const labelSpan = document.createElement('span')
+      labelSpan.className = 'text-gray-400'
+      labelSpan.textContent = 'El ticket tendrá:'
+
+      const valueSpan = document.createElement('span')
+      valueSpan.className = 'font-mono text-lg font-bold text-white'
+      valueSpan.textContent = String(newCredits)
+
+      const unitSpan = document.createElement('span')
+      unitSpan.className = 'text-gray-500'
+      unitSpan.textContent = 'créditos'
+
+      container.appendChild(labelSpan)
+      container.appendChild(valueSpan)
+      container.appendChild(unitSpan)
+      previewContent.appendChild(container)
     }
     previewBox?.classList.remove('hidden')
   })

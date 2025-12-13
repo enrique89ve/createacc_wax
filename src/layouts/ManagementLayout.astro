@@ -7,6 +7,7 @@
 import Base from './Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { TITLE_SUFFIXES } from '@/consts/seo'
+import { UserRole } from '@/lib/roles'
 
 interface Props {
   title: string
@@ -73,7 +74,7 @@ const navItems = [
             <span
               class="bg-primary/20 text-primary rounded-full px-2 py-1 text-xs font-medium"
             >
-              {session.role === 'admin' ? 'Admin' : 'Builder'}
+              {session.role === UserRole.Admin ? 'Admin' : 'Builder'}
             </span>
           </div>
           <div class="flex items-center gap-4">
@@ -98,7 +99,7 @@ const navItems = [
           {
             navItems.map(item => {
               // Ocultar items admin-only para no-admins
-              if (item.adminOnly && session.role !== 'admin') {
+              if (item.adminOnly && session.role !== UserRole.Admin) {
                 return null
               }
 
