@@ -2,6 +2,7 @@
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import StatCard from '@/components/ui/StatCard.astro'
+import { formatDateTime } from '@/utils/date-formatters'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
@@ -206,13 +207,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
                   {creditHistory.map(item => (
                     <tr class="hover:bg-muted/40">
                       <td class="text-muted-foreground px-6 py-3">
-                        {new Date(item.timestamp).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        {formatDateTime(item.timestamp)}
                       </td>
                       <td class="px-4 py-3">
                         <span
@@ -305,13 +300,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
                   <div class="space-y-2 p-3">
                     {/* Fecha */}
                     <div class="text-muted-foreground text-xs">
-                      {new Date(item.timestamp).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatDateTime(item.timestamp)}
                     </div>
 
                     {/* Descripción */}

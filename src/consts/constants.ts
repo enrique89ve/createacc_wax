@@ -3,7 +3,7 @@
 export const BEEKEEPER_CONFIG = {
   WALLET_NAME: 'holahive-creator',
   SESSION_PREFIX: 'holahive-session',
-  SESSION_SALT: 'holahive-beekeeper-salt-2024',
+  SESSION_SALT: 'holahive-beekeeper-salt-v1',
 } as const
 
 export const RC_DELEGATION_AMOUNT = '50000000000' as const
@@ -98,12 +98,6 @@ export const CREATION_SESSION_CONFIG = {
   SIGNATURE_ALGORITHM: 'sha256',
 } as const
 
-export const AUTH_CONFIG = {
-  MAX_LOGIN_ATTEMPTS: 5,
-  RATE_LIMIT_WINDOW: 60000, // 1 minute
-  SESSION_TIMEOUT: 86400000, // 24 hours in milliseconds
-} as const
-
 /**
  * Límites de créditos para operaciones administrativas
  */
@@ -152,7 +146,7 @@ export const BLOCKCHAIN_VERIFICATION_CONFIG = {
 } as const
 
 export const RC_DELEGATION_CONFIG = {
-  DELAY_MS: 1000,
+  DELAY_MS: 2000,
   CACHE_CLEANUP_MS: 300000, // 5 minutes
 } as const
 
@@ -168,6 +162,7 @@ export const ENV_KEYS = {
   MAINNET: 'MAINNET',
   BEEKEEPER_WALLET_PASSWORD: 'BEEKEEPER_WALLET_PASSWORD',
   SESSION_SECRET: 'SESSION_SECRET',
+  TRUST_PROXY_HEADERS: 'TRUST_PROXY_HEADERS',
 } as const
 
 // Management UI - Client-side constants for admin console
@@ -253,6 +248,7 @@ export const BUILDERS_UI = {
   TICKET_VALIDATION: {
     MIN_LENGTH: 4,
     MAX_LENGTH: 16,
+    ALPHANUMERIC_REGEX: /^[a-zA-Z0-9]+$/,
     ONLY_NUMBERS_REGEX: /^\d+$/,
   },
   DEBOUNCE_DELAY_MS: 500,

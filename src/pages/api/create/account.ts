@@ -8,10 +8,7 @@ import {
   HTTP_STATUS,
 } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
-import {
-  isSuspiciousUsername,
-  getSuspiciousReason,
-} from '@/utils/suspicious-username'
+import { isSuspiciousUsername } from '@/utils/suspicious-username'
 import {
   // checkIdempotency, // removido para no validar reutilización de ticket
   completeAccountCreationInDB,
@@ -60,7 +57,12 @@ export type AccountCreationResponse =
   | AccountCreationSuccessResponse
   | AccountCreationFailureResponse
 
-// Cache simple para evitar delegaciones duplicadas
+/**
+ * Cache en memoria para evitar delegaciones RC duplicadas al mismo usuario.
+ * @limitation Solo funciona en single-server. En multi-server (horizontal scaling),
+ * cada instancia tiene su propio Set, por lo que delegaciones duplicadas pueden ocurrir.
+ * Para multi-server, reemplazar con Redis o flag en base de datos.
+ */
 const processedUsers = new Set<string>()
 
 // Función para limpiar usuario del cache después de 5 minutos
@@ -78,12 +80,14 @@ function scheduleUserCleanup(username: string) {
  *
  * 1. Validación de datos del request (formato, claves públicas)
  * 2. Validación de sesión (descarga confirmada)
- * 3. Validaciones de negocio (username válido, no sospechoso)
- * 4. Verificación de idempotencia (evitar duplicación)
- * 5. Creación de cuenta en blockchain
- * 6. Operaciones de base de datos atómicas
- * 7. Limpieza de sesión
- * 8. Delegación de Resource Credits (async)
+ * 3. Validación de username contra blockchain Hive
+ * 4. Verificación de username sospechoso
+ * 5. Idempotencia de sesión (cuenta ya creada)
+ * 6. Idempotencia en base de datos (cuenta ya existe)
+ * 7. Creación de cuenta en blockchain
+ * 8. Delegación de Resource Credits (async, siempre post-creación on-chain)
+ * 9. Operaciones atómicas en base de datos
+ * 10. Limpieza de sesión
  *
  * Patrones usados:
  * - Validation Result Pattern para separar validación de HTTP
@@ -134,8 +138,6 @@ export const POST: APIRoute = async context => {
 
     // PASO 4: Verificar si es un usuario sospechoso (validación de seguridad)
     if (isSuspiciousUsername(username)) {
-      const reason = getSuspiciousReason(username)
-
       return createJsonResponse(
         {
           success: false,
@@ -150,7 +152,7 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    // PASO 3: Verificar si la cuenta ya fue creada para evitar duplicación
+    // PASO 5: Verificar si la cuenta ya fue creada en sesión (idempotencia)
     if (creationSession.accountCreated) {
       return createJsonResponse(
         {
@@ -164,7 +166,7 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    // PASO 4: Verificación simple de idempotencia (solo existencia de cuenta, ignorando ticket usado)
+    // PASO 6: Verificación de idempotencia en DB (cuenta ya existe)
     const accountAlreadyExists = await accountExistsInDB(username)
     if (accountAlreadyExists) {
       return createJsonResponse(
@@ -186,13 +188,31 @@ export const POST: APIRoute = async context => {
     const obfuscatedTicket = creationSession.ticket
       ? obfuscateTicket(creationSession.ticket)
       : 'N/A'
+    console.warn(
+      `[${correlationId}] Creating account for ${username} with ticket ${obfuscatedTicket}`
+    )
 
-    // PASO 5: Crear la cuenta en la blockchain
+    // PASO 7: Crear la cuenta en la blockchain
     const transaction = await createAccount(params)
 
-    // PASO 6: Verificar que la cuenta realmente existe usando polling inteligente
+    // PASO 8: Delegación RC (siempre que la cuenta se cree on-chain)
+    if (!processedUsers.has(username)) {
+      processedUsers.add(username)
+      setTimeout(async () => {
+        try {
+          await delegateResourceCredits({
+            delegatee: username,
+            maxRc: RC_DELEGATION_AMOUNT,
+          })
+        } catch (delegationError) {
+          // La delegación falla pero no afecta la creación de cuenta
+        } finally {
+          scheduleUserCleanup(username)
+        }
+      }, RC_DELEGATION_CONFIG.DELAY_MS)
+    }
 
-    // PASO 7: Operaciones atómicas en base de datos
+    // PASO 9: Operaciones atómicas en base de datos
     const dbResult = await completeAccountCreationInDB(
       username,
       creationSession.ticket,
@@ -225,7 +245,7 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    // PASO 8: Limpiar la sesión (marcar como completada y limpiar ticket)
+    // PASO 10: Limpiar la sesión (marcar como completada y limpiar ticket)
     const sessionManager = new CreationSessionManager(
       context.cookies,
       context.request
@@ -235,26 +255,6 @@ export const POST: APIRoute = async context => {
       accountCreated: true,
       ticket: undefined, // Limpiar ticket para prevenir reutilización
     })
-
-    // PASO 9: Delegación RC independiente con delay y cache anti-duplicación
-    if (!processedUsers.has(username)) {
-      processedUsers.add(username)
-
-      // Programar delegación RC después de delay configurado
-      setTimeout(async () => {
-        try {
-          const delegationTransaction = await delegateResourceCredits({
-            delegatee: username,
-            maxRc: RC_DELEGATION_AMOUNT,
-          })
-        } catch (delegationError) {
-          // La delegación falla pero no afecta la creación de cuenta
-        } finally {
-          // Programar limpieza del cache
-          scheduleUserCleanup(username)
-        }
-      }, RC_DELEGATION_CONFIG.DELAY_MS)
-    }
 
     return createJsonResponse(
       {

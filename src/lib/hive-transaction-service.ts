@@ -1,4 +1,4 @@
-import { hiveChain } from '@/lib/hiveservice'
+import { hiveChain, isMainnet } from '@/lib/hiveservice'
 import { BeekeeperService } from '@/lib/create/beekeeper-service'
 import type { ITransactionBase, ITransaction } from '@hiveio/wax'
 import type { IBeekeeperUnlockedWallet } from '@hiveio/beekeeper'
@@ -59,29 +59,35 @@ export class HiveTransactionService {
 
       return await this.executeWithRetry(async () => {
         const chain = await hiveChain()
-        const tx = await chain.createTransaction()
 
-        operationBuilder(tx, this.config.account)
+        try {
+          const tx = await chain.createTransaction()
 
-        // Validate transaction using Wax native validation
-        tx.validate()
+          operationBuilder(tx, this.config.account)
 
-        // Ensure wallet and publicKey are defined before using
-        if (!wallet || !publicKey) {
-          throw new Error('Wallet or public key is not available')
+          // Validate transaction using Wax native validation
+          tx.validate()
+
+          // Ensure wallet and publicKey are defined before signing
+          if (!wallet || !publicKey) {
+            throw new Error('Wallet or public key is not available')
+          }
+
+          // Sign the transaction with the beekeeper wallet
+          const signature = wallet.signDigest(publicKey, tx.sigDigest)
+          tx.addSignature(signature)
+
+          tx.toApi()
+
+          if (isMainnet()) {
+            await chain.broadcast(tx)
+          }
+
+          // Capture ID before deleting chain (tx.id uses WASM internally)
+          return { id: tx.id }
+        } finally {
+          chain.delete()
         }
-
-        tx.toApi()
-
-        // Broadcast the transaction
-        // await chain.broadcast(tx)
-
-        // Capture ID before deleting chain
-        const txId = tx.id
-
-        chain.delete()
-
-        return { id: txId }
       })
     } finally {
       // Asegurar que el wallet se bloquee siempre, incluso si hubo error en la creación
@@ -97,14 +103,10 @@ export class HiveTransactionService {
    * Ejecuta una operación con retry logic para errores de red
    */
   private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
-    let lastError: unknown
-
     for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
       try {
         return await operation()
       } catch (error) {
-        lastError = error
-
         // Usar utilidad centralizada para determinar si es retryable
         const isRetryable = shouldRetryWaxError(error)
 
@@ -118,7 +120,7 @@ export class HiveTransactionService {
       }
     }
 
-    throw lastError
+    throw new Error('Unexpected: retry loop exited without result')
   }
 }
 

@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { formatDateTime } from '@/utils/date-formatters'
 import { accountsRepository } from '@/lib/repositories/accounts-repository'
 import type { DatabaseAccountRow } from '@/types/database'
 
@@ -54,27 +55,6 @@ try {
   console.error('Error loading accounts:', err)
 }
 
-// Helper para formatear fechas
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-// Helper para formatear fecha corta
-function formatShortDate(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 ---
 
 <ManagementLayout title="Cuentas Creadas" activeTab="accounts">
@@ -284,7 +264,7 @@ function formatShortDate(dateStr: string): string {
                         </a>
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                        {formatDate(account.creation_date)}
+                        {formatDateTime(account.creation_date)}
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                         {account.ticket_by || 'Sin asignar'}

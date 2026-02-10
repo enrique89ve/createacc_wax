@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { formatDate } from '@/utils/date-formatters'
 import {
   usersRepository,
   type BuilderWithStats,
@@ -120,11 +121,11 @@ try {
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     {builder.last_claim_at
-                      ? new Date(builder.last_claim_at).toLocaleDateString()
+                      ? formatDate(builder.last_claim_at)
                       : 'Nunca'}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {new Date(builder.created_at).toLocaleDateString()}
+                    {formatDate(builder.created_at)}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <div class="flex gap-2">

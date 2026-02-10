@@ -72,8 +72,28 @@ if (createForm) {
       return
     }
 
+    if (code.length > 16) {
+      showError('El código no puede exceder 16 caracteres')
+      return
+    }
+
+    if (!/^[a-zA-Z0-9]+$/.test(code)) {
+      showError('El código solo puede contener letras y números')
+      return
+    }
+
+    if (/^\d+$/.test(code)) {
+      showError('El código no puede ser solo números')
+      return
+    }
+
     if (isNaN(credits) || credits < 1) {
       showError('La cantidad de créditos debe ser al menos 1')
+      return
+    }
+
+    if (credits > 100) {
+      showError('Los créditos no pueden exceder 100')
       return
     }
 

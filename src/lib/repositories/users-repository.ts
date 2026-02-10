@@ -374,9 +374,10 @@ export class UsersRepository {
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // 1. Desactivar todos los tickets del builder (soft delete)
+      // 1. Desactivar todos los tickets del builder (poner créditos a 0)
+      // is_active es columna VIRTUAL (credits > 0), no se puede escribir directamente
       await db.execute({
-        sql: 'UPDATE Tickets SET is_active = 0 WHERE created_by = ?',
+        sql: 'UPDATE Tickets SET credits = 0, updated_at = CURRENT_TIMESTAMP WHERE created_by = ?',
         args: [builderId],
       })
 

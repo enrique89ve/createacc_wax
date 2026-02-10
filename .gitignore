@@ -37,6 +37,9 @@ storage_root-node/
 *.db-shm
 *.db-wal
 
+# Test output
+test-results/
+
 # Markdown files (except README.md)
 *.md
 !README.md

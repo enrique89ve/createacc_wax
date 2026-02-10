@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { db } from '@/lib/database'
+import { formatDateTime } from '@/utils/date-formatters'
 import { HTTP_STATUS } from '@/consts/constants'
 // Logger removed
 
@@ -93,7 +94,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       ]
 
       const csvRows = creditHistory.map(item => [
-        new Date(item.timestamp || item.created_at).toLocaleString('es-ES'),
+        formatDateTime(item.timestamp || item.created_at),
         item.type,
         item.code,
         item.description || '',

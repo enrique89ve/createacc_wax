@@ -2,6 +2,7 @@
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import TicketActionModal from '@/components/ui/TicketActionModal.astro'
+import { formatDate, formatShortDateTime } from '@/utils/date-formatters'
 import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
@@ -131,11 +132,7 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
                         </span>
                       </td>
                       <td class="px-4 py-3 align-middle text-center text-muted-foreground">
-                        {new Date(t.created_at).toLocaleDateString('es-ES', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                        {formatDate(t.created_at)}
                       </td>
                       <td class="px-4 py-3 align-middle">
                         <div class="flex items-center justify-center gap-2">
@@ -192,10 +189,7 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
                     <div class="flex items-center justify-between">
                       <span class="text-foreground font-semibold text-sm">{t.code}</span>
                       <span class="text-muted-foreground text-xs">
-                        {new Date(t.created_at).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
+                        {formatShortDateTime(t.created_at)}
                       </span>
                     </div>
                     {t.description && (
@@ -402,6 +396,7 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
   import { notify } from '@/utils/toast'
 
   // ===== CONSTANTS =====
+  const ALPHANUMERIC_REGEX = BUILDERS_UI.TICKET_VALIDATION.ALPHANUMERIC_REGEX
   const ONLY_NUMBERS_REGEX = BUILDERS_UI.TICKET_VALIDATION.ONLY_NUMBERS_REGEX
   const MIN_TICKET_NAME_LENGTH = BUILDERS_UI.TICKET_VALIDATION.MIN_LENGTH
   const MAX_TICKET_NAME_LENGTH = BUILDERS_UI.TICKET_VALIDATION.MAX_LENGTH
@@ -415,6 +410,9 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
     }
     if (name.length > MAX_TICKET_NAME_LENGTH) {
       return `El nombre no puede exceder ${MAX_TICKET_NAME_LENGTH} caracteres`
+    }
+    if (!ALPHANUMERIC_REGEX.test(name)) {
+      return 'Solo puede contener letras y números'
     }
     if (ONLY_NUMBERS_REGEX.test(name)) {
       return 'No puede ser solo números'

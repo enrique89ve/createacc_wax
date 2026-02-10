@@ -1,7 +1,8 @@
 import { createClient } from '@libsql/client'
+import { UserRole } from '@/lib/roles'
 
 export const db = createClient({
-  url: 'file:holahive.db',
+  url: process.env.DATABASE_URL || 'file:holahive.db',
 })
 
 // Inicializar base de datos
@@ -13,7 +14,7 @@ export async function initializeDatabase() {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			username TEXT UNIQUE NOT NULL,
 			password_hash TEXT,
-			role TEXT NOT NULL CHECK (role IN ('admin', 'builder')),
+			role TEXT NOT NULL CHECK (role IN ('${UserRole.Admin}', '${UserRole.Builder}')),
 			is_active BOOLEAN DEFAULT TRUE,
 			last_claim_at DATETIME,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -25,7 +26,7 @@ export async function initializeDatabase() {
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS prevent_multiple_admins
 		BEFORE INSERT ON Users
-		WHEN NEW.role = 'admin' AND (SELECT COUNT(*) FROM Users WHERE role = 'admin') >= 1
+		WHEN NEW.role = '${UserRole.Admin}' AND (SELECT COUNT(*) FROM Users WHERE role = '${UserRole.Admin}') >= 1
 		BEGIN
 			SELECT RAISE(ABORT, 'Only one admin allowed');
 		END
@@ -36,8 +37,8 @@ export async function initializeDatabase() {
 		CREATE TRIGGER IF NOT EXISTS enforce_admin_password_constraint
 		BEFORE INSERT ON Users
 		FOR EACH ROW
-		WHEN (NEW.role = 'admin' AND NEW.password_hash IS NULL) OR
-			(NEW.role = 'builder' AND NEW.password_hash IS NOT NULL)
+		WHEN (NEW.role = '${UserRole.Admin}' AND NEW.password_hash IS NULL) OR
+			(NEW.role = '${UserRole.Builder}' AND NEW.password_hash IS NOT NULL)
 		BEGIN
 			SELECT RAISE(ABORT, 'Admin must have password_hash, Builder must not');
 		END
@@ -168,6 +169,12 @@ export async function initializeDatabase() {
     await db.execute(`
 		CREATE INDEX IF NOT EXISTS idx_login_attempts_failed
 		ON LoginAttempts(success, attempted_at)
+		WHERE success = 0
+	`)
+
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_failed
+		ON LoginAttempts(ip_address, success, attempted_at)
 		WHERE success = 0
 	`)
 

@@ -1,5 +1,33 @@
 @import 'tailwindcss';
 
+/* ========================================
+   THEMING GUIDE FOR FORKERS
+   ========================================
+
+   To rebrand HolaHive with your own colors, update the @theme variables below.
+
+   BRAND COLOR (CTAs, buttons, links):
+     --color-primary            → Your main brand color (currently red #e42f4d)
+     --color-primary-foreground → Text on primary backgrounds (keep high contrast)
+
+   DARK BACKGROUNDS:
+     --color-background → Main page background (#030303)
+     --color-card       → Elevated surfaces like cards (#07070d)
+     --color-muted      → Secondary backgrounds (#1b1b19)
+     --color-accent     → Highlighted/hover areas (#1a1915)
+
+   TEXT COLORS:
+     --color-foreground         → Primary text (#ffffff)
+     --color-muted-foreground   → Secondary/dimmed text (#b7b5a9)
+     --color-card-foreground    → Text on card surfaces (#faf9f5)
+
+   BORDERS:
+     --color-border → Subtle dividers (#18171c)
+
+   Maintain a minimum WCAG AA contrast ratio of 4.5:1 for text.
+   Use https://webaim.org/resources/contrastchecker/ to verify.
+   ======================================== */
+
 @theme {
   --color-background: #030303;
   --color-foreground: #ffffff;
@@ -73,7 +101,7 @@ body {
 @layer components {
   /* Botones */
   .btn-primary {
-    @apply bg-primary w-full rounded-lg px-4 py-2 text-white
+    @apply bg-primary w-full rounded-lg px-4 py-2 text-primary-foreground
       transition-opacity hover:opacity-90
       disabled:cursor-not-allowed disabled:opacity-50;
   }

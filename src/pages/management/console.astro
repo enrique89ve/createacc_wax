@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { formatDate } from '@/utils/date-formatters'
 import { dashboardService } from '@/lib/repositories/dashboard-service'
 import type {
   RecentTicketInfo,
@@ -176,7 +177,7 @@ try {
                     </div>
                     <div class="text-right">
                       <p class="text-muted-foreground text-xs">
-                        {new Date(account.creation_date).toLocaleDateString()}
+                        {formatDate(account.creation_date)}
                       </p>
                     </div>
                   </div>

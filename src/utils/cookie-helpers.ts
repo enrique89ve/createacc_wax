@@ -1,4 +1,4 @@
-import { getBooleanEnv } from '@/lib/env'
+import { isMainnet } from '@/lib/hiveservice'
 
 /**
  * Determine if cookies should use Secure flag based on environment and request
@@ -14,10 +14,10 @@ import { getBooleanEnv } from '@/lib/env'
  * @returns true if cookie should use Secure flag
  */
 export function shouldUseSecureCookie(request?: Request): boolean {
-	const isMainnet = getBooleanEnv('MAINNET')
+	const mainnet = isMainnet()
 
 	// Production: always use Secure
-	if (isMainnet) return true
+	if (mainnet) return true
 
 	// Development: check if request is over HTTPS
 	if (request) {

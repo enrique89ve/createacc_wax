@@ -1,5 +1,7 @@
 ---
 import { getUnreadCount, getUnreadNotifications } from '@/lib/notification-service'
+import { formatShortDateTime } from '@/utils/date-formatters'
+import type { NotificationType } from '@/types/database'
 
 interface Props {
 	userId: number
@@ -7,13 +9,39 @@ interface Props {
 
 const { userId } = Astro.props
 
-// Get unread notifications count and list
 const unreadCount = await getUnreadCount(userId)
 const unreadNotifications = await getUnreadNotifications(userId)
+
+const NOTIFICATION_ROUTES: Record<NotificationType, string> = {
+	account_created: '/builders/accounts',
+	pending_credits: '/builders/creditos',
+	credit_assigned: '/builders/creditos',
+	system: '/builders/tickets',
+}
+
+const NOTIFICATION_ACTIONS: Record<NotificationType, string> = {
+	account_created: 'Ver cuentas',
+	pending_credits: 'Reclamar',
+	credit_assigned: 'Ver créditos',
+	system: 'Ver detalle',
+}
+
+const NOTIFICATION_ICONS: Record<NotificationType, string> = {
+	pending_credits: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+	account_created: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+	credit_assigned: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+	system: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+}
+
+const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
+	pending_credits: 'text-yellow-400',
+	account_created: 'text-success',
+	credit_assigned: 'text-primary',
+	system: 'text-muted-foreground',
+}
 ---
 
 <div class="relative" id="notification-container">
-	<!-- Bell Button -->
 	<button
 		type="button"
 		id="notification-bell"
@@ -21,7 +49,6 @@ const unreadNotifications = await getUnreadNotifications(userId)
 		aria-label="Notificaciones"
 		aria-expanded="false"
 	>
-		<!-- Bell Icon -->
 		<svg
 			xmlns="http://www.w3.org/2000/svg"
 			class="h-5 w-5"
@@ -37,7 +64,6 @@ const unreadNotifications = await getUnreadNotifications(userId)
 			></path>
 		</svg>
 
-		<!-- Badge with unread count -->
 		{unreadCount > 0 && (
 			<span
 				id="notification-badge"
@@ -49,13 +75,11 @@ const unreadNotifications = await getUnreadNotifications(userId)
 		)}
 	</button>
 
-	<!-- Dropdown Panel (Hidden by default) -->
 	<div
 		id="notification-dropdown"
 		class="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-lg border border-border/40 bg-card shadow-lg z-50 hidden"
 	>
-		<!-- Header -->
-		<div class="sticky top-0 bg-card border-b border-border/40 px-4 py-3 flex items-center justify-between">
+		<div class="sticky top-0 bg-card border-b border-border/40 px-4 py-3 flex items-center justify-between z-10">
 			<h3 class="text-sm font-semibold text-foreground">Notificaciones</h3>
 			{unreadCount > 0 && (
 				<button
@@ -68,73 +92,58 @@ const unreadNotifications = await getUnreadNotifications(userId)
 			)}
 		</div>
 
-		<!-- Notification List -->
-		<div id="notification-list" class="divide-y divide-border/40">
+		<div id="notification-list" class="divide-y divide-border/20">
 			{unreadNotifications.length === 0 ? (
 				<div class="px-4 py-8 text-center text-sm text-muted-foreground">
 					No tienes notificaciones nuevas
 				</div>
 			) : (
 				unreadNotifications.map((notification) => (
-					<div
-						class="notification-item px-4 py-3 hover:bg-accent/50 cursor-pointer transition-colors"
+					<a
+						href={NOTIFICATION_ROUTES[notification.type]}
+						class="notification-item group flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors"
 						data-notification-id={notification.id}
+						data-notification-type={notification.type}
 					>
-						<div class="flex items-start space-x-3">
-							<!-- Icon based on type -->
-							<div class="flex-shrink-0 mt-0.5">
-								{notification.type === 'pending_credits' && (
-									<span class="text-lg">💳</span>
-								)}
-								{notification.type === 'account_created' && (
-									<span class="text-lg">✅</span>
-								)}
-								{notification.type === 'credit_assigned' && (
-									<span class="text-lg">🎁</span>
-								)}
-								{notification.type === 'system' && (
-									<span class="text-lg">📢</span>
-								)}
-							</div>
-
-							<!-- Content -->
-							<div class="flex-1 min-w-0">
-								<p class="text-sm font-medium text-foreground">
-									{notification.title}
-								</p>
-								<p class="text-xs text-muted-foreground mt-0.5">
-									{notification.message}
-								</p>
-								<p class="text-xs text-muted-foreground mt-1">
-									{new Date(notification.created_at).toLocaleDateString('es-ES', {
-										day: 'numeric',
-										month: 'short',
-										hour: '2-digit',
-										minute: '2-digit',
-									})}
-								</p>
-							</div>
-
-							<!-- Mark as read button -->
-							<button
-								type="button"
-								class="mark-read-btn flex-shrink-0 text-muted-foreground hover:text-foreground"
-								data-notification-id={notification.id}
-								aria-label="Marcar como leída"
-							>
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									class="h-4 w-4"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor"
-									stroke-width="2"
-								>
-									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-								</svg>
-							</button>
+						<div class={`flex-shrink-0 mt-0.5 ${NOTIFICATION_ICON_COLORS[notification.type]}`}>
+							<Fragment set:html={NOTIFICATION_ICONS[notification.type]} />
 						</div>
-					</div>
+
+						<div class="flex-1 min-w-0">
+							<p class="text-sm font-medium text-foreground leading-snug">
+								{notification.title}
+							</p>
+							<p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+								{notification.message}
+							</p>
+							<div class="flex items-center justify-between mt-1.5">
+								<span class="text-[11px] text-muted-foreground">
+									{formatShortDateTime(notification.created_at)}
+								</span>
+								<span class="text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+									{NOTIFICATION_ACTIONS[notification.type]} &rarr;
+								</span>
+							</div>
+						</div>
+
+						<button
+							type="button"
+							class="mark-read-btn flex-shrink-0 mt-0.5 text-muted-foreground/50 hover:text-foreground transition-colors"
+							data-notification-id={notification.id}
+							aria-label="Descartar"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="h-3.5 w-3.5"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+								stroke-width="2"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+							</svg>
+						</button>
+					</a>
 				))
 			)}
 		</div>
@@ -142,6 +151,7 @@ const unreadNotifications = await getUnreadNotifications(userId)
 </div>
 
 <script>
+	import { navigate } from 'astro:transitions/client'
 
 	const EMPTY_STATE_HTML = `
 		<div class="px-4 py-8 text-center text-sm text-muted-foreground">
@@ -149,74 +159,9 @@ const unreadNotifications = await getUnreadNotifications(userId)
 		</div>
 	`
 
-	// DOM Elements
-	const bell = document.querySelector<HTMLButtonElement>('#notification-bell')!
-	const dropdown = document.querySelector<HTMLDivElement>('#notification-dropdown')!
-	const container = document.querySelector<HTMLDivElement>('#notification-container')!
-	const notificationList = document.querySelector<HTMLDivElement>('#notification-list')!
-
-	// State
-	let isOpen = false
-	let hasMarkedAsViewed = false
-
-	// Helper Functions
-	function updateBadgeCount(decrementBy: number): void {
-		const badge = document.querySelector<HTMLSpanElement>('#notification-badge')
-		if (!badge) return
-
-		const currentCount = parseInt(badge.dataset.count || '0')
-		const newCount = currentCount - decrementBy
-
-		if (newCount <= 0) {
-			badge.remove()
-		} else {
-			badge.dataset.count = newCount.toString()
-			badge.textContent = newCount > 9 ? '9+' : newCount.toString()
-		}
-	}
-
-	function showEmptyState(): void {
-		if (notificationList.children.length === 0) {
-			notificationList.innerHTML = EMPTY_STATE_HTML
-
-			// Remove "mark all read" button
-			const markAllReadBtn = document.querySelector<HTMLButtonElement>('#mark-all-read-btn')
-			markAllReadBtn?.remove()
-		}
-	}
-
-	function closeDropdown(): void {
-		isOpen = false
-		dropdown.classList.add('hidden')
-		bell.setAttribute('aria-expanded', 'false')
-	}
-
-	function openDropdown(): void {
-		isOpen = true
-		dropdown.classList.remove('hidden')
-		bell.setAttribute('aria-expanded', 'true')
-	}
-
-	async function markNotificationsAsViewed(): Promise<void> {
-		if (hasMarkedAsViewed) return
-
-		hasMarkedAsViewed = true
-		try {
-			const response = await fetch('/api/notifications/mark-viewed', { method: 'POST' })
-			if (!response.ok) {
-				console.error('[NotificationBell] Failed to mark notifications as viewed:', response.status, response.statusText)
-			}
-		} catch (error) {
-			console.error('[NotificationBell] Error marking notifications as viewed:', error)
-		}
-	}
-
 	async function markNotificationAsRead(notificationId: string): Promise<boolean> {
 		const parsedId = parseInt(notificationId)
-		if (isNaN(parsedId)) {
-			console.error('[NotificationBell] Invalid notification ID:', notificationId)
-			return false
-		}
+		if (isNaN(parsedId)) return false
 
 		try {
 			const response = await fetch('/api/notifications/mark-read', {
@@ -224,114 +169,160 @@ const unreadNotifications = await getUnreadNotifications(userId)
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ notificationId: parsedId }),
 			})
-
-			if (!response.ok) {
-				console.error('[NotificationBell] Failed to mark notification as read:', response.status, response.statusText)
-				return false
-			}
-
-			return true
+			return response.ok
 		} catch (error) {
-			console.error('[NotificationBell] Error marking notification as read:', error)
+			console.error('[NotificationBell] Error marking as read:', error)
 			return false
 		}
 	}
 
 	async function markAllNotificationsAsRead(): Promise<boolean> {
 		try {
-			const response = await fetch('/api/notifications/mark-all-read', {
-				method: 'POST',
-			})
-
-			if (!response.ok) {
-				console.error('[NotificationBell] Failed to mark all notifications as read:', response.status, response.statusText)
-				return false
-			}
-
-			return true
+			const response = await fetch('/api/notifications/mark-all-read', { method: 'POST' })
+			return response.ok
 		} catch (error) {
-			console.error('[NotificationBell] Error marking all notifications as read:', error)
+			console.error('[NotificationBell] Error marking all as read:', error)
 			return false
 		}
 	}
 
-	// Event Handlers
-	bell.addEventListener('click', async (e) => {
-		e.stopPropagation()
+	function initNotificationBell(): void {
+		const bell = document.querySelector<HTMLButtonElement>('#notification-bell')
+		const dropdown = document.querySelector<HTMLDivElement>('#notification-dropdown')
+		const container = document.querySelector<HTMLDivElement>('#notification-container')
+		const notificationList = document.querySelector<HTMLDivElement>('#notification-list')
 
-		if (isOpen) {
-			closeDropdown()
-		} else {
-			openDropdown()
-			await markNotificationsAsViewed()
+		if (!bell || !dropdown || !container || !notificationList) return
+
+		let isOpen = false
+		let hasMarkedAsViewed = false
+
+		function updateBadgeCount(decrementBy: number): void {
+			const badge = document.querySelector<HTMLSpanElement>('#notification-badge')
+			if (!badge) return
+
+			const currentCount = parseInt(badge.dataset.count || '0')
+			const newCount = currentCount - decrementBy
+
+			if (newCount <= 0) {
+				badge.remove()
+			} else {
+				badge.dataset.count = newCount.toString()
+				badge.textContent = newCount > 9 ? '9+' : newCount.toString()
+			}
 		}
-	})
 
-	// Close dropdown when clicking outside
-	const handleOutsideClick = (e: MouseEvent) => {
-		if (!container.contains(e.target as Node)) {
-			closeDropdown()
+		function showEmptyState(): void {
+			if (notificationList.children.length === 0) {
+				notificationList.innerHTML = EMPTY_STATE_HTML
+				document.querySelector<HTMLButtonElement>('#mark-all-read-btn')?.remove()
+			}
 		}
-	}
-	document.addEventListener('click', handleOutsideClick)
 
-	// Close dropdown with Escape key
-	const handleEscapeKey = (e: KeyboardEvent) => {
-		if (e.key === 'Escape' && isOpen) {
-			closeDropdown()
-			bell.focus()
+		function closeDropdown(): void {
+			isOpen = false
+			dropdown.classList.add('hidden')
+			bell.setAttribute('aria-expanded', 'false')
 		}
-	}
-	document.addEventListener('keydown', handleEscapeKey)
 
-	// Mark single notification as read
-	const markReadButtons = document.querySelectorAll<HTMLButtonElement>('.mark-read-btn')
-	markReadButtons.forEach((btn) => {
-		btn.addEventListener('click', async (e) => {
+		function openDropdown(): void {
+			isOpen = true
+			dropdown.classList.remove('hidden')
+			bell.setAttribute('aria-expanded', 'true')
+		}
+
+		async function markAsViewed(): Promise<void> {
+			if (hasMarkedAsViewed) return
+			hasMarkedAsViewed = true
+			try {
+				await fetch('/api/notifications/mark-viewed', { method: 'POST' })
+			} catch (error) {
+				console.error('[NotificationBell] Error marking as viewed:', error)
+			}
+		}
+
+		// Bell toggle
+		bell.addEventListener('click', async (e) => {
 			e.stopPropagation()
-			const notificationId = btn.dataset.notificationId
-
-			if (!notificationId) return
-
-			const success = await markNotificationAsRead(notificationId)
-			if (success) {
-				// Remove notification from UI
-				const item = btn.closest('.notification-item')
-				item?.remove()
-
-				// Update badge count
-				updateBadgeCount(1)
-
-				// Show empty state if no more notifications
-				showEmptyState()
+			if (isOpen) {
+				closeDropdown()
+			} else {
+				openDropdown()
+				await markAsViewed()
 			}
 		})
-	})
 
-	// Mark all notifications as read
-	const markAllReadBtn = document.querySelector<HTMLButtonElement>('#mark-all-read-btn')
-	markAllReadBtn?.addEventListener('click', async () => {
-		const success = await markAllNotificationsAsRead()
-		if (success) {
-			// Remove all notification items from UI
-			const notificationItems = document.querySelectorAll<HTMLDivElement>('.notification-item')
-			notificationItems.forEach(item => item.remove())
-
-			// Remove badge
-			const badge = document.querySelector<HTMLSpanElement>('#notification-badge')
-			badge?.remove()
-
-			// Show empty state
-			notificationList.innerHTML = EMPTY_STATE_HTML
-
-			// Remove "mark all read" button
-			markAllReadBtn.remove()
+		// Close on outside click
+		const handleOutsideClick = (e: MouseEvent) => {
+			if (!container.contains(e.target as Node)) closeDropdown()
 		}
-	})
+		document.addEventListener('click', handleOutsideClick)
 
-	// Cleanup on page navigation (for Astro view transitions)
-	document.addEventListener('astro:before-preparation', () => {
-		document.removeEventListener('click', handleOutsideClick)
-		document.removeEventListener('keydown', handleEscapeKey)
-	})
+		// Close on Escape
+		const handleEscapeKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && isOpen) {
+				closeDropdown()
+				bell.focus()
+			}
+		}
+		document.addEventListener('keydown', handleEscapeKey)
+
+		// Dismiss button (X) - mark as read without navigating
+		document.querySelectorAll<HTMLButtonElement>('.mark-read-btn').forEach((btn) => {
+			btn.addEventListener('click', async (e) => {
+				e.preventDefault()
+				e.stopPropagation()
+
+				const notificationId = btn.dataset.notificationId
+				if (!notificationId) return
+
+				const success = await markNotificationAsRead(notificationId)
+				if (success) {
+					btn.closest('.notification-item')?.remove()
+					updateBadgeCount(1)
+					showEmptyState()
+				}
+			})
+		})
+
+		// Clicking a notification: mark as read then navigate with Client Router
+		document.querySelectorAll<HTMLAnchorElement>('.notification-item').forEach((link) => {
+			link.addEventListener('click', async (e) => {
+				if ((e.target as HTMLElement).closest('.mark-read-btn')) return
+
+				e.preventDefault()
+				const notificationId = link.dataset.notificationId
+				const href = link.getAttribute('href')
+
+				if (notificationId) {
+					await markNotificationAsRead(notificationId)
+				}
+
+				if (href) {
+					navigate(href)
+				}
+			})
+		})
+
+		// Mark all as read
+		const markAllReadBtn = document.querySelector<HTMLButtonElement>('#mark-all-read-btn')
+		markAllReadBtn?.addEventListener('click', async () => {
+			const success = await markAllNotificationsAsRead()
+			if (success) {
+				document.querySelectorAll('.notification-item').forEach(item => item.remove())
+				document.querySelector<HTMLSpanElement>('#notification-badge')?.remove()
+				notificationList.innerHTML = EMPTY_STATE_HTML
+				markAllReadBtn.remove()
+			}
+		})
+
+		// Cleanup on Client Router navigation
+		document.addEventListener('astro:before-preparation', () => {
+			document.removeEventListener('click', handleOutsideClick)
+			document.removeEventListener('keydown', handleEscapeKey)
+		}, { once: true })
+	}
+
+	// Initialize on each page load (Client Router compatible)
+	document.addEventListener('astro:page-load', initNotificationBell)
 </script>

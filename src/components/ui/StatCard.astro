@@ -18,16 +18,17 @@ interface Props {
 
 const { title, value, unit, description, variant = 'default', timestamp, action } = Astro.props
 
-// Formatear timestamp si existe
+// Formatear timestamp si existe (normalizado a UTC)
 let formattedTimestamp = ''
 if (timestamp) {
 	try {
-		const date = new Date(timestamp)
+		const utcTimestamp = timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`
+		const date = new Date(utcTimestamp)
 		const now = new Date()
 		const diffMs = now.getTime() - date.getTime()
 		const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
 
-		if (diffDays === 0) {
+		if (diffDays <= 0) {
 			formattedTimestamp = 'Hoy'
 		} else if (diffDays === 1) {
 			formattedTimestamp = 'Ayer'
@@ -38,6 +39,7 @@ if (timestamp) {
 				day: 'numeric',
 				month: 'short',
 				year: 'numeric',
+				timeZone: 'UTC',
 			})
 		}
 	} catch (error) {

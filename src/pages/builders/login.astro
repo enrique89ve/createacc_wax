@@ -6,43 +6,66 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 ---
 
 <BuildersLayout title="Login - Builders" currentPage="login">
-  <div
-    class="mx-auto max-w-md space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
-  >
-    <!-- Header -->
-    <div class="mb-4 text-center sm:mb-6">
-      <h1 class="text-foreground mb-2 text-3xl font-bold">Builders Login</h1>
-      <p class="text-muted-foreground">
-        Acceso exclusivo para moderadores y usuarios autorizados
-      </p>
-    </div>
-
-    <!-- Keychain Status -->
-    <div id="keychain-status" class="card-base mb-4 sm:mb-6">
-      <div class="text-muted-foreground">Verificando Keychain...</div>
-    </div>
-
-    <!-- Login Form -->
-    <div class="card-base mb-4 sm:mb-6">
-      <form id="login-form" class="space-y-3 sm:space-y-4">
-        <div>
-          <label for="username" class="mb-2 block text-sm font-medium">
-            Usuario de Hive
-          </label>
-          <input
-            type="text"
-            id="username"
-            name="username"
-            placeholder="tu-usuario-hive"
-            class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 focus:border-transparent focus:outline-none focus:ring-2"
-            required
-          />
+  <div class="flex min-h-screen items-center justify-center px-4 py-12">
+    <div class="w-full max-w-md">
+      <!-- Login Card -->
+      <div class="rounded-lg border border-border bg-card p-8">
+        <!-- Header -->
+        <div class="mb-8 text-center">
+          <h1 class="mb-2 text-3xl font-bold tracking-tight text-foreground">
+            Builders Login
+          </h1>
+          <p class="text-sm text-muted-foreground">
+            Acceso exclusivo para moderadores y usuarios autorizados
+          </p>
         </div>
 
-        <button type="submit" id="login-btn" class="btn-primary" disabled>
-          Login con Keychain
-        </button>
-      </form>
+        <!-- Login Form -->
+        <form id="login-form" class="space-y-6">
+          <div class="space-y-2">
+            <label
+              for="username"
+              class="block text-sm font-medium text-foreground"
+            >
+              Usuario de Hive
+            </label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              placeholder="tu-usuario-hive"
+              autocapitalize="none"
+              autocorrect="off"
+              spellcheck="false"
+              class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+              required
+            />
+          </div>
+
+          <!-- Keychain error (only visible when not available) -->
+          <div
+            id="keychain-status"
+            class="hidden rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm"
+          >
+          </div>
+
+          <button
+            type="submit"
+            id="login-btn"
+            class="w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled
+          >
+            Login con Keychain
+          </button>
+        </form>
+
+        <!-- Footer: Keychain status as subtle text -->
+        <div class="mt-8 text-center">
+          <p id="keychain-footer" class="text-xs text-muted-foreground">
+            Verificando Keychain...
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -58,37 +81,39 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
     // Inicializar página
     async function initPage() {
       const statusDiv = document.getElementById('keychain-status')!
+      const footerText = document.getElementById('keychain-footer')!
       const loginBtn = document.getElementById('login-btn') as HTMLButtonElement
 
       try {
         const isReady = await isKeychainReady()
 
         if (isReady) {
-          statusDiv.innerHTML = `
-						<div class="text-green-400">
-							✅ Hive Keychain detectado y listo
-						</div>
-					`
+          // Success: subtle footer text only, no prominent block
+          footerText.textContent = 'Keychain detectado'
+          footerText.classList.add('text-green-400/60')
           loginBtn.disabled = false
         } else {
+          // Error: show visible block + footer
+          statusDiv.classList.remove('hidden')
           statusDiv.innerHTML = `
 						<div class="text-red-400">
-							❌ Hive Keychain no está disponible
-							<div class="text-sm mt-1">
+							Hive Keychain no está disponible
+							<div class="mt-1 text-muted-foreground">
 								<a href="https://hive-keychain.com" target="_blank" class="text-primary underline">
 									Instala Hive Keychain
 								</a> y recarga la página
 							</div>
 						</div>
 					`
+          footerText.textContent = 'Keychain requerido'
           loginBtn.disabled = true
         }
       } catch (error) {
+        statusDiv.classList.remove('hidden')
         statusDiv.innerHTML = `
-					<div class="text-red-400">
-						❌ Error verificando Keychain
-					</div>
+					<span class="text-red-400">Error verificando Keychain</span>
 				`
+        footerText.textContent = 'Error de conexión'
         loginBtn.disabled = true
       }
     }

@@ -1,4 +1,6 @@
 ---
+import { formatDateTime, formatShortDateTime } from '@/utils/date-formatters'
+
 /**
  * Componente reutilizable para mostrar tablas de datos en el área de builders
  * Soporta diferentes configuraciones de columnas y tipos de datos
@@ -111,16 +113,7 @@ const {
                     <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
                       {column.type === 'date' && (
                         <span class="text-muted-foreground text-sm">
-                          {new Date(row[column.key]).toLocaleDateString(
-                            'es-ES',
-                            {
-                              year: 'numeric',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            }
-                          )}
+                          {formatDateTime(row[column.key])}
                         </span>
                       )}
 
@@ -241,10 +234,7 @@ const {
                     {/* Mostrar fecha si existe en las columnas */}
                     {secondaryColumns.find(c => c.type === 'date') && (
                       <span class="text-muted-foreground text-xs">
-                        {new Date(row[secondaryColumns.find(c => c.type === 'date')!.key]).toLocaleDateString('es-ES', {
-                          day: 'numeric',
-                          month: 'short',
-                        })}
+                        {formatShortDateTime(row[secondaryColumns.find(c => c.type === 'date')!.key])}
                       </span>
                     )}
                   </div>
@@ -288,13 +278,7 @@ const {
                   {/* Fecha completa al final si existe */}
                   {secondaryColumns.find(c => c.type === 'date') && (
                     <div class="mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
-                      {new Date(row[secondaryColumns.find(c => c.type === 'date')!.key]).toLocaleDateString('es-ES', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatDateTime(row[secondaryColumns.find(c => c.type === 'date')!.key])}
                     </div>
                   )}
 

@@ -37,7 +37,7 @@ const TESTNET_CHAIN_ID =
 const HEALTH_CHECK_TIMEOUT = 5000
 const EVALUATION_DELAY = 1500
 
-const isMainnet = (): boolean => getBooleanEnv('MAINNET')
+export const isMainnet = (): boolean => getBooleanEnv('MAINNET')
 
 /**
  * Type guard helper to check if an object has a property

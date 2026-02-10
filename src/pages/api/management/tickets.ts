@@ -8,6 +8,12 @@ import { jsonResponse } from '@/utils/api-response'
 import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
+import {
+	validateTicketName,
+	validateTicketCredits,
+	validateTicketDescription,
+} from '@/lib/validators/ticket-validator'
+import { isValidationSuccess } from '@/utils/validation-result'
 // Types
 interface TicketCreateRequest {
   readonly code?: string
@@ -53,21 +59,6 @@ export const GET: APIRoute = async context => {
   })
 }
 
-// Helper: Validar código de ticket
-const validateTicketCode = (code: unknown): string | null => {
-  if (!code || typeof code !== 'string' || code.trim().length < 4) {
-    return null
-  }
-  return code.trim().toUpperCase()
-}
-
-// Helper: Normalizar y validar créditos
-const normalizeCredits = (creditsInput: unknown): number => {
-  const creditsRaw = Number(creditsInput ?? 1)
-  return Number.isFinite(creditsRaw) && creditsRaw >= 1
-    ? Math.floor(creditsRaw)
-    : 1
-}
 
 // Helper: Obtener datos del usuario (usando unified repository)
 const getUserData = async (
@@ -103,19 +94,38 @@ export const POST: APIRoute = async context => {
     try {
       const data = (await context.request.json()) as TicketCreateRequest
 
-      const { code, description = '', credits: creditsInput } = data
+      const { code = '', description, credits: creditsInput } = data
 
-      // Validación: Código de ticket
-      const cleanCode = validateTicketCode(code)
-      if (!cleanCode) {
+      // Validar código de ticket
+      const codeValidation = validateTicketName(code)
+      if (!isValidationSuccess(codeValidation)) {
         return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_CODE_INVALID },
+          { error: codeValidation.error.message },
           400
         )
       }
 
-      // Normalizar créditos
-      const credits = normalizeCredits(creditsInput)
+      // Validar créditos
+      const creditsValidation = validateTicketCredits(creditsInput)
+      if (!isValidationSuccess(creditsValidation)) {
+        return jsonResponse(
+          { error: creditsValidation.error.message },
+          400
+        )
+      }
+
+      // Validar descripción
+      const descriptionValidation = validateTicketDescription(description)
+      if (!isValidationSuccess(descriptionValidation)) {
+        return jsonResponse(
+          { error: descriptionValidation.error.message },
+          400
+        )
+      }
+
+      const cleanCode = codeValidation.data
+      const credits = creditsValidation.data
+      const validDescription = descriptionValidation.data ?? ''
 
       // Obtener datos del usuario
       const userData = await getUserData(session.userId)
@@ -172,7 +182,7 @@ export const POST: APIRoute = async context => {
       const ticketResult = await db.execute({
         sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
 					VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        args: [cleanCode, description, credits, credits, session.userId],
+        args: [cleanCode, validDescription, credits, credits, session.userId],
       })
 
       const ticketId = ticketResult.rows[0]?.id as number
@@ -189,7 +199,7 @@ export const POST: APIRoute = async context => {
         ticket: {
           id: ticketId,
           code: cleanCode,
-          description,
+          description: validDescription,
           original_credits: credits,
         },
         credits_info: {

@@ -12,7 +12,7 @@ const { ticket = '' } = Astro.props as Props
       class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-6 shadow-lg backdrop-blur"
     >
       <div class="mb-6 flex flex-col items-center gap-2 text-center">
-        <h1 class="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+        <h1 class="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
           Crea tu cuenta de Hive
         </h1>
         <p class="text-sm text-amber-50">Únete a la Web3</p>
@@ -23,13 +23,13 @@ const { ticket = '' } = Astro.props as Props
         <div class="space-y-2">
           <label
             for="username"
-            class="block text-sm font-semibold uppercase tracking-wide text-white"
+            class="block text-sm font-semibold uppercase tracking-wide text-foreground"
           >
             Usuario
           </label>
           <div class="relative flex">
             <span
-              class="border-border bg-background text-accent-foreground inline-flex select-none items-center rounded-l-lg border border-r-0 px-3 text-sm font-medium"
+              class="border-border bg-muted text-muted-foreground inline-flex select-none items-center rounded-l-lg border border-r-0 px-3 text-sm font-medium"
             >
               @
             </span>
@@ -43,7 +43,7 @@ const { ticket = '' } = Astro.props as Props
               autocorrect="off"
               spellcheck="false"
               placeholder="ingresa el usuario a crear"
-              class="lowercase-only border-border bg-background placeholder:text-accent-foreground focus:border-primary focus:ring-primary/40 w-full rounded-r-lg border px-3 py-2 pr-10 text-sm text-white focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="lowercase-only border-border bg-muted placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-r-lg border px-3 py-2 pr-10 text-sm text-foreground focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <!-- Iconos estado username -->
             <div
@@ -74,7 +74,7 @@ const { ticket = '' } = Astro.props as Props
             class="text-destructive hidden text-xs font-medium"
           >
           </div>
-          <p class="text-xs leading-relaxed text-white/90">
+          <p class="text-xs leading-relaxed text-muted-foreground">
             Elige un nombre de usuario de 3 a 16 caracteres, iniciando con una
             letra. Puedes usar números y guiones (-). Los puntos (.) crean
             segmentos, cada uno debe tener mínimo 3 caracteres y seguir las
@@ -90,7 +90,9 @@ const { ticket = '' } = Astro.props as Props
           >
             Ticket
           </label>
-          <div class="relative flex">
+
+          <!-- Input + botón Aplicar (visible cuando no hay ticket aplicado) -->
+          <div id="ticket-input-container" class="flex gap-2">
             <input
               id="ticket"
               name="ticket"
@@ -98,37 +100,36 @@ const { ticket = '' } = Astro.props as Props
               value={ticket}
               required
               placeholder="Ingresa el código"
-              class="border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 pr-10 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <!-- Iconos estado ticket -->
-            <div
-              id="ticket-status-icon"
-              class="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2"
+            <button
+              id="ticket-apply-btn"
+              type="button"
+              disabled
+              class="bg-muted text-foreground hover:enabled:bg-accent border-border whitespace-nowrap rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <div
-                id="ticket-loading-icon"
-                class="border-primary/60 hidden h-5 w-5 animate-spin rounded-full border-2 border-t-transparent"
+              Aplicar
+            </button>
+          </div>
+
+          <!-- Chip del ticket aplicado (oculto por defecto) -->
+          <div id="ticket-chip" class="hidden">
+            <div class="bg-muted flex items-center gap-2 rounded-lg border border-green-500/40 px-3 py-2">
+              <span class="text-sm font-bold text-green-400">✓</span>
+              <span id="ticket-chip-code" class="text-foreground text-sm font-medium uppercase tracking-wide"></span>
+              <button
+                id="ticket-remove-btn"
+                type="button"
+                class="text-muted-foreground hover:text-foreground ml-auto transition-colors"
+                aria-label="Quitar ticket"
               >
-              </div>
-              <div
-                id="ticket-success-icon"
-                class="hidden text-lg font-bold text-green-400"
-              >
-                ✓
-              </div>
-              <div
-                id="ticket-error-icon"
-                class="text-destructive hidden text-lg font-bold"
-              >
-                ✗
-              </div>
+                ✕
+              </button>
             </div>
           </div>
-          <div
-            id="ticket-error"
-            class="text-destructive hidden text-xs font-medium"
-          >
-          </div>
+
+          <!-- Error message -->
+          <div id="ticket-error" class="text-destructive hidden text-xs font-medium"></div>
         </div>
 
         <!-- Botón -->
@@ -152,7 +153,6 @@ const { ticket = '' } = Astro.props as Props
   import { notify } from '@/utils/toast'
 
   let debounceTimer: ReturnType<typeof setTimeout>
-  let ticketDebounceTimer: ReturnType<typeof setTimeout>
 
   // Estado de validación de los campos
   let isUsernameValid = false
@@ -175,17 +175,6 @@ const { ticket = '' } = Astro.props as Props
       successIcon: document.querySelector('#success-icon'),
       errorIcon: document.querySelector('#error-icon'),
       errorText: document.querySelector('#username-error'),
-    }
-  }
-
-  function getTicketElements(): FieldElements {
-    return {
-      input: document.querySelector<HTMLInputElement>('#ticket'),
-      statusIcon: document.querySelector('#ticket-status-icon'),
-      loadingIcon: document.querySelector('#ticket-loading-icon'),
-      successIcon: document.querySelector('#ticket-success-icon'),
-      errorIcon: document.querySelector('#ticket-error-icon'),
-      errorText: document.querySelector('#ticket-error'),
     }
   }
 
@@ -349,29 +338,89 @@ const { ticket = '' } = Astro.props as Props
     }
   }
 
-  // Funciones para ticket
-  function resetTicketState() {
-    setFieldState(getTicketElements(), 'neutral')
+  // Funciones para ticket (patrón cupón: apply + chip)
+  function showTicketError(message: string) {
+    const input = document.querySelector<HTMLInputElement>('#ticket')!
+    const errorText = document.querySelector<HTMLElement>('#ticket-error')!
+    input.classList.add('border-red-500')
+    errorText.textContent = message
+    errorText.classList.remove('hidden')
     isTicketValid = false
     updateSubmitButton()
   }
 
-  function showTicketLoadingState() {
-    setFieldState(getTicketElements(), 'loading')
-    isTicketValid = false
-    updateSubmitButton()
+  async function applyTicket() {
+    const input = document.querySelector<HTMLInputElement>('#ticket')!
+    const applyBtn = document.querySelector<HTMLButtonElement>('#ticket-apply-btn')!
+    const errorText = document.querySelector<HTMLElement>('#ticket-error')!
+    const inputContainer = document.querySelector<HTMLElement>('#ticket-input-container')!
+    const chip = document.querySelector<HTMLElement>('#ticket-chip')!
+    const chipCode = document.querySelector<HTMLElement>('#ticket-chip-code')!
+
+    const ticket = cleanTicket(input.value)
+
+    // Validación de formato local
+    const localError = validateTicket(ticket)
+    if (localError) {
+      showTicketError(localError)
+      return
+    }
+
+    // Estado loading: deshabilitar input y botón, mostrar spinner
+    input.disabled = true
+    applyBtn.disabled = true
+    applyBtn.textContent = '...'
+
+    try {
+      const response = await fetch('/api/validate/ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ticket }),
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.valid) {
+        // Éxito: mostrar chip, ocultar input
+        chipCode.textContent = ticket
+        inputContainer.classList.add('hidden')
+        chip.classList.remove('hidden')
+        errorText.classList.add('hidden')
+        isTicketValid = true
+        updateSubmitButton()
+        return
+      }
+
+      showTicketError(result.error || 'Ticket inválido')
+      input.disabled = false
+    } catch {
+      showTicketError('Error validando ticket. Inténtalo de nuevo.')
+      input.disabled = false
+    }
+
+    // Restaurar botón solo en paths de error (éxito hace return arriba)
+    applyBtn.textContent = 'Aplicar'
+    applyBtn.disabled = false
   }
 
-  function showTicketErrorState(errorMessage: string) {
-    setFieldState(getTicketElements(), 'error', errorMessage)
+  function removeTicket() {
+    const input = document.querySelector<HTMLInputElement>('#ticket')!
+    const applyBtn = document.querySelector<HTMLButtonElement>('#ticket-apply-btn')!
+    const inputContainer = document.querySelector<HTMLElement>('#ticket-input-container')!
+    const chip = document.querySelector<HTMLElement>('#ticket-chip')!
+    const errorText = document.querySelector<HTMLElement>('#ticket-error')!
+
+    // Volver a mostrar input, ocultar chip
+    chip.classList.add('hidden')
+    inputContainer.classList.remove('hidden')
+    input.value = ''
+    input.disabled = false
+    applyBtn.disabled = true
+    errorText.classList.add('hidden')
+    input.classList.remove('border-red-500')
     isTicketValid = false
     updateSubmitButton()
-  }
-
-  function showTicketSuccessState() {
-    setFieldState(getTicketElements(), 'success')
-    isTicketValid = true
-    updateSubmitButton()
+    input.focus()
   }
 
   // Función para actualizar el estado del botón
@@ -501,86 +550,33 @@ const { ticket = '' } = Astro.props as Props
     }, 300)
   }
 
-  async function validateTicketCode(ticket: string) {
-    if (!ticket.trim()) {
-      resetTicketState()
-      return
-    }
-
-    // Validación local de formato (fail fast) usando validateTicket antes de consultar API
-    const localTicketError = validateTicket(ticket)
-    if (localTicketError) {
-      showTicketErrorState(localTicketError)
-      return // Evitamos llamada a la base de datos / API
-    }
-
-    showTicketLoadingState()
-
-    try {
-      const response = await fetch('/api/validate/ticket', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ticket }),
-      })
-
-      const result = await response.json()
-
-      if (response.ok && result.valid) {
-        showTicketSuccessState()
-      } else {
-        showTicketErrorState(result.error || 'Ticket inválido')
-      }
-    } catch (error) {
-      showTicketErrorState('Error validando ticket. Inténtalo de nuevo.')
-    }
-  }
-
   function handleTicketInput() {
     const input = document.querySelector<HTMLInputElement>('#ticket')!
-    let ticket = input.value.trim()
+    const applyBtn = document.querySelector<HTMLButtonElement>('#ticket-apply-btn')!
+    const errorText = document.querySelector<HTMLElement>('#ticket-error')!
 
-    // Limpiar y formatear el ticket en tiempo real
-    const cleanedTicket = cleanTicket(ticket)
+    const cleaned = cleanTicket(input.value)
 
-    // Solo actualizar el valor si realmente cambió y no está vacío
-    if (cleanedTicket !== input.value && cleanedTicket !== '') {
-      const cursorPosition = input.selectionStart || 0
-      input.value = cleanedTicket
-      ticket = cleanedTicket
-      // Restaurar posición del cursor solo si es válida
-      const newPosition = Math.min(cursorPosition, cleanedTicket.length)
-      input.setSelectionRange(newPosition, newPosition)
-    } else if (cleanedTicket !== '') {
-      ticket = cleanedTicket
+    // Actualizar valor limpio en el input (uppercase, solo alfanumérico)
+    if (cleaned !== input.value) {
+      const pos = input.selectionStart || 0
+      input.value = cleaned
+      const newPos = Math.min(pos, cleaned.length)
+      input.setSelectionRange(newPos, newPos)
     }
 
-    // Cancelar debounce previo
-    clearTimeout(ticketDebounceTimer)
+    // Limpiar error previo
+    errorText.classList.add('hidden')
+    input.classList.remove('border-red-500')
 
-    // Validación inmediata de formato sin esperar debounce para UX más responsiva
-    if (!ticket) {
-      resetTicketState()
+    // Habilitar/deshabilitar botón según validación local de formato
+    if (!cleaned) {
+      applyBtn.disabled = true
       return
     }
 
-    const localError = validateTicket(ticket)
-    if (localError) {
-      showTicketErrorState(localError)
-      return // No programamos fetch
-    } else {
-      // Estado preliminar válido mientras esperamos debounce para consultar disponibilidad
-      // No marcamos éxito todavía porque falta confirmar con backend (uso / consumo / tipo)
-      setFieldState(getTicketElements(), 'neutral')
-      isTicketValid = false
-      updateSubmitButton()
-    }
-
-    // Debounce de 300ms para llamada a API solo si formato válido
-    ticketDebounceTimer = setTimeout(() => {
-      validateTicketCode(ticket)
-    }, 300)
+    const localError = validateTicket(cleaned)
+    applyBtn.disabled = localError !== null
   }
 
   async function handleFormSubmit(event: Event) {
@@ -598,7 +594,8 @@ const { ticket = '' } = Astro.props as Props
       document.querySelector<HTMLButtonElement>('#form-siguiente')!
 
     const username = usernameInput.value.toLowerCase().trim()
-    const ticket = ticketInput.value.trim()
+    const chipCode = document.querySelector<HTMLElement>('#ticket-chip-code')
+    const ticket = chipCode?.textContent?.trim() || ticketInput.value.trim()
 
     // Validar una vez más antes de proceder
     if (!username || username.length < 3) {
@@ -652,30 +649,50 @@ const { ticket = '' } = Astro.props as Props
     }
   }
 
-  // Inicializar cuando el DOM esté listo
-  document.addEventListener('DOMContentLoaded', () => {
+  // Inicializar event listeners
+  function initForm() {
     const usernameInput = document.querySelector<HTMLInputElement>('#username')
     const ticketInput = document.querySelector<HTMLInputElement>('#ticket')
     const form = document.querySelector<HTMLFormElement>('#registro-form')
+    const applyBtn = document.querySelector<HTMLButtonElement>('#ticket-apply-btn')
+    const removeBtn = document.querySelector<HTMLButtonElement>('#ticket-remove-btn')
+
+    // Evitar doble inicialización
+    if (form?.dataset.initialized) return
+    if (form) form.dataset.initialized = 'true'
+
+    // Resetear estado (puede quedar stale tras navegación back/forward)
+    isUsernameValid = false
+    isTicketValid = false
+    updateSubmitButton()
 
     usernameInput?.addEventListener('input', handleUsernameInput)
     ticketInput?.addEventListener('input', handleTicketInput)
     form?.addEventListener('submit', handleFormSubmit)
 
-    // Si vino un ticket por prop, asegurar formato correcto y disparar validación inicial
-    if (ticketInput && ticketInput.value) {
-      const originalValue = ticketInput.value.trim()
-      const cleanedValue = cleanTicket(originalValue)
-
-      // Solo actualizar si el valor cambió para evitar parpadeo
-      if (cleanedValue !== ticketInput.value) {
-        ticketInput.value = cleanedValue
+    // Ticket: aplicar con botón o Enter
+    applyBtn?.addEventListener('click', applyTicket)
+    ticketInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        if (!applyBtn?.disabled) applyTicket()
       }
+    })
 
-      // Disparar validación sin delay para tickets iniciales
+    // Ticket: quitar con botón X
+    removeBtn?.addEventListener('click', removeTicket)
+
+    // Pre-populated ticket (viene por URL param)
+    if (ticketInput && ticketInput.value) {
+      const cleanedValue = cleanTicket(ticketInput.value.trim())
       if (cleanedValue) {
-        validateTicketCode(cleanedValue)
+        ticketInput.value = cleanedValue
+        applyTicket()
       }
     }
-  })
+  }
+
+  // Compatibilidad: DOMContentLoaded para carga inicial, astro:page-load para View Transitions
+  document.addEventListener('DOMContentLoaded', initForm)
+  document.addEventListener('astro:page-load', initForm)
 </script>

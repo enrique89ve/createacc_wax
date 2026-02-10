@@ -32,7 +32,19 @@ export function getRequiredEnvString(name: keyof ImportMetaEnv): string {
  * @returns true si el valor es "TRUE", false en caso contrario
  */
 export function getBooleanEnv(name: keyof ImportMetaEnv): boolean {
-	return import.meta.env[name] === 'TRUE'
+	const value = import.meta.env[name]
+	return typeof value === 'string' && value.toUpperCase() === 'TRUE'
+}
+
+/**
+ * Evalúa si un valor de process.env es truthy (true/1/yes)
+ * Útil para variables que no están en import.meta.env (e.g. runtime-only vars)
+ */
+export function isTruthyProcessEnv(name: string): boolean {
+	const value = process.env[name]
+	if (!value) return false
+	const normalized = value.trim().toLowerCase()
+	return normalized === 'true' || normalized === '1' || normalized === 'yes'
 }
 
 import { ENV_KEYS } from '@/consts/constants'

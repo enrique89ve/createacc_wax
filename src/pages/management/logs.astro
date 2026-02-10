@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { formatDateTimeFull } from '@/utils/date-formatters'
 import { auditRepository } from '@/lib/repositories/audit-repository'
 import type {
   TicketAuditLog,
@@ -74,19 +75,6 @@ try {
 } catch (err) {
   error = 'Error al cargar los logs'
   console.error('Error loading logs:', err)
-}
-
-// Helper para formatear fechas
-function formatDateTime(dateStr: string): string {
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
 }
 
 // Helper para obtener badge de acción
@@ -324,7 +312,7 @@ function getActionBadge(action: string): {
                             )}
                           </td>
                           <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                            {formatDateTime(log.timestamp)}
+                            {formatDateTimeFull(log.timestamp)}
                           </td>
                         </tr>
                       )
@@ -426,7 +414,7 @@ function getActionBadge(action: string): {
                           )}
                         </td>
                         <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                          {formatDateTime(log.timestamp)}
+                          {formatDateTimeFull(log.timestamp)}
                         </td>
                       </tr>
                     ))
