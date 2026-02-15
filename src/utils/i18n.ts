@@ -43,7 +43,7 @@ export interface Translations {
   readonly messages: {
     readonly keysDownloaded: string
     readonly downloadError: string
-    readonly jsPdfNotAvailable: string
+    readonly pdfGenerationFailed: string
     readonly unsupportedFormat: string
   }
 }
@@ -95,8 +95,7 @@ const es: Translations = {
   messages: {
     keysDownloaded: 'Claves descargadas en formato {format}',
     downloadError: 'Error al descargar las claves',
-    jsPdfNotAvailable:
-      'jsPDF no está disponible. Asegúrate de cargar la librería.',
+    pdfGenerationFailed: 'Error al generar el PDF.',
     unsupportedFormat: 'Formato no soportado: {format}',
   },
 }
@@ -148,7 +147,7 @@ const en: Translations = {
   messages: {
     keysDownloaded: 'Keys downloaded in {format} format',
     downloadError: 'Error downloading keys',
-    jsPdfNotAvailable: 'jsPDF is not available. Make sure to load the library.',
+    pdfGenerationFailed: 'Failed to generate PDF.',
     unsupportedFormat: 'Unsupported format: {format}',
   },
 }
@@ -200,8 +199,7 @@ const pt: Translations = {
   messages: {
     keysDownloaded: 'Chaves baixadas no formato {format}',
     downloadError: 'Erro ao baixar as chaves',
-    jsPdfNotAvailable:
-      'jsPDF não está disponível. Certifique-se de carregar a biblioteca.',
+    pdfGenerationFailed: 'Erro ao gerar o PDF.',
     unsupportedFormat: 'Formato não suportado: {format}',
   },
 }

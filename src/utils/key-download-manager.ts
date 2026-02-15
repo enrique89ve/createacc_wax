@@ -1,3 +1,4 @@
+import { PdfDocument } from '@/lib/pdf'
 import { I18nManager } from './i18n'
 
 export interface KeysData {
@@ -112,16 +113,10 @@ ${t.keys.footer}
     content: KeysContent,
     filename: string
   ): void {
-    // Verificar que jsPDF esté disponible
-    if (typeof window === 'undefined' || !('jspdf' in window)) {
-      throw new Error(I18nManager.t('messages.jsPdfNotAvailable'))
-    }
-
-    const { jsPDF } = (window as any).jspdf
-    const doc = new jsPDF()
+    const doc = new PdfDocument()
     let y = 10
     const margin = 20
-    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageWidth = doc.getPageWidth()
     const maxLineWidth = pageWidth - margin * 2
 
     // Title
@@ -169,13 +164,13 @@ ${t.keys.footer}
 
       // Lógica de descarga según el entorno
       if (isMobile) {
-        const blob = doc.output('blob')
+        const blob = doc.toBlob()
         this.downloadBlob(blob, filename)
         return
       }
 
       if (isInSandbox) {
-        const pdfData = doc.output('datauristring')
+        const pdfData = doc.toDataUri()
         try {
           const newWindow = window.open('', '_blank')
           if (newWindow) {
@@ -218,11 +213,11 @@ ${t.keys.footer}
       }
 
       // Otros dispositivos: método estándar de descarga
-      const blob = doc.output('blob')
+      const blob = doc.toBlob()
       this.downloadBlob(blob, filename)
     } catch (error) {
       // Fallback final: mostrar en la misma ventana
-      const pdfData = doc.output('datauristring')
+      const pdfData = doc.toDataUri()
       window.location.href = pdfData
     }
   }
