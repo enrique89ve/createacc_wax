@@ -1,69 +1,194 @@
-## Project Overview
+## HolaHive
 
-HolaHive is a secure web application for creating free Hive blockchain accounts. Built with Astro 5.12 and TailwindCSS v4, it focuses on privacy and security - Hive private keys are never read or stored by the server, and all key generation happens in the user's browser.
+Aplicacion web segura para la creacion de cuentas gratuitas en la blockchain Hive. Construida con Astro 5.13+ y TailwindCSS v4, enfocada en privacidad y seguridad — las llaves privadas de Hive nunca son leidas ni almacenadas por el servidor, toda la generacion de llaves ocurre en el navegador del usuario.
 
-se usa la libreria @hiveio/wax para las operaciones con la blockchain Hive
+### Stack
 
-## Architecture
-
-- **Framework**: Astro with TypeScript (strict mode)
+- **Framework**: Astro 5.13+ con TypeScript (strict mode)
 - **Styling**: TailwindCSS v4 via Vite plugin
-- **Structure**: Standard Astro project with layouts, components, and pages
+- **Database**: SQLite con @libsql/client (local o Turso Cloud)
+- **Auth**: bcryptjs (admin) + Hive Keychain (builders) + Auth.js JWT
+- **Blockchain**: @hiveio/wax + @hiveio/beekeeper
+- **Adapter**: @astrojs/node (standalone)
+- **Package Manager**: pnpm
 
-## Setup & Configuration
+---
 
-### 1. Environment Variables
+## Setup
 
-Copy `.env.example` to `.env.local`:
+### 1. Instalar dependencias
+
+```bash
+pnpm install
+```
+
+### 2. Configurar variables de entorno
 
 ```bash
 cp .env.example .env.local
 ```
 
-The same `.env.local` file works for both **development** and **production**. Just change the `MAINNET` variable:
-
-**Development (Testnet):**
-```bash
-MAINNET=false  # Uses api.fake.openhive.network
-```
-
-**Production (Mainnet):**
-```bash
-MAINNET=TRUE  # Uses mainnet with failover
-```
-
-### 2. Required Environment Variables
+El mismo `.env.local` funciona para desarrollo y produccion. Variables requeridas:
 
 ```bash
-# Hive accounts
+# Hive blockchain
 HIVE_CREATOR_ACCOUNT=your-creator-account
 HIVE_DELEGATOR_ACCOUNT=your-delegator-account
 HIVE_CREATOR_ACTIVE_KEY=5JNHfZY.....
-HIVE_DELEGATOR_ACTIVE_KEY=5JNHfZY.....
+HIVE_DELEGATOR_POSTING_KEY=5JNHfZY.....
 
-# Auth secret (min 32 chars)
-AUTH_SECRET=your-random-secret-key
+# Seguridad
+AUTH_SECRET=your-random-secret-min-32-chars
+SESSION_SECRET=generate-with-openssl-rand-base64-64
+BEEKEEPER_WALLET_PASSWORD=your-secure-wallet-password
 
-# Environment mode
-MAINNET=false  # or TRUE for production
+# Entorno
+MAINNET=false   # false = testnet, TRUE = mainnet con failover
 ```
 
-### 3. Development Commands
+#### Variables opcionales (Database)
+
+Por defecto usa SQLite local (`file:holahive.db`). Para Turso Cloud:
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Start dev server (auto-runs db:init)
-pnpm dev
-
-# Build for production
-pnpm build
-
-# Preview production build
-pnpm preview
+DATABASE_URL=libsql://your-database-org.turso.io
+TURSO_AUTH_TOKEN=eyJhbGciOi...
 ```
 
-## ESTILO DE DISEÑO INTERFACE
+Para embedded replica (local + cloud sync):
 
-- Estilo moderno minimalista, estilo https://ui.shadcn.com/, usar solo el color rojo para alternar red-500 para botones importantes y green-500, y indigo-400 para lineas de bordes, para texto usar neutral-50
+```bash
+DATABASE_URL=file:replica.db
+TURSO_AUTH_TOKEN=eyJhbGciOi...
+TURSO_SYNC_URL=libsql://your-database-org.turso.io
+```
+
+### 3. Inicializar base de datos y crear admin
+
+```bash
+# Inicializar schema (tablas, triggers, indices)
+pnpm db:init
+
+# Crear cuenta admin (interactivo)
+pnpm admin:create
+
+# O automatizado (CI/CD, Docker)
+ADMIN_USERNAME=admin ADMIN_PASSWORD=SecurePass123! pnpm admin:create
+```
+
+La base de datos solo permite **1 admin** (enforced por trigger SQL). El password se hashea con bcrypt (10 rounds) y se almacena en la tabla `Users`.
+
+### 4. Iniciar desarrollo
+
+```bash
+pnpm dev    # Ejecuta db:init automaticamente + astro dev
+```
+
+---
+
+## Comandos
+
+### Desarrollo
+
+| Comando | Descripcion |
+|---------|-------------|
+| `pnpm dev` | Servidor de desarrollo (auto-ejecuta db:init) |
+| `pnpm build` | Build de produccion |
+| `pnpm preview` | Preview del build de produccion |
+
+### Base de datos
+
+| Comando | Descripcion |
+|---------|-------------|
+| `pnpm db:init` | Inicializar schema (tablas, triggers, indices) |
+| `pnpm db:reset` | Eliminar DB y recrear schema |
+| `pnpm db:seed` | Poblar DB con datos de prueba |
+| `pnpm db:quickstart` | Reset + seed en un solo paso |
+
+### Admin
+
+| Comando | Descripcion |
+|---------|-------------|
+| `pnpm admin:create` | Crear cuenta admin (interactivo o via env vars) |
+| `pnpm admin:reset` | Cambiar password del admin existente |
+| `pnpm admin:check` | Ver estado actual del admin |
+| `pnpm admin:setup` | Mostrar ayuda de admin management |
+
+---
+
+## Flujo de autenticacion
+
+### Admin (password)
+
+```
+pnpm admin:create
+    -> bcrypt.hash(password, 10)
+    -> INSERT INTO Users (role='admin')
+    -> Trigger: prevent_multiple_admins (max 1 admin)
+    -> Trigger: enforce_admin_password_constraint (admin DEBE tener password)
+
+Login: POST /api/auth/management-login
+    -> Rate limit check
+    -> bcrypt.compare(password, hash)
+    -> JWT firmado con AUTH_SECRET
+    -> Cookie: authjs.session-token
+```
+
+### Builder (Hive Keychain)
+
+```
+GET /api/auth/challenge
+    -> Genera nonce criptografico (TTL: 2 min, uso unico)
+
+Login via Keychain:
+    -> Firma mensaje con nonce del servidor
+    -> Server: consumeNonce() (one-time use)
+    -> Server: WAX verifica firma criptografica
+    -> Server: Verifica publicKey en posting authorities
+    -> JWT firmado con AUTH_SECRET
+    -> Cookie: authjs.session-token
+```
+
+---
+
+## Estructura del proyecto
+
+```
+src/
+  components/    Componentes Astro UI
+  consts/        Constantes centralizadas (SEO, validation, config)
+  data/          Datos estaticos (suspicious accounts)
+  layouts/       Layouts reutilizables (Base, Layout, Builders, Management)
+  lib/           Servicios core (blockchain, database, auth, sessions)
+  pages/         Paginas y API routes
+  sections/      Secciones de paginas
+  styles/        Estilos globales
+  types/         Definiciones TypeScript
+  utils/         Utilidades y helpers
+scripts/         Scripts de inicializacion y admin
+```
+
+### Layouts
+
+| Layout | Uso | SEO |
+|--------|-----|-----|
+| `Base.astro` | Fundacion HTML + meta tags | Configurable |
+| `Layout.astro` | Paginas publicas con navbar | Indexable |
+| `BuildersLayout.astro` | Area `/builders/*` con auth | noindex |
+| `ManagementLayout.astro` | Area `/management/*` con RBAC | noindex + enhanced security |
+
+---
+
+## Seguridad
+
+- Llaves privadas nunca se envian ni almacenan en el servidor
+- Generacion de llaves 100% client-side (Web Crypto API)
+- bcrypt con salt para passwords de admin
+- HMAC-SHA256 para cookies de sesion de creacion
+- JWT firmados con AUTH_SECRET para sesiones Auth.js
+- Nonces criptograficos de uso unico para Keychain auth
+- Rate limiting por IP/fingerprint + username
+- Validacion dual (client + server) para usernames
+- RBAC: admin y builder con permisos diferenciados
+- Triggers SQL: max 1 admin, roles inmutables, integridad de password
+- CSP headers configurados en middleware

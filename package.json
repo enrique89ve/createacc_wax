@@ -11,6 +11,8 @@
     "db:reset": "rm -f holahive.db && pnpm run db:init",
     "db:seed": "tsx scripts/seed-database.ts",
     "db:quickstart": "pnpm run db:reset && pnpm run db:seed",
+    "reconcile:pending": "tsx scripts/reconcile-pending.ts",
+    "reconcile:pending:dry-run": "tsx scripts/reconcile-pending.ts --dry-run",
     "admin:setup": "tsx scripts/admin-setup.ts",
     "admin:create": "tsx scripts/admin-setup.ts create",
     "admin:reset": "tsx scripts/admin-setup.ts reset",
@@ -18,7 +20,7 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.5",
-    "@astrojs/vercel": "^9.0.1",
+    "@astrojs/node": "^9.5.3",
     "@auth/core": "^0.37.4",
     "@fontsource-variable/sora": "^5.2.6",
     "@hiveio/beekeeper": "^1.28.4",

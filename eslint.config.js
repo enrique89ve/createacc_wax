@@ -47,6 +47,6 @@ export default [
 
   // Ignores
   {
-    ignores: ["dist/**/*", ".astro/**/*", "node_modules/**/*", ".vercel/**/*", "eslint-rules/**/*"],
+    ignores: ["dist/**/*", ".astro/**/*", "node_modules/**/*", "eslint-rules/**/*"],
   },
 ];

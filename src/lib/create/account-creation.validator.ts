@@ -117,25 +117,46 @@ export class AccountCreationValidator {
 
 	/**
 	 * Valida la sesión de creación de cuenta.
-	 * 
+	 *
 	 * Verifica que:
 	 * - El usuario tiene una sesión activa
 	 * - Ha confirmado la descarga de claves
-	 * - La sesión es válida para crear cuenta
-	 * 
+	 * - El username del request coincide con el de la sesión (anti-tampering)
+	 *
 	 * @param context - Contexto de la petición HTTP
+	 * @param requestUsername - Username del request body para comparar con la sesión
 	 * @returns ValidationResult con datos de sesión o error
 	 */
-	async validateSessionData(context: APIContext): Promise<ValidationResult<ValidatedSession>> {
+	async validateSessionData(
+		context: APIContext,
+		requestUsername: string
+	): Promise<ValidationResult<ValidatedSession>> {
 		try {
-			// Validar sesión de creación (confirmación de descarga)
 			const creationSession = await ensureCreation(context)
-			
+
 			if (!creationSession || !creationSession.confirmedDownload) {
 				return createValidationFailure(
 					VALIDATION_ERROR_MESSAGES.KEYS_DOWNLOAD_NOT_CONFIRMED,
 					'session',
 					'KEYS_DOWNLOAD_NOT_CONFIRMED'
+				)
+			}
+
+			// G1: Validar que el username del request coincide con el de la sesión
+			if (creationSession.username !== requestUsername) {
+				return createValidationFailure(
+					VALIDATION_ERROR_MESSAGES.USERNAME_SESSION_MISMATCH,
+					'username',
+					'USERNAME_SESSION_MISMATCH'
+				)
+			}
+
+			// F1 FIX: Require ticket in session - prevents ticketless account creation
+			if (!creationSession.ticket || !creationSession.ticket.trim()) {
+				return createValidationFailure(
+					VALIDATION_ERROR_MESSAGES.TICKET_REQUIRED,
+					'ticket',
+					'TICKET_REQUIRED'
 				)
 			}
 

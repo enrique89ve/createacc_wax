@@ -1,8 +1,7 @@
 // Moved from lib/constants.ts to consts/constants.ts for clearer separation
 // WALLET_PASSWORD moved to environment variables for security
 export const BEEKEEPER_CONFIG = {
-  WALLET_NAME: 'holahive-creator',
-  SESSION_PREFIX: 'holahive-session',
+  WALLET_PREFIX: 'holahive',
   SESSION_SALT: 'holahive-beekeeper-salt-v1',
 } as const
 
@@ -63,8 +62,8 @@ export const ERROR_CONFIG = {
   MAX_RETRY_ATTEMPTS: 3,
   RETRY_DELAY_MS: 1000,
   LOG_LEVEL: 'error', // 'error' | 'warn' | 'info' | 'debug'
-  ENABLE_DETAILED_LOGGING: true,
-} as const
+  ENABLE_DETAILED_LOGGING: import.meta.env.DEV,
+}
 
 // Wax-specific error patterns
 export const WAX_ERROR_PATTERNS = {
@@ -81,11 +80,6 @@ export const WAX_ERROR_PATTERNS = {
     'insufficient.*rc',
     'delegation.*exist',
   ],
-} as const
-
-export const SESSION_CONFIG = {
-  TTL: 86400, // 24 hours in seconds
-  COOKIE_NAME: 'holahive-session',
 } as const
 
 /**
@@ -158,7 +152,7 @@ export const ENV_KEYS = {
   HIVE_CREATOR_ACCOUNT: 'HIVE_CREATOR_ACCOUNT',
   HIVE_DELEGATOR_ACCOUNT: 'HIVE_DELEGATOR_ACCOUNT',
   HIVE_CREATOR_ACTIVE_KEY: 'HIVE_CREATOR_ACTIVE_KEY',
-  HIVE_DELEGATOR_ACTIVE_KEY: 'HIVE_DELEGATOR_ACTIVE_KEY',
+  HIVE_DELEGATOR_POSTING_KEY: 'HIVE_DELEGATOR_POSTING_KEY',
   MAINNET: 'MAINNET',
   BEEKEEPER_WALLET_PASSWORD: 'BEEKEEPER_WALLET_PASSWORD',
   SESSION_SECRET: 'SESSION_SECRET',

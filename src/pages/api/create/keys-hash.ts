@@ -8,9 +8,18 @@ import {
   createCompatibleErrorResponse,
 } from '@/utils/errorResponse'
 import { validateHiveKeySet } from '@/utils/key-validation'
+import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
+import { resolveClientIp } from '@/lib/client-ip'
 
 export const POST: APIRoute = async context => {
   try {
+    // F3 FIX: Rate-limit keys-hash endpoint
+    const clientIp = resolveClientIp(context)
+    const rateLimit = checkCreationRateLimit('keysHash', clientIp)
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit.retryAfterMs)
+    }
+
     const existing = await ensureCreation(context)
     if (!existing) {
       return createCompatibleErrorResponse(

@@ -462,19 +462,13 @@ const { ticket = '' } = Astro.props as Props
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            username: username,
-            includeReason: true,
-          }),
+          body: JSON.stringify({ username }),
         })
 
         const suspiciousResult = await suspiciousResponse.json()
 
         if (suspiciousResult.isSuspicious) {
-          const errorMsg = suspiciousResult.suggestion
-            ? `Username no permitido. ${suspiciousResult.suggestion}`
-            : 'Este username no está permitido'
-          showErrorState(errorMsg)
+          showErrorState('Este username no está permitido')
           return
         }
       } catch (suspiciousError) {
@@ -488,23 +482,13 @@ const { ticket = '' } = Astro.props as Props
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            username: username,
-            threshold: 0.68,
-            timeRangeHours: 24,
-          }),
+          body: JSON.stringify({ username }),
         })
 
         const similarityResult = await similarityResponse.json()
 
         if (similarityResult.isSimilar) {
-          const errorMsg =
-            similarityResult.suggestions &&
-            similarityResult.suggestions.length > 0
-              ? `${similarityResult.errorMessage}. Prueba: ${similarityResult.suggestions.join(', ')}`
-              : similarityResult.errorMessage ||
-                'Username muy similar a una cuenta reciente'
-          showErrorState(errorMsg)
+          showErrorState('Username muy similar a una cuenta reciente')
           return
         }
       } catch (similarityError) {

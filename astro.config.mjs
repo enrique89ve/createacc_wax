@@ -4,13 +4,23 @@ import { defineConfig } from 'astro/config'
 
 import tailwindcss from '@tailwindcss/vite'
 
-import vercel from '@astrojs/vercel'
+import node from '@astrojs/node'
 
 import auth from 'auth-astro'
 
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
+
+  security: {
+    checkOrigin: true,
+    allowedDomains: [
+      {
+        hostname: 'join.holahive.com',
+        protocol: 'https',
+      },
+    ],
+  },
 
   vite: {
     plugins: [tailwindcss()],
@@ -21,7 +31,7 @@ export default defineConfig({
     },
   },
 
-  adapter: vercel(),
+  adapter: node({ mode: 'standalone' }),
 
   integrations: [auth()],
 })

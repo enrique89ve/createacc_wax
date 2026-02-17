@@ -95,13 +95,26 @@ export class HiveKeychainService {
     return `${KeychainLoginMessage.DefaultPrefix} ${origin}`
   }
 
-  private generateSecureMessage(
+  /**
+   * Solicita un nonce criptográfico al servidor para prevenir replay attacks
+   */
+  private async fetchChallenge(): Promise<string> {
+    const response = await fetch('/api/auth/challenge')
+    if (!response.ok) {
+      throw new Error('No se pudo obtener challenge del servidor')
+    }
+    const data = await response.json()
+    return data.nonce
+  }
+
+  private async generateSecureMessage(
     username: HiveUsername,
     customMessage?: string
-  ): HiveMessage {
+  ): Promise<HiveMessage> {
     const timestamp = Date.now()
+    const nonce = await this.fetchChallenge()
     const baseMessage = this.resolveLoginPrefix(customMessage)
-    const message = `${baseMessage}\nUsername: ${username}\nTimestamp: ${timestamp}`
+    const message = `${baseMessage}\nUsername: ${username}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
 
     return createHiveMessage(message)
   }
@@ -148,15 +161,17 @@ export class HiveKeychainService {
 
     const hiveUsername = createHiveUsername(username)
 
-    return new Promise(resolve => {
-      try {
-        const message = this.generateSecureMessage(hiveUsername, customMessage)
+    try {
+      const message = await this.generateSecureMessage(hiveUsername, customMessage)
 
+      const KEYCHAIN_TIMEOUT_MS = 60_000
+
+      const keychainPromise = new Promise<HiveKeychainAuthResult>(resolve => {
         window.hive_keychain!.requestSignBuffer(
-          username.trim(),
+          hiveUsername,
           message,
           keyType,
-          async (response: HiveKeychainResponse) => {
+          (response: HiveKeychainResponse) => {
             if (response.success) {
               // Keychain signature field mapping
               const signature = response.result || (response as any).signature
@@ -185,13 +200,22 @@ export class HiveKeychainService {
           },
           title
         )
-      } catch (error) {
-        resolve({
+      })
+
+      const timeoutPromise = new Promise<HiveKeychainAuthResult>(resolve => {
+        setTimeout(() => resolve({
           success: false,
-          error: `Error en login: ${error instanceof Error ? error.message : 'Error desconocido'}`,
-        })
+          error: 'Keychain no respondió en el tiempo esperado (60s)',
+        }), KEYCHAIN_TIMEOUT_MS)
+      })
+
+      return await Promise.race([keychainPromise, timeoutPromise])
+    } catch (error) {
+      return {
+        success: false,
+        error: `Error en login: ${error instanceof Error ? error.message : 'Error desconocido'}`,
       }
-    })
+    }
   }
 }
 

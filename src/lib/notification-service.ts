@@ -7,7 +7,6 @@ import { db } from './database'
 import type {
 	CreateNotificationData,
 	DatabaseNotificationRow,
-	parseNotificationRow,
 } from '@/types/database'
 import { parseNotificationRow as parseRow } from '@/types/database'
 
@@ -152,49 +151,6 @@ export async function markAllAsRead(userId: number): Promise<boolean> {
 		return true
 	} catch (error) {
 		console.error('Error marking all notifications as read:', error)
-		return false
-	}
-}
-
-/**
- * Delete a specific notification
- */
-export async function deleteNotification(
-	notificationId: number,
-	userId: number
-): Promise<boolean> {
-	try {
-		const result = await db.execute({
-			sql: `
-				DELETE FROM Notifications
-				WHERE id = ? AND user_id = ?
-			`,
-			args: [notificationId, userId],
-		})
-
-		return result.rowsAffected > 0
-	} catch (error) {
-		console.error('Error deleting notification:', error)
-		return false
-	}
-}
-
-/**
- * Delete all read notifications for a user
- */
-export async function deleteReadNotifications(userId: number): Promise<boolean> {
-	try {
-		await db.execute({
-			sql: `
-				DELETE FROM Notifications
-				WHERE user_id = ? AND is_read = TRUE
-			`,
-			args: [userId],
-		})
-
-		return true
-	} catch (error) {
-		console.error('Error deleting read notifications:', error)
 		return false
 	}
 }

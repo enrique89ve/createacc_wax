@@ -19,6 +19,7 @@ export interface ClaimHashData {
 class ClaimHashCache {
 	private cache = new Map<string, ClaimHashData>()
 	private readonly TTL = 10 * 60 * 1000 // 10 minutos en millisegundos
+	private readonly MAX_ENTRIES = 10_000
 
 	/**
 	 * Generar y almacenar hash de validación
@@ -39,7 +40,18 @@ class ClaimHashCache {
 		}
 
 		// Limpiar hashes expirados antes de agregar nuevo
-		this.cleanupExpired()
+		this.cleanup()
+
+		// Evict oldest entries if cache is full to prevent OOM
+		if (this.cache.size >= this.MAX_ENTRIES) {
+			const entriesToRemove = Math.floor(this.MAX_ENTRIES * 0.1)
+			const iterator = this.cache.keys()
+			for (let i = 0; i < entriesToRemove; i++) {
+				const next = iterator.next()
+				if (next.done) break
+				this.cache.delete(next.value)
+			}
+		}
 
 		// Almacenar en cache
 		this.cache.set(hash, hashData)
@@ -52,7 +64,7 @@ class ClaimHashCache {
 	 */
 	validateAndConsume(hash: string, username: string): ClaimHashData | null {
 		// Limpiar expirados
-		this.cleanupExpired()
+		this.cleanup()
 
 		const hashData = this.cache.get(hash)
 
@@ -78,85 +90,15 @@ class ClaimHashCache {
 	}
 
 	/**
-	 * Verificar si un hash existe sin consumirlo
-	 */
-	validateOnly(hash: string, username: string): ClaimHashData | null {
-		this.cleanupExpired()
-
-		const hashData = this.cache.get(hash)
-
-		if (!hashData) {
-			return null
-		}
-
-		if (hashData.username !== username) {
-			return null
-		}
-
-		if (Date.now() > hashData.expiresAt) {
-			this.cache.delete(hash)
-			return null
-		}
-
-		return hashData
-	}
-
-	/**
 	 * Limpiar hashes expirados
 	 */
-	private cleanupExpired(): void {
+	cleanup(): void {
 		const now = Date.now()
-		const expiredHashes: string[] = []
 
-		// Encontrar hashes expirados
 		for (const [hash, data] of this.cache) {
 			if (now > data.expiresAt) {
-				expiredHashes.push(hash)
+				this.cache.delete(hash)
 			}
-		}
-
-		// Eliminar hashes expirados
-		expiredHashes.forEach(hash => {
-			this.cache.delete(hash)
-		})
-
-		if (expiredHashes.length > 0) {
-		}
-	}
-
-	/**
-	 * Obtener estadísticas del cache
-	 */
-	getStats(): {
-		totalHashes: number
-		activeHashes: number
-		expiredHashes: number
-		memoryUsage: string
-	} {
-		this.cleanupExpired()
-
-		const now = Date.now()
-		let activeCount = 0
-		let expiredCount = 0
-
-		for (const [, data] of this.cache) {
-			if (now <= data.expiresAt) {
-				activeCount++
-			} else {
-				expiredCount++
-			}
-		}
-
-		// Estimación aproximada de uso de memoria
-		const avgHashSize = 200 // bytes aproximados por entrada
-		const memoryBytes = this.cache.size * avgHashSize
-		const memoryKB = Math.round(memoryBytes / 1024 * 100) / 100
-
-		return {
-			totalHashes: this.cache.size,
-			activeHashes: activeCount,
-			expiredHashes: expiredCount,
-			memoryUsage: `${memoryKB} KB`
 		}
 	}
 
@@ -173,9 +115,7 @@ const claimHashCache = new ClaimHashCache()
 
 // Limpieza automática cada 5 minutos
 setInterval(() => {
-	const stats = claimHashCache.getStats()
-	if (stats.totalHashes > 0) {
-	}
+	claimHashCache.cleanup()
 }, 5 * 60 * 1000)
 
 export { claimHashCache }

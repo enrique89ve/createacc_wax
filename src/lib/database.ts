@@ -2,7 +2,9 @@ import { createClient } from '@libsql/client'
 import { UserRole } from '@/lib/roles'
 
 export const db = createClient({
-  url: process.env.DATABASE_URL || 'file:holahive.db',
+	url: process.env.DATABASE_URL || 'file:holahive.db',
+	authToken: process.env.TURSO_AUTH_TOKEN,
+	syncUrl: process.env.TURSO_SYNC_URL,
 })
 
 // Inicializar base de datos
@@ -255,6 +257,30 @@ export async function initializeDatabase() {
 				AND viewed_at IS NOT NULL
 				AND datetime(viewed_at, '+24 hours') <= datetime('now');
 		END
+	`)
+
+    // Crear tabla ReconciliationQueue (trazabilidad de operaciones ambiguas)
+    await db.execute(`
+		CREATE TABLE IF NOT EXISTS ReconciliationQueue (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			correlation_id TEXT NOT NULL,
+			username TEXT NOT NULL,
+			ticket_code TEXT NOT NULL,
+			reason TEXT NOT NULL CHECK (reason IN ('ambiguous_chain_error', 'db_completion_failed')),
+			error_category TEXT,
+			error_message TEXT,
+			transaction_id TEXT,
+			resolved BOOLEAN DEFAULT FALSE,
+			resolved_at DATETIME,
+			resolved_by TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_reconciliation_pending
+		ON ReconciliationQueue(resolved, created_at DESC)
+		WHERE resolved = FALSE
 	`)
 
     // Trigger: Crear notificación cuando se crea una cuenta

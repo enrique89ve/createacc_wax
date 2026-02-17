@@ -296,15 +296,149 @@ export interface DBOperationResult {
 }
 
 /**
- * Función atómica para completar el proceso post-creación de cuenta
- * Usa transacción para garantizar consistencia y detecta carreras
+ * F2 FIX: Reserve a ticket credit atomically BEFORE on-chain account creation.
+ * Uses BEGIN IMMEDIATE TRANSACTION to prevent race conditions.
+ * If the on-chain creation fails afterwards, call rollbackTicketReservation().
+ */
+export async function reserveTicketCredit(
+  ticketCode: string,
+  correlationId?: string
+): Promise<DBOperationResult> {
+  const cleanTicketCode = sanitizeTicketCode(ticketCode)
+  if (!cleanTicketCode) {
+    return {
+      success: false,
+      error: 'Invalid ticket format',
+      errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+      correlationId,
+    }
+  }
+
+  try {
+    await db.execute('BEGIN IMMEDIATE TRANSACTION')
+
+    try {
+      const updateResult = await db.execute({
+        sql: `UPDATE Tickets
+              SET credits = CASE
+                    WHEN credits > 0 THEN credits - 1
+                    ELSE 0
+                  END,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE code = ? AND is_active = TRUE AND credits > 0
+              RETURNING id, code, credits as remaining_credits`,
+        args: [cleanTicketCode],
+      })
+
+      if (updateResult.rows.length === 0) {
+        const checkResult = await db.execute({
+          sql: `SELECT is_active, credits FROM Tickets WHERE code = ?`,
+          args: [cleanTicketCode],
+        })
+
+        await db.execute('ROLLBACK')
+
+        if (checkResult.rows.length === 0) {
+          return {
+            success: false,
+            error: 'Ticket does not exist',
+            errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
+            correlationId,
+          }
+        }
+        return {
+          success: false,
+          error: 'Ticket has no available credits or is inactive',
+          errorCode: VALIDATION_ERROR_CODES.TICKET_RACE_CONDITION,
+          correlationId,
+        }
+      }
+
+      await db.execute('COMMIT')
+      return { success: true, correlationId }
+    } catch (innerError) {
+      await db.execute('ROLLBACK')
+      throw innerError
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    return {
+      success: false,
+      error: `Ticket reservation failed: ${errorMessage}`,
+      errorCode: DATABASE_ERROR_CODES.INTERNAL_ERROR,
+      correlationId,
+    }
+  }
+}
+
+/**
+ * F2 FIX: Rollback a ticket reservation if on-chain creation fails.
+ * Restores the credit that was previously deducted by reserveTicketCredit().
+ */
+export async function rollbackTicketReservation(
+  ticketCode: string,
+  correlationId?: string
+): Promise<DBOperationResult> {
+  const cleanTicketCode = sanitizeTicketCode(ticketCode)
+  if (!cleanTicketCode) {
+    return {
+      success: false,
+      error: 'Invalid ticket format',
+      errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+      correlationId,
+    }
+  }
+
+  try {
+    const result = await db.execute({
+      sql: `UPDATE Tickets
+            SET credits = credits + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE code = ?
+            RETURNING id`,
+      args: [cleanTicketCode],
+    })
+
+    if (result.rows.length === 0) {
+      console.error(
+        `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
+      )
+      return {
+        success: false,
+        error: 'Ticket not found for rollback',
+        errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
+        correlationId,
+      }
+    }
+
+    console.warn(
+      `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back successfully`
+    )
+    return { success: true, correlationId }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error(
+      `[${correlationId}] CRITICAL: Ticket rollback failed: ${errorMessage}`
+    )
+    return {
+      success: false,
+      error: `Rollback failed: ${errorMessage}`,
+      errorCode: DATABASE_ERROR_CODES.INTERNAL_ERROR,
+      correlationId,
+    }
+  }
+}
+
+/**
+ * Complete post-creation DB operations after successful on-chain creation.
+ * Ticket credit was already reserved by reserveTicketCredit().
+ * This function saves the account record and marks builder credits as consumed.
  */
 export async function completeAccountCreationInDB(
   username: string,
-  ticketCode?: string,
+  ticketCode: string,
   correlationId?: string
 ): Promise<DBOperationResult> {
-  // Re-sanitizar para seguridad (llamadas directas externas)
   const cleanUsername = sanitizeUsername(username)
   if (!cleanUsername) {
     return {
@@ -312,28 +446,6 @@ export async function completeAccountCreationInDB(
       error: 'Invalid username format',
       errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
       correlationId,
-    }
-  }
-
-  if (!ticketCode) {
-    // Sin ticket, solo guardar la cuenta
-    try {
-      const accountSaved = await saveCreatedAccount(cleanUsername, ticketCode, null)
-      return {
-        success: accountSaved,
-        error: accountSaved ? undefined : 'Failed to save account',
-        errorCode: accountSaved
-          ? undefined
-          : DATABASE_ERROR_CODES.INTERNAL_ERROR,
-        correlationId,
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Failed to save account: ${error}`,
-        errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
-        correlationId,
-      }
     }
   }
 
@@ -347,44 +459,26 @@ export async function completeAccountCreationInDB(
     }
   }
 
-  // Con ticket - operación atómica completa
   try {
-    // Usar BEGIN IMMEDIATE para reducir window de carrera
     await db.execute('BEGIN IMMEDIATE TRANSACTION')
 
     try {
-      // 1. Descontar créditos y obtener info del ticket y creador (is_active y has_been_used se actualizan automáticamente)
-      const updateResult = await db.execute({
-        sql: `UPDATE Tickets
-              SET credits = CASE
-                    WHEN credits > 0 THEN credits - 1
-                    ELSE 0
-                  END,
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE code = ? AND is_active = TRUE AND credits > 0
-              RETURNING id, code, credits as remaining_credits, created_by,
-                (SELECT username FROM Users WHERE id = created_by) as creator_username`,
+      // 1. Get ticket creator info
+      const ticketInfo = await db.execute({
+        sql: `SELECT created_by,
+              (SELECT username FROM Users WHERE id = created_by) as creator_username
+              FROM Tickets WHERE code = ?`,
         args: [cleanTicketCode],
       })
 
-      if (updateResult.rows.length === 0) {
-        // Detectar si es carrera vs ticket no encontrado
-        const checkResult = await db.execute({
-          sql: `SELECT is_active, has_been_used FROM Tickets WHERE code = ?`,
-          args: [cleanTicketCode],
-        })
+      const creatorUsername = ticketInfo.rows.length > 0
+        ? ticketInfo.rows[0].creator_username as string | null
+        : null
+      const createdBy = ticketInfo.rows.length > 0
+        ? ticketInfo.rows[0].created_by as number | null
+        : null
 
-        if (checkResult.rows.length === 0) {
-          // Ticket realmente no existe
-          throw new Error('TICKET_NOT_FOUND')
-        } else {
-          // Ticket existe pero no está activo (carrera)
-          throw new Error('TICKET_RACE_CONDITION')
-        }
-      }
-
-      // 2. Obtener username del creador y guardar cuenta (puede fallar por UNIQUE constraint)
-      const creatorUsername = updateResult.rows[0].creator_username as string | null
+      // 2. Save account record
       try {
         await db.execute({
           sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
@@ -392,7 +486,6 @@ export async function completeAccountCreationInDB(
           args: [cleanUsername, cleanTicketCode, creatorUsername],
         })
       } catch (accountError) {
-        // Si falla por UNIQUE constraint, es cuenta duplicada
         if (
           accountError instanceof Error &&
           accountError.message.includes('UNIQUE')
@@ -402,45 +495,19 @@ export async function completeAccountCreationInDB(
         throw accountError
       }
 
-      // 3. Usage tracking through Accounts table (TicketAudit is admin-only)
-      // Account creation is already logged in Accounts table with ticket reference
-
-      // 4. Marcar crédito como consumido en el balance del builder
-      const createdBy = updateResult.rows[0].created_by as number | null
+      // 3. Mark credits as consumed in the builder balance
       if (createdBy) {
         await creditsService.markCreditsAsConsumed(createdBy, 1, cleanUsername)
       }
 
-      // Commit de la transacción
       await db.execute('COMMIT')
       return { success: true, correlationId }
     } catch (innerError) {
-      // Rollback en caso de error
       await db.execute('ROLLBACK')
       throw innerError
     }
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Unknown error'
-
-    // Mapear errores específicos
-    if (errorMessage === 'TICKET_NOT_FOUND') {
-      return {
-        success: false,
-        error: 'Ticket does not exist',
-        errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
-        correlationId,
-      }
-    }
-
-    if (errorMessage === 'TICKET_RACE_CONDITION') {
-      return {
-        success: false,
-        error: 'Ticket is already being used by another request',
-        errorCode: VALIDATION_ERROR_CODES.TICKET_RACE_CONDITION,
-        correlationId,
-      }
-    }
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 
     if (errorMessage === 'ACCOUNT_EXISTS') {
       return {
@@ -454,10 +521,125 @@ export async function completeAccountCreationInDB(
     return {
       success: false,
       error: `Transaction failed: ${errorMessage}`,
-      errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+      errorCode: DATABASE_ERROR_CODES.INTERNAL_ERROR,
       correlationId,
     }
   }
+}
+
+/**
+ * Persist an entry in the ReconciliationQueue when an operation outcome is ambiguous.
+ * Called when requiresReconciliation: true is returned to the client.
+ */
+/**
+ * Max length for free-text fields written to ReconciliationQueue.
+ * Prevents pathologically long error messages from inflating rows.
+ */
+const RECONCILIATION_MAX_TEXT_LENGTH = 512
+
+function truncateText(value: string | undefined, maxLength = RECONCILIATION_MAX_TEXT_LENGTH): string | null {
+  if (!value) return null
+  return value.slice(0, maxLength)
+}
+
+export async function enqueueReconciliation(params: {
+  correlationId: string
+  username: string
+  ticketCode: string
+  reason: 'ambiguous_chain_error' | 'db_completion_failed'
+  errorCategory?: string
+  errorMessage?: string
+  transactionId?: string
+}): Promise<void> {
+  try {
+    const cleanTicket = sanitizeTicketCode(params.ticketCode)
+    const cleanUsername = sanitizeUsername(params.username)
+
+    // Reject insert if both sanitizations fail — never write raw untrusted data
+    if (!cleanUsername || !cleanTicket) {
+      console.error(
+        `[${params.correlationId}] Cannot enqueue reconciliation: sanitization failed (username=${!!cleanUsername}, ticket=${!!cleanTicket})`
+      )
+      return
+    }
+
+    await db.execute({
+      sql: `INSERT INTO ReconciliationQueue
+            (correlation_id, username, ticket_code, reason, error_category, error_message, transaction_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        params.correlationId.slice(0, RECONCILIATION_MAX_TEXT_LENGTH),
+        cleanUsername,
+        cleanTicket,
+        params.reason,
+        truncateText(params.errorCategory),
+        truncateText(params.errorMessage),
+        truncateText(params.transactionId),
+      ],
+    })
+  } catch (error) {
+    // Best-effort: log but don't throw — the response already told the client
+    console.error(
+      `[${params.correlationId}] Failed to enqueue reconciliation: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+/**
+ * A pending reconciliation entry from the database.
+ */
+export interface ReconciliationEntry {
+  readonly id: number
+  readonly correlationId: string
+  readonly username: string
+  readonly ticketCode: string
+  readonly reason: 'ambiguous_chain_error' | 'db_completion_failed'
+  readonly errorCategory: string | null
+  readonly errorMessage: string | null
+  readonly transactionId: string | null
+  readonly createdAt: string
+}
+
+/**
+ * Fetch all unresolved reconciliation entries.
+ */
+export async function getPendingReconciliations(): Promise<ReconciliationEntry[]> {
+  const result = await db.execute(
+    `SELECT id, correlation_id, username, ticket_code, reason,
+            error_category, error_message, transaction_id, created_at
+     FROM ReconciliationQueue
+     WHERE resolved = FALSE
+     ORDER BY created_at ASC`
+  )
+
+  return result.rows.map(row => ({
+    id: row.id as number,
+    correlationId: row.correlation_id as string,
+    username: row.username as string,
+    ticketCode: row.ticket_code as string,
+    reason: row.reason as ReconciliationEntry['reason'],
+    errorCategory: row.error_category as string | null,
+    errorMessage: row.error_message as string | null,
+    transactionId: row.transaction_id as string | null,
+    createdAt: row.created_at as string,
+  }))
+}
+
+/**
+ * Mark a reconciliation entry as resolved.
+ */
+export async function resolveReconciliationEntry(
+  entryId: number,
+  resolvedBy: string
+): Promise<boolean> {
+  const result = await db.execute({
+    sql: `UPDATE ReconciliationQueue
+          SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP, resolved_by = ?
+          WHERE id = ? AND resolved = FALSE
+          RETURNING id`,
+    args: [resolvedBy, entryId],
+  })
+  return result.rows.length > 0
 }
 
 /**

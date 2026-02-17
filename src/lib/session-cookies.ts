@@ -9,7 +9,7 @@ import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
  * Cookie-based session manager for account creation flow.
  * Inspired by Supabase SSR approach - uses signed cookies instead of Astro.session.
  *
- * This avoids the need for a session storage driver (Vercel KV, Redis, etc.)
+ * This avoids the need for an external session storage driver (Redis, etc.)
  * while maintaining security through httpOnly and HMAC-SHA256 signed cookies.
  *
  * Security features:
@@ -19,10 +19,8 @@ import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
  * - httpOnly + sameSite=strict cookies
  *
  * RUNTIME REQUIREMENTS:
- * - Requires Node.js runtime (serverless) - NOT Edge runtime
- * - node:crypto module must be available
- * - Vercel config: astro.config.mjs sets edgeMiddleware=false
- * - If deployed to Edge runtime, createHmac() will fail at runtime
+ * - Requires Node.js runtime - node:crypto module must be available
+ * - Runs on @astrojs/node standalone server
  */
 
 /**
@@ -38,8 +36,7 @@ function verifyNodeRuntimeCompatibility(): void {
 	} catch (error) {
 		const errorMessage =
 			'[SessionCookie] CRITICAL: node:crypto not available. ' +
-			'This module requires Node.js runtime (serverless), NOT Edge runtime. ' +
-			'Ensure Vercel is configured with edgeMiddleware=false in astro.config.mjs'
+			'This module requires Node.js runtime with node:crypto support.'
 		console.error(errorMessage, {
 			error: error instanceof Error ? error.message : 'Unknown error',
 			timestamp: new Date().toISOString(),
@@ -57,7 +54,7 @@ verifyNodeRuntimeCompatibility()
  * @returns Signed data in format: data.signature
  */
 function signData(data: string): string {
-	const secret = getRequiredEnvString(ENV_KEYS.SESSION_SECRET as keyof ImportMetaEnv)
+	const secret = getRequiredEnvString(ENV_KEYS.SESSION_SECRET)
 	const hmac = createHmac(CREATION_SESSION_CONFIG.SIGNATURE_ALGORITHM, secret)
 	hmac.update(data)
 	const signature = hmac.digest('base64url')
@@ -79,7 +76,7 @@ function verifySignedData(signedData: string): string | null {
 		}
 
 		const secret = getRequiredEnvString(
-			ENV_KEYS.SESSION_SECRET as keyof ImportMetaEnv
+			ENV_KEYS.SESSION_SECRET
 		)
 		const hmac = createHmac(CREATION_SESSION_CONFIG.SIGNATURE_ALGORITHM, secret)
 		hmac.update(data)
@@ -212,4 +209,32 @@ export function updateCreationCookie(
 
 	const updated = { ...existing, ...partial }
 	setCreationCookie(cookies, updated, request)
+}
+
+/**
+ * F6 FIX: Sign a simple string value with HMAC-SHA256.
+ * Used for signing cookies like success_account.
+ *
+ * Encodes value as base64url BEFORE signing to avoid split('.')
+ * collisions when the value contains dots (e.g. Hive usernames like "user.name").
+ */
+export function signValue(value: string): string {
+	const encoded = Buffer.from(value, 'utf-8').toString('base64url')
+	return signData(encoded)
+}
+
+/**
+ * F6 FIX: Verify and extract a signed string value.
+ * Returns the original value if signature is valid, null otherwise.
+ *
+ * Decodes base64url AFTER verification to recover original value.
+ */
+export function verifySignedValue(signedValue: string): string | null {
+	const verified = verifySignedData(signedValue)
+	if (!verified) return null
+	try {
+		return Buffer.from(verified, 'base64url').toString('utf-8')
+	} catch {
+		return null
+	}
 }

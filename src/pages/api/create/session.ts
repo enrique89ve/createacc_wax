@@ -7,6 +7,8 @@ import {
   createCompatibleSuccessResponse,
   createCompatibleErrorResponse
 } from '@/utils/errorResponse'
+import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
+import { resolveClientIp } from '@/lib/client-ip'
 
 interface Body {
   readonly username?: string
@@ -15,6 +17,13 @@ interface Body {
 
 export const POST: APIRoute = async context => {
 	try {
+		// F3 FIX: Rate-limit session creation
+		const clientIp = resolveClientIp(context)
+		const rateLimit = checkCreationRateLimit('session', clientIp)
+		if (!rateLimit.allowed) {
+			return createRateLimitResponse(rateLimit.retryAfterMs)
+		}
+
 		const data: Body = await context.request.json()
 		const { username, ticket } = data
 

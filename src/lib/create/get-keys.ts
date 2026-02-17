@@ -2,7 +2,6 @@ import {
   createWaxFoundation,
   type TPublicKey,
   type IPrivateKeyData,
-  isPublicKey,
 } from '@hiveio/wax'
 import type { ICreateAccountParams } from './create-account'
 import type { HiveKeyRole } from '@/types/keys'
@@ -26,53 +25,13 @@ async function getWaxFoundation(): Promise<WaxFoundation> {
 }
 
 /**
- * Genera una clave aleatoria en formato personalizado P5 + 50 caracteres
- * Similar al formato usado en Python: P5 + random chars
- *
- * @returns string - Clave aleatoria en formato P5...
+ * Prefijo visual para distinguir el master password de las private keys WIF.
+ * P5 is a Hive ecosystem convention for master passwords (vs 5J/5K/5H for WIF keys).
+ * The replacement is cosmetic (first 2 chars only) and does not affect cryptographic derivation.
+ * Note: some external wallets may not recognize P5 prefix — users should be aware
+ * that removing P5 and restoring the original WIF prefix recovers the standard key.
  */
-export function generateRandomP5Key(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  const prefix = 'P5'
-  const keyLength = 50
-
-  // Validar que tenemos caracteres disponibles
-  if (chars.length === 0) {
-    throw new Error('Conjunto de caracteres no puede estar vacío')
-  }
-
-  // Usar crypto para mayor aleatoriedad si está disponible
-  const getRandomIndex = (): number => {
-    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-      const array = new Uint32Array(1)
-      crypto.getRandomValues(array)
-      return array[0] % chars.length
-    }
-    // Fallback a Math.random
-    return Math.floor(Math.random() * chars.length)
-  }
-
-  let result = prefix
-
-  try {
-    for (let i = 0; i < keyLength; i++) {
-      const randomIndex = getRandomIndex()
-      result += chars.charAt(randomIndex)
-    }
-  } catch (error) {
-    throw new Error()
-  }
-
-  // Validar que la clave generada tiene el formato correcto
-  if (
-    !result.startsWith(prefix) ||
-    result.length !== prefix.length + keyLength
-  ) {
-    throw new Error('Error en la generación de clave P5: formato inválido')
-  }
-
-  return result
-}
+const MASTER_KEY_PREFIX = 'P5'
 
 export interface KeyPair extends IPrivateKeyData {
   role: HiveKeyRole
@@ -81,12 +40,8 @@ export interface KeyPair extends IPrivateKeyData {
   publicKey: TPublicKey // Alias para associatedPublicKey para compatibilidad
 }
 
-/**
- * Interface legacy para claves de Hive (mantenida para compatibilidad)
- */
 export interface HiveKeysLegacy {
-  /** Brain key para backup/recuperación (16 palabras o P5 format) */
-  /** Master private key (WIF) usada para derivar todas las claves */
+  /** Master password en formato P5 (derivado de WAX brainkey) */
   masterPrivateKey: string
   /** Claves derivadas para cada rol */
   keys: KeyPair[]
@@ -107,7 +62,8 @@ export class HiveKeys {
   }
 
   /**
-   * Genera nuevas claves de Hive usando formato P5 personalizado
+   * Genera nuevas claves de Hive con master password en formato P5.
+   * Usa WAX suggestBrainKey() internamente para seguridad criptográfica.
    */
   static async generate(accountName: string): Promise<HiveKeys> {
     const legacyKeys = await generateHiveKeys(accountName)
@@ -191,22 +147,29 @@ export class HiveKeys {
 }
 
 /**
- * Genera claves de Hive usando formato P5 personalizado (función legacy)
- * Recomendado usar HiveKeys.generate() para nueva implementación
+ * Genera claves de Hive con master password en formato P5.
+ *
+ * Flujo:
+ *  1. WAX suggestBrainKey() genera un WIF criptográficamente seguro (5Jxxx...)
+ *  2. Se reemplaza los 2 primeros caracteres por "P5" → P5xxx...
+ *     Esto permite al usuario distinguir visualmente el master de las private keys.
+ *  3. Se usa el master P5 como password para derivar las 4 role keys con WAX.
  *
  * @param accountName - Nombre de la cuenta de Hive
- * @returns Promise<HiveKeysLegacy> - Claves completas de Hive con formato P5
+ * @returns Promise<HiveKeysLegacy> - Claves completas con master en formato P5
  */
 export async function generateHiveKeys(
   accountName: string
 ): Promise<HiveKeysLegacy> {
   const hive = await getWaxFoundation()
 
-  // Genera brain key como master usando WAX nativo
+  // Genera brain key criptográficamente seguro con WAX nativo
   const brainKeyData = hive.suggestBrainKey()
-  const masterPrivateKey = brainKeyData.wifPrivateKey
 
-  // Deriva claves para cada rol usando la master key
+  // Reemplaza prefijo WIF (5J/5K/5H) con P5 para distinción visual
+  const masterPrivateKey = MASTER_KEY_PREFIX + brainKeyData.wifPrivateKey.slice(2)
+
+  // Deriva claves para cada rol usando el master P5 como password
   const keys: KeyPair[] = (['owner', 'active', 'posting', 'memo'] as const).map(
     role => {
       const keyData = hive.getPrivateKeyFromPassword(
@@ -216,40 +179,15 @@ export async function generateHiveKeys(
       )
       return {
         role,
-        // Implementar IPrivateKeyData
         wifPrivateKey: keyData.wifPrivateKey,
         associatedPublicKey: keyData.associatedPublicKey,
-        // Aliases para compatibilidad
         privateKey: keyData.wifPrivateKey,
         publicKey: keyData.associatedPublicKey as TPublicKey,
       }
     }
   )
-  return {
-    masterPrivateKey,
-    keys,
-  }
+
+  return { masterPrivateKey, keys }
 }
 
-/**
- * Valida que una clave pública tenga el formato correcto de Hive
- * Wrapper que usa la validación nativa de WAX
- *
- * @param publicKey - Clave pública a validar
- * @returns boolean - true si es válida, false si no
- */
-export function isValidHivePublicKey(publicKey: TPublicKey): boolean {
-  return isPublicKey(publicKey)
-}
 
-/**
- * Valida que una clave privada WIF tenga el formato correcto
- *
- * @param privateKey - Clave privada WIF a validar
- * @returns boolean - true si es válida, false si no
- */
-export function isValidWifPrivateKey(privateKey: string): boolean {
-  // Las claves privadas WIF empiezan con 5 y tienen longitud específica
-  const wifKeyRegex = /^5[A-Za-z0-9]{50}$/
-  return wifKeyRegex.test(privateKey)
-}

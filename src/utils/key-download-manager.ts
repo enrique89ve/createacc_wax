@@ -170,7 +170,10 @@ ${t.keys.footer}
       }
 
       if (isInSandbox) {
-        const pdfData = doc.toDataUri()
+        // F4 FIX: Use blob URL instead of data URI to avoid
+        // exposing private keys in browser history/URL bar
+        const blob = doc.toBlob()
+        const blobUrl = URL.createObjectURL(blob)
         try {
           const newWindow = window.open('', '_blank')
           if (newWindow) {
@@ -194,7 +197,7 @@ ${t.keys.footer}
             const embed = newWindow.document.createElement('embed')
             embed.width = '100%'
             embed.height = '100%'
-            embed.src = pdfData
+            embed.src = blobUrl
             embed.type = 'application/pdf'
             embed.style.border = 'none'
 
@@ -207,8 +210,9 @@ ${t.keys.footer}
         } catch (err) {
           // Error abriendo ventana - manejado silenciosamente
         }
-        // Si falla la ventana nueva, mostrar en la misma ventana
-        window.location.href = pdfData
+        // If new window failed, fall back to blob download
+        this.downloadBlob(blob, filename)
+        URL.revokeObjectURL(blobUrl)
         return
       }
 
@@ -216,9 +220,10 @@ ${t.keys.footer}
       const blob = doc.toBlob()
       this.downloadBlob(blob, filename)
     } catch (error) {
-      // Fallback final: mostrar en la misma ventana
-      const pdfData = doc.toDataUri()
-      window.location.href = pdfData
+      // F4 FIX: Fallback to blob download instead of data URI
+      // to avoid exposing private keys in browser history
+      const blob = doc.toBlob()
+      this.downloadBlob(blob, filename)
     }
   }
 

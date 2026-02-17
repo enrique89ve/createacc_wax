@@ -13,7 +13,7 @@ import type { ValidationFailure } from '@/utils/validation-result'
 import { createJsonResponse } from '@/utils/errorResponse'
 import { HTTP_STATUS } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
-import { DATABASE_ERROR_CODES } from '@/consts/unified-errors'
+import { ALL_ERROR_CODES, DATABASE_ERROR_CODES, type UnifiedErrorCode } from '@/consts/unified-errors'
 
 /**
  * Mapeo de códigos de error interno a códigos HTTP apropiados.
@@ -74,6 +74,13 @@ export function validationFailureToResponse(
     ? ERROR_CODE_TO_DETAILED_MESSAGE[error.code]
     : undefined
 
+  // Map the validation error code to a unified error code.
+  // Falls back to INTERNAL_ERROR only when the code is unknown.
+  const allCodes = ALL_ERROR_CODES as Record<string, UnifiedErrorCode>
+  const errorCode: UnifiedErrorCode = (error.code && allCodes[error.code])
+    ? allCodes[error.code]
+    : DATABASE_ERROR_CODES.INTERNAL_ERROR
+
   // Crear response con formato estándar de HolaHive
   return createJsonResponse(
     {
@@ -81,10 +88,11 @@ export function validationFailureToResponse(
       message: error.message,
       error: detailedMessage || error.message,
       ...(error.field && { field: error.field }),
-      errorCode: DATABASE_ERROR_CODES.INTERNAL_ERROR, // Compatibilidad con sistema existente
+      errorCode,
       verifiedOnChain: false,
       databaseUpdated: false,
     },
-    httpStatus
+    httpStatus,
+    { noCache: true }
   )
 }

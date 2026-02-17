@@ -8,6 +8,7 @@ import AppsSection from '@/sections/success/AppsSection.astro'
 import CommunityCTASection from '@/sections/success/CommunityCTASection.astro'
 import type { CreationSession } from '@/types/auth'
 import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
+import { signValue, verifySignedValue } from '@/lib/session-cookies'
 
 // Obtener username de params
 const { user } = Astro.params
@@ -24,8 +25,8 @@ if (usernameError) {
 }
 
 // Estrategia de acceso:
-// 1. Si hay sesión válida y coincide con el usuario y marca accountCreated -> set cookie success_account y permitir.
-// 2. Si no hay sesión: validar cookie success_account=<username>.
+// 1. Si hay sesión válida y coincide con el usuario y marca accountCreated -> set HMAC-signed cookie y permitir.
+// 2. Si no hay sesión: validar cookie success_account firmada.
 // 3. Si falla cookie -> redirect home.
 
 let allowAccess = false
@@ -43,27 +44,22 @@ if (
   try {
     const { clearCreationCookie } = await import('@/lib/session-cookies')
     clearCreationCookie(Astro.cookies)
-  } catch (error) {}
-  // Set cookie (15 min) - allows re-access to success page
-  Astro.cookies.set('success_account', user, {
+  } catch (_error) {}
+  // F6 FIX: Set HMAC-signed cookie (15 min) - prevents forgery
+  Astro.cookies.set('success_account', signValue(user), {
     httpOnly: true,
     sameSite: 'strict',
     path: `/success/${user}`,
-    maxAge: 15 * 60, // seconds
+    maxAge: 15 * 60,
     secure: shouldUseSecureCookie(Astro.request),
   })
 } else {
-  // No hay sesión válida; intentar cookie
+  // No hay sesión válida; intentar cookie firmada
   const cookie = Astro.cookies.get('success_account')
   if (cookie?.value) {
-    // Compatibilidad hacia atrás: si antes se guardó encodeado, intentar decodificar
-    let cookieUser = cookie.value
-    try {
-      cookieUser = decodeURIComponent(cookieUser)
-    } catch {
-      /* ignore decode error */
-    }
-    if (cookieUser === user) {
+    // F6 FIX: Verify HMAC signature and extract username
+    const verifiedUser = verifySignedValue(cookie.value)
+    if (verifiedUser && verifiedUser === user) {
       allowAccess = true
       via = 'cookie'
     }

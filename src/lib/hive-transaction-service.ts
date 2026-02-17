@@ -3,12 +3,13 @@ import { BeekeeperService } from '@/lib/create/beekeeper-service'
 import type { ITransactionBase, ITransaction } from '@hiveio/wax'
 import type { IBeekeeperUnlockedWallet } from '@hiveio/beekeeper'
 import { getEnvString } from '@/lib/env'
-import { ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
+import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
 
 export interface IHiveTransactionConfig {
   readonly account: string
   readonly privateKey: string
+  readonly walletName: string
   readonly maxRetries?: number
   readonly retryDelayMs?: number
 }
@@ -47,6 +48,7 @@ export class HiveTransactionService {
   ): Promise<{ id: string }> {
     const beekeeperService = BeekeeperService.create({
       privateKey: this.config.privateKey,
+      walletName: this.config.walletName,
     })
 
     let wallet: IBeekeeperUnlockedWallet | undefined
@@ -130,6 +132,7 @@ export type HiveServiceRole = 'creator' | 'delegator'
 interface EnvConfigMapEntry {
   readonly accountVar: string
   readonly keyVar: string
+  readonly walletName: string
 }
 
 // Mapa centralizado para evitar duplicación de nombres de variables
@@ -137,20 +140,23 @@ const ENV_CONFIG_MAP: Record<HiveServiceRole, EnvConfigMapEntry> = {
   creator: {
     accountVar: ENV_KEYS.HIVE_CREATOR_ACCOUNT,
     keyVar: ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
+    walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-creator`,
   },
   delegator: {
     accountVar: ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
-    keyVar: ENV_KEYS.HIVE_DELEGATOR_ACTIVE_KEY,
+    keyVar: ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
+    walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-delegator`,
   },
 } as const
 
 export const createServiceFromEnv = (
   role: HiveServiceRole
 ): HiveTransactionService => {
-  const { accountVar, keyVar } = ENV_CONFIG_MAP[role]
+  const { accountVar, keyVar, walletName } = ENV_CONFIG_MAP[role]
   return HiveTransactionService.create({
     account: getEnvString(accountVar),
     privateKey: getEnvString(keyVar),
+    walletName,
   })
 }
 

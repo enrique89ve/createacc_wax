@@ -193,6 +193,10 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 		const notificationList = document.querySelector<HTMLDivElement>('#notification-list')
 
 		if (!bell || !dropdown || !container || !notificationList) return
+		const bellButton = bell
+		const dropdownMenu = dropdown
+		const notificationContainer = container
+		const notificationListElement = notificationList
 
 		let isOpen = false
 		let hasMarkedAsViewed = false
@@ -213,22 +217,22 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 		}
 
 		function showEmptyState(): void {
-			if (notificationList.children.length === 0) {
-				notificationList.innerHTML = EMPTY_STATE_HTML
+			if (notificationListElement.children.length === 0) {
+				notificationListElement.innerHTML = EMPTY_STATE_HTML
 				document.querySelector<HTMLButtonElement>('#mark-all-read-btn')?.remove()
 			}
 		}
 
 		function closeDropdown(): void {
 			isOpen = false
-			dropdown.classList.add('hidden')
-			bell.setAttribute('aria-expanded', 'false')
+			dropdownMenu.classList.add('hidden')
+			bellButton.setAttribute('aria-expanded', 'false')
 		}
 
 		function openDropdown(): void {
 			isOpen = true
-			dropdown.classList.remove('hidden')
-			bell.setAttribute('aria-expanded', 'true')
+			dropdownMenu.classList.remove('hidden')
+			bellButton.setAttribute('aria-expanded', 'true')
 		}
 
 		async function markAsViewed(): Promise<void> {
@@ -242,7 +246,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 		}
 
 		// Bell toggle
-		bell.addEventListener('click', async (e) => {
+		bellButton.addEventListener('click', async (e) => {
 			e.stopPropagation()
 			if (isOpen) {
 				closeDropdown()
@@ -254,7 +258,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 
 		// Close on outside click
 		const handleOutsideClick = (e: MouseEvent) => {
-			if (!container.contains(e.target as Node)) closeDropdown()
+			if (!notificationContainer.contains(e.target as Node)) closeDropdown()
 		}
 		document.addEventListener('click', handleOutsideClick)
 
@@ -262,7 +266,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 		const handleEscapeKey = (e: KeyboardEvent) => {
 			if (e.key === 'Escape' && isOpen) {
 				closeDropdown()
-				bell.focus()
+				bellButton.focus()
 			}
 		}
 		document.addEventListener('keydown', handleEscapeKey)
@@ -311,7 +315,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
 			if (success) {
 				document.querySelectorAll('.notification-item').forEach(item => item.remove())
 				document.querySelector<HTMLSpanElement>('#notification-badge')?.remove()
-				notificationList.innerHTML = EMPTY_STATE_HTML
+				notificationListElement.innerHTML = EMPTY_STATE_HTML
 				markAllReadBtn.remove()
 			}
 		})

@@ -13,6 +13,8 @@
 import { PAGE, measureText } from './pdf-constants'
 import { escapePdfString, buildPdf } from './pdf-objects'
 
+const LINE_HEIGHT_MULTIPLIER = 1.2
+
 interface TextCommand {
 	text: string
 	xPt: number
@@ -38,7 +40,7 @@ export class PdfDocument {
 	 */
 	text(content: string | string[], x: number, y: number): void {
 		const lines = Array.isArray(content) ? content : [content]
-		const lineHeightPt = this.fontSize * 1.2
+		const lineHeightPt = this.fontSize * LINE_HEIGHT_MULTIPLIER
 		const xPt = x * PAGE.MM_TO_PT
 		let yPt = PAGE.HEIGHT_PT - y * PAGE.MM_TO_PT
 
@@ -59,27 +61,53 @@ export class PdfDocument {
 	 */
 	splitTextToSize(text: string, maxWidth: number): string[] {
 		const maxWidthPt = maxWidth * PAGE.MM_TO_PT
-		const words = text.split(' ')
-		const lines: string[] = []
-		let currentLine = ''
+		if (maxWidthPt <= 0) return ['']
 
-		for (const word of words) {
-			const candidate = currentLine ? `${currentLine} ${word}` : word
-			if (measureText(candidate, this.fontSize) <= maxWidthPt) {
-				currentLine = candidate
-			} else {
-				if (currentLine) lines.push(currentLine)
-				currentLine = word
+		const lines: string[] = []
+		const paragraphs = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+
+		for (const paragraph of paragraphs) {
+			if (paragraph.trim().length === 0) {
+				lines.push('')
+				continue
 			}
+
+			const words = paragraph.trim().split(/\s+/)
+			let currentLine = ''
+
+			for (const word of words) {
+				if (measureText(word, this.fontSize) > maxWidthPt) {
+					if (currentLine) {
+						lines.push(currentLine)
+						currentLine = ''
+					}
+
+					const chunks = this.splitWordToSize(word, maxWidthPt)
+					for (let i = 0; i < chunks.length - 1; i++) {
+						lines.push(chunks[i])
+					}
+					currentLine = chunks[chunks.length - 1] ?? ''
+					continue
+				}
+
+				const candidate = currentLine ? `${currentLine} ${word}` : word
+				if (measureText(candidate, this.fontSize) <= maxWidthPt) {
+					currentLine = candidate
+				} else {
+					lines.push(currentLine)
+					currentLine = word
+				}
+			}
+
+			if (currentLine) lines.push(currentLine)
 		}
-		if (currentLine) lines.push(currentLine)
 
 		return lines.length > 0 ? lines : ['']
 	}
 
 	/** Page width in mm (A4 = 210). Replaces `doc.internal.pageSize.getWidth()`. */
 	getPageWidth(): number {
-		return 210
+		return PAGE.WIDTH_PT / PAGE.MM_TO_PT
 	}
 
 	/** Build the PDF content stream from accumulated text commands. */
@@ -96,14 +124,30 @@ export class PdfDocument {
 			}
 			const x = cmd.xPt.toFixed(2)
 			const y = cmd.yPt.toFixed(2)
-			parts.push(`${x} ${y} Td`)
+			parts.push(`1 0 0 1 ${x} ${y} Tm`)
 			parts.push(`(${escapePdfString(cmd.text)}) Tj`)
-			// Reset position so next Td is absolute
-			parts.push(`-${x} -${y} Td`)
 		}
 
 		parts.push('ET')
 		return parts.join('\n')
+	}
+
+	private splitWordToSize(word: string, maxWidthPt: number): string[] {
+		const chunks: string[] = []
+		let currentChunk = ''
+
+		for (const character of word) {
+			const candidate = `${currentChunk}${character}`
+			if (currentChunk && measureText(candidate, this.fontSize) > maxWidthPt) {
+				chunks.push(currentChunk)
+				currentChunk = character
+			} else {
+				currentChunk = candidate
+			}
+		}
+
+		if (currentChunk) chunks.push(currentChunk)
+		return chunks.length > 0 ? chunks : ['']
 	}
 
 	/** Generate the complete PDF as a Blob. Replaces `doc.output('blob')`. */

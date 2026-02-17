@@ -51,9 +51,9 @@ export async function verifyKeychainAuth(
       }
     }
 
-    // Validación básica de formato del mensaje
+    // Validación de formato del mensaje (incluye nonce obligatorio)
     const messageRegex =
-      /Login to HiveAccount Creation at .+\nUsername: (.+)\nTimestamp: (\d+)$/
+      /Login to HiveAccount Creation at .+\nUsername: (.+)\nTimestamp: (\d+)\nNonce: ([a-f0-9]{64})$/
     const messageMatch = message.match(messageRegex)
 
     if (!messageMatch) {
@@ -65,6 +65,7 @@ export async function verifyKeychainAuth(
 
     const messageUsername = messageMatch[1]
     const messageTimestamp = parseInt(messageMatch[2])
+    const messageNonce = messageMatch[3]
 
     // Validar que el username coincida
     if (messageUsername !== username) {
@@ -74,15 +75,23 @@ export async function verifyKeychainAuth(
       }
     }
 
+    // Validar nonce del servidor (one-time use, previene replay attacks)
+    const { consumeNonce } = await import('@/lib/nonce-store')
+    if (!consumeNonce(messageNonce)) {
+      return {
+        success: false,
+        error: 'Nonce inválido, expirado o ya utilizado. Intenta de nuevo.',
+      }
+    }
+
     // Validar timestamp del mensaje
     // IMPORTANTE: Usar siempre la hora del servidor (Date.now()) para evitar ataques de replay.
     // Date.now() es UTC universal, por lo que la zona horaria del usuario no afecta,
     // pero sí afecta si su reloj está desajustado (adelantado o atrasado).
     const now = Date.now()
 
-    // Aumentamos tolerancia a 5 minutos (300s) para evitar rechazar usuarios con relojes
-    // ligeramente desincronizados, manteniendo seguridad contra replay attacks.
-    const maxDiff = 5 * 60 * 1000
+    // Con nonce de uso único, la ventana de timestamp puede ser más estricta (2 min)
+    const maxDiff = 2 * 60 * 1000
     const messageTimeDiff = Math.abs(now - messageTimestamp)
 
     if (messageTimeDiff > maxDiff) {

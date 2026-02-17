@@ -3,6 +3,8 @@
  * Variables de entorno cargadas desde .env.local (mismo archivo para dev y prod)
  */
 
+import { ENV_KEYS } from '@/consts/constants'
+
 /**
  * Obtiene una variable de entorno como string con validación
  * @param name - Clave de la variable de entorno
@@ -47,23 +49,27 @@ export function isTruthyProcessEnv(name: string): boolean {
 	return normalized === 'true' || normalized === '1' || normalized === 'yes'
 }
 
-import { ENV_KEYS } from '@/consts/constants'
-
 /**
  * Valida que todas las variables de entorno requeridas estén presentes
  * @throws Error si alguna variable requerida falta
  */
-
 export function validateEnvironment(): void {
 	const required: (keyof ImportMetaEnv)[] = [
-		ENV_KEYS.HIVE_CREATOR_ACCOUNT as keyof ImportMetaEnv,
-		ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY as keyof ImportMetaEnv,
-		ENV_KEYS.HIVE_DELEGATOR_ACCOUNT as keyof ImportMetaEnv,
-		ENV_KEYS.HIVE_DELEGATOR_ACTIVE_KEY as keyof ImportMetaEnv,
-		ENV_KEYS.SESSION_SECRET as keyof ImportMetaEnv,
+		ENV_KEYS.HIVE_CREATOR_ACCOUNT,
+		ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
+		ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
+		ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
+		ENV_KEYS.SESSION_SECRET,
+		ENV_KEYS.BEEKEEPER_WALLET_PASSWORD,
 	]
 
 	for (const key of required) {
 		getRequiredEnvString(key)
+	}
+
+	// SESSION_SECRET must be at least 32 characters for HMAC-SHA256 security
+	const sessionSecret = getEnvString(ENV_KEYS.SESSION_SECRET)
+	if (sessionSecret.length < 32) {
+		throw new Error('SESSION_SECRET must be at least 32 characters for secure HMAC-SHA256 signing')
 	}
 }

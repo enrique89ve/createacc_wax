@@ -6,6 +6,7 @@
 import { createWaxFoundation } from '@hiveio/wax'
 import { hiveChain } from '@/lib/hiveservice'
 import type { IHiveChainInterface, IWaxBaseInterface } from '@hiveio/wax'
+import { createHash } from 'node:crypto'
 import type {
   HiveSignatureVerificationRequest,
   HiveSignatureVerificationResult,
@@ -142,8 +143,15 @@ export class HiveSignatureVerifier {
             username
           )
         } else {
-          // Mensaje simple - verificación básica pero segura
-          return this.verifyBasicMessage(hivePublicKey, username)
+          // Mensaje simple - verificación criptográfica real
+          return this.verifyBasicMessage(
+            wax,
+            message,
+            hiveSignature,
+            hivePublicKey,
+            postingKeyAuths,
+            username
+          )
         }
       } catch (signatureError) {
         return this.createErrorResult(
@@ -231,28 +239,67 @@ export class HiveSignatureVerifier {
         },
       }
     } catch (txError) {
-      // Fallback a verificación básica
-      return this.verifyBasicMessage(hivePublicKey, username)
+      return this.createErrorResult(
+        'SIGNATURE_VERIFICATION_FAILED',
+        'La firma de transacción no pudo ser verificada'
+      )
     }
   }
 
   /**
-   * Verifica mensaje simple - método básico pero seguro
+   * Verifica mensaje simple con verificación criptográfica real.
+   * Recupera la public key desde la firma y verifica que pertenece al usuario.
    */
   private verifyBasicMessage(
+    wax: IWaxBaseInterface,
+    message: string,
+    signature: HiveSignature,
     hivePublicKey: HivePublicKey,
+    postingKeyAuths: readonly [string, number][],
     username: string
   ): HiveSignatureVerificationResult {
-    // La seguridad viene de verificar que la clave pertenece al usuario
-    // (ya verificado en el método principal)
-    return {
-      valid: true,
-      matchedKey: hivePublicKey,
-      serializationType: 'Unknown' as HiveSerializationType,
-      details: {
-        decodedKeys: [hivePublicKey],
-        verifyAuthorityResult: true,
-      },
+    try {
+      // Calcular SHA-256 del mensaje (mismo proceso que Keychain usa internamente)
+      const sigDigest = createHash('sha256').update(message).digest('hex')
+
+      // Recuperar la public key que generó la firma
+      const recoveredKey = wax.getPublicKeyFromSignature(sigDigest, signature)
+
+      // Verificar que la key recuperada está en las posting key_auths del usuario
+      const keyInAuthorities = postingKeyAuths.find(
+        ([key]) => key === recoveredKey
+      )
+
+      if (!keyInAuthorities) {
+        return this.createErrorResult(
+          'SIGNATURE_VERIFICATION_FAILED',
+          'La firma no corresponde a ninguna clave posting del usuario'
+        )
+      }
+
+      // Verificar anti-inyección: la key enviada por el cliente debe coincidir
+      if (recoveredKey !== hivePublicKey) {
+        return this.createErrorResult(
+          'PUBLIC_KEY_MISMATCH',
+          'La clave pública enviada no coincide con la clave que generó la firma'
+        )
+      }
+
+      return {
+        valid: true,
+        matchedKey: hivePublicKey,
+        serializationType: 'Unknown' as HiveSerializationType,
+        details: {
+          sigDigest,
+          decodedKeys: [createHivePublicKey(recoveredKey)],
+          verifyAuthorityResult: true,
+        },
+      }
+    } catch (error) {
+      return this.createErrorResult(
+        'SIGNATURE_VERIFICATION_FAILED',
+        `Error en verificación criptográfica: ${error instanceof Error ? error.message : 'Error desconocido'}`
+      )
     }
   }
 

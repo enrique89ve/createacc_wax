@@ -10,7 +10,7 @@ import {
 /**
  * Type-safe session manager for the public account creation flow.
  * Now uses signed cookies instead of Astro.session to avoid requiring
- * a storage driver (Vercel KV, Redis, etc.).
+ * an external storage driver (Redis, etc.).
  *
  * Inspired by Supabase SSR approach used by midudev.
  */
@@ -35,16 +35,4 @@ export class CreationSessionManager {
 	clear(): void {
 		clearCreationCookie(this.cookies)
 	}
-}
-
-/**
- * Type guard to check if session data is valid CreationSession
- */
-export function isValidCreationSession(data: unknown): data is CreationSession {
-  return (
-    typeof data === 'object' &&
-    data !== null &&
-    'username' in data &&
-    typeof (data as Record<string, unknown>).username === 'string'
-  )
 }

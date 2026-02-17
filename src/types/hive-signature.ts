@@ -114,7 +114,7 @@ export type HiveSignatureErrorCode =
 // ===== HELPER FUNCTIONS =====
 
 export const createHiveUsername = (username: string): HiveUsername =>
-  username as HiveUsername
+  username.trim().toLowerCase() as HiveUsername
 export const createHivePublicKey = (key: string): HivePublicKey =>
   key as HivePublicKey
 export const createHiveSignature = (signature: string): HiveSignature =>

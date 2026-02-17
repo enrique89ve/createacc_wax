@@ -17,119 +17,15 @@ import {
   checkLoginRateLimit,
   recordLoginAttempt,
 } from '@/lib/rate-limiter-server'
-import { createHash } from 'node:crypto'
-import { isIP } from 'node:net'
-import { isTruthyProcessEnv } from '@/lib/env'
-import { ENV_KEYS } from '@/consts/constants'
+import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
+import { resolveRateLimitSource } from '@/lib/client-ip'
 
 interface ManagementLoginBody {
   readonly username?: unknown
   readonly password?: unknown
 }
 
-interface RateLimitSource {
-  readonly sourceKey: string
-}
-
 const FALLBACK_USERNAME = 'anonymous'
-const FALLBACK_SOURCE_KEY = 'source:fallback'
-const MAX_HEADER_VALUE_LENGTH = 256
-
-const TRUST_PROXY_HEADERS = isTruthyProcessEnv(ENV_KEYS.TRUST_PROXY_HEADERS)
-
-/**
- * Normalize raw value to trimmed string with max length
- */
-function normalizeHeaderValue(
-  value: string | null,
-  maxLength = MAX_HEADER_VALUE_LENGTH
-): string {
-  if (!value) return ''
-  const normalized = value.trim()
-  if (!normalized) return ''
-  return normalized.slice(0, maxLength)
-}
-
-/**
- * Normalize IP candidates and validate format
- */
-function normalizeIpCandidate(rawValue: string): string | null {
-  const value = normalizeHeaderValue(rawValue)
-  if (!value) return null
-
-  // Direct IPv4/IPv6
-  if (isIP(value)) return value
-
-  // Bracketed IPv6 with optional port (e.g., [::1]:443)
-  const bracketedIpv6Match = value.match(/^\[([^\]]+)\](?::\d{1,5})?$/)
-  if (bracketedIpv6Match?.[1] && isIP(bracketedIpv6Match[1])) {
-    return bracketedIpv6Match[1]
-  }
-
-  // IPv4 with port (e.g., 1.2.3.4:443)
-  const ipv4WithPortMatch = value.match(/^(\d{1,3}(?:\.\d{1,3}){3}):\d{1,5}$/)
-  if (ipv4WithPortMatch?.[1] && isIP(ipv4WithPortMatch[1])) {
-    return ipv4WithPortMatch[1]
-  }
-
-  return null
-}
-
-/**
- * Extract trusted proxy IP ONLY when explicitly enabled.
- */
-function getTrustedProxyIp(request: Request): string | null {
-  if (!TRUST_PROXY_HEADERS) {
-    return null
-  }
-
-  const forwarded = request.headers.get('x-forwarded-for')
-  if (forwarded) {
-    const chain = forwarded.split(',')
-    for (const candidate of chain) {
-      const normalizedIp = normalizeIpCandidate(candidate)
-      if (normalizedIp) return normalizedIp
-    }
-  }
-
-  const realIp = request.headers.get('x-real-ip')
-  if (realIp) {
-    const normalizedIp = normalizeIpCandidate(realIp)
-    if (normalizedIp) return normalizedIp
-  }
-
-  return null
-}
-
-/**
- * Build deterministic fallback fingerprint when trusted IP is unavailable.
- */
-function createFallbackSourceKey(request: Request): string {
-  const userAgent = normalizeHeaderValue(request.headers.get('user-agent'))
-  const acceptLanguage = normalizeHeaderValue(
-    request.headers.get('accept-language')
-  )
-  const originHost = normalizeHeaderValue(new URL(request.url).host)
-  const fingerprintRaw = `${userAgent}|${acceptLanguage}|${originHost}`
-  const fingerprintHash = createHash('sha256')
-    .update(fingerprintRaw)
-    .digest('hex')
-    .slice(0, 24)
-
-  return fingerprintHash ? `source:${fingerprintHash}` : FALLBACK_SOURCE_KEY
-}
-
-/**
- * Resolve source key used for rate limiting.
- */
-function resolveRateLimitSource(request: Request): RateLimitSource {
-  const trustedProxyIp = getTrustedProxyIp(request)
-  if (trustedProxyIp) {
-    return { sourceKey: `ip:${trustedProxyIp}` }
-  }
-
-  return { sourceKey: createFallbackSourceKey(request) }
-}
 
 function normalizeUsername(rawUsername: unknown): string {
   if (typeof rawUsername !== 'string') return ''
@@ -161,9 +57,10 @@ async function persistLoginAttempt(
   }
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async (context) => {
+  const { request } = context
   try {
-    const source = resolveRateLimitSource(request)
+    const source = resolveRateLimitSource(context)
 
     let body: ManagementLoginBody
     try {
@@ -299,7 +196,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Obtener secreto
-    const secret = import.meta.env.AUTH_SECRET || process.env.AUTH_SECRET
+    const secret = process.env.AUTH_SECRET
     if (!secret) {
       console.error('AUTH_SECRET is missing')
       return new Response(
@@ -312,7 +209,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     // Determinar nombre de cookie y opciones
-    const isSecure = request.url.startsWith('https')
+    const isSecure = shouldUseSecureCookie(request)
     const cookieName = isSecure
       ? '__Secure-authjs.session-token'
       : 'authjs.session-token'

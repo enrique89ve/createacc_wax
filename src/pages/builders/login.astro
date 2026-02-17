@@ -162,6 +162,9 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
         // 🔍 DEBUG - Log locally instead of sending to server
 
         // 3. Login usando Auth.js callback endpoint para credentials
+        // fetch sigue redirects automáticamente (default redirect: 'follow').
+        // Auth.js redirige a callbackUrl en éxito, o a ?error=... en fallo.
+        // Verificamos response.url para distinguir éxito de fallo.
         const response = await fetch('/api/auth/callback/builders-keychain', {
           method: 'POST',
           headers: {
@@ -178,37 +181,29 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           }),
         })
 
-        // Check if it's a successful response
-        if (response.ok || response.status === 302) {
-          notify('success', '¡Login exitoso! Redirigiendo...')
+        // Después de seguir redirects, response.url contiene la URL final.
+        // Auth.js en fallo redirige a una URL con ?error=CredentialsSignin
+        const finalUrl = new URL(response.url, window.location.origin)
+        const hasAuthError = finalUrl.searchParams.has('error')
 
-          // For successful auth, redirect to tickets page
+        if (response.ok && !hasAuthError) {
+          notify('success', '¡Login exitoso! Redirigiendo...')
           setTimeout(() => {
             window.location.href = '/builders/tickets'
           }, 1000)
           return
         }
 
-        // Handle errors
-        try {
-          const responseText = await response.text()
-
-          // Try to parse as JSON to get error details
-          let errorMessage = 'Error en autenticación'
-          try {
-            const responseData = JSON.parse(responseText)
-            if (responseData.error) {
-              errorMessage = responseData.error
-            }
-          } catch {
-            // Not JSON, use status text
-            errorMessage = `Error ${response.status}: ${response.statusText}`
-          }
-
-          notify('error', errorMessage)
-        } catch (parseError) {
-          notify('error', 'Error de comunicación con el servidor')
+        // Login falló — extraer mensaje de error
+        const authError = finalUrl.searchParams.get('error')
+        let errorMessage = 'Error en autenticación'
+        if (authError === 'CredentialsSignin') {
+          errorMessage = 'Credenciales inválidas o usuario no autorizado'
+        } else if (authError) {
+          errorMessage = `Error de autenticación: ${authError}`
         }
+
+        notify('error', errorMessage)
       } catch (error) {
         notify('error', 'Error de conexión. Inténtalo de nuevo.')
       } finally {

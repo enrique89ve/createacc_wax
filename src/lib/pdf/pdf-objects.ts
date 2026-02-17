@@ -12,8 +12,10 @@ import { PAGE } from './pdf-constants'
  * Escape a string for use inside a PDF literal string `(...)`.
  *
  * - Escapes `\`, `(`, `)`
- * - Encodes Latin-1 chars (128-255) as octal `\NNN` so the stream stays
- *   pure ASCII and byte-length calculations are trivial.
+ * - Escapes common control chars (`\n`, `\r`, `\t`, `\b`, `\f`)
+ * - Encodes remaining controls and Latin-1 chars (0-31, 127-255)
+ *   as octal `\NNN` so the stream stays pure ASCII and byte-length
+ *   calculations are trivial.
  * - Replaces chars outside Latin-1 (>255) with `?` since Helvetica/
  *   WinAnsiEncoding cannot render them.
  */
@@ -27,11 +29,21 @@ export function escapePdfString(text: string): string {
 			result += '\\('
 		} else if (code === 0x29) {   // )
 			result += '\\)'
+		} else if (code === 0x08) {   // backspace
+			result += '\\b'
+		} else if (code === 0x09) {   // tab
+			result += '\\t'
+		} else if (code === 0x0A) {   // line feed
+			result += '\\n'
+		} else if (code === 0x0C) {   // form feed
+			result += '\\f'
+		} else if (code === 0x0D) {   // carriage return
+			result += '\\r'
 		} else if (code >= 32 && code <= 126) {
 			result += text[i]
-		} else if (code >= 128 && code <= 255) {
+		} else if ((code >= 0 && code <= 31) || code === 127 || (code >= 128 && code <= 255)) {
 			result += '\\' + code.toString(8).padStart(3, '0')
-		} else if (code > 255) {
+		} else {
 			result += '?'
 		}
 	}
@@ -64,7 +76,7 @@ export function pageObject(): string {
 
 /** 4 0 obj - Helvetica font (PDF built-in, no embedding needed) */
 export function fontObject(): string {
-	return '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n'
+	return '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n'
 }
 
 /** 5 0 obj - Content stream wrapping raw PDF drawing operators */
