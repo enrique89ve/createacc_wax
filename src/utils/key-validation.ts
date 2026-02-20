@@ -1,32 +1,32 @@
 import { isPublicKey, type TPublicKey } from '@hiveio/wax'
 
 /**
- * Type guard que verifica si una clave pública es válida usando wax
- * Actualizado para usar pattern de type guard consistente
- * @param key - Clave a validar
- * @returns true si es válida y actúa como type guard
+ * Type guard that verifies if a public key is valid using wax
+ * Updated to use standard type guard pattern
+ * @param key - Key to validate
+ * @returns true if valid and acts as type guard
  */
 export function checkPublicKeyFormat(key: unknown): key is string {
 	return typeof key === 'string' && isPublicKey(key)
 }
 
 /**
- * Type guard específico para TPublicKey de Wax
- * Verifica que sea una clave pública válida con tipo específico
- * @param key - Clave a validar
- * @returns true si es TPublicKey válida
+ * Specific type guard for Wax TPublicKey
+ * Verifies that it is a valid public key with specific type
+ * @param key - Key to validate
+ * @returns true if valid TPublicKey
  */
 export function isValidPublicKey(key: unknown): key is TPublicKey {
-	// checkPublicKeyFormat ya incluye isPublicKey(), no necesitamos doble validación
+	// checkPublicKeyFormat already includes isPublicKey(), no need for double validation
 	return checkPublicKeyFormat(key)
 }
 
 /**
- * Valida una clave pública y lanza error si no es válida
- * Función simple que lanza error - sin TypeScript avanzado
- * @param key - Clave a validar  
- * @param keyType - Tipo de clave (owner, active, etc.) para mensajes de error
- * @throws Error si la clave no es válida
+ * Validates a public key and throws error if invalid
+ * Simple function that throws error - without advanced TypeScript
+ * @param key - Key to validate  
+ * @param keyType - Key type (owner, active, etc.) for error messages
+ * @throws Error if key is invalid
  */
 export function validatePublicKeyOrThrow(key: unknown, keyType?: string): void {
 	if (!checkPublicKeyFormat(key)) {
@@ -36,18 +36,18 @@ export function validatePublicKeyOrThrow(key: unknown, keyType?: string): void {
 }
 
 /**
- * Convierte una clave validada a TPublicKey
- * Cast simple después de validación - sin type guards complejos
- * @param key - Clave ya validada
- * @returns Clave con tipo correcto
+ * Converts an already validated key to TPublicKey
+ * Simple cast after validation - without complex type guards
+ * @param key - Key already validated
+ * @returns Key with correct type
  */
 export function castToPublicKey(key: string): TPublicKey {
 	return key as TPublicKey
 }
 
 /**
- * Interface para un set de claves públicas de Hive
- * Estructura clara y fácil de entender
+ * Interface for a set of Hive public keys
+ * Clear and easy to understand structure
  */
 export interface PublicKeySet {
 	readonly ownerPublicKey: unknown
@@ -57,7 +57,7 @@ export interface PublicKeySet {
 }
 
 /**
- * Resultado de validación de claves - estructura simple
+ * Key validation result - simple structure
  */
 export interface ValidatedKeySet {
 	readonly ownerPublicKey: TPublicKey
@@ -67,20 +67,20 @@ export interface ValidatedKeySet {
 }
 
 /**
- * Valida un set completo de claves públicas de Hive
- * Lógica simple paso a paso - sin conceptos avanzados
- * @param keySet - Set de claves a validar
- * @returns Set validado con tipos correctos
- * @throws Error si alguna clave es inválida
+ * Validates a complete set of Hive public keys
+ * Simple step-by-step logic - without advanced concepts
+ * @param keySet - Set of keys to validate
+ * @returns Validated set with correct types
+ * @throws Error if any key is invalid
  */
 export function validateHiveKeySet(keySet: PublicKeySet): ValidatedKeySet {
-	// Validar cada clave individualmente - paso a paso
+	// Validate each key individually - step by step
 	validatePublicKeyOrThrow(keySet.ownerPublicKey, 'owner')
 	validatePublicKeyOrThrow(keySet.activePublicKey, 'active')
 	validatePublicKeyOrThrow(keySet.postingPublicKey, 'posting')
 	validatePublicKeyOrThrow(keySet.memoPublicKey, 'memo')
 
-	// Si llegamos aquí, todas son válidas - convertir a tipos correctos
+	// If we get here, all are valid - convert to correct types
 	return {
 		ownerPublicKey: castToPublicKey(keySet.ownerPublicKey as string),
 		activePublicKey: castToPublicKey(keySet.activePublicKey as string),

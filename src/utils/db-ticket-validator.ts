@@ -12,24 +12,24 @@ import {
 } from '@/consts/unified-errors'
 
 /**
- * Re-exportar códigos del sistema unificado para compatibilidad
- * Elimina duplicaciones y usa el sistema centralizado
+ * Re-export unified system codes for compatibility
+ * Eliminates duplication and uses centralized system
  */
 export const ERROR_CODES = ALL_ERROR_CODES
 export type ErrorCode = UnifiedErrorCode
 
-// Alias específicos para operaciones de tickets (compatibilidad)
+// Specific aliases for ticket operations (compatibility)
 export const TICKET_ERROR_CODES = {
   TICKET_NOT_FOUND: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
   TICKET_RACE_CONDITION: VALIDATION_ERROR_CODES.TICKET_RACE_CONDITION,
   TICKET_ALREADY_USED: VALIDATION_ERROR_CODES.TICKET_ALREADY_USED,
-  ACCOUNT_EXISTS: BLOCKCHAIN_ERROR_CODES.ACCOUNT_ALREADY_EXISTS, // Mapeo semántico correcto
+  ACCOUNT_EXISTS: BLOCKCHAIN_ERROR_CODES.ACCOUNT_ALREADY_EXISTS, // Correct semantic mapping
   IDEMPOTENCY_CHECK_FAILED: VALIDATION_ERROR_CODES.IDEMPOTENCY_CHECK_FAILED,
   CHAIN_VERIFICATION_FAILED: BLOCKCHAIN_ERROR_CODES.CHAIN_VERIFICATION_FAILED,
   CHAIN_VERIFICATION_TIMEOUT: BLOCKCHAIN_ERROR_CODES.CHAIN_VERIFICATION_TIMEOUT,
 } as const
 
-// Constantes para evitar magic numbers
+// Constants to avoid magic numbers
 const TICKET_CODE_MIN = 10
 const TICKET_CODE_MAX = 24
 
@@ -40,17 +40,17 @@ function sanitizeTicketCode(raw: string): string | null {
 
   const code = raw.trim().toUpperCase()
 
-  // Validar longitud
+  // Validate length
   if (code.length < TICKET_CODE_MIN || code.length > TICKET_CODE_MAX) {
     return null
   }
 
-  // SEGURIDAD: Solo permitir caracteres alfanuméricos (evita inyección)
+  // SECURITY: Only allow alphanumeric characters (prevents injection)
   if (!/^[A-Z0-9]+$/.test(code)) {
     return null
   }
 
-  // SEGURIDAD: No permitir solo números
+  // SECURITY: Do not allow only numbers
   if (/^\d+$/.test(code)) {
     return null
   }
@@ -75,8 +75,8 @@ export interface TicketValidationResult {
 }
 
 /**
- * Valida un ticket contra la base de datos
- * Verifica que existe y no está usado
+ * Validates a ticket against the database
+ * Verifies that it exists and is not used
  */
 export async function validateTicketInDB(
   ticketCode: string
@@ -105,7 +105,7 @@ export async function validateTicketInDB(
       return { isValid: false, error: 'Ticket no está activo' }
     }
 
-    // Verificar que el ticket tenga créditos disponibles
+    // Verify that the ticket has available credits
     if (ticket.credits <= 0) {
       return { isValid: false, error: 'Ticket sin créditos disponibles' }
     }
@@ -117,15 +117,15 @@ export async function validateTicketInDB(
 }
 
 /**
- * Marca un ticket como usado
+ * Marks a ticket as used
  */
 export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
   try {
     const cleanCode = sanitizeTicketCode(ticketCode)
     if (!cleanCode) return false
 
-    // UPDATE reduciendo créditos y refrescando updated_at
-    // is_active y has_been_used se actualizan automáticamente
+    // UPDATE reducing credits and refreshing updated_at
+    // is_active and has_been_used are updated automatically
     const updateReturning = await db.execute({
       sql: `UPDATE Tickets
             SET credits = CASE WHEN credits > 0 THEN credits - 1 ELSE 0 END,
@@ -136,7 +136,7 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
     })
 
     if (updateReturning.rows.length === 0) {
-      return false // ya no tenía créditos o no existía
+      return false // no longer had credits or did not exist
     }
 
     const row = updateReturning.rows[0] as { id?: unknown; code?: unknown }
@@ -156,7 +156,7 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
 // Use centralized type guard from database types
 
 /**
- * Guarda una cuenta creada exitosamente en la tabla Accounts
+ * Saves a successfully created account to the Accounts table
  */
 export async function saveCreatedAccount(
   username: string,
@@ -182,7 +182,7 @@ export async function saveCreatedAccount(
 }
 
 /**
- * Verifica si una cuenta ya existe en la base de datos (idempotencia)
+ * Verifies if an account already exists in the database (idempotency)
  */
 export async function accountExistsInDB(username: string): Promise<boolean> {
   try {
@@ -201,7 +201,7 @@ export async function accountExistsInDB(username: string): Promise<boolean> {
 }
 
 /**
- * Verifica si un ticket ya está marcado como usado (idempotencia)
+ * Verifies if a ticket is already marked as used (idempotency)
  */
 export async function isTicketAlreadyUsed(
   ticketCode: string
@@ -225,7 +225,7 @@ export async function isTicketAlreadyUsed(
 }
 
 /**
- * Resultado de validación de idempotencia
+ * Idempotency validation result
  */
 export interface IdempotencyCheckResult {
   readonly canProceed: boolean
@@ -235,21 +235,21 @@ export interface IdempotencyCheckResult {
 }
 
 /**
- * Verifica condiciones de idempotencia antes de crear cuenta
- * Optimizado con verificaciones paralelas
+ * Verifies idempotency conditions before creating account
+ * Optimized with parallel checks
  */
 export async function checkIdempotency(
   username: string,
   ticketCode?: string
 ): Promise<IdempotencyCheckResult> {
   try {
-    // Ejecutar verificaciones en paralelo para reducir latencia
+    // Run checks in parallel to reduce latency
     const [accountExists, ticketUsed] = await Promise.all([
       accountExistsInDB(username),
       ticketCode ? isTicketAlreadyUsed(ticketCode) : Promise.resolve(false),
     ])
 
-    // Si la cuenta ya existe, es idempotente (éxito)
+    // If the account already exists, it is idempotent (success)
     if (accountExists) {
       return {
         canProceed: false,
@@ -259,7 +259,7 @@ export async function checkIdempotency(
       }
     }
 
-    // Si el ticket ya fue usado, es un error
+    // If the ticket has already been used, it is an error
     if (ticketUsed) {
       return {
         canProceed: false,
@@ -269,7 +269,7 @@ export async function checkIdempotency(
       }
     }
 
-    // Todo bien, se puede proceder
+    // All good, can proceed
     return {
       canProceed: true,
       accountExists: false,
@@ -287,7 +287,7 @@ export async function checkIdempotency(
 }
 
 /**
- * Resultado específico de la operación DB con códigos de error tipados
+ * Specific result of the DB operation with typed error codes
  */
 export interface DBOperationResult {
   readonly success: boolean
@@ -644,7 +644,7 @@ export async function resolveReconciliationEntry(
 }
 
 /**
- * Ofusca un ticket para logs (muestra primeros 3 y últimos 3 caracteres)
+ * Obfuscates a ticket for logs (shows first 3 and last 3 characters)
  */
 export function obfuscateTicket(ticket: string): string {
   if (!ticket || ticket.length <= 6) {
@@ -653,7 +653,7 @@ export function obfuscateTicket(ticket: string): string {
 
   const start = ticket.slice(0, 3)
   const end = ticket.slice(-3)
-  const middle = '*'.repeat(Math.min(ticket.length - 6, 8)) // Máximo 8 asteriscos
+  const middle = '*'.repeat(Math.min(ticket.length - 6, 8)) // Maximum 8 asterisks
 
   return `${start}${middle}${end}`
 }

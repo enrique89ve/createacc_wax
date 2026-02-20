@@ -1,8 +1,9 @@
 ---
 import Layout from '@/layouts/Layout.astro'
+import { BRAND } from '@/consts/branding'
 ---
 
-<Layout title="Acceso Denegado - HolaHive">
+<Layout title={`Acceso Denegado - ${BRAND.NAME}`}>
   <section class="flex min-h-screen w-full items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-8 shadow-lg backdrop-blur text-center">

@@ -1,13 +1,13 @@
 /**
- * Validación de códigos de ticket promocionales.
- * Retorna null si el ticket es válido; de lo contrario un mensaje descriptivo.
+ * Validation of promotional ticket codes.
+ * Returns null if the ticket is valid; otherwise a descriptive message.
  */
 
-// Constantes de validación
+// Validation constants
 const MIN_TICKET_LENGTH = 10 as const
 const MAX_TICKET_LENGTH = 24 as const
 
-// Mensajes de error específicos
+// Specific error messages
 const enum TicketMessage {
   NOT_EMPTY = 'El ticket no puede estar vacío.',
   TOO_SHORT = 'El ticket debe tener al menos 10 caracteres.',
@@ -17,82 +17,82 @@ const enum TicketMessage {
   INVALID_FORMAT = 'El ticket debe ser una cadena de texto válida.',
 }
 
-// Expresiones regulares (precompiladas)
+// Regular expressions (precompiled)
 const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
 const ONLY_NUMBERS_REGEX = /^\d+$/
 
 /**
- * Valida el formato de un código de ticket promocional
+ * Validates the format of a promotional ticket code
  *
- * Reglas:
- * - Solo letras y números (sin caracteres especiales)
- * - No puede ser solo números
- * - Puede ser solo letras
- * - Longitud: 10-24 caracteres
- * - Tipo: string
+ * Rules:
+ * - Only letters and numbers (no special characters)
+ * - Cannot be only numbers
+ * - Can be only letters
+ * - Length: 10-24 characters
+ * - Type: string
  *
- * @param ticket - Código de ticket a validar
- * @returns null si es válido, string con mensaje de error si no es válido
+ * @param ticket - Ticket code to validate
+ * @returns null if valid, string with error message if invalid
  */
 export const validateTicket = (ticket: unknown): string | null => {
-  // Verificar que sea string
+  // Verify that it is a string
   if (typeof ticket !== 'string') {
     return TicketMessage.INVALID_FORMAT
   }
 
   const ticketTrimmed = ticket.trim()
 
-  // Verificar que no esté vacío
+  // Verify that it is not empty
   if (!ticketTrimmed) {
     return TicketMessage.NOT_EMPTY
   }
 
-  // Verificar longitud mínima
+  // Verify minimum length
   if (ticketTrimmed.length < MIN_TICKET_LENGTH) {
     return TicketMessage.TOO_SHORT
   }
 
-  // Verificar longitud máxima
+  // Verify maximum length
   if (ticketTrimmed.length > MAX_TICKET_LENGTH) {
     return TicketMessage.TOO_LONG
   }
 
-  // Verificar que solo contenga letras y números
+  // Verify that it only contains letters and numbers
   if (!ALPHANUMERIC_REGEX.test(ticketTrimmed)) {
     return TicketMessage.INVALID_CHARS
   }
 
-  // Verificar que no sea solo números
+  // Verify that it is not only numbers
   if (ONLY_NUMBERS_REGEX.test(ticketTrimmed)) {
     return TicketMessage.ONLY_NUMBERS
   }
 
-  // Si llegamos aquí, el ticket es válido
+  // If we get here, the ticket is valid
   return null
 }
 
 /**
- * Limpia y formatea un ticket para input
- * Elimina caracteres especiales y limita la longitud
+ * Cleans and formats a ticket for input
+ * Removes special characters and limits length
  *
- * @param ticket - Ticket a limpiar
- * @returns Ticket limpio y formateado
+ * @param ticket - Ticket to clean
+ * @returns Clean and formatted ticket
  */
 export const cleanTicket = (ticket: string): string => {
   if (!ticket) return ''
 
   return ticket
-    .trim() // Eliminar espacios en blanco al inicio y final
-    .replace(/[^a-zA-Z0-9]/g, '') // Eliminar caracteres especiales
-    .slice(0, MAX_TICKET_LENGTH) // Limitar longitud
-    .toUpperCase() // Convertir a mayúsculas para consistencia
+    .trim() // Remove whitespace at the start and end
+    .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
+    .slice(0, MAX_TICKET_LENGTH) // Limit length
+    .toUpperCase() // Convert to uppercase for consistency
 }
 
 /**
- * Verifica si un ticket es válido (función de conveniencia)
+ * Verifies if a ticket is valid (convenience function)
  *
- * @param ticket - Ticket a verificar
- * @returns true si es válido, false si no
+ * @param ticket - Ticket to verify
+ * @returns true if valid, false if not
  */
 export const isValidTicket = (ticket: unknown): boolean => {
   return validateTicket(ticket) === null

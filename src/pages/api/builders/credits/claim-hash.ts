@@ -2,8 +2,8 @@ import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { db } from '@/lib/database'
 import { HTTP_STATUS } from '@/consts/constants'
+import { BRAND } from '@/consts/branding'
 import { UserRole } from '@/lib/roles'
-// Logger removed
 import { claimHashCache } from '@/lib/claim-hash-cache'
 
 /** Partial row from SELECT id */
@@ -31,7 +31,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Verificar que el usuario es un builder activo
+    // Verify that the user is an active builder
     const builderResult = await db.execute({
       sql: `SELECT id FROM Users WHERE username = ? AND role = ? AND is_active = TRUE`,
       args: [session.user.username, UserRole.Builder],
@@ -52,7 +52,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
 
-    // Verificar que hay créditos pendientes para reclamar
+    // Verify that there are pending credits to claim
     const pendingCreditsResult = await db.execute({
       sql: `SELECT id, pending_amount FROM Credits
             WHERE builder_id = ? AND pending_amount > 0
@@ -77,21 +77,21 @@ export const POST: APIRoute = async ({ request }) => {
     const creditsToGrant = Number(pendingCredit.pending_amount)
     const creditId = pendingCredit.id
 
-    // Generar código único para este claim
+    // Generate unique code for this claim
     const claimCode = `credit_${creditId}_${Date.now()}`
 
-    // Generar hash y almacenar en cache
+    // Generate hash and store in cache
     const hashData = claimHashCache.generateHash(
       session.user.username,
       claimCode,
       creditsToGrant
     )
 
-    // Crear la estructura del custom JSON para Keychain
+    // Create the custom JSON structure for Keychain
     const customJson = {
       id: 'claim_credits',
       json: {
-        app: 'holahiveCreateAcc',
+        app: BRAND.CLAIM_APP_ID,
         hash: hashData.hash,
         username: session.user.username,
         timestamp: hashData.createdAt,
@@ -105,7 +105,7 @@ export const POST: APIRoute = async ({ request }) => {
         hash: hashData.hash,
         customJson: customJson,
         claimCode: claimCode,
-        // creditId removido por seguridad - no exponer IDs internos
+        // creditId removed for security - do not expose internal IDs
         creditsAvailable: creditsToGrant,
         expiresAt: new Date(hashData.expiresAt).toISOString(),
       }),

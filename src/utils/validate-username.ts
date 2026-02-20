@@ -1,19 +1,19 @@
 /**
- * Validación de nombres de cuenta.
- * Retorna null si el nombre es válido; de lo contrario un mensaje descriptivo.
+ * Account name validation.
+ * Returns null if the name is valid; otherwise a descriptive message.
  */
 
-// Constantes de longitud
+// Length constants
 const MIN_SEGMENT_LENGTH = 3 as const
 const MAX_ACCOUNT_LENGTH = 16 as const
 
-// Mensajes base
+// Base messages
 const enum MessagePrefix {
   ACCOUNT = 'Account name should ',
   SEGMENT = 'Each account segment should ',
 }
 
-// Mensajes de error específicos (sin prefijo)
+// Specific error messages (without prefix)
 const enum MessageSuffix {
   NOT_EMPTY = 'not be empty.',
   BE_LONGER = 'be longer.',
@@ -23,7 +23,7 @@ const enum MessageSuffix {
   END_LOWER_OR_DIGIT = 'end with a lowercase letter or digit.',
 }
 
-// Expresiones regulares (precompiladas) con nombres explícitos
+// Regular expressions (precompiled) with explicit names
 const DOT_REGEX = /\./
 const STARTS_WITH_LOWERCASE_REGEX = /^[a-z]/
 const ALLOWED_CHARS_REGEX = /^[a-z0-9-]*$/
@@ -62,6 +62,6 @@ export const validateAccountName = (value: string): string | null => {
   return null
 }
 
-/** Limita el username al máximo permitido de caracteres */
+/** Limits the username to the maximum allowed characters */
 export const clearUsername = (username: string): string =>
   username.slice(0, MAX_ACCOUNT_LENGTH)

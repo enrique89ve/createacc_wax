@@ -1,6 +1,6 @@
 /**
- * RateLimiter - Sistema de rate limiting client-side
- * Previene intentos excesivos de login/acciones con lockout temporal
+ * RateLimiter - Client-side rate limiting system
+ * Prevents excessive login/action attempts with temporary lockout
  */
 
 interface LoginAttempt {
@@ -24,75 +24,75 @@ export class RateLimiter {
 	) {}
 
 	/**
-	 * Verifica si la acción está permitida según el rate limit
+	 * Checks if the action is allowed according to the rate limit
 	 */
 	check(): RateLimitResult {
 		const attempts = this.getAttempts()
 		const now = Date.now()
 
-		// Verificar si está bloqueado
+		// Check if locked
 		if (attempts.lockedUntil && now < attempts.lockedUntil) {
 			const minutesLeft = Math.ceil((attempts.lockedUntil - now) / 60000)
 			return {
 				allowed: false,
-				message: `Cuenta bloqueada. Intenta nuevamente en ${minutesLeft} minuto(s).`,
+				message: `Account locked. Try again in ${minutesLeft} minute(s).`,
 			}
 		}
 
-		// Si la ventana de intentos expiró, resetear
+		// If attempt window expired, reset
 		if (now - attempts.firstAttempt > this.attemptWindow) {
 			this.reset()
 			return { allowed: true, remainingAttempts: this.maxAttempts }
 		}
 
-		// Verificar si excedió el límite
+		// Check if limit exceeded
 		if (attempts.count >= this.maxAttempts) {
 			const lockUntil = now + this.lockoutDuration
 			this.saveAttempts({ ...attempts, lockedUntil: lockUntil })
 			const minutes = Math.ceil(this.lockoutDuration / 60000)
 			return {
 				allowed: false,
-				message: `Demasiados intentos fallidos. Cuenta bloqueada por ${minutes} minutos.`,
+				message: `Too many failed attempts. Account locked for ${minutes} minutes.`,
 			}
 		}
 
-		// Permitido
+		// Allowed
 		const remaining = this.maxAttempts - attempts.count
 		return { allowed: true, remainingAttempts: remaining }
 	}
 
 	/**
-	 * Registra un intento fallido
+	 * Records a failed attempt
 	 */
 	recordFailedAttempt(): void {
 		const attempts = this.getAttempts()
 		const now = Date.now()
 
-		// Si la ventana expiró, iniciar nueva
+		// If window expired, start a new one
 		if (now - attempts.firstAttempt > this.attemptWindow) {
 			this.saveAttempts({ count: 1, firstAttempt: now })
 			return
 		}
 
-		// Incrementar contador
+		// Increment counter
 		this.saveAttempts({ ...attempts, count: attempts.count + 1 })
 	}
 
 	/**
-	 * Resetea el contador de intentos
+	 * Resets attempt counter
 	 */
 	reset(): void {
 		localStorage.removeItem(this.storageKey)
 	}
 
 	/**
-	 * Obtiene intentos restantes
+	 * Gets remaining attempts
 	 */
 	getRemainingAttempts(): number {
 		const attempts = this.getAttempts()
 		const now = Date.now()
 
-		// Si la ventana expiró, tiene todos los intentos disponibles
+		// If window expired, all attempts are available
 		if (now - attempts.firstAttempt > this.attemptWindow) {
 			return this.maxAttempts
 		}
@@ -101,7 +101,7 @@ export class RateLimiter {
 	}
 
 	/**
-	 * Obtiene el estado actual de intentos desde localStorage
+	 * Gets current attempt state from localStorage
 	 */
 	private getAttempts(): LoginAttempt {
 		const stored = localStorage.getItem(this.storageKey)
@@ -112,7 +112,7 @@ export class RateLimiter {
 	}
 
 	/**
-	 * Guarda el estado de intentos en localStorage
+	 * Saves attempt state to localStorage
 	 */
 	private saveAttempts(attempts: LoginAttempt): void {
 		localStorage.setItem(this.storageKey, JSON.stringify(attempts))

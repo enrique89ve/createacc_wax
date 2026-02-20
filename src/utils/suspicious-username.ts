@@ -4,22 +4,22 @@ import {
 } from '@/data/suspicious-accounts'
 
 /**
- * Caché optimizado para lookups ultrarrápidos
+ * Optimized cache for ultra-fast lookups
  */
 let suspiciousAccountsSet: Set<string> | null = null
 let suspiciousSubstringsSet: Set<string> | null = null
 
 /**
- * Inicializa el caché de cuentas sospechosas (solo una vez)
- * Complejidad: O(1) después de la primera llamada
+ * Initializes the suspicious accounts cache (only once)
+ * Complexity: O(1) after the first call
  */
 function initializeSuspiciousCache() {
   if (suspiciousAccountsSet === null) {
-    // Set para lookup exacto O(1)
+    // Set for exact lookup O(1)
     suspiciousAccountsSet = new Set(
       SUSPICIOUS_ACCOUNTS.map(account => account.toLowerCase())
     )
-    // Set para substrings comunes O(1) - más selectivo
+    // Set for common substrings O(1) - more selective
     suspiciousSubstringsSet = new Set([
       'admin',
       'root',
@@ -41,66 +41,66 @@ function initializeSuspiciousCache() {
 }
 
 /**
- * Validación ultrarrápida de usuario sospechoso
- * Optimizado para velocidad máxima con múltiples estrategias
+ * Ultra-fast validation of suspicious user
+ * Optimized for maximum speed with multiple strategies
  *
- * @param username - Username a validar
- * @returns true si es sospechoso, false si es seguro
+ * @param username - Username to validate
+ * @returns true if suspicious, false if safe
  */
 export function isSuspiciousUsername(username: string): boolean {
   try {
-    // Validación básica
+    // Basic validation
     if (!username || typeof username !== 'string') {
-      return true // Entrada inválida es sospechosa
+      return true // Invalid input is suspicious
     }
 
     const cleanUsername = username.toLowerCase().trim()
 
-    // Longitud sospechosa
+    // Suspicious length
     if (cleanUsername.length < 3 || cleanUsername.length > 16) {
       return true
     }
 
-    // Inicializar caché una vez
+    // Initialize cache once
     initializeSuspiciousCache()
 
-    // 1. LOOKUP EXACTO (más rápido - O(1))
+    // 1. EXACT LOOKUP (fastest - O(1))
     if (suspiciousAccountsSet!.has(cleanUsername)) {
       return true
     }
 
-    // 2. PATRONES REGEX (muy rápido)
+    // 2. REGEX PATTERNS (very fast)
     for (const pattern of SUSPICIOUS_PATTERNS) {
       if (pattern.test(cleanUsername)) {
         return true
       }
     }
 
-    // 3. SUBSTRINGS COMUNES (rápido - O(1) por substring)
+    // 3. COMMON SUBSTRINGS (fast - O(1) per substring)
     for (const suspicious of suspiciousSubstringsSet!) {
       if (cleanUsername.includes(suspicious)) {
         return true
       }
     }
 
-    // 4. VALIDACIONES ESPECÍFICAS (muy rápido)
+    // 4. SPECIFIC VALIDATIONS (very fast)
 
-    // Solo números
+    // Numbers only
     if (/^\d+$/.test(cleanUsername)) {
       return true
     }
 
-    // Caracteres repetidos excesivos
+    // Excessive repeated characters
     if (/(.)\1{4,}/.test(cleanUsername)) {
       return true
     }
 
-    // Patrones alternantes sospechosos
+    // Suspicious alternating patterns
     if (/^(.)(.)\1\2\1\2/.test(cleanUsername)) {
       return true
     }
 
-    // Secuencias keyboard (qwerty, asdf, etc.)
+    // Keyboard sequences (qwerty, asdf, etc.)
     const keyboardPatterns = ['qwerty', 'asdf', 'zxcv', '123456', 'abcdef']
     for (const pattern of keyboardPatterns) {
       if (cleanUsername.includes(pattern)) {
@@ -108,49 +108,49 @@ export function isSuspiciousUsername(username: string): boolean {
       }
     }
 
-    // 5. DETECCIÓN DE ENTROPÍA (Nombres generados por bots)
+    // 5. ENTROPY DETECTION (Bot-generated names)
     
-    // Racha de 4 o más consonantes seguidas (ignora números en el medio para evaluar legibilidad)
+    // Streak of 4 or more consecutive consonants (ignores numbers in between to evaluate readability)
     const lettersOnly = cleanUsername.replace(/[^a-z]/g, '')
     if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(lettersOnly)) {
       return true
     }
 
-    // Letras y números intercalados sin sentido (ej: x1y2z3 o a1b2c3d4)
+    // Meaningless interspersed letters and numbers (e.g. x1y2z3 or a1b2c3d4)
     if (/([a-z]\d){3,}|(\d[a-z]){3,}/.test(cleanUsername)) {
       return true
     }
 
     return false
   } catch (error) {
-    return true // En caso de error, consideramos sospechoso por seguridad
+    return true // In case of error, consider suspicious for security
   }
 }
 
 /**
- * Validación más permisiva con threshold personalizable
- * Solo usa si necesitas flexibilidad adicional
+ * More permissive validation with customizable threshold
+ * Only use if additional flexibility is needed
  *
- * @param username - Username a validar
- * @param strictMode - Si usar modo estricto (default: true)
- * @returns true si es sospechoso
+ * @param username - Username to validate
+ * @param strictMode - Whether to use strict mode (default: true)
+ * @returns true if suspicious
  */
 export function isSuspiciousUsernameFlexible(
   username: string,
   strictMode: boolean = true
 ): boolean {
   if (!strictMode) {
-    // Modo permisivo: solo bloquear lo más obvio
+    // Permissive mode: only block the most obvious
     const cleanUsername = username.toLowerCase().trim()
 
     initializeSuspiciousCache()
 
-    // Solo lookup exacto y patrones más obvios
+    // Only exact lookup and most obvious patterns
     if (suspiciousAccountsSet!.has(cleanUsername)) {
       return true
     }
 
-    // Solo los patrones más restrictivos
+    // Only the most restrictive patterns
     if (
       /^(admin|root|bot|spam|scam|fake|hack|nazi|kill)\d*$/i.test(cleanUsername)
     ) {
@@ -164,11 +164,11 @@ export function isSuspiciousUsernameFlexible(
 }
 
 /**
- * Obtiene razón específica de por qué un username es sospechoso
- * Útil para logs y debugging
+ * Gets specific reason why a username is suspicious
+ * Useful for logs and debugging
  *
- * @param username - Username a validar
- * @returns string con la razón o null si no es sospechoso
+ * @param username - Username to validate
+ * @returns string with the reason or null if not suspicious
  */
 export function getSuspiciousReason(username: string): string | null {
   try {
@@ -228,7 +228,7 @@ export function getSuspiciousReason(username: string): string | null {
 }
 
 /**
- * Estadísticas del sistema de detección
+ * Detection system statistics
  */
 export function getSuspiciousStats() {
   return {
@@ -239,7 +239,7 @@ export function getSuspiciousStats() {
 }
 
 /**
- * Limpiar caché (útil para testing)
+ * Clear cache (useful for testing)
  */
 export function clearSuspiciousCache() {
   suspiciousAccountsSet = null
@@ -247,20 +247,20 @@ export function clearSuspiciousCache() {
 }
 
 /**
- * Type guard que verifica si un username es válido (no sospechoso)
- * Combina validación de tipo y contenido en una sola función
- * @param username - Username a validar
- * @returns true si es string válido y no sospechoso
+ * Type guard that verifies if a username is valid (not suspicious)
+ * Combines type and content validation in a single function
+ * @param username - Username to validate
+ * @returns true if valid string and not suspicious
  */
 export function isValidUsername(username: unknown): username is string {
   return typeof username === 'string' && !isSuspiciousUsername(username)
 }
 
 /**
- * Type guard que verifica si un input es un string válido para username
- * Solo valida tipo y formato básico, no contenido sospechoso
- * @param input - Input a validar
- * @returns true si es string con formato de username válido
+ * Type guard that verifies if an input is a valid string for username
+ * Only validates type and basic format, not suspicious content
+ * @param input - Input to validate
+ * @returns true if string with valid username format
  */
 export function isUsernameFormat(input: unknown): input is string {
   if (typeof input !== 'string') {

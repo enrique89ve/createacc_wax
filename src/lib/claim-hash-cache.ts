@@ -1,8 +1,8 @@
 /**
  * 🔐 CLAIM HASH CACHE
  *
- * Sistema de cache en memoria para hashes de validación de claims
- * Reemplaza la tabla TempClaimHashes con una solución más simple y eficiente
+ * In-memory cache system for claim validation hashes
+ * Replaces the TempClaimHashes table with a simpler and more efficient solution
  */
 
 import { createHash, randomBytes } from 'crypto'
@@ -18,11 +18,11 @@ export interface ClaimHashData {
 
 class ClaimHashCache {
 	private cache = new Map<string, ClaimHashData>()
-	private readonly TTL = 10 * 60 * 1000 // 10 minutos en millisegundos
+	private readonly TTL = 10 * 60 * 1000 // 10 minutes in milliseconds
 	private readonly MAX_ENTRIES = 10_000
 
 	/**
-	 * Generar y almacenar hash de validación
+	 * Generate and store validation hash
 	 */
 	generateHash(username: string, ticketCode: string, creditsAvailable: number): ClaimHashData {
 		const now = Date.now()
@@ -39,7 +39,7 @@ class ClaimHashCache {
 			expiresAt: now + this.TTL
 		}
 
-		// Limpiar hashes expirados antes de agregar nuevo
+		// Clean expired hashes before adding a new one
 		this.cleanup()
 
 		// Evict oldest entries if cache is full to prevent OOM
@@ -53,17 +53,17 @@ class ClaimHashCache {
 			}
 		}
 
-		// Almacenar en cache
+		// Store in cache
 		this.cache.set(hash, hashData)
 
 		return hashData
 	}
 
 	/**
-	 * Validar y consumir hash
+	 * Validate and consume hash
 	 */
 	validateAndConsume(hash: string, username: string): ClaimHashData | null {
-		// Limpiar expirados
+		// Clean expired
 		this.cleanup()
 
 		const hashData = this.cache.get(hash)
@@ -72,25 +72,25 @@ class ClaimHashCache {
 			return null
 		}
 
-		// Verificar que el username coincida
+		// Verify that the username matches
 		if (hashData.username !== username) {
 			return null
 		}
 
-		// Verificar que no haya expirado
+		// Verify that it has not expired
 		if (Date.now() > hashData.expiresAt) {
 			this.cache.delete(hash)
 			return null
 		}
 
-		// Consumir hash (eliminarlo del cache)
+		// Consume hash (remove it from cache)
 		this.cache.delete(hash)
 
 		return hashData
 	}
 
 	/**
-	 * Limpiar hashes expirados
+	 * Clean expired hashes
 	 */
 	cleanup(): void {
 		const now = Date.now()
@@ -103,7 +103,7 @@ class ClaimHashCache {
 	}
 
 	/**
-	 * Limpiar todo el cache (para testing)
+	 * Clean entire cache (for testing)
 	 */
 	clear(): void {
 		this.cache.clear()
@@ -113,7 +113,7 @@ class ClaimHashCache {
 // Singleton instance
 const claimHashCache = new ClaimHashCache()
 
-// Limpieza automática cada 5 minutos
+// Automatic cleanup every 5 minutes
 setInterval(() => {
 	claimHashCache.cleanup()
 }, 5 * 60 * 1000)

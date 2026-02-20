@@ -2,9 +2,9 @@
  * Authentication guards and utilities for route protection
  * Provides type-safe helpers for different auth areas
  *
- * Nueva arquitectura:
- * - Admin: username/password tradicional (tabla Users con role='admin')
- * - Builder: autenticación vía Keychain (tabla Users con role='builder')
+ * New architecture:
+ * - Admin: traditional username/password (Users table with role='admin')
+ * - Builder: authentication via Keychain (Users table with role='builder')
  */
 
 import { getSession } from 'auth-astro/server'
@@ -101,7 +101,7 @@ function validateAdminSession(session: Session | null): {
     return { isValid: false, redirectTo: ROUTES.LOGIN }
   }
 
-  // Admin debe tener role === UserRole.Admin
+  // Admin must have role === UserRole.Admin
   if (session.user.role !== UserRole.Admin) {
     return { isValid: false, redirectTo: ROUTES.LOGIN }
   }
@@ -120,12 +120,12 @@ function validateBuildersSession(session: Session | null): {
     return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
   }
 
-  // Builder debe tener role === UserRole.Builder
+  // Builder must have role === UserRole.Builder
   if (session.user.role !== UserRole.Builder) {
     return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
   }
 
-  // Para builders autenticados vía Keychain, hive_username nunca debe faltar
+  // For builders authenticated via Keychain, hive_username must never be missing
   if (!session.user.username) {
     return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
   }

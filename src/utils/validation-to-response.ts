@@ -1,12 +1,12 @@
 /**
  * VALIDATION TO HTTP RESPONSE ADAPTER
  *
- * Este archivo contiene utilities para convertir ValidationResult a HTTP Response.
- * Mantiene la separación entre lógica de validación y lógica HTTP.
+ * This file contains utilities to convert ValidationResult to an HTTP Response.
+ * Maintains the separation between validation logic and HTTP logic.
  *
- * Patrón usado: Adapter Pattern
- * - ValidationResult es para lógica interna (testeable)
- * - Response es para HTTP (framework específico)
+ * Pattern used: Adapter Pattern
+ * - ValidationResult is for internal logic (testable)
+ * - Response is for HTTP (framework specific)
  */
 
 import type { ValidationFailure } from '@/utils/validation-result'
@@ -16,10 +16,10 @@ import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { ALL_ERROR_CODES, DATABASE_ERROR_CODES, type UnifiedErrorCode } from '@/consts/unified-errors'
 
 /**
- * Mapeo de códigos de error interno a códigos HTTP apropiados.
+ * Mapping of internal error codes to appropriate HTTP status codes.
  *
- * Esto centraliza la lógica de qué errores de validación
- * corresponden a qué códigos de estado HTTP.
+ * This centralizes the logic of which validation errors
+ * correspond to which HTTP status codes.
  */
 const ERROR_CODE_TO_HTTP_STATUS: Record<string, number> = {
   MISSING_REQUIRED_FIELDS: HTTP_STATUS.BAD_REQUEST,
@@ -30,10 +30,10 @@ const ERROR_CODE_TO_HTTP_STATUS: Record<string, number> = {
 }
 
 /**
- * Mapeo de códigos de error interno a mensajes de error detallados.
+ * Mapping of internal error codes to detailed error messages.
  *
- * Permite tener mensajes específicos para cada tipo de error
- * sin repetir lógica en múltiples lugares.
+ * Allows having specific messages for each error type
+ * without repeating logic in multiple places.
  */
 const ERROR_CODE_TO_DETAILED_MESSAGE: Record<string, string> = {
   MISSING_REQUIRED_FIELDS:
@@ -43,15 +43,15 @@ const ERROR_CODE_TO_DETAILED_MESSAGE: Record<string, string> = {
 }
 
 /**
- * Convierte un ValidationFailure a una HTTP Response apropiada.
+ * Converts a ValidationFailure to an appropriate HTTP Response.
  *
- * Esta función toma el error de validación genérico y lo convierte
- * al formato específico que espera el frontend de HolaHive.
+ * This function takes the generic validation error and converts it
+ * to the specific format expected by the frontend.
  *
- * @param failure - El resultado fallido de validación
- * @returns Response HTTP con formato estándar de error
+ * @param failure - The failed validation result
+ * @returns HTTP Response with standard error format
  *
- * Ejemplo de uso:
+ * Usage example:
  * ```typescript
  * const result = await validator.validateRequestData(context);
  * if (!isValidationSuccess(result)) {
@@ -64,12 +64,12 @@ export function validationFailureToResponse(
 ): Response {
   const { error } = failure
 
-  // Determinar código de estado HTTP basado en el tipo de error
+  // Determine HTTP status code based on error type
   const httpStatus = error.code
     ? ERROR_CODE_TO_HTTP_STATUS[error.code] || HTTP_STATUS.BAD_REQUEST
     : HTTP_STATUS.BAD_REQUEST
 
-  // Obtener mensaje detallado si existe
+  // Get detailed message if exists
   const detailedMessage = error.code
     ? ERROR_CODE_TO_DETAILED_MESSAGE[error.code]
     : undefined
@@ -81,7 +81,7 @@ export function validationFailureToResponse(
     ? allCodes[error.code]
     : DATABASE_ERROR_CODES.INTERNAL_ERROR
 
-  // Crear response con formato estándar de HolaHive
+  // Create response with standard frontend format
   return createJsonResponse(
     {
       success: false,

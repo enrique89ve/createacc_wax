@@ -49,10 +49,10 @@ export const GET: APIRoute = async ({ request, url }) => {
       )
     }
 
-    // Determinar si el usuario es Admin o Builder
+    // Determine if the user is Admin or Builder
     const username = session.user.username
 
-    // Obtener usuario de tabla unificada Users
+    // Get user from unified Users table
     const userResult = await db.execute({
       sql: 'SELECT id, username, role FROM Users WHERE username = ? AND is_active = TRUE',
       args: [username],
@@ -71,7 +71,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const user = userResult.rows[0]
     const userId = user.id as number
 
-    // Query unificada para obtener tickets creados por el usuario
+    // Unified query to get tickets created by the user
     const historyQuery = `
       SELECT
         t.id, t.code, t.description,
@@ -87,7 +87,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     `
     const queryArgs = [userId.toString()]
 
-    // Obtener historial completo de créditos
+    // Get full credit history
     const historyResult = await db.execute({
       sql: historyQuery,
       args: queryArgs,
@@ -96,16 +96,16 @@ export const GET: APIRoute = async ({ request, url }) => {
     const creditHistory = historyResult.rows as unknown as CreditHistoryRow[]
 
     if (format === 'csv') {
-      // Generar CSV
+      // Generate CSV
       const csvHeaders = [
-        'Fecha',
-        'Tipo',
-        'Código',
-        'Descripción',
-        'Créditos Originales',
-        'Créditos Actuales',
-        'Acción',
-        'Estado',
+        'Date',
+        'Type',
+        'Code',
+        'Description',
+        'Original Credits',
+        'Current Credits',
+        'Action',
+        'Status',
       ]
 
       const csvRows = creditHistory.map(item => [
@@ -116,7 +116,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         item.original_credits,
         item.credits,
         item.action || 'created',
-        item.credits > 0 ? 'Disponible' : 'Usado',
+        item.credits > 0 ? 'Available' : 'Used',
       ])
 
       const csvContent = [
@@ -136,21 +136,21 @@ export const GET: APIRoute = async ({ request, url }) => {
         },
       })
     } else if (format === 'json') {
-      // Generar JSON
+      // Generate JSON
       const jsonData = {
         exportDate: new Date().toISOString(),
         username: session.user.username,
         recordCount: creditHistory.length,
         data: creditHistory.map(item => ({
-          fecha: new Date(item.timestamp || item.created_at).toISOString(),
-          tipo: item.type,
-          codigo: item.code,
-          descripcion: item.description,
-          creditosOriginales: item.original_credits,
-          creditosActuales: item.credits,
-          accion: item.action || 'created',
-          estado: item.credits > 0 ? 'Disponible' : 'Usado',
-          creadoPor: item.created_by_username,
+          date: new Date(item.timestamp || item.created_at).toISOString(),
+          type: item.type,
+          code: item.code,
+          description: item.description,
+          originalCredits: item.original_credits,
+          currentCredits: item.credits,
+          action: item.action || 'created',
+          status: item.credits > 0 ? 'Available' : 'Used',
+          createdBy: item.created_by_username,
         })),
       }
 
@@ -167,7 +167,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       })
     }
 
-    // Formato no soportado
+    // Unsupported format
     return new Response(
       JSON.stringify({ success: false, error: 'Formato no soportado' }),
       {

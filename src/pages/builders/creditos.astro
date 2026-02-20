@@ -63,7 +63,7 @@ const creditosDisponibles = builderCredits.claimed // available_amount = crédit
 const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas creadas
 ---
 
-<BuildersLayout title="Créditos - Builders" currentPage="creditos">
+<BuildersLayout title="Créditos" currentPage="creditos">
   <div
     class="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
   >
@@ -334,6 +334,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 
 <script>
   import { notify } from '@/utils/toast'
+  import { BRAND } from '@/consts/branding'
 
   interface HiveKeychainResponse {
     readonly success: boolean
@@ -508,7 +509,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
             customJsonData.id,
             'Posting',
             JSON.stringify(customJsonData.json),
-            'Claim Credits - HolaHive',
+            `Claim Credits - ${BRAND.NAME}`,
             function (response: unknown) {
               // Usar function() en lugar de arrow function para evitar problemas de contexto
               try {

@@ -33,8 +33,8 @@ export interface AuthResult {
 }
 
 /**
- * Verifica autenticación por Hive Keychain
- * Reutiliza la lógica de verificación de keychain-login.ts
+ * Verifies authentication via Hive Keychain
+ * Reuses the verification logic from keychain-login.ts
  */
 export async function verifyKeychainAuth(
   request: KeychainAuthRequest
@@ -42,15 +42,15 @@ export async function verifyKeychainAuth(
   try {
     const { username, message, publicKey, signature } = request
 
-    // Validar campos requeridos
+    // Validate required fields
     if (!username || !message) {
       return {
         success: false,
-        error: 'Username y message requeridos',
+        error: 'Username and message are required',
       }
     }
 
-    // Validar que no sea admin intentando usar Keychain
+    // Validate that it is not an admin trying to use Keychain
     const adminCheck = await db.execute({
       sql: 'SELECT username FROM Users WHERE username = ? AND role = ?',
       args: [username as string, 'admin'],
@@ -59,11 +59,11 @@ export async function verifyKeychainAuth(
     if (adminCheck.rows.length > 0) {
       return {
         success: false,
-        error: 'Los administradores deben usar login con contraseña',
+        error: 'Administrators must use password login',
       }
     }
 
-    // Validación de formato del mensaje (incluye nonce obligatorio)
+    // Validate message format (includes mandatory nonce)
     const messageRegex =
       /Login to HiveAccount Creation at .+\nUsername: (.+)\nTimestamp: (\d+)\nNonce: ([a-f0-9]{64})$/
     const messageMatch = message.match(messageRegex)
@@ -71,7 +71,7 @@ export async function verifyKeychainAuth(
     if (!messageMatch) {
       return {
         success: false,
-        error: 'Formato de mensaje inválido',
+        error: 'Invalid message format',
       }
     }
 
@@ -79,30 +79,30 @@ export async function verifyKeychainAuth(
     const messageTimestamp = parseInt(messageMatch[2])
     const messageNonce = messageMatch[3]
 
-    // Validar que el username coincida
+    // Validate that the username matches
     if (messageUsername !== username) {
       return {
         success: false,
-        error: 'Username no coincide en el mensaje',
+        error: 'Username does not match the message',
       }
     }
 
-    // Validar nonce del servidor (one-time use, previene replay attacks)
+    // Validate server nonce (one-time use, prevents replay attacks)
     const { consumeNonce } = await import('@/lib/nonce-store')
     if (!consumeNonce(messageNonce)) {
       return {
         success: false,
-        error: 'Nonce inválido, expirado o ya utilizado. Intenta de nuevo.',
+        error: 'Invalid, expired or already used nonce. Please try again.',
       }
     }
 
-    // Validar timestamp del mensaje
-    // IMPORTANTE: Usar siempre la hora del servidor (Date.now()) para evitar ataques de replay.
-    // Date.now() es UTC universal, por lo que la zona horaria del usuario no afecta,
-    // pero sí afecta si su reloj está desajustado (adelantado o atrasado).
+    // Validate message timestamp
+    // IMPORTANT: Always use server time (Date.now()) to prevent replay attacks.
+    // Date.now() is universal UTC, so the user's timezone does not affect it,
+    // but it does affect if their clock is out of sync (fast or slow).
     const now = Date.now()
 
-    // Con nonce de uso único, la ventana de timestamp puede ser más estricta (2 min)
+    // With single-use nonce, the timestamp window can be stricter (2 min)
     const maxDiff = 2 * 60 * 1000
     const messageTimeDiff = Math.abs(now - messageTimestamp)
 
@@ -110,11 +110,11 @@ export async function verifyKeychainAuth(
       return {
         success: false,
         error:
-          'La hora de tu dispositivo está desajustada. Por favor verifica tu reloj e intenta de nuevo.',
+          'Your device time is out of sync. Please check your clock and try again.',
       }
     }
 
-    // Verificación criptográfica real usando WAX
+    // Real cryptographic verification using WAX
     const { quickVerifySignature } = await import(
       '@/lib/admin/auth/hive-signature-verifier'
     )
@@ -128,12 +128,12 @@ export async function verifyKeychainAuth(
     if (!signatureResult.valid) {
       return {
         success: false,
-        error: signatureResult.error || 'Signature inválida',
+        error: signatureResult.error || 'Invalid signature',
       }
     }
 
-    // Buscar builder en la base de datos
-    // SEGURIDAD: Columnas explícitas - NO incluir password_hash
+    // Find builder in the database
+    // SECURITY: Explicit columns - DO NOT include password_hash
     const builderResult = await db.execute({
       sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ? AND role = ? AND is_active = TRUE',
       args: [username as string, 'builder'],
@@ -142,30 +142,30 @@ export async function verifyKeychainAuth(
     let user: NewUser
 
     if (builderResult.rows.length === 0) {
-      // Builder no existe en BD - permitir acceso pero con 0 créditos
-      // Crear objeto usuario temporal (no guardado en BD)
+      // Builder does not exist in DB - allow access but with 0 credits
+      // Create temporary user object (not saved in DB)
       user = {
-        id: 0, // ID temporal
+        id: 0, // Temporary ID
         username: username,
         hive_account: username,
         auth_method: 'keychain',
         password_hash: null,
-        credits: 0, // 0 créditos hasta que admin asigne
+        credits: 0, // 0 credits until admin assigns
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       } as NewUser
     } else {
-      // Builder existe en BD
+      // Builder exists in DB
       const builder = builderResult.rows[0] as unknown as BuilderRow
 
-      // Mapear builder a formato de usuario para compatibilidad con sesión
+      // Map builder to user format for session compatibility
       user = {
         id: builder.id,
         username: builder.username,
         hive_account: builder.username,
         auth_method: 'keychain',
         password_hash: null,
-        credits: 0, // Los créditos se obtienen de la tabla Credits
+        credits: 0, // Credits are obtained from the Credits table
         created_at: builder.created_at,
         updated_at: builder.updated_at,
       } as NewUser
@@ -176,10 +176,10 @@ export async function verifyKeychainAuth(
       user,
     }
   } catch (error) {
-    logger.error('Error en verificación de Keychain:', error)
+    logger.error('Error in Keychain verification:', error)
     return {
       success: false,
-      error: 'Error interno del servidor',
+      error: 'Internal server error',
     }
   }
 }

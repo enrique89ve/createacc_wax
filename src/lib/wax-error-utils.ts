@@ -1,6 +1,6 @@
 /**
- * Utilidad robusta para manejo de errores de @hiveio/wax
- * Proporciona clasificación inteligente de errores y logging estructurado
+ * Robust utility for handling @hiveio/wax errors
+ * Provides intelligent error classification and structured logging
  */
 
 import { AppErrorCode } from '@/consts/errors'
@@ -20,7 +20,7 @@ import {
 } from '@hiveio/wax'
 
 /**
- * Tipos de error específicos de @hiveio/wax
+ * Specific error types from @hiveio/wax
  */
 export interface WaxErrorInfo {
   readonly name: string
@@ -31,8 +31,8 @@ export interface WaxErrorInfo {
 }
 
 /**
- * Patrón de errores conocidos de Hive con expresiones regulares
- * Patrones simplificados para coincidir con mensajes reales de Hive API
+ * Known Hive error patterns with regular expressions
+ * Simplified patterns to match real Hive API messages
  */
 const KNOWN_ERROR_PATTERNS: Array<{
   readonly pattern: RegExp
@@ -79,8 +79,8 @@ const KNOWN_ERROR_PATTERNS: Array<{
 ]
 
 /**
- * Clasifica un error Wax por instanceof y retorna su categoría
- * Orden: subclases más específicas primero, luego clases base
+ * Classifies a Wax error by instanceof and returns its category
+ * Order: more specific subclasses first, then base classes
  */
 function classifyByInstance(error: unknown): WaxErrorInfo['category'] | null {
 	// Request subclasses → network
@@ -112,7 +112,7 @@ function classifyByInstance(error: unknown): WaxErrorInfo['category'] | null {
 }
 
 /**
- * Extrae el mensaje más informativo de un WaxChainApiError
+ * Extracts the most informative message from a WaxChainApiError
  */
 function extractApiErrorMessage(error: WaxChainApiError): string | null {
 	const apiError: unknown = error.apiError
@@ -128,15 +128,15 @@ function extractApiErrorMessage(error: WaxChainApiError): string | null {
 }
 
 /**
- * Type guard para verificar si un error es una instancia de WaxError
+ * Type guard to check if an error is an instance of WaxError
  */
 export function isWaxError(error: unknown): error is WaxError {
 	return error instanceof WaxError
 }
 
 /**
- * Analiza un error de @hiveio/wax y lo clasifica
- * Usa instanceof para type safety real contra todas las clases exportadas
+ * Analyzes a @hiveio/wax error and classifies it
+ * Uses instanceof for real type safety against all exported classes
  */
 export function analyzeWaxError(error: unknown): WaxErrorInfo {
 	if (!error || typeof error !== 'object') {
@@ -152,16 +152,16 @@ export function analyzeWaxError(error: unknown): WaxErrorInfo {
 	const errorName = error instanceof Error ? error.name : 'UnknownError'
 	let errorMessage = error instanceof Error ? error.message : 'No message'
 
-	// Extraer mensaje detallado de WaxChainApiError
+	// Extract detailed message from WaxChainApiError
 	if (error instanceof WaxChainApiError) {
 		const apiMessage = extractApiErrorMessage(error)
 		if (apiMessage) errorMessage = apiMessage
 	}
 
-	// Clasificar por instanceof
+	// Classify by instanceof
 	const category = classifyByInstance(error) ?? 'unknown'
 
-	// Buscar patrón conocido en el mensaje (para errores de negocio de Hive)
+	// Find known pattern in the message (for Hive business errors)
 	for (const {
 		pattern,
 		code,
@@ -179,7 +179,7 @@ export function analyzeWaxError(error: unknown): WaxErrorInfo {
 		}
 	}
 
-	// Error no reconocido pero clasificable por tipo
+	// Unrecognized error but classifiable by type
 	const isRetryable = category === 'network' || category === 'api'
 
 	return {
@@ -192,7 +192,7 @@ export function analyzeWaxError(error: unknown): WaxErrorInfo {
 }
 
 /**
- * Determina si un error debe activar un mecanismo de reintento
+ * Determines if an error should trigger a retry mechanism
  */
 export function shouldRetryWaxError(error: unknown): boolean {
   const errorInfo = analyzeWaxError(error)
@@ -200,63 +200,63 @@ export function shouldRetryWaxError(error: unknown): boolean {
 }
 
 /**
- * Mensajes de error amigables para el usuario
+ * User-friendly error messages
  */
 const USER_ERROR_MESSAGES: Record<AppErrorCode, string> = {
-  [AppErrorCode.ACCOUNT_NOT_EXISTS]: 'La cuenta especificada no existe en Hive',
+  [AppErrorCode.ACCOUNT_NOT_EXISTS]: 'The specified account does not exist on Hive',
   [AppErrorCode.ACCOUNT_ALREADY_EXISTS]:
-    'El nombre de usuario ya está registrado en Hive',
+    'The username is already registered on Hive',
   [AppErrorCode.INSUFFICIENT_RC]:
-    'No hay suficientes Resource Credits para completar la operación',
+    'Not enough Resource Credits to complete the operation',
   [AppErrorCode.RC_DELEGATION_EXISTS]:
-    'Ya existe una delegación de RC con la misma cantidad para este usuario',
+    'An RC delegation with the same amount already exists for this user',
   [AppErrorCode.MISSING_WALLET_CONFIG]:
-    'La configuración de la billetera es requerida',
+    'Wallet configuration is required',
   [AppErrorCode.SELF_DELEGATION]:
-    'No puedes delegar Resource Credits a ti mismo',
+    'You cannot delegate Resource Credits to yourself',
   [AppErrorCode.SELF_REMOVAL]:
-    'No puedes remover tu propia delegación de Resource Credits',
+    'You cannot remove your own Resource Credits delegation',
   [AppErrorCode.GENERIC_HIVE_ERROR]:
-    'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.',
+    'An unexpected error has occurred. Please try again.',
   [AppErrorCode.CHAIN_VERIFICATION_FAILED]:
-    'La verificación en la blockchain ha fallado. Por favor, inténtalo de nuevo.',
+    'Blockchain verification failed. Please try again.',
   [AppErrorCode.CHAIN_VERIFICATION_TIMEOUT]:
-    'La verificación en la blockchain ha excedido el tiempo de espera. Por favor, inténtalo de nuevo.',
+    'Blockchain verification timed out. Please try again.',
 }
 
 /**
- * Crea un mensaje de error formateado para usuario
+ * Creates a formatted error message for user
  */
 export function formatWaxErrorForUser(error: unknown): string {
   const errorInfo = analyzeWaxError(error)
 
-  // Usar mensaje específico del código si existe
+  // Use specific message for the code if it exists
   if (USER_ERROR_MESSAGES[errorInfo.code]) {
     return USER_ERROR_MESSAGES[errorInfo.code]
   }
 
-  // Fallback basado en categoría
+  // Fallback based on category
   switch (errorInfo.category) {
     case 'network':
-      return 'Error de conexión con la red de Hive. Inténtalo de nuevo.'
+      return 'Connection error with the Hive network. Try again.'
     case 'api':
-      return 'Error en la API de Hive. Por favor, inténtalo de nuevo.'
+      return 'Hive API error. Please try again.'
     case 'business':
-      return 'Error de validación en la operación.'
+      return 'Validation error in the operation.'
     default:
-      return 'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.'
+      return 'An unexpected error has occurred. Please try again.'
   }
 }
 
 /**
- * Obtiene mensaje de error para código específico
+ * Gets error message for specific code
  */
 export function getUserMessageForCode(code: AppErrorCode): string {
-  return USER_ERROR_MESSAGES[code] || 'Ha ocurrido un error inesperado'
+  return USER_ERROR_MESSAGES[code] || 'An unexpected error has occurred'
 }
 
 /**
- * Sistema unificado de manejo de errores que combina análisis y formateo
+ * Unified error handling system that combines analysis and formatting
  */
 export function handleWaxError(error: unknown): {
   info: WaxErrorInfo

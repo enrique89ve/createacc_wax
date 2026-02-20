@@ -1,8 +1,8 @@
 /**
- * 🔐 HIVE KEYCHAIN SERVICE - Versión simplificada
+ * 🔐 HIVE KEYCHAIN SERVICE - Simplified version
  *
- * Servicio para interactuar con Hive Keychain usando la API nativa
- * Solo las funciones esenciales que se usan en producción
+ * Service to interact with Hive Keychain using native API
+ * Only essential functions used in production
  */
 
 import type {
@@ -13,13 +13,14 @@ import type {
   HiveMessage,
 } from '@/types/hive-signature'
 import { createHiveUsername, createHiveMessage } from '@/types/hive-signature'
+import { BRAND } from '@/consts/branding'
 
-enum KeychainLoginMessage {
-  DefaultPrefix = 'Login to HiveAccount Creation at',
-  FallbackOrigin = 'https://join.holahive.com',
-}
+const KEYCHAIN_LOGIN_MESSAGE = {
+  DEFAULT_PREFIX: 'Login to HiveAccount Creation at',
+  FALLBACK_ORIGIN: BRAND.URL,
+} as const
 
-// Declaración global para TypeScript
+// Global declaration for TypeScript
 declare global {
   interface Window {
     hive_keychain?: {
@@ -35,7 +36,7 @@ declare global {
 }
 
 /**
- * Clase principal para manejar Keychain usando API nativa
+ * Main class to handle Keychain using native API
  */
 export class HiveKeychainService {
   private isExtensionAvailable: boolean = false
@@ -45,7 +46,7 @@ export class HiveKeychainService {
   }
 
   /**
-   * Verifica si Keychain está disponible
+   * Check if Keychain is available
    */
   private checkAvailability(): boolean {
     this.isExtensionAvailable =
@@ -57,14 +58,14 @@ export class HiveKeychainService {
   }
 
   /**
-   * Verifica disponibilidad y estado
+   * Verify availability and status
    */
   isKeychainReady(): boolean {
     return this.checkAvailability()
   }
 
   /**
-   * Esperar a que Keychain esté disponible
+   * Wait for Keychain to be available
    */
   async waitForKeychain(maxWait: number = 5000): Promise<boolean> {
     const startTime = Date.now()
@@ -80,7 +81,7 @@ export class HiveKeychainService {
   }
 
   /**
-   * Genera mensaje seguro para firmar
+   * Generates secure message for signing
    */
   private resolveLoginPrefix(customMessage?: string): string {
     if (customMessage) {
@@ -90,13 +91,13 @@ export class HiveKeychainService {
     const origin =
       typeof window !== 'undefined' && window.location?.origin
         ? window.location.origin
-        : KeychainLoginMessage.FallbackOrigin
+        : KEYCHAIN_LOGIN_MESSAGE.FALLBACK_ORIGIN
 
-    return `${KeychainLoginMessage.DefaultPrefix} ${origin}`
+    return `${KEYCHAIN_LOGIN_MESSAGE.DEFAULT_PREFIX} ${origin}`
   }
 
   /**
-   * Solicita un nonce criptográfico al servidor para prevenir replay attacks
+   * Requests a cryptographic nonce from the server to prevent replay attacks
    */
   private async fetchChallenge(): Promise<string> {
     const response = await fetch('/api/auth/challenge')
@@ -120,7 +121,7 @@ export class HiveKeychainService {
   }
 
   /**
-   * Extrae mensaje de error limpio
+   * Extracts clean error message
    */
   private extractErrorMessage(value: unknown): string {
     if (!value) return 'Error desconocido'
@@ -139,7 +140,7 @@ export class HiveKeychainService {
   }
 
   /**
-   * Login con Keychain
+   * Login with Keychain
    */
   async login(
     params: HiveKeychainLoginParams
@@ -151,7 +152,7 @@ export class HiveKeychainService {
       title = 'Login Request',
     } = params
 
-    // Verificar disponibilidad
+    // Verify availability
     if (!this.checkAvailability()) {
       return {
         success: false,
@@ -219,10 +220,10 @@ export class HiveKeychainService {
   }
 }
 
-// ===== FUNCIONES DE CONVENIENCIA =====
+// ===== CONVENIENCE FUNCTIONS =====
 
 /**
- * Helper function para verificar si Keychain está listo
+ * Helper function to check if Keychain is ready
  */
 export async function isKeychainReady(): Promise<boolean> {
   const service = new HiveKeychainService()
@@ -230,7 +231,7 @@ export async function isKeychainReady(): Promise<boolean> {
 }
 
 /**
- * Helper function para login rápido
+ * Helper function for quick login
  */
 export async function quickLogin(
   username: string,

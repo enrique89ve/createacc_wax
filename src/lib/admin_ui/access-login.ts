@@ -17,7 +17,7 @@ if (form) {
     // Disable button
     if (loginButton) {
       loginButton.disabled = true
-      loginButton.textContent = 'Iniciando sesión...'
+      loginButton.textContent = 'Logging in...'
     }
 
     const formData = new FormData(form)
@@ -25,8 +25,8 @@ if (form) {
     const password = formData.get('password') as string
 
     try {
-      // Realizar login completo a través de nuestro endpoint proxy
-      // Este endpoint valida credenciales Y crea la sesión en Auth.js
+      // Perform full login through our proxy endpoint
+      // This endpoint validates credentials AND creates the session in Auth.js
       const response = await fetch('/api/auth/management-login', {
         method: 'POST',
         headers: {
@@ -36,23 +36,23 @@ if (form) {
           username,
           password,
         }),
-        credentials: 'include', // Importante para recibir las cookies de sesión
+        credentials: 'include', // Important to receive session cookies
       })
 
       const data = await response.json()
 
       if (!response.ok || !data.success) {
-        // Credenciales inválidas o error - mostrar mensaje y NO redirigir
-        showError(data.error || 'Credenciales inválidas')
+        // Invalid credentials or error - show message and DO NOT redirect
+        showError(data.error || 'Invalid credentials')
         resetButton()
         return
       }
 
-      // Login exitoso - la sesión ya está creada (cookies seteadas)
+      // Successful login - session is already created (cookies set)
       window.location.href = '/management/console'
     } catch (error) {
       console.error('Login error:', error)
-      showError('Error de conexión')
+      showError('Connection error')
       resetButton()
     }
   })
@@ -68,6 +68,6 @@ function showError(message: string) {
 function resetButton() {
   if (loginButton) {
     loginButton.disabled = false
-    loginButton.textContent = 'Iniciar Sesión'
+    loginButton.textContent = 'Sign In'
   }
 }

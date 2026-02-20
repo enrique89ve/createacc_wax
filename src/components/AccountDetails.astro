@@ -233,10 +233,10 @@ const { username } = Astro.props
     </div>
   </div>
 
-  <!-- Modal para seleccionar formato de descarga -->
+  <!-- Modal to select download format -->
   <DownloadFormatModal />
 
-  <!-- Modal de progreso de creación de cuenta -->
+  <!-- Account creation progress modal -->
   <div
     id="progress-modal"
     class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -262,7 +262,7 @@ const { username } = Astro.props
       <!-- Progress container that will be updated by JS -->
       <div id="progress-container"></div>
 
-      <!-- Botón de cerrar (solo visible si hay error) -->
+      <!-- Close button (only visible if there is an error) -->
       <div class="hidden text-center" id="progress-error-actions">
         <button
           type="button"
@@ -536,21 +536,21 @@ const { username } = Astro.props
             ? 'You must download the key file first'
             : ''
 
-          // Manejar tooltip - solo mostrar cuando está deshabilitado
+          // Handle tooltip - only show when disabled
           const tooltipTarget = this.elements.submitBtn.getAttribute(
             'data-tooltip-target'
           )
           if (tooltipTarget) {
             if (!ok) {
-              // Habilitar tooltip cuando el botón está deshabilitado
+              // Enable tooltip when the button is disabled
               this.elements.submitBtn.setAttribute(
                 'data-tooltip-target',
                 tooltipTarget
               )
             } else {
-              // Deshabilitar tooltip cuando el botón está habilitado
+              // Disable tooltip when the button is enabled
               this.elements.submitBtn.removeAttribute('data-tooltip-target')
-              // Ocultar tooltip si está visible
+              // Hide tooltip if it is visible
               const tooltip = document.getElementById(tooltipTarget)
               if (tooltip) {
                 tooltip.classList.add('invisible', 'opacity-0')
@@ -574,7 +574,7 @@ const { username } = Astro.props
           'animate-fade-in',
           'animate-fade-out'
         )
-        // Ya no ocultamos la clave aquí porque se hace antes de llamar a esta función
+        // We no longer hide the key here because it is done before calling this function
         this.elements.masterKeyFeedback.classList.remove('hidden')
         this.elements.masterKeyFeedback.classList.add('flex', 'animate-fade-in')
 
@@ -587,7 +587,7 @@ const { username } = Astro.props
               'animate-fade-out',
               'flex'
             )
-            // Removemos el efecto de vidrio desenfocado
+            // Remove the blurred glass effect
             this.elements.masterKeyDisplay?.classList.remove(
               'blur-md',
               'brightness-50'
@@ -603,7 +603,7 @@ const { username } = Astro.props
           await navigator.clipboard.writeText(this.state.masterKey)
           trigger?.classList.add('ring-2', 'ring-gray-400')
 
-          // Aplicamos efecto de vidrio desenfocado
+          // Apply blurred glass effect
           this.elements.masterKeyDisplay?.classList.add(
             'blur-md',
             'brightness-50'

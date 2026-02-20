@@ -1,8 +1,8 @@
 /**
- * API: Verificar disponibilidad de código de ticket
+ * API: Verify ticket code availability
  *
- * Endpoint para builders que valida si un código de ticket está disponible
- * antes de crear el ticket. Solo verifica disponibilidad, no valida formato.
+ * Endpoint for builders that validates if a ticket code is available
+ * before creating the ticket. Only verifies availability, does not validate format.
  *
  * GET /api/tickets/check-code?code=ABC123
  */
@@ -16,7 +16,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 	try {
 		const session = await getSession(request)
 
-		// Solo usuarios autenticados (builders y admins)
+		// Only authenticated users (builders and admins)
 		if (!session?.user) {
 			return new Response(
 				JSON.stringify({
@@ -47,7 +47,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 
 		const ticketCode = code.trim().toUpperCase()
 
-		// Verificar si el código ya existe
+		// Verify if the code already exists
 		const existingTicket = await ticketsRepository.findByCode(ticketCode)
 
 		if (existingTicket) {
@@ -63,7 +63,7 @@ export const GET: APIRoute = async ({ request, url }) => {
 			)
 		}
 
-		// Código disponible
+		// Code available
 		return new Response(
 			JSON.stringify({
 				available: true,

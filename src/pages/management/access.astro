@@ -2,6 +2,7 @@
 import Base from '@/layouts/Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { PAGE_TITLES, TITLE_SUFFIXES } from '@/consts/seo'
+import { BRAND } from '@/consts/branding'
 
 // Check if user is already authenticated (handled by middleware)
 // If authenticated, middleware will redirect to console
@@ -19,7 +20,7 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
       >
         <div class="mb-8 text-center">
           <h1 class="text-foreground mb-2 text-3xl font-bold tracking-tight">
-            Gestión HolaHive
+            Gestión {BRAND.NAME}
           </h1>
           <p class="text-muted-foreground text-sm">
             Acceso para administradores y referrers
@@ -93,7 +94,7 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
 
         <div class="mt-8 text-center">
           <p class="text-muted-foreground text-xs">
-            Sistema de gestión HolaHive
+            Sistema de gestión {BRAND.NAME}
           </p>
         </div>
       </div>

@@ -43,9 +43,9 @@ import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
 
 /**
- * Respuestas discriminadas (contrato estable):
- * success:true => incluye verifiedOnChain, databaseUpdated, isIdempotent; no error/errorCode.
- * success:false => incluye error + errorCode y flags de estado alcanzado.
+ * Discriminated responses (stable contract):
+ * success:true => includes verifiedOnChain, databaseUpdated, isIdempotent; no error/errorCode.
+ * success:false => includes error + errorCode and reached state flags.
  */
 export type AccountCreationSuccessResponse = {
 	readonly success: true
@@ -77,10 +77,10 @@ export type AccountCreationResponse =
 	| AccountCreationFailureResponse
 
 /**
- * Cache en memoria para evitar delegaciones RC duplicadas al mismo usuario.
- * @limitation Solo funciona en single-server. En multi-server (horizontal scaling),
- * cada instancia tiene su propio Set, por lo que delegaciones duplicadas pueden ocurrir.
- * Para multi-server, reemplazar con Redis o flag en base de datos.
+ * In-memory cache to prevent duplicate RC delegations to the same user.
+ * @limitation Only works in single-server environments. In multi-server scenarios (horizontal scaling),
+ * each instance has its own Set, so duplicate delegations can occur.
+ * For multi-server, replace with Redis or a database flag.
  */
 const processedUsers = new Set<string>()
 
@@ -386,7 +386,7 @@ function scheduleRcDelegation(username: string): void {
 				maxRc: RC_DELEGATION_AMOUNT,
 			})
 		} catch {
-			// La delegacion falla pero no afecta la creacion de cuenta
+			// Delegation failure does not affect account creation
 		} finally {
 			scheduleUserCleanup(username)
 		}

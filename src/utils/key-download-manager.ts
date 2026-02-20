@@ -158,11 +158,11 @@ ${t.keys.footer}
     })
 
     try {
-      // Detectar entorno
+      // Detect environment
       const isInSandbox = window !== window.parent
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
-      // Lógica de descarga según el entorno
+      // Download logic depending on environment
       if (isMobile) {
         const blob = doc.toBlob()
         this.downloadBlob(blob, filename)
@@ -208,7 +208,7 @@ ${t.keys.footer}
             return
           }
         } catch (_error) {
-          // Error abriendo ventana - manejado silenciosamente
+          // Error opening window - handled silently
         }
         // If new window failed, fall back to blob download
         this.downloadBlob(blob, filename)
@@ -216,7 +216,7 @@ ${t.keys.footer}
         return
       }
 
-      // Otros dispositivos: método estándar de descarga
+      // Other devices: standard download method
       const blob = doc.toBlob()
       this.downloadBlob(blob, filename)
     } catch (error) {

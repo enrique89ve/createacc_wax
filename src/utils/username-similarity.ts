@@ -1,22 +1,22 @@
 /**
- * Algoritmo de similitud de usernames basado en distancia de Levenshtein
- * Replica la lógica de difflib.SequenceMatcher de Python
+ * Username similarity algorithm based on Levenshtein distance
+ * Replicates the logic of Python's difflib.SequenceMatcher
  */
 
 /**
- * Calcula la distancia de Levenshtein entre dos cadenas
- * @param a - Primera cadena
- * @param b - Segunda cadena
- * @returns Distancia de Levenshtein
+ * Calculates the Levenshtein distance between two strings
+ * @param a - First string
+ * @param b - Second string
+ * @returns Levenshtein distance
  */
 function levenshteinDistance(a: string, b: string): number {
   const matrix = []
 
-  // Si alguna cadena está vacía, la distancia es la longitud de la otra
+  // If any string is empty, the distance is the length of the other
   if (a.length === 0) return b.length
   if (b.length === 0) return a.length
 
-  // Inicializar matriz
+  // Initialize matrix
   for (let i = 0; i <= b.length; i++) {
     matrix[i] = [i]
   }
@@ -25,16 +25,16 @@ function levenshteinDistance(a: string, b: string): number {
     matrix[0][j] = j
   }
 
-  // Llenar matriz
+  // Fill matrix
   for (let i = 1; i <= b.length; i++) {
     for (let j = 1; j <= a.length; j++) {
       if (b.charAt(i - 1) === a.charAt(j - 1)) {
         matrix[i][j] = matrix[i - 1][j - 1]
       } else {
         matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1, // substitución
-          matrix[i][j - 1] + 1, // inserción
-          matrix[i - 1][j] + 1 // eliminación
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1, // insertion
+          matrix[i - 1][j] + 1 // deletion
         )
       }
     }
@@ -44,11 +44,11 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
- * Calcula el ratio de similitud entre dos cadenas
- * Equivalente a difflib.SequenceMatcher().ratio() de Python
- * @param a - Primera cadena
- * @param b - Segunda cadena
- * @returns Ratio de similitud entre 0.0 y 1.0
+ * Calculates the similarity ratio between two strings
+ * Equivalent to Python's difflib.SequenceMatcher().ratio()
+ * @param a - First string
+ * @param b - Second string
+ * @returns Similarity ratio between 0.0 and 1.0
  */
 export function calcSimilarity(a: string, b: string): number {
   if (a === b) return 1.0
@@ -62,11 +62,11 @@ export function calcSimilarity(a: string, b: string): number {
 }
 
 /**
- * Verifica si dos usernames son similares según un umbral
- * @param username1 - Primer username
- * @param username2 - Segundo username
- * @param threshold - Umbral de similitud (default: 0.68)
- * @returns true si son similares, false si no
+ * Checks if two usernames are similar based on a threshold
+ * @param username1 - First username
+ * @param username2 - Second username
+ * @param threshold - Similarity threshold (default: 0.68)
+ * @returns true if similar, false if not
  */
 export function isUsernameSimilar(
   username1: string,
@@ -78,7 +78,7 @@ export function isUsernameSimilar(
 }
 
 /**
- * Interfaz para resultado de validación de similitud
+ * Interface for similarity validation result
  */
 export interface SimilarityCheckResult {
   isSimilar: boolean
@@ -91,11 +91,11 @@ export interface SimilarityCheckResult {
 }
 
 /**
- * Encuentra usernames similares en una lista de usernames existentes
- * @param newUsername - Nuevo username a verificar
- * @param existingUsernames - Array de objetos con username y creation_date
- * @param threshold - Umbral de similitud (default: 0.68)
- * @returns Resultado de la verificación de similitud
+ * Finds similar usernames in a list of existing usernames
+ * @param newUsername - New username to check
+ * @param existingUsernames - Array of objects with username and creation_date
+ * @param threshold - Similarity threshold (default: 0.68)
+ * @returns Similarity check result
  */
 export function findSimilarUsernames(
   newUsername: string,
@@ -118,13 +118,13 @@ export function findSimilarUsernames(
     if (similarity >= threshold) {
       similarUsernames.push({
         username: existing.username,
-        similarity: Math.round(similarity * 100) / 100, // Redondear a 2 decimales
+        similarity: Math.round(similarity * 100) / 100, // Round to 2 decimal places
         createdAt: existing.creation_date,
       })
     }
   }
 
-  // Ordenar por similitud descendente
+  // Sort by similarity descending
   similarUsernames.sort((a, b) => b.similarity - a.similarity)
 
   return {
@@ -135,10 +135,10 @@ export function findSimilarUsernames(
 }
 
 /**
- * Valida que las fechas estén en las últimas X horas
- * @param dateString - Fecha en formato string
- * @param hoursAgo - Número de horas atrás (default: 24)
- * @returns true si la fecha está dentro del rango
+ * Validates that dates are within the last X hours
+ * @param dateString - Date in string format
+ * @param hoursAgo - Number of hours ago (default: 24)
+ * @returns true if date is within range
  */
 export function isWithinTimeRange(
   dateString: string,
@@ -156,9 +156,9 @@ export function isWithinTimeRange(
 }
 
 /**
- * Genera mensaje de error personalizado para usernames similares
- * @param similarUsernames - Array de usernames similares encontrados
- * @returns Mensaje de error formateado
+ * Generates custom error message for similar usernames
+ * @param similarUsernames - Array of similar usernames found
+ * @returns Formatted error message
  */
 export function generateSimilarityErrorMessage(
   similarUsernames: Array<{
@@ -182,64 +182,64 @@ export function generateSimilarityErrorMessage(
 }
 
 /**
- * Genera sugerencias de usernames alternativos
- * @param originalUsername - Username original rechazado
- * @returns Array de sugerencias de usernames
+ * Generates alternative username suggestions
+ * @param originalUsername - Original rejected username
+ * @returns Array of username suggestions
  */
 export function suggestUsernames(originalUsername: string): string[] {
   const suggestions: string[] = []
   const base = originalUsername.toLowerCase().trim()
 
-  // Añadir números
+  // Add numbers
   suggestions.push(`${base}123`)
   suggestions.push(`${base}2024`)
   suggestions.push(`${base}2025`)
 
-  // Añadir prefijos/sufijos
+  // Add prefixes/suffixes
   if (base.length <= 12) {
-    // Mantener límite de 16 caracteres
+    // Maintain 16 character limit
     suggestions.push(`${base}user`)
     suggestions.push(`${base}dev`)
     suggestions.push(`new${base}`)
   }
 
-  // Variar con guiones si es apropiado
+  // Vary with hyphens if appropriate
   if (base.length <= 14) {
     suggestions.push(`${base}-1`)
     suggestions.push(`${base}-2`)
   }
 
-  // Filtrar sugerencias válidas (3-16 caracteres, formato correcto)
+  // Filter valid suggestions (3-16 characters, correct format)
   return suggestions
     .filter(suggestion => {
       return (
         suggestion.length >= 3 &&
         suggestion.length <= 16 &&
-        /^[a-z]/.test(suggestion) && // Empieza con letra
-        /^[a-z0-9.-]+$/.test(suggestion) && // Solo caracteres válidos
-        !/[.-]{2,}/.test(suggestion) && // No caracteres especiales consecutivos
-        !/[.-]$/.test(suggestion) // No termina con caracteres especiales
+        /^[a-z]/.test(suggestion) && // Starts with letter
+        /^[a-z0-9.-]+$/.test(suggestion) && // Only valid characters
+        !/[.-]{2,}/.test(suggestion) && // No consecutive special characters
+        !/[.-]$/.test(suggestion) // Does not end with special characters
       )
     })
-    .slice(0, 3) // Máximo 3 sugerencias
+    .slice(0, 3) // Maximum 3 suggestions
 }
 
 // ===== BACKWARD COMPATIBILITY ALIASES =====
 
 /**
- * @deprecated Usar calcSimilarity() en su lugar
- * Mantenido por compatibilidad hacia atrás
+ * @deprecated Use calcSimilarity() instead
+ * Maintained for backward compatibility
  */
 export const calculateSimilarityRatio = calcSimilarity
 
 /**
- * @deprecated Usar isUsernameSimilar() en su lugar
- * Mantenido por compatibilidad hacia atrás
+ * @deprecated Use isUsernameSimilar() instead
+ * Maintained for backward compatibility
  */
 export const areUsernamesSimilar = isUsernameSimilar
 
 /**
- * @deprecated Usar suggestUsernames() en su lugar
- * Mantenido por compatibilidad hacia atrás
+ * @deprecated Use suggestUsernames() instead
+ * Maintained for backward compatibility
  */
 export const generateUsernameSuggestions = suggestUsernames

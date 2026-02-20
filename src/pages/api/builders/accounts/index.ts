@@ -1,7 +1,7 @@
 /**
  * 👥 BUILDERS API: ACCOUNTS
  *
- * GET /api/builders/accounts - Listar cuentas creadas por el builder
+ * GET /api/builders/accounts - List accounts created by the builder
  */
 
 import type { APIRoute } from 'astro'
@@ -16,13 +16,13 @@ import type { AccountsListResponse } from '@/types/api-contracts'
 
 /**
  * GET /api/builders/accounts
- * Listar todas las cuentas creadas por el builder autenticado
+ * List all accounts created by the authenticated builder
  */
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const builderId = await getAuthenticatedBuilderId(request)
 
-		// Obtener cuentas creadas por el builder
+		// Get accounts created by the builder
 		const accounts = await usersRepository.getAccountsByUser(builderId)
 
 		const response: AccountsListResponse = {

@@ -1,8 +1,8 @@
 /* eslint-disable no-console */
 /**
  * 🎫 TICKET MODAL HANDLERS
- * Manejadores de eventos para modales de gestión de tickets con slider
- * Usa componentes Astro nativos en lugar de innerHTML
+ * Event handlers for ticket management modals with slider
+ * Uses native Astro components instead of innerHTML
  */
 
 import { BUILDERS_UI, MAX_TICKET_CREDITS } from '@/consts/constants'
@@ -16,35 +16,35 @@ export interface TicketData {
 
 type NotifyType = 'success' | 'error' | 'info'
 
-// Elementos del DOM
+// DOM Elements
 let ticketActionModal: HTMLElement | null
 let updateModalContent: HTMLElement | null
 let deleteModalContent: HTMLElement | null
 let currentTicket: TicketData | null = null
 
-// Caché de créditos disponibles (se actualiza al abrir el modal)
+// Available credits cache (updated when opening modal)
 let cachedAvailableCredits: number = 0
 
-// Elementos del modal de actualización (SLIDER)
+// Update modal elements (SLIDER)
 let updateForm: HTMLFormElement | null
 let updateCodeDisplay: HTMLInputElement | null
 let updateCreditsDisplay: HTMLInputElement | null
-let deltaSlider: HTMLInputElement | null // Cambiado de deltaInput a deltaSlider
-let deltaValueDisplay: HTMLElement | null // Nuevo: display del valor
-let sliderMinLabel: HTMLElement | null // Nuevo: label mínimo
-let sliderMaxLabel: HTMLElement | null // Nuevo: label máximo
-let availableCreditsInfo: HTMLElement | null // Nuevo: info de créditos
+let deltaSlider: HTMLInputElement | null // Changed from deltaInput to deltaSlider
+let deltaValueDisplay: HTMLElement | null // New: value display
+let sliderMinLabel: HTMLElement | null // New: minimum label
+let sliderMaxLabel: HTMLElement | null // New: maximum label
+let availableCreditsInfo: HTMLElement | null // New: credits info
 let previewBox: HTMLElement | null
 let previewContent: HTMLElement | null
 let errorMessage: HTMLElement | null
 let confirmBtn: HTMLButtonElement | null
 
-// Elementos del modal de borrado
+// Delete modal elements
 let deleteTicketCode: HTMLElement | null
 let deleteTicketCredits: HTMLElement | null
 let deleteRefundAmount: HTMLElement | null
 
-// Función de notificación (ahora acepta parámetro duration opcional)
+// Notification function (now accepts optional duration parameter)
 let notify: (type: NotifyType, message: string, duration?: number) => void
 
 export function initializeTicketModals(
@@ -52,7 +52,7 @@ export function initializeTicketModals(
 ) {
   notify = notifyFn
 
-  // Inicializar referencias a elementos
+  // Initialize element references
   ticketActionModal = document.getElementById('ticket-action-modal')
   updateModalContent = document.getElementById('update-modal-content')
   deleteModalContent = document.getElementById('delete-modal-content')
@@ -65,7 +65,7 @@ export function initializeTicketModals(
     '#update-ticket-credits-display'
   )
 
-  // Referencias al slider y sus elementos asociados
+  // Slider references and associated elements
   deltaSlider = document.querySelector<HTMLInputElement>('#delta-slider')
   deltaValueDisplay = document.getElementById('delta-value-display')
   sliderMinLabel = document.getElementById('slider-min-label')
@@ -89,32 +89,32 @@ export function initializeTicketModals(
 }
 
 /**
- * Obtener créditos disponibles del builder en tiempo real
- * Hace fetch al servidor para obtener el balance actualizado
+ * Get available builder credits in real time
+ * Fetches the server to get updated balance
  */
 async function getBuilderCredits(): Promise<number> {
   try {
-    // Intentar obtener desde el servidor (datos más actualizados)
+    // Try to get from server (most recent data)
     const resp = await fetch('/api/builders/credits/balance')
     if (resp.ok) {
       const data = await resp.json()
-      // El endpoint retorna: {success: true, balance: {available_amount: X}}
+      // The endpoint returns: {success: true, balance: {available_amount: X}}
       return data.balance?.available_amount || 0
     }
   } catch (error) {
     console.warn('[getBuilderCredits] Error fetching from API:', error)
   }
 
-  // Fallback: leer del DOM si el fetch falla
+  // Fallback: read from DOM if fetch fails
   const layout = document.querySelector('[data-builder-credits]')
   return parseInt(layout?.getAttribute('data-builder-credits') || '0', 10)
 }
 
 /**
- * Configurar límites dinámicos del slider basados en:
- * - Créditos actuales del ticket
- * - Créditos disponibles del builder
- * - Límite máximo de 100 créditos por ticket
+ * Configure dynamic slider limits based on:
+ * - Current ticket credits
+ * - Available builder credits
+ * - Maximum limit of 100 credits per ticket
  */
 async function setupSlider(ticket: TicketData) {
   if (
@@ -125,41 +125,41 @@ async function setupSlider(ticket: TicketData) {
   )
     return
 
-  // Obtener créditos disponibles en tiempo real y guardar en caché
+  // Get real-time available credits and cache them
   const availableCredits = await getBuilderCredits()
   cachedAvailableCredits = availableCredits
 
-  // Calcular límites
-  const maxDecrease = ticket.credits - 1 // Mínimo 1 crédito en el ticket
+  // Calculate limits
+  const maxDecrease = ticket.credits - 1 // Minimum 1 credit on the ticket
   const maxIncrease = Math.min(
     availableCredits,
-    MAX_TICKET_CREDITS - ticket.credits // No exceder 100 créditos
+    MAX_TICKET_CREDITS - ticket.credits // Do not exceed 100 credits
   )
 
-  // Configurar atributos del slider
+  // Configure slider attributes
   deltaSlider.min = String(-maxDecrease)
   deltaSlider.max = String(maxIncrease)
   deltaSlider.value = '0'
 
-  // Actualizar labels con formato claro y colores contextuales
-  // Izquierda: mostrar máximo a reducir (rojo)
+  // Update labels with clear formatting and contextual colors
+  // Left: show maximum to reduce (red)
   sliderMinLabel.textContent = maxDecrease > 0 ? `-${maxDecrease}` : '0'
   sliderMinLabel.className =
     maxDecrease > 0 ? 'text-red-400 font-medium' : 'text-gray-600 font-medium'
 
-  // Derecha: mostrar máximo a aumentar (verde o gris si no hay)
+  // Right: show maximum to increase (green or gray if none)
   if (maxIncrease > 0) {
     sliderMaxLabel.textContent = `+${maxIncrease}`
     sliderMaxLabel.className = 'text-emerald-400 font-medium'
   } else {
-    sliderMaxLabel.textContent = 'sin créditos'
+    sliderMaxLabel.textContent = 'no credits'
     sliderMaxLabel.className = 'text-gray-500 font-medium italic'
   }
 
-  // Actualizar info de créditos disponibles
+  // Update available credits info
   availableCreditsInfo.textContent = String(availableCredits)
 
-  // Actualizar display del delta
+  // Update delta display
   if (deltaValueDisplay) {
     deltaValueDisplay.textContent = '0'
     deltaValueDisplay.className =
@@ -172,29 +172,29 @@ export async function openUpdateModal(ticket: TicketData) {
 
   currentTicket = ticket
 
-  // Mostrar modal de actualización, ocultar el de borrado
+  // Show update modal, hide delete modal
   updateModalContent.classList.remove('hidden')
   deleteModalContent?.classList.add('hidden')
 
-  // Poblar campos readonly
+  // Populate readonly fields
   if (updateCodeDisplay) updateCodeDisplay.value = ticket.code
   if (updateCreditsDisplay) {
     updateCreditsDisplay.value = `${ticket.credits} / ${ticket.original_credits}`
   }
 
-  // Configurar slider con límites dinámicos
+  // Configure slider with dynamic limits
   await setupSlider(ticket)
 
-  // Resetear estados
+  // Reset states
   previewBox?.classList.add('hidden')
   errorMessage?.classList.add('hidden')
   if (confirmBtn) confirmBtn.disabled = false
 
-  // Mostrar modal
+  // Show modal
   ticketActionModal.classList.remove('hidden')
   ticketActionModal.classList.add('flex')
 
-  // Focus en el slider
+  // Focus on slider
   deltaSlider?.focus()
 }
 
@@ -203,18 +203,18 @@ export function openDeleteModal(ticket: TicketData) {
 
   currentTicket = ticket
 
-  // Mostrar modal de borrado, ocultar el de actualización
+  // Show delete modal, hide update modal
   deleteModalContent.classList.remove('hidden')
   updateModalContent?.classList.add('hidden')
 
-  // Poblar campos
+  // Populate fields
   if (deleteTicketCode) deleteTicketCode.textContent = ticket.code
   if (deleteTicketCredits)
     deleteTicketCredits.textContent = String(ticket.original_credits)
   if (deleteRefundAmount)
     deleteRefundAmount.textContent = String(ticket.original_credits)
 
-  // Mostrar modal
+  // Show modal
   ticketActionModal.classList.remove('hidden')
   ticketActionModal.classList.add('flex')
 }
@@ -224,7 +224,7 @@ function closeModal() {
   ticketActionModal?.classList.remove('flex')
   currentTicket = null
 
-  // Limpiar estados del slider
+  // Clear slider states
   if (deltaSlider) deltaSlider.value = '0'
   if (deltaValueDisplay) {
     deltaValueDisplay.textContent = '0'
@@ -239,18 +239,18 @@ function closeModal() {
 function setupUpdateModalListeners() {
   if (!deltaSlider) return
 
-  // Validación en tiempo real del slider (usa caché, NO hace fetch)
+  // Real-time slider validation (uses cache, DOES NOT fetch)
   deltaSlider.addEventListener('input', () => {
     if (!currentTicket || !deltaSlider || !deltaValueDisplay) return
 
     const delta = parseInt(deltaSlider.value, 10)
 
-    // Actualizar display del valor delta
+    // Update delta value display
     const deltaText =
       delta === 0 ? '0' : delta > 0 ? `+${delta}` : String(delta)
     deltaValueDisplay.textContent = deltaText
 
-    // Cambiar color según dirección
+    // Change color depending on direction
     if (delta > 0) {
       deltaValueDisplay.className =
         'text-4xl font-bold tabular-nums text-emerald-400 transition-all duration-150'
@@ -262,50 +262,50 @@ function setupUpdateModalListeners() {
         'text-4xl font-bold tabular-nums text-white transition-all duration-150'
     }
 
-    // Si delta es 0, ocultar preview
+    // If delta is 0, hide preview
     if (delta === 0) {
       previewBox?.classList.add('hidden')
       errorMessage?.classList.add('hidden')
-      if (confirmBtn) confirmBtn.disabled = true // Deshabilitar si no hay cambios
+      if (confirmBtn) confirmBtn.disabled = true // Disable if there are no changes
       return
     }
 
-    // Calcular nuevos valores
+    // Calculate new values
     const newCredits = currentTicket.credits + delta
     const newOriginal = currentTicket.original_credits + delta
 
-    // Validar límites de créditos
+    // Validate credit limits
     if (newCredits < 1 || newOriginal < 1) {
       showError(BUILDERS_UI.MESSAGES.MIN_CREDIT_REMAINING)
       return
     }
 
     if (newOriginal > MAX_TICKET_CREDITS) {
-      showError(`Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`)
+      showError(`Credits cannot exceed ${MAX_TICKET_CREDITS}`)
       return
     }
 
-    // Validar créditos disponibles si delta es positivo (usa caché)
+    // Validate available credits if positive delta (uses cache)
     if (delta > 0 && delta > cachedAvailableCredits) {
       showError(
-        `No tienes suficientes créditos. Disponibles: ${cachedAvailableCredits}`
+        `Not enough credits. Available: ${cachedAvailableCredits}`
       )
       return
     }
 
-    // Todo OK - mostrar preview simplificado
+    // Everything OK - show simplified preview
     errorMessage?.classList.add('hidden')
     if (confirmBtn) confirmBtn.disabled = false
 
     if (previewContent) {
-      // Usar createElement para prevenir XSS
+      // Use createElement to prevent XSS
       previewContent.textContent = ''
       const container = document.createElement('div')
       container.className = 'flex items-center justify-center gap-2 text-sm'
 
       const labelSpan = document.createElement('span')
       labelSpan.className = 'text-gray-400'
-      labelSpan.textContent = 'El ticket tendrá:'
+      labelSpan.textContent = 'Ticket will have:'
 
       const valueSpan = document.createElement('span')
       valueSpan.className = 'font-mono text-lg font-bold text-white'
@@ -313,7 +313,7 @@ function setupUpdateModalListeners() {
 
       const unitSpan = document.createElement('span')
       unitSpan.className = 'text-gray-500'
-      unitSpan.textContent = 'créditos'
+      unitSpan.textContent = 'credits'
 
       container.appendChild(labelSpan)
       container.appendChild(valueSpan)
@@ -323,16 +323,16 @@ function setupUpdateModalListeners() {
     previewBox?.classList.remove('hidden')
   })
 
-  // Submit del formulario
+  // Form submit
   updateForm?.addEventListener('submit', async e => {
     e.preventDefault()
     if (!currentTicket || !deltaSlider) return
 
     const delta = parseInt(deltaSlider.value, 10)
 
-    // Validar que hay cambios
+    // Validate that there are changes
     if (delta === 0) {
-      notify('info', 'No hay cambios que aplicar')
+      notify('info', 'No changes to apply')
       return
     }
 
@@ -355,17 +355,17 @@ function setupUpdateModalListeners() {
         const deltaText = delta > 0 ? `+${delta}` : String(delta)
         notify(
           'success',
-          `Créditos actualizados: ${currentTicket.credits} → ${currentTicket.credits + delta} (${deltaText})`,
+          `Credits updated: ${currentTicket.credits} → ${currentTicket.credits + delta} (${deltaText})`,
           3000
         )
         closeModal()
 
-        // Esperar 3 segundos para que el usuario vea el toast antes de recargar
+        // Wait 3 seconds for the user to see the toast before reloading
         setTimeout(() => {
           location.reload()
         }, 3000)
       } else {
-        notify('error', data.error || 'Error al actualizar créditos')
+        notify('error', data.error || 'Error updating credits')
       }
     } catch (_error) {
       // Network error: notify user with generic message
@@ -373,14 +373,14 @@ function setupUpdateModalListeners() {
     }
   })
 
-  // Cancelar
+  // Cancel
   document
     .getElementById('cancel-update')
     ?.addEventListener('click', closeModal)
 }
 
 function setupDeleteModalListeners() {
-  // Confirmar borrado
+  // Confirm delete
   document
     .getElementById('confirm-delete')
     ?.addEventListener('click', async () => {
@@ -404,12 +404,12 @@ function setupDeleteModalListeners() {
           notify('success', BUILDERS_UI.MESSAGES.TICKET_DELETED, 3000)
           closeModal()
 
-          // Esperar 3 segundos para que el usuario vea el toast antes de recargar
+          // Wait 3 seconds for the user to see the toast before reloading
           setTimeout(() => {
             location.reload()
           }, 3000)
         } else {
-          notify('error', data.error || 'Error al eliminar')
+          notify('error', data.error || 'Error deleting')
         }
       } catch (_error) {
         // Network error: notify user with generic message
@@ -417,14 +417,14 @@ function setupDeleteModalListeners() {
       }
     })
 
-  // Cancelar
+  // Cancel
   document
     .getElementById('cancel-delete')
     ?.addEventListener('click', closeModal)
 }
 
 function setupTicketButtons() {
-  // Event listeners para botones de actualizar
+  // Event listeners for update buttons
   document.querySelectorAll<HTMLElement>('.ticket-update-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       const target = e.currentTarget as HTMLElement
@@ -438,7 +438,7 @@ function setupTicketButtons() {
     })
   })
 
-  // Event listeners para botones de borrar
+  // Event listeners for delete buttons
   document.querySelectorAll<HTMLElement>('.ticket-delete-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       const target = e.currentTarget as HTMLElement
@@ -454,7 +454,7 @@ function setupTicketButtons() {
 }
 
 function setupModalCloseHandlers() {
-  // Cerrar modal al hacer clic fuera
+  // Close modal when clicking outside
   ticketActionModal?.addEventListener('click', e => {
     if (e.target === ticketActionModal) {
       closeModal()

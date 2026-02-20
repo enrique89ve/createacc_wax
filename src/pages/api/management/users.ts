@@ -11,7 +11,7 @@ import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
-// GET: Listar usuarios builders
+// GET: List builder users
 export const GET: APIRoute = async context => {
   return withAdminApiSession(context, async session => {
     try {
@@ -26,7 +26,7 @@ export const GET: APIRoute = async context => {
         return unauthorizedResponse()
       }
 
-      // Obtener todos los builders usando el unified repository
+      // Get all builders using the unified repository
       const builders = await usersRepository.getAllBuilders()
 
       const users = builders.map(builder => ({
@@ -45,7 +45,7 @@ export const GET: APIRoute = async context => {
   })
 }
 
-// POST: Crear nuevo usuario builder
+// POST: Create new builder user
 export const POST: APIRoute = async context => {
   // CSRF Protection
   const csrfCheck = requireValidOrigin(context.request)
@@ -79,8 +79,8 @@ export const POST: APIRoute = async context => {
 
       const cleanUsername = hive_username.trim().toLowerCase()
 
-      // Validar límites de créditos
-      let initialCredits = 100 // valor por defecto
+      // Validate credit limits
+      let initialCredits = 100 // default value
       if (typeof amount === 'number' && amount > 0) {
         if (amount > CREDITS_LIMITS.MAX_ASSIGNMENT) {
           return apiError(`El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`, 400)
@@ -88,7 +88,7 @@ export const POST: APIRoute = async context => {
         initialCredits = amount
       }
 
-      // Verificar que el builder no exista usando el unified repository
+      // Verify that the builder does not exist using the unified repository
       const exists =
         await usersRepository.builderExistsByUsername(cleanUsername)
 
@@ -96,7 +96,7 @@ export const POST: APIRoute = async context => {
         return apiError('El builder ya existe', 400)
       }
 
-      // Crear builder usando the unified repository
+      // Create builder using the unified repository
       const newUser = await usersRepository.create({
         username: cleanUsername,
         role: UserRole.Builder,
@@ -105,7 +105,7 @@ export const POST: APIRoute = async context => {
 
       const builderId = newUser.id
 
-      // Asignar créditos iniciales usando el creditsService
+      // Assign initial credits using the creditsService
       await creditsService.assignCredits({
         hive_username: cleanUsername,
         amount: initialCredits,
@@ -135,7 +135,7 @@ export const POST: APIRoute = async context => {
   })
 }
 
-// DELETE: Eliminar usuario builder
+// DELETE: Delete builder user
 export const DELETE: APIRoute = async context => {
   // CSRF Protection
   const csrfCheck = requireValidOrigin(context.request)
@@ -158,7 +158,7 @@ export const DELETE: APIRoute = async context => {
       const userId = url.searchParams.get('id')
       const parsedId = Number(userId)
 
-      // Validación estricta: debe ser entero positivo y dentro de rango seguro
+      // Strict validation: must be a positive integer and within safe range
       if (
         !userId ||
         !Number.isInteger(parsedId) ||
@@ -168,14 +168,14 @@ export const DELETE: APIRoute = async context => {
         return apiError('ID de usuario inválido', 400)
       }
 
-      // Verificar que el builder existe usando the unified repository
+      // Verify that the builder exists using the unified repository
       const user = await usersRepository.findById(parsedId)
 
       if (!user || user.role !== UserRole.Builder) {
         return apiError('Builder no encontrado', 404)
       }
 
-      // Eliminar builder y limpiar dependencias
+      // Delete builder and cleanup dependencies
       await usersRepository.deleteBuilderWithReferences(parsedId)
 
       return apiSuccess({

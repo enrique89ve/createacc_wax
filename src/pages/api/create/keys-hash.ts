@@ -31,7 +31,7 @@ export const POST: APIRoute = async context => {
     const { ownerPublicKey, activePublicKey, postingPublicKey, memoPublicKey } =
       body
 
-    // Validar que todas las claves públicas estén presentes
+    // Validate that all public keys are present
     if (
       !ownerPublicKey ||
       !activePublicKey ||
@@ -46,7 +46,7 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    // Validar formato de las claves públicas usando validación unificada wax
+    // Validate public keys format using unified wax validation
     try {
       validateHiveKeySet({
         ownerPublicKey,
@@ -55,13 +55,13 @@ export const POST: APIRoute = async context => {
         memoPublicKey,
       })
     } catch (keyError) {
-      const keyErrorMessage = keyError instanceof Error ? keyError.message : 'Error de validación de claves'
+      const keyErrorMessage = keyError instanceof Error ? keyError.message : 'Key validation error'
       return apiError(keyErrorMessage, HTTP_STATUS.BAD_REQUEST, undefined, {
         noCache: true,
       })
     }
 
-    // Marcar como descargado en la sesión
+    // Mark as downloaded in the session
     const sessionManager = new CreationSessionManager(
       context.cookies,
       context.request
@@ -75,7 +75,7 @@ export const POST: APIRoute = async context => {
       noCache: true,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor'
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
     return apiError(
       errorMessage,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,

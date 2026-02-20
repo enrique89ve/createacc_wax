@@ -1,9 +1,9 @@
 /**
  * CSRF Protection via Origin Header Validation
  *
- * Valida que el header Origin de la request coincida con el host del servidor.
- * Esto previene ataques CSRF donde un sitio malicioso intenta ejecutar
- * acciones en nombre del usuario autenticado.
+ * Validates that the Origin header of the request matches the server host.
+ * This prevents CSRF attacks where a malicious site attempts to execute
+ * actions on behalf of the authenticated user.
  *
  * @see https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html
  */
@@ -11,7 +11,7 @@
 import { HTTP_STATUS } from '@/consts/constants'
 
 /**
- * Resultado de la validación CSRF
+ * CSRF validation result
  */
 export interface CsrfValidationResult {
 	readonly valid: boolean
@@ -19,7 +19,7 @@ export interface CsrfValidationResult {
 }
 
 /**
- * Hosts permitidos para desarrollo local
+ * Allowed hosts for local development
  */
 const ALLOWED_DEV_HOSTS = new Set([
 	'localhost',
@@ -28,22 +28,22 @@ const ALLOWED_DEV_HOSTS = new Set([
 ])
 
 /**
- * Valida el header Origin contra el host de la request
+ * Validates the Origin header against the request host
  *
- * @param request - Request HTTP entrante
- * @returns Resultado de validación
+ * @param request - Incoming HTTP request
+ * @returns Validation result
  */
 export function validateOrigin(request: Request): CsrfValidationResult {
 	const origin = request.headers.get('origin')
 	const referer = request.headers.get('referer')
 
-	// Si no hay Origin ni Referer, rechazar (podría ser request directa maliciosa)
-	// Nota: Algunos navegadores no envían Origin en requests same-origin,
-	// pero sí envían Referer
+	// If no Origin or Referer, reject (could be a direct malicious request)
+	// Note: Some browsers don't send Origin in same-origin requests,
+	// but they do send Referer
 	if (!origin && !referer) {
-		// Permitir requests sin Origin/Referer solo para APIs internas (fetch desde el mismo sitio)
-		// Esto es seguro porque SameSite=Strict en cookies ya previene CSRF
-		// Sin embargo, para máxima seguridad, requerimos al menos uno
+		// Allow requests without Origin/Referer only for internal APIs (fetch from the same site)
+		// This is safe because SameSite=Strict on cookies already prevents CSRF
+		// However, for maximum security, we require at least one
 		return {
 			valid: false,
 			error: 'Missing Origin or Referer header',
@@ -53,18 +53,18 @@ export function validateOrigin(request: Request): CsrfValidationResult {
 	const requestUrl = new URL(request.url)
 	const requestHost = requestUrl.host
 
-	// Validar Origin si está presente
+	// Validate Origin if present
 	if (origin) {
 		try {
 			const originUrl = new URL(origin)
 			const originHost = originUrl.host
 
-			// Comparar hosts
+			// Compare hosts
 			if (originHost === requestHost) {
 				return { valid: true }
 			}
 
-			// Permitir desarrollo local
+			// Allow local development
 			if (isDevEnvironment(requestHost) && isDevEnvironment(originHost)) {
 				return { valid: true }
 			}
@@ -81,7 +81,7 @@ export function validateOrigin(request: Request): CsrfValidationResult {
 		}
 	}
 
-	// Fallback a Referer si no hay Origin
+	// Fallback to Referer if no Origin
 	if (referer) {
 		try {
 			const refererUrl = new URL(referer)
@@ -112,7 +112,7 @@ export function validateOrigin(request: Request): CsrfValidationResult {
 }
 
 /**
- * Verifica si el host es de desarrollo local
+ * Verifies if the host is for local development
  */
 function isDevEnvironment(host: string): boolean {
 	const hostname = host.split(':')[0]
@@ -120,20 +120,20 @@ function isDevEnvironment(host: string): boolean {
 }
 
 /**
- * Middleware helper para validar CSRF en endpoints mutantes
+ * Middleware helper to validate CSRF in mutating endpoints
  *
- * Uso:
+ * Usage:
  * ```typescript
  * export const POST: APIRoute = async ({ request }) => {
  *   const csrfCheck = requireValidOrigin(request)
  *   if (csrfCheck) return csrfCheck
  *
- *   // ... resto del endpoint
+ *   // ... rest of the endpoint
  * }
  * ```
  *
- * @param request - Request HTTP entrante
- * @returns Response de error si la validación falla, null si es válida
+ * @param request - Incoming HTTP request
+ * @returns Error Response if validation fails, null if valid
  */
 export function requireValidOrigin(request: Request): Response | null {
 	const validation = validateOrigin(request)

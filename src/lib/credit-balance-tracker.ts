@@ -1,20 +1,20 @@
 /**
  * 💳 CREDIT BALANCE TRACKER
  *
- * ÚNICA FUENTE DE VERDAD para consultar créditos de builders.
- * Previene duplicaciones y mantiene consistencia.
+ * SINGLE SOURCE OF TRUTH to consult builder credits.
+ * Prevents duplications and maintains consistency.
  *
- * REGLAS:
- * - Todos los endpoints deben usar este tracker para consultar créditos
- * - NO hacer queries SQL directas a la tabla Credits
- * - El tracker calcula en tiempo real desde CreditAudit
- * - Detecta automáticamente inconsistencias
+ * RULES:
+ * - All endpoints must use this tracker to query credits
+ * - DO NOT make direct SQL queries to the Credits table
+ * - The tracker calculates in real-time from CreditAudit
+ * - Automatically detects inconsistencies
  */
 
 import { db } from './database'
 
 /**
- * Balance de créditos de un builder con validación
+ * Builder credit balance with validation
  */
 export interface CreditBalance {
   readonly builder_id: number
@@ -28,7 +28,7 @@ export interface CreditBalance {
 }
 
 /**
- * Desglose detallado del balance
+ * Detailed balance breakdown
  */
 export interface CreditBalanceBreakdown extends CreditBalance {
   readonly breakdown: {
@@ -47,14 +47,14 @@ export interface CreditBalanceBreakdown extends CreditBalance {
 }
 
 /**
- * Resultado de verificación de consistencia
+ * Consistency check result
  */
 export interface ConsistencyCheck {
   readonly builder_id: number
   readonly is_consistent: boolean
-  /** Inconsistencias críticas que bloquean operaciones (ej: available_amount incorrecto) */
+  /** Critical inconsistencies that block operations (e.g., incorrect available_amount) */
   readonly critical_issues: string[]
-  /** Inconsistencias informativas que NO bloquean operaciones (ej: total_assigned histórico) */
+  /** Informational inconsistencies that DO NOT block operations (e.g., historical total_assigned) */
   readonly warning_issues: string[]
   readonly calculated_available: number
   readonly stored_available: number
@@ -63,8 +63,8 @@ export interface ConsistencyCheck {
 
 class CreditBalanceTracker {
   /**
-   * Query directa a la base de datos para obtener créditos
-   * Método privado - no exponer
+   * Direct query to the database to get credits
+   * Private method - do not expose
    */
   private async queryBuilderCredits(
     where: string,
@@ -94,7 +94,7 @@ class CreditBalanceTracker {
       const row = result.rows[0] as Record<string, unknown>
       const builderId = Number(row.builder_id)
 
-      // Verificar consistencia
+      // Verify consistency
       const consistency = await this.checkConsistency(builderId)
 
       return {
@@ -113,22 +113,22 @@ class CreditBalanceTracker {
   }
 
   /**
-   * MÉTODO PRINCIPAL: Obtener balance de un builder (por username)
-   * Esta es la ÚNICA función que deben usar los endpoints
+   * MAIN METHOD: Get a builder's balance (by username)
+   * This is the ONLY function that endpoints should use
    */
   async getBalance(hive_username: string): Promise<CreditBalance | null> {
     return this.queryBuilderCredits('u.username = ?', [hive_username])
   }
 
   /**
-   * Obtener balance por builder_id
+   * Get balance by builder_id
    */
   async getBalanceById(builder_id: number): Promise<CreditBalance | null> {
     return this.queryBuilderCredits('u.id = ?', [builder_id])
   }
 
   /**
-   * Obtener balance detallado con desglose
+   * Get detailed balance with breakdown
    */
   async getDetailedBalance(
     hive_username: string
@@ -139,10 +139,10 @@ class CreditBalanceTracker {
         return null
       }
 
-      // Calcular desglose desde auditoría
+      // Calculate breakdown from audit
       const breakdown = await this.calculateBreakdown(balance.builder_id)
 
-      // Calcular discrepancia (incluir admin_adjustments)
+      // Calculate discrepancy (include admin_adjustments)
       const expectedAvailable =
         breakdown.claimed +
         breakdown.spent_on_tickets +
@@ -167,10 +167,10 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Calcular desglose desde auditoría
-   * NOTA: Los amounts en CreditAudit tienen signo:
-   * - Positivos: assign_credits, claim_credits, claim_via_blockchain, delete_ticket_refund, admin_adjustment (cuando suma)
-   * - Negativos: create_ticket, consume_credits, admin_adjustment (cuando resta)
+   * Calculate breakdown from audit
+   * NOTE: Amounts in CreditAudit have signs:
+   * - Positive: assign_credits, claim_credits, claim_via_blockchain, delete_ticket_refund, admin_adjustment (when adding)
+   * - Negative: create_ticket, consume_credits, admin_adjustment (when subtracting)
    */
   private async calculateBreakdown(builder_id: number) {
     const result = await db.execute({
@@ -201,15 +201,15 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Verificar consistencia entre Credits y CreditAudit
-   * NOTA: Solo available_amount es CRÍTICO y bloquea operaciones.
-   * total_assigned puede diferir por datos históricos y es solo informativo.
+   * Verify consistency between Credits and CreditAudit
+   * NOTE: Only available_amount is CRITICAL and blocks operations.
+   * total_assigned may differ due to historical data and is only informational.
    */
   async checkConsistency(builder_id: number): Promise<ConsistencyCheck> {
     const critical_issues: string[] = []
     const warning_issues: string[] = []
 
-    // Obtener datos de Credits
+    // Get Credits data
     const creditsResult = await db.execute({
       sql: 'SELECT available_amount, total_assigned FROM Credits WHERE builder_id = ?',
       args: [builder_id],
@@ -219,7 +219,7 @@ class CreditBalanceTracker {
       return {
         builder_id,
         is_consistent: false,
-        critical_issues: ['No existe registro en tabla Credits'],
+        critical_issues: ['No record in Credits table'],
         warning_issues: [],
         calculated_available: 0,
         stored_available: 0,
@@ -231,10 +231,10 @@ class CreditBalanceTracker {
     const storedAvailable = Number(stored.available_amount || 0)
     const storedAssigned = Number(stored.total_assigned || 0)
 
-    // Calcular desde auditoría
+    // Calculate from audit
     const breakdown = await this.calculateBreakdown(builder_id)
 
-    // Incluir admin_adjustments en el cálculo de available
+    // Include admin_adjustments in available calculation
     const calculatedAvailable =
       breakdown.claimed +
       breakdown.spent_on_tickets +
@@ -243,17 +243,17 @@ class CreditBalanceTracker {
 
     const calculatedAssigned = breakdown.assigned
 
-    // Verificar discrepancia de available_amount (CRÍTICO - bloquea operaciones)
+    // Verify available_amount discrepancy (CRITICAL - blocks operations)
     if (calculatedAvailable !== storedAvailable) {
       critical_issues.push(
-        `available_amount inconsistente: esperado ${calculatedAvailable}, actual ${storedAvailable}`
+        `inconsistent available_amount: expected ${calculatedAvailable}, actual ${storedAvailable}`
       )
     }
 
-    // Verificar discrepancia de total_assigned (ADVERTENCIA - solo informativo)
+    // Verify total_assigned discrepancy (WARNING - only informational)
     if (calculatedAssigned !== storedAssigned) {
       warning_issues.push(
-        `total_assigned inconsistente: esperado ${calculatedAssigned}, actual ${storedAssigned} (datos históricos)`
+        `inconsistent total_assigned: expected ${calculatedAssigned}, actual ${storedAssigned} (historical data)`
       )
     }
 
@@ -269,7 +269,7 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Detectar asignaciones duplicadas en un rango de tiempo
+   * Detect duplicate assignments within a time range
    */
   async detectDuplicateAssignments(seconds: number = 5): Promise<
     Array<{
@@ -305,7 +305,7 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Obtener solo los créditos disponibles (método rápido)
+   * Get only available credits (fast method)
    */
   async getAvailableCredits(hive_username: string): Promise<number> {
     const balance = await this.getBalance(hive_username)
@@ -313,7 +313,7 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Verificar si un builder tiene suficientes créditos
+   * Check if a builder has enough credits
    */
   async hasSufficientCredits(
     hive_username: string,
@@ -324,7 +324,7 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Obtener balance de múltiples builders
+   * Get balance of multiple builders
    */
   async getBulkBalances(
     usernames: string[]
@@ -342,7 +342,7 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Validar que una operación de créditos es segura antes de ejecutarla
+   * Validate that a credit operation is safe before executing it
    */
   async validateOperation(
     builder_id: number,
@@ -350,19 +350,19 @@ class CreditBalanceTracker {
     amount: number
   ): Promise<{ valid: boolean; reason?: string }> {
     if (amount <= 0) {
-      return { valid: false, reason: 'El monto debe ser positivo' }
+      return { valid: false, reason: 'Amount must be positive' }
     }
 
     const balance = await this.getBalanceById(builder_id)
     if (!balance) {
-      return { valid: false, reason: 'Builder no encontrado' }
+      return { valid: false, reason: 'Builder not found' }
     }
 
-    // Verificar consistencia primero
+    // Verify consistency first
     if (!balance.is_consistent) {
       return {
         valid: false,
-        reason: 'El balance del builder tiene inconsistencias',
+        reason: 'Builder balance has inconsistencies',
       }
     }
 
@@ -371,7 +371,7 @@ class CreditBalanceTracker {
         if (amount > balance.pending_amount) {
           return {
             valid: false,
-            reason: `Créditos pendientes insuficientes: disponible ${balance.pending_amount}, requerido ${amount}`,
+            reason: `Insufficient pending credits: available ${balance.pending_amount}, required ${amount}`,
           }
         }
         break
@@ -380,14 +380,14 @@ class CreditBalanceTracker {
         if (amount > balance.available_amount) {
           return {
             valid: false,
-            reason: `Créditos disponibles insuficientes: disponible ${balance.available_amount}, requerido ${amount}`,
+            reason: `Insufficient available credits: available ${balance.available_amount}, required ${amount}`,
           }
         }
         break
 
       case 'assign':
       case 'refund':
-        // Estas operaciones siempre son válidas si el monto es positivo
+        // These operations are always valid if the amount is positive
         break
     }
 
@@ -395,10 +395,10 @@ class CreditBalanceTracker {
   }
 
   /**
-   * Detectar todas las inconsistencias en el sistema
+   * Detect all inconsistencies in the system
    */
   async detectAllInconsistencies(): Promise<ConsistencyCheck[]> {
-    // Obtener todos los builders con créditos
+    // Get all builders with credits
     const buildersResult = await db.execute({
       sql: 'SELECT DISTINCT builder_id FROM Credits',
       args: [],

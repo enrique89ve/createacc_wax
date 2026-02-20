@@ -1,14 +1,14 @@
 /**
  * 📊 DASHBOARD SERVICE
  *
- * Servicio especializado para queries complejas multi-tabla usadas en dashboards.
- * Separa la lógica de agregación compleja de los repositories individuales.
+ * Specialized service for complex multi-table queries used in dashboards.
+ * Separates complex aggregation logic from individual repositories.
  *
- * Responsabilidades:
- * - Estadísticas generales del sistema (multi-entidad)
- * - Queries con múltiples JOINs y agregaciones
- * - Datos consolidados para vistas administrativas
- * - Reportes y métricas del sistema
+ * Responsibilities:
+ * - General system statistics (multi-entity)
+ * - Queries with multiple JOINs and aggregations
+ * - Consolidated data for administrative views
+ * - System reports and metrics
  */
 
 import { db } from '@/lib/database'
@@ -16,7 +16,7 @@ import { db } from '@/lib/database'
 import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 
 /**
- * Estadísticas generales del dashboard de administración
+ * General statistics for the administration dashboard
  */
 export interface DashboardStats {
 	readonly totalBuilders: number
@@ -27,7 +27,7 @@ export interface DashboardStats {
 }
 
 /**
- * Ticket reciente con información del creador (para dashboard)
+ * Recent ticket with creator information (for dashboard)
  */
 export interface RecentTicketInfo {
 	readonly code: string
@@ -41,7 +41,7 @@ export interface RecentTicketInfo {
 }
 
 /**
- * Cuenta reciente para dashboard
+ * Recent account for dashboard
  */
 export interface RecentAccountInfo {
 	readonly username: string
@@ -50,7 +50,7 @@ export interface RecentAccountInfo {
 }
 
 /**
- * Resumen de actividad del sistema
+ * System activity summary
  */
 export interface SystemActivitySummary {
 	readonly stats: DashboardStats
@@ -59,7 +59,7 @@ export interface SystemActivitySummary {
 }
 
 /**
- * Estadísticas de un builder con toda su información
+ * Builder statistics with all their information
  */
 export interface BuilderFullStats {
 	readonly builder_id: number
@@ -75,14 +75,14 @@ export interface BuilderFullStats {
 }
 
 export class DashboardService {
-	// ===== ESTADÍSTICAS GENERALES =====
+	// ===== GENERAL STATISTICS =====
 
 	/**
-	 * Obtener todas las estadísticas para el dashboard principal
+	 * Get all statistics for the main dashboard
 	 */
 	async getDashboardStats(): Promise<DashboardStats> {
 		try {
-			// Query única con múltiples subqueries para obtener todas las stats
+			// Single query with multiple subqueries to get all stats
 			const result = await db.execute({
 				sql: `
 					SELECT
@@ -110,7 +110,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener tickets recientes con información de creadores
+	 * Get recent tickets with creator information
 	 */
 	async getRecentTickets(limit: number = 5): Promise<RecentTicketInfo[]> {
 		try {
@@ -149,7 +149,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener cuentas recientes
+	 * Get recent accounts
 	 */
 	async getRecentAccounts(limit: number = 5): Promise<RecentAccountInfo[]> {
 		try {
@@ -174,8 +174,8 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener resumen completo de actividad del sistema
-	 * (stats + tickets recientes + cuentas recientes en una sola llamada)
+	 * Get complete system activity summary
+	 * (stats + recent tickets + recent accounts in a single call)
 	 */
 	async getSystemActivitySummary(
 		recentLimit: number = 5
@@ -197,10 +197,10 @@ export class DashboardService {
 		}
 	}
 
-	// ===== ESTADÍSTICAS DE BUILDERS =====
+	// ===== BUILDER STATISTICS =====
 
 	/**
-	 * Obtener estadísticas completas de un builder (tickets + cuentas + créditos)
+	 * Get complete builder statistics (tickets + accounts + credits)
 	 */
 	async getBuilderFullStats(builderId: number): Promise<BuilderFullStats | null> {
 		try {
@@ -251,7 +251,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener estadísticas de todos los builders
+	 * Get statistics of all builders
 	 */
 	async getAllBuildersFullStats(): Promise<BuilderFullStats[]> {
 		try {
@@ -296,10 +296,10 @@ export class DashboardService {
 		}
 	}
 
-	// ===== REPORTES AGREGADOS =====
+	// ===== AGGREGATED REPORTS =====
 
 	/**
-	 * Obtener distribución de tickets por tipo
+	 * Get ticket distribution by type
 	 */
 	async getTicketTypeDistribution(): Promise<Record<string, number>> {
 		try {
@@ -326,7 +326,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener tendencia de creación de cuentas (últimos N días)
+	 * Get account creation trend (last N days)
 	 */
 	async getAccountCreationTrend(days: number = 7): Promise<Array<{ date: string; count: number }>> {
 		try {
@@ -353,7 +353,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener top builders por cuentas creadas
+	 * Get top builders by created accounts
 	 */
 	async getTopBuildersByAccounts(limit: number = 10): Promise<Array<{
 		hive_username: string
@@ -389,7 +389,7 @@ export class DashboardService {
 	}
 
 	/**
-	 * Obtener resumen de créditos del sistema
+	 * Get system credits summary
 	 */
 	async getCreditsSummary(): Promise<{
 		total_pending: number

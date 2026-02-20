@@ -35,7 +35,7 @@ export class HiveTransactionService {
   }
 
   /**
-   * Sleep helper para delays en retry logic
+   * Sleep helper for delays in retry logic
    */
   private async sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
@@ -87,21 +87,21 @@ export class HiveTransactionService {
   }
 
   /**
-   * Ejecuta una operación con retry logic para errores de red
+   * Executes an operation with retry logic for network errors
    */
   private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
     for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
       try {
         return await operation()
       } catch (error) {
-        // Usar utilidad centralizada para determinar si es retryable
+        // Use centralized utility to determine if it is retryable
         const isRetryable = shouldRetryWaxError(error)
 
         if (!isRetryable || attempt === this.retryConfig.maxRetries) {
           throw error
         }
 
-        // Delay exponencial para el siguiente intento
+        // Exponential delay for the next attempt
         const delay = this.retryConfig.retryDelayMs * Math.pow(2, attempt)
         await this.sleep(delay)
       }
@@ -111,7 +111,7 @@ export class HiveTransactionService {
   }
 }
 
-// Roles soportados para factoría genérica
+// Supported roles for generic factory
 export type HiveServiceRole = 'creator' | 'delegator'
 
 interface EnvConfigMapEntry {
@@ -120,7 +120,7 @@ interface EnvConfigMapEntry {
   readonly walletName: string
 }
 
-// Mapa centralizado para evitar duplicación de nombres de variables
+// Centralized map to avoid duplication of variable names
 const ENV_CONFIG_MAP: Record<HiveServiceRole, EnvConfigMapEntry> = {
   creator: {
     accountVar: ENV_KEYS.HIVE_CREATOR_ACCOUNT,
@@ -145,7 +145,7 @@ export const createServiceFromEnv = (
   })
 }
 
-// Wrappers legacy mantenidos para compatibilidad externa
+// Legacy wrappers maintained for external compatibility
 export const createCreatorService = (): HiveTransactionService =>
   createServiceFromEnv('creator')
 export const createDelegatorService = (): HiveTransactionService =>

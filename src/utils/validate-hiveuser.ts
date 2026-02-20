@@ -24,7 +24,7 @@ export const validateHiveAccountExists = async ({
 }
 
 /**
- * Configuración para polling exponencial
+ * Configuration for exponential polling
  */
 interface PollingConfig {
   readonly initialDelayMs: number
@@ -35,7 +35,7 @@ interface PollingConfig {
 }
 
 /**
- * Resultado del polling con información detallada
+ * Polling result with detailed information
  */
 interface PollingResult {
   found: boolean
@@ -45,14 +45,14 @@ interface PollingResult {
 }
 
 /**
- * Función auxiliar para delay con Promise
+ * Helper function for delay with Promise
  */
 const delay = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms))
 
 /**
- * Verifica que una cuenta existe en Hive usando polling exponencial backoff
- * Optimizado para manejar propagación variable en la blockchain
+ * Verifies that an account exists in Hive using exponential backoff polling
+ * Optimized to handle variable propagation on the blockchain
  */
 export const validateHiveAccountExistsWithPolling = async ({
   chain,
@@ -76,7 +76,7 @@ export const validateHiveAccountExistsWithPolling = async ({
   while (attempt < finalConfig.maxAttempts) {
     attempt++
 
-    // Verificar timeout global
+    // Check global timeout
     const elapsed = Date.now() - startTime
     if (elapsed > finalConfig.timeoutMs) {
 
@@ -104,11 +104,11 @@ export const validateHiveAccountExistsWithPolling = async ({
         }
       }
 
-      // No encontrada, esperar antes del siguiente intento (excepto último)
+      // Not found, wait before next attempt (except last)
       if (attempt < finalConfig.maxAttempts) {
         await delay(currentDelay)
 
-        // Exponential backoff con límite máximo
+        // Exponential backoff with maximum limit
         currentDelay = Math.min(
           currentDelay * finalConfig.backoffMultiplier,
           finalConfig.maxDelayMs
@@ -116,7 +116,7 @@ export const validateHiveAccountExistsWithPolling = async ({
       }
     } catch (error) {
 
-      // En caso de error, también aplicar backoff antes de reintentar
+      // In case of error, also apply backoff before retrying
       if (attempt < finalConfig.maxAttempts) {
         await delay(currentDelay)
         currentDelay = Math.min(

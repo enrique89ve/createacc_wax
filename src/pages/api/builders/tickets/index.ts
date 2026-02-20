@@ -1,8 +1,8 @@
 /**
  * 🎫 BUILDERS API: TICKETS
  *
- * GET  /api/builders/tickets - Listar tickets del builder autenticado
- * POST /api/builders/tickets - Crear nuevo ticket
+ * GET  /api/builders/tickets - List authenticated builder tickets
+ * POST /api/builders/tickets - Create new ticket
  */
 
 import type { APIRoute } from 'astro'
@@ -30,13 +30,13 @@ import type {
 
 /**
  * GET /api/builders/tickets
- * Listar todos los tickets del builder autenticado
+ * List all tickets of the authenticated builder
  */
 export const GET: APIRoute = async ({ request }) => {
 	try {
 		const builderId = await getAuthenticatedBuilderId(request)
 
-		// Obtener tickets con información del creador
+		// Get tickets with creator information
 		const tickets = await ticketsRepository.getBuilderTicketsWithCreator(
 			builderId
 		)
@@ -55,7 +55,7 @@ export const GET: APIRoute = async ({ request }) => {
 
 /**
  * POST /api/builders/tickets
- * Crear un nuevo ticket
+ * Create a new ticket
  */
 export const POST: APIRoute = async ({ request }) => {
 	// CSRF Protection
@@ -68,19 +68,19 @@ export const POST: APIRoute = async ({ request }) => {
 		const body: CreateTicketRequest = await request.json()
 		const { code, credits, description } = body
 
-		// Validar nombre del ticket
+		// Validate ticket name
 		const codeValidation = validateTicketName(code)
 		if (!isValidationSuccess(codeValidation)) {
 			return apiError(codeValidation.error.message, HTTP_STATUS.BAD_REQUEST)
 		}
 
-		// Validar créditos
+		// Validate credits
 		const creditsValidation = validateTicketCredits(credits)
 		if (!isValidationSuccess(creditsValidation)) {
 			return apiError(creditsValidation.error.message, HTTP_STATUS.BAD_REQUEST)
 		}
 
-		// Validar descripción (opcional)
+		// Validate description (optional)
 		const descriptionValidation = validateTicketDescription(description)
 		if (!isValidationSuccess(descriptionValidation)) {
 			return apiError(descriptionValidation.error.message, HTTP_STATUS.BAD_REQUEST)
@@ -90,7 +90,7 @@ export const POST: APIRoute = async ({ request }) => {
 		const ticketCredits = creditsValidation.data
 		const ticketDescription = descriptionValidation.data
 
-		// Verificar si el código ya existe
+		// Verify if the code already exists
 		const existingTicket = await ticketsRepository.findByCode(ticketCode)
 		if (existingTicket) {
 			return apiError(
@@ -99,7 +99,7 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		// Verificar que el builder tenga suficientes créditos
+		// Verify that the builder has enough credits
 		const validation = await creditBalanceTracker.validateOperation(
 			builderId,
 			'deduct',
@@ -113,14 +113,14 @@ export const POST: APIRoute = async ({ request }) => {
 			)
 		}
 
-		// Descontar créditos usando credits-service
+		// Deduct credits using credits-service
 		await creditsService.deductCreditsForTicket(
 			builderId,
 			ticketCredits,
 			ticketCode
 		)
 
-		// Crear el ticket
+		// Create the ticket
 		const createdTicket = await ticketsRepository.create({
 			code: ticketCode,
 			description: ticketDescription,

@@ -1,7 +1,7 @@
 ---
 import { I18nManager } from '@/utils/i18n'
 
-// Asegurar que las traducciones estén disponibles del lado del cliente
+// Ensure translations are available on the client side
 const translations = I18nManager.getTranslations()
 ---
 
@@ -108,9 +108,9 @@ const translations = I18nManager.getTranslations()
   const btnPdf = document.querySelector('#btn-download-pdf')
   const btnCancel = document.querySelector('#btn-cancel-download')
 
-  // Eventos del modal
+  // Modal events
   btnTxt?.addEventListener('click', () => {
-    // @ts-ignore - función definida en el componente padre
+    // @ts-ignore - function defined in the parent component
     if (window.handleFormatSelection) {
       // @ts-ignore
       window.handleFormatSelection('txt')
@@ -118,7 +118,7 @@ const translations = I18nManager.getTranslations()
   })
 
   btnPdf?.addEventListener('click', () => {
-    // @ts-ignore - función definida en el componente padre
+    // @ts-ignore - function defined in the parent component
     if (window.handleFormatSelection) {
       // @ts-ignore
       window.handleFormatSelection('pdf')
@@ -126,14 +126,14 @@ const translations = I18nManager.getTranslations()
   })
 
   btnCancel?.addEventListener('click', () => {
-    // @ts-ignore - función definida en el componente padre
+    // @ts-ignore - function defined in the parent component
     if (window.closeDownloadModal) {
       // @ts-ignore
       window.closeDownloadModal()
     }
   })
 
-  // Cerrar modal con escape
+  // Close modal with escape
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
       // @ts-ignore
@@ -144,7 +144,7 @@ const translations = I18nManager.getTranslations()
     }
   })
 
-  // Cerrar modal clickeando fuera
+  // Close modal by clicking outside
   modal?.addEventListener('click', e => {
     if (e.target === modal) {
       // @ts-ignore

@@ -1,14 +1,14 @@
 /**
  * 🔗 ACCOUNTS REPOSITORY
  *
- * Centraliza todas las operaciones de base de datos relacionadas con cuentas creadas.
- * Gestiona el registro de cuentas Hive creadas en el sistema.
+ * Centralizes all database operations related to created accounts.
+ * Manages the registry of Hive accounts created in the system.
  *
- * Responsabilidades:
- * - CRUD básico de cuentas
- * - Queries especializadas (por ticket, por fecha, por username)
- * - Queries complejas con JOINs (cuentas con información de tickets)
- * - Estadísticas de cuentas creadas
+ * Responsibilities:
+ * - Basic account CRUD
+ * - Specialized queries (by ticket, by date, by username)
+ * - Complex queries with JOINs (accounts with ticket information)
+ * - Created accounts statistics
  */
 
 import { db } from '@/lib/database'
@@ -20,7 +20,7 @@ import {
 } from '@/types/database'
 
 /**
- * Estadísticas de cuentas
+ * Account statistics
  */
 export interface AccountStats {
   readonly totalAccounts: number
@@ -30,7 +30,7 @@ export interface AccountStats {
 }
 
 /**
- * Filtros para búsqueda de cuentas
+ * Filters for account search
  */
 export interface AccountFilters {
   readonly ticket?: string
@@ -41,10 +41,10 @@ export interface AccountFilters {
 }
 
 export class AccountsRepository {
-  // ===== CRUD BÁSICO =====
+  // ===== BASIC CRUD =====
 
   /**
-   * Crear una nueva cuenta (registrar cuenta creada)
+   * Create a new account (register created account)
    */
   async create(data: CreateAccountData): Promise<DatabaseAccountRow> {
     try {
@@ -58,13 +58,13 @@ export class AccountsRepository {
       })
 
       if (result.rows.length === 0) {
-        throw new Error('No se pudo crear la cuenta')
+        throw new Error('Could not create account')
       }
 
       const account = parseAccountRow(result.rows[0])
 
       if (!account) {
-        throw new Error('Error al parsear cuenta creada')
+        throw new Error('Error parsing created account')
       }
 
       return account
@@ -74,7 +74,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener cuenta por ID
+   * Get account by ID
    */
   async findById(id: number): Promise<DatabaseAccountRow | null> {
     try {
@@ -94,7 +94,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener cuenta por username (único)
+   * Get account by username (unique)
    */
   async findByUsername(username: string): Promise<DatabaseAccountRow | null> {
     try {
@@ -114,7 +114,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Verificar si existe una cuenta con un username
+   * Check if an account exists with a username
    */
   async existsByUsername(username: string): Promise<boolean> {
     try {
@@ -130,7 +130,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Eliminar cuenta por ID
+   * Delete account by ID
    */
   async delete(id: number): Promise<void> {
     try {
@@ -143,10 +143,10 @@ export class AccountsRepository {
     }
   }
 
-  // ===== QUERIES ESPECIALIZADAS =====
+  // ===== SPECIALIZED QUERIES =====
 
   /**
-   * Obtener todas las cuentas creadas con un ticket específico
+   * Get all accounts created with a specific ticket
    */
   async findByTicket(ticketCode: string): Promise<DatabaseAccountRow[]> {
     try {
@@ -168,7 +168,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener cuentas creadas en un rango de fechas
+   * Get accounts created within a date range
    */
   async findByDateRange(
     from: string,
@@ -193,7 +193,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener todas las cuentas
+   * Get all accounts
    */
   async getAll(): Promise<DatabaseAccountRow[]> {
     try {
@@ -214,7 +214,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener cuentas recientes (últimas N)
+   * Get recent accounts (last N)
    */
   async getRecent(limit: number = 5): Promise<DatabaseAccountRow[]> {
     try {
@@ -236,7 +236,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Buscar cuentas por patrón de username
+   * Search accounts by username pattern
    */
   async searchByUsername(pattern: string): Promise<DatabaseAccountRow[]> {
     try {
@@ -258,7 +258,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Buscar cuentas con filtros múltiples
+   * Search accounts with multiple filters
    */
   async findWithFilters(
     filters: AccountFilters
@@ -287,7 +287,7 @@ export class AccountsRepository {
         args.push(filters.dateTo)
       }
 
-      // Si se filtra por builder, necesitamos JOIN con Tickets
+      // If filtering by builder, we need a JOIN with Tickets
       if (filters.builderId) {
         conditions.push(
           'EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.created_by = ?)'
@@ -314,10 +314,10 @@ export class AccountsRepository {
     }
   }
 
-  // ===== ESTADÍSTICAS Y AGREGACIONES =====
+  // ===== STATISTICS AND AGGREGATIONS =====
 
   /**
-   * Obtener conteo total de cuentas
+   * Get total account count
    */
   async countAll(): Promise<number> {
     try {
@@ -333,7 +333,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener conteo de cuentas creadas hoy
+   * Get count of accounts created today
    */
   async countToday(): Promise<number> {
     try {
@@ -353,7 +353,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener estadísticas completas de cuentas
+   * Get complete account statistics
    */
   async getStats(): Promise<AccountStats> {
     try {
@@ -383,7 +383,7 @@ export class AccountsRepository {
   }
 
   /**
-   * Obtener conteo de cuentas por builder
+   * Get count of accounts by builder
    */
   async countByBuilder(builderId: number): Promise<number> {
     try {

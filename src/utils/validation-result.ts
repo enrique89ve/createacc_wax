@@ -1,15 +1,15 @@
 /**
  * VALIDATION RESULT UTILITIES
  * 
- * Este archivo define un patrón claro para manejar resultados de validación
- * que pueden ser exitosos o contener errores, sin mezclar con HTTP responses.
+ * This file defines a clear pattern for handling validation results
+ * that can be successful or contain errors, without mixing with HTTP responses.
  * 
- * Esto hace el código más fácil de entender y testear.
+ * This makes the code easier to understand and test.
  */
 
 /**
- * Resultado exitoso de una validación.
- * Contiene los datos validados y tipados de forma segura.
+ * Successful result of a validation.
+ * Contains the validated data safely typed.
  */
 export interface ValidationSuccess<T> {
 	readonly success: true
@@ -17,8 +17,8 @@ export interface ValidationSuccess<T> {
 }
 
 /**
- * Resultado fallido de una validación.
- * Contiene información detallada del error para logging y debugging.
+ * Failed result of a validation.
+ * Contains detailed error information for logging and debugging.
  */
 export interface ValidationFailure {
 	readonly success: false
@@ -30,23 +30,23 @@ export interface ValidationFailure {
 }
 
 /**
- * Tipo union que representa el resultado de cualquier validación.
+ * Union type representing the result of any validation.
  * 
- * Usar este patrón hace el flujo de control más claro:
- * - Si success = true, entonces data está disponible
- * - Si success = false, entonces error está disponible
+ * Using this pattern makes control flow clearer:
+ * - If success = true, then data is available
+ * - If success = false, then error is available
  */
 export type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure
 
 /**
- * Helper para crear un resultado exitoso de validación.
+ * Helper to create a successful validation result.
  */
 export function createValidationSuccess<T>(data: T): ValidationSuccess<T> {
 	return { success: true, data }
 }
 
 /**
- * Helper para crear un resultado fallido de validación.
+ * Helper to create a failed validation result.
  */
 export function createValidationFailure(
 	message: string,
@@ -60,15 +60,15 @@ export function createValidationFailure(
 }
 
 /**
- * Type guard para verificar si una validación fue exitosa.
+ * Type guard to verify if a validation was successful.
  * 
- * Ejemplo de uso:
+ * Usage example:
  * ```typescript
  * const result = validateSomething(data);
  * if (isValidationSuccess(result)) {
- *   // TypeScript sabe que result.data está disponible
+ *   // TypeScript knows that result.data is available
  * } else {
- *   // TypeScript sabe que result.error está disponible
+ *   // TypeScript knows that result.error is available
  * }
  * ```
  */
@@ -79,7 +79,7 @@ export function isValidationSuccess<T>(
 }
 
 /**
- * Type guard para verificar si una validación falló.
+ * Type guard to verify if a validation failed.
  */
 export function isValidationFailure<T>(
 	result: ValidationResult<T>

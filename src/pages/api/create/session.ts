@@ -65,11 +65,11 @@ export const POST: APIRoute = async context => {
 			context.request
 		)
 
-		// Verificar si ya existe una sesión
+		// Check if a session already exists
 		const existingSession = sessionManager.get()
 
 		if (existingSession && existingSession.username === username) {
-			// Si la petición NO tiene ticket, preservar la sesión completa tal como está
+			// If the request has NO ticket, preserve the complete session as is
 			if (!ticket || !ticket.trim()) {
 				return apiSuccess(
 					{ username },
@@ -78,7 +78,7 @@ export const POST: APIRoute = async context => {
 				)
 			}
 
-			// Si la petición SÍ tiene ticket, actualizar sesión preservando otros campos
+			// If the request HAS a ticket, update session while preserving other fields
 			const updatedSession: CreationSession = {
 				...existingSession,
 				ticket: ticket.trim(),
@@ -92,11 +92,11 @@ export const POST: APIRoute = async context => {
 			)
 		}
 
-		// Si no existe sesión, crear nueva
+		// If no session exists, create a new one
 		const sessionData: CreationSession = {
 			username,
 			confirmedDownload: false,
-			// Solo añadir ticket si no está vacío
+			// Only add ticket if it's not empty
 			...(ticket && ticket.trim() && { ticket: ticket.trim() }),
 		}
 
@@ -108,7 +108,7 @@ export const POST: APIRoute = async context => {
 			{ noCache: true }
 		)
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor'
+		const errorMessage = error instanceof Error ? error.message : 'Internal server error'
 		return apiError(
 			errorMessage,
 			HTTP_STATUS.INTERNAL_SERVER_ERROR,

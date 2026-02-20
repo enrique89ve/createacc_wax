@@ -1,16 +1,16 @@
 /**
- * ERROR NORMALIZER - Integrado con Error Processing Chain
+ * ERROR NORMALIZER - Integrated with Error Processing Chain
  * 
- * Legacy utilities refactorizadas para usar el sistema unificado.
- * Mantiene compatibilidad hacia atrás mientras usa la nueva arquitectura.
+ * Legacy utilities refactored to use the unified system.
+ * Maintains backwards compatibility while using the new architecture.
  */
 
 import { processErrorSync, type ErrorContext } from './error-chain'
 import type { APIContext } from 'astro'
 
 /**
- * Wrapper moderno que retorna ProcessedError directamente
- * Para código nuevo que quiera usar toda la información de la cadena
+ * Modern wrapper that returns ProcessedError directly
+ * For new code that wants to use all the information from the chain
  */
 export function wrapHandlerWithFullProcessing<TArgs extends unknown[], TResult>(
   fn: (...args: TArgs) => Promise<TResult> | TResult,
@@ -23,24 +23,24 @@ export function wrapHandlerWithFullProcessing<TArgs extends unknown[], TResult>(
       const context = contextExtractor ? contextExtractor(...args) : {}
       const processed = processErrorSync(error, context)
       
-      // Log técnico del error procesado
+      // Technical log of the processed error
 
       
-      // Re-throw el error unificado
+      // Re-throw the unified error
       throw processed.error
     }
   }
 }
 
 /**
- * Utility para API routes que automáticamente extrae contexto HTTP
+ * Utility for API routes that automatically extracts HTTP context
  */
 export function wrapApiHandler<TResult>(
   handler: (context: APIContext) => Promise<TResult> | TResult
 ) {
   return wrapHandlerWithFullProcessing(
     handler,
-    // Context extractor específico para API routes
+    // Specific context extractor for API routes
     (context: APIContext): Partial<ErrorContext> => ({
       method: context.request?.method,
       path: context.url?.pathname,
@@ -50,7 +50,7 @@ export function wrapApiHandler<TResult>(
   )
 }
 
-// Instalación de ganchos globales una sola vez
+// Single-time installation of global hooks
 declare const global: typeof globalThis & {
   __ERROR_HOOKS_INSTALLED__?: boolean
 }
@@ -60,7 +60,7 @@ if (!global.__ERROR_HOOKS_INSTALLED__) {
 
   const log = (_tag: string, value: unknown) => {
     if (value instanceof Error) return
-    // Se registra el valor bruto para investigación
+    // Register the raw value for investigation
   }
 
   process.on('uncaughtException', value => log('uncaught', value))

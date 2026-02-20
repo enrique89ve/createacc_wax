@@ -1,14 +1,14 @@
 /**
  * 📊 AUDIT REPOSITORY
  *
- * Centraliza todas las operaciones de auditoría para tickets y créditos.
- * Proporciona un sistema completo de logs para tracking de acciones administrativas.
+ * Centralizes all audit operations for tickets and credits.
+ * Provides a comprehensive log system for tracking administrative actions.
  *
- * Responsabilidades:
- * - Consulta de logs de TicketAudit (create, update, delete de tickets)
- * - Consulta de logs de CreditAudit (operaciones de créditos)
- * - Filtrado por usuario, acción, fecha
- * - Estadísticas de actividad
+ * Responsibilities:
+ * - Query TicketAudit logs (create, update, delete of tickets)
+ * - Query CreditAudit logs (credit operations)
+ * - Filtering by user, action, date
+ * - Activity statistics
  */
 
 import { db } from '@/lib/database'
@@ -18,7 +18,7 @@ import type {
 } from '@/types/database'
 
 /**
- * Log de auditoría de ticket con información del usuario que realizó la acción
+ * Ticket audit log with information about the user who performed the action
  */
 export interface TicketAuditLog extends DatabaseTicketAuditRow {
 	readonly performed_by_username: string | null
@@ -26,7 +26,7 @@ export interface TicketAuditLog extends DatabaseTicketAuditRow {
 }
 
 /**
- * Log de auditoría de créditos con información completa
+ * Credit audit log with complete information
  */
 export interface CreditAuditLog extends DatabaseCreditAuditRow {
 	readonly builder_username: string
@@ -35,7 +35,7 @@ export interface CreditAuditLog extends DatabaseCreditAuditRow {
 }
 
 /**
- * Filtros para búsqueda de logs de tickets
+ * Filters for ticket logs search
  */
 export interface TicketAuditFilters {
 	readonly ticket?: string
@@ -46,7 +46,7 @@ export interface TicketAuditFilters {
 }
 
 /**
- * Filtros para búsqueda de logs de créditos
+ * Filters for credit logs search
  */
 export interface CreditAuditFilters {
 	readonly builderId?: number
@@ -60,7 +60,7 @@ export class AuditRepository {
 	// ===== TICKET AUDIT LOGS =====
 
 	/**
-	 * Obtener todos los logs de tickets con información de usuarios
+	 * Get all ticket logs with user information
 	 */
 	async getAllTicketLogs(limit?: number): Promise<TicketAuditLog[]> {
 		try {
@@ -100,7 +100,7 @@ export class AuditRepository {
 	}
 
 	/**
-	 * Obtener logs de tickets con filtros
+	 * Get ticket logs with filters
 	 */
 	async getTicketLogsWithFilters(
 		filters: TicketAuditFilters,
@@ -174,14 +174,14 @@ export class AuditRepository {
 	}
 
 	/**
-	 * Obtener logs de un ticket específico
+	 * Get logs for a specific ticket
 	 */
 	async getLogsByTicket(ticketCode: string): Promise<TicketAuditLog[]> {
 		return this.getTicketLogsWithFilters({ ticket: ticketCode })
 	}
 
 	/**
-	 * Obtener logs de un usuario específico
+	 * Get logs for a specific user
 	 */
 	async getLogsByUser(userId: number): Promise<TicketAuditLog[]> {
 		return this.getTicketLogsWithFilters({ performedBy: userId })
@@ -190,7 +190,7 @@ export class AuditRepository {
 	// ===== CREDIT AUDIT LOGS =====
 
 	/**
-	 * Obtener todos los logs de créditos con información completa
+	 * Get all credit logs with complete information
 	 */
 	async getAllCreditLogs(limit?: number): Promise<CreditAuditLog[]> {
 		try {
@@ -235,7 +235,7 @@ export class AuditRepository {
 	}
 
 	/**
-	 * Obtener logs de créditos con filtros
+	 * Get credit logs with filters
 	 */
 	async getCreditLogsWithFilters(
 		filters: CreditAuditFilters,
@@ -314,16 +314,16 @@ export class AuditRepository {
 	}
 
 	/**
-	 * Obtener logs de créditos de un builder específico
+	 * Get credit logs for a specific builder
 	 */
 	async getCreditLogsByBuilder(builderId: number): Promise<CreditAuditLog[]> {
 		return this.getCreditLogsWithFilters({ builderId })
 	}
 
-	// ===== ESTADÍSTICAS =====
+	// ===== STATISTICS =====
 
 	/**
-	 * Obtener conteo de acciones por tipo (tickets)
+	 * Get count of actions by type (tickets)
 	 */
 	async getTicketActionStats(): Promise<
 		Record<'create' | 'update' | 'delete', number>
@@ -358,7 +358,7 @@ export class AuditRepository {
 	}
 
 	/**
-	 * Obtener conteo total de logs
+	 * Get total logs count
 	 */
 	async getTotalLogsCount(): Promise<{
 		ticketLogs: number

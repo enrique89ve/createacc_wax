@@ -35,21 +35,21 @@ const MASTER_KEY_PREFIX = 'P5'
 
 export interface KeyPair extends IPrivateKeyData {
   role: HiveKeyRole
-  // Hereda wifPrivateKey y associatedPublicKey de IPrivateKeyData
-  privateKey: string // Alias para wifPrivateKey para compatibilidad
-  publicKey: TPublicKey // Alias para associatedPublicKey para compatibilidad
+  // Inherits wifPrivateKey and associatedPublicKey from IPrivateKeyData
+  privateKey: string // Alias for wifPrivateKey for compatibility
+  publicKey: TPublicKey // Alias for associatedPublicKey for compatibility
 }
 
 export interface HiveKeysLegacy {
-  /** Master password en formato P5 (derivado de WAX brainkey) */
+  /** Master password in P5 format (derived from WAX brainkey) */
   masterPrivateKey: string
-  /** Claves derivadas para cada rol */
+  /** Derived keys for each role */
   keys: KeyPair[]
 }
 
 /**
- * Clase para manejo fácil de claves de Hive
- * Proporciona acceso directo a cada rol sin necesidad de usar find()
+ * Class for easy handling of Hive keys
+ * Provides direct access to each role without using find()
  */
 export class HiveKeys {
   private readonly _masterPrivateKey: string
@@ -58,12 +58,12 @@ export class HiveKeys {
   constructor(masterPrivateKey: string, keys: KeyPair[]) {
     this._masterPrivateKey = masterPrivateKey
     this._keys = new Map(keys.map(k => [k.role, k]))
-    // WAX garantiza que las claves generadas son válidas - no necesitamos validar
+    // WAX guarantees that the generated keys are valid - we don't need to validate
   }
 
   /**
-   * Genera nuevas claves de Hive con master password en formato P5.
-   * Usa WAX suggestBrainKey() internamente para seguridad criptográfica.
+   * Generates new Hive keys with master password in P5 format.
+   * Uses WAX suggestBrainKey() internally for cryptographic security.
    */
   static async generate(accountName: string): Promise<HiveKeys> {
     const legacyKeys = await generateHiveKeys(accountName)
@@ -71,13 +71,13 @@ export class HiveKeys {
   }
 
   /**
-   * Crea instancia desde claves existentes en formato legacy
+   * Creates instance from existing legacy format keys
    */
   static fromLegacy(legacyKeys: HiveKeysLegacy): HiveKeys {
     return new HiveKeys(legacyKeys.masterPrivateKey, legacyKeys.keys)
   }
 
-  // Getters para acceso directo a cada rol
+  // Getters for direct access to each role
   get owner(): KeyPair {
     return this._keys.get('owner')!
   }
@@ -99,7 +99,7 @@ export class HiveKeys {
   }
 
   /**
-   * Obtiene todas las claves públicas en un objeto plano
+   * Gets all public keys in a flat object
    */
   getAllPublicKeys(): Record<HiveKeyRole, TPublicKey> {
     return {
@@ -111,7 +111,7 @@ export class HiveKeys {
   }
 
   /**
-   * Obtiene todas las claves privadas en un objeto plano
+   * Gets all private keys in a flat object
    */
   getAllPrivateKeys(): Record<HiveKeyRole, string> {
     return {
@@ -123,7 +123,7 @@ export class HiveKeys {
   }
 
   /**
-   * Convierte automáticamente a los parámetros necesarios para crear cuenta
+   * Automatically converts to the parameters needed to create an account
    */
   toCreateAccountParams(username: string): ICreateAccountParams {
     return {
@@ -136,7 +136,7 @@ export class HiveKeys {
   }
 
   /**
-   * Convierte a formato legacy para compatibilidad
+   * Converts to legacy format for compatibility
    */
   toLegacy(): HiveKeysLegacy {
     return {
@@ -147,29 +147,29 @@ export class HiveKeys {
 }
 
 /**
- * Genera claves de Hive con master password en formato P5.
+ * Generates Hive keys with master password in P5 format.
  *
- * Flujo:
- *  1. WAX suggestBrainKey() genera un WIF criptográficamente seguro (5Jxxx...)
- *  2. Se reemplaza los 2 primeros caracteres por "P5" → P5xxx...
- *     Esto permite al usuario distinguir visualmente el master de las private keys.
- *  3. Se usa el master P5 como password para derivar las 4 role keys con WAX.
+ * Flow:
+ *  1. WAX suggestBrainKey() generates a cryptographically secure WIF (5Jxxx...)
+ *  2. Replace the first 2 characters with "P5" → P5xxx...
+ *     This allows the user to visually distinguish the master from the private keys.
+ *  3. Use the P5 master as a password to derive the 4 role keys with WAX.
  *
- * @param accountName - Nombre de la cuenta de Hive
- * @returns Promise<HiveKeysLegacy> - Claves completas con master en formato P5
+ * @param accountName - Hive account name
+ * @returns Promise<HiveKeysLegacy> - Complete keys with master in P5 format
  */
 export async function generateHiveKeys(
   accountName: string
 ): Promise<HiveKeysLegacy> {
   const hive = await getWaxFoundation()
 
-  // Genera brain key criptográficamente seguro con WAX nativo
+  // Generates cryptographically secure brain key with native WAX
   const brainKeyData = hive.suggestBrainKey()
 
-  // Reemplaza prefijo WIF (5J/5K/5H) con P5 para distinción visual
+  // Replaces WIF prefix (5J/5K/5H) with P5 for visual distinction
   const masterPrivateKey = MASTER_KEY_PREFIX + brainKeyData.wifPrivateKey.slice(2)
 
-  // Deriva claves para cada rol usando el master P5 como password
+  // Derives keys for each role using the P5 master as password
   const keys: KeyPair[] = (['owner', 'active', 'posting', 'memo'] as const).map(
     role => {
       const keyData = hive.getPrivateKeyFromPassword(

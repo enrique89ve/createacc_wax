@@ -10,12 +10,12 @@ import { UserRole } from '@/lib/roles'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 /**
- * POST: Reactivar un builder previamente baneado
+ * POST: Reactivate a previously banned builder
  */
 export const POST: APIRoute = async context => {
   return withAdminApiSession(context, async session => {
     try {
-      // RBAC: Solo admins pueden reactivar builders
+      // RBAC: Only admins can reactivate builders
       try {
         assertCanPerform(
           session,
@@ -34,7 +34,7 @@ export const POST: APIRoute = async context => {
 
       const builderId = Number(id)
 
-      // Verificar que el builder existe y está inactivo
+      // Verify that the builder exists and is inactive
       const builder = await usersRepository.getById(builderId)
 
       if (!builder) {
@@ -49,7 +49,7 @@ export const POST: APIRoute = async context => {
         return apiError('El builder ya está activo', 400)
       }
 
-      // Reactivar el builder
+      // Reactivate the builder
       await usersRepository.reactivateBuilder(builderId)
 
       return apiSuccess({

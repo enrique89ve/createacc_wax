@@ -8,10 +8,10 @@ export const db = createClient({
 	syncUrl: process.env.TURSO_SYNC_URL,
 })
 
-// Inicializar base de datos
+// Initialize database
 export async function initializeDatabase() {
   try {
-    // Crear tabla Users (unificada - admins y builders)
+    // Create Users table (unified - admins and builders)
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Users (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,7 +25,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Trigger: Solo 1 admin permitido
+    // Trigger: Only 1 admin allowed
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS prevent_multiple_admins
 		BEFORE INSERT ON Users
@@ -35,7 +35,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Trigger: Admin debe tener password, Builder no
+    // Trigger: Admin must have password, Builder must not
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS enforce_admin_password_constraint
 		BEFORE INSERT ON Users
@@ -47,7 +47,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Trigger: No cambiar role después de creación
+    // Trigger: Cannot change role after creation
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS prevent_role_change
 		BEFORE UPDATE OF role ON Users
@@ -58,7 +58,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Crear tabla Tickets (versión unificada)
+    // Create Tickets table (unified version)
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Tickets (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +89,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Crear tabla Accounts
+    // Create Accounts table
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Accounts (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +101,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Crear tabla TicketAudit
+    // Create TicketAudit table
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS TicketAudit (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,7 +113,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Crear tabla Credits
+    // Create Credits table
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Credits (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,7 +128,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Crear tabla CreditAudit
+    // Create CreditAudit table
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS CreditAudit (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -143,7 +143,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Crear tabla LoginAttempts (auditoría de seguridad)
+    // Create LoginAttempts table (security audit)
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS LoginAttempts (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -158,7 +158,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Índices para LoginAttempts
+    // Indexes for LoginAttempts
     await db.execute(`
 		CREATE INDEX IF NOT EXISTS idx_login_attempts_username
 		ON LoginAttempts(username)
@@ -181,7 +181,7 @@ export async function initializeDatabase() {
 		WHERE success = 0
 	`)
 
-    // Crear tabla Notifications
+    // Create Notifications table
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS Notifications (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -198,7 +198,7 @@ export async function initializeDatabase() {
 		)
 	`)
 
-    // Índices para Notifications
+    // Indexes for Notifications
     await db.execute(`
 		CREATE INDEX IF NOT EXISTS idx_notifications_user_unread
 		ON Notifications(user_id, is_read, created_at DESC)
@@ -210,15 +210,15 @@ export async function initializeDatabase() {
 		ON Notifications(user_id, created_at DESC)
 	`)
 
-    // Índice para limpieza eficiente de notificaciones antiguas
+    // Index for efficient cleanup of old notifications
     await db.execute(`
 		CREATE INDEX IF NOT EXISTS idx_notifications_cleanup
 		ON Notifications(user_id, is_read, viewed_at)
 		WHERE viewed_at IS NOT NULL AND is_read = TRUE
 	`)
 
-    // Trigger: Auto-eliminar notificaciones al marcar como leídas (opcional)
-    // Comentado por defecto - se puede activar si se quiere auto-limpieza
+    // Trigger: Auto-delete notifications when marked as read (optional)
+    // Commented out by default - can be enabled for auto-cleanup
     /*
 	await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS auto_delete_read_notifications
@@ -231,7 +231,7 @@ export async function initializeDatabase() {
 	`)
 	*/
 
-    // Trigger: Limpieza automática de notificaciones antiguas al marcar como leída
+    // Trigger: Automatic cleanup of old notifications when marked as read
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS cleanup_old_read_notifications
 		AFTER UPDATE OF is_read ON Notifications
@@ -246,7 +246,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Trigger: Limpieza automática al insertar nueva notificación
+    // Trigger: Automatic cleanup when inserting new notification
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS cleanup_on_new_notification
 		AFTER INSERT ON Notifications
@@ -260,7 +260,7 @@ export async function initializeDatabase() {
 		END
 	`)
 
-    // Crear tabla ReconciliationQueue (trazabilidad de operaciones ambiguas)
+    // Create ReconciliationQueue table (traceability of ambiguous operations)
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS ReconciliationQueue (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -284,7 +284,7 @@ export async function initializeDatabase() {
 		WHERE resolved = FALSE
 	`)
 
-    // Trigger: Crear notificación cuando se crea una cuenta
+    // Trigger: Create notification when an account is created
     await db.execute(`
 		CREATE TRIGGER IF NOT EXISTS notify_account_created
 		AFTER INSERT ON Accounts

@@ -1,14 +1,14 @@
 /**
  * 🎫 TICKET VALIDATORS
  *
- * Validadores centralizados para tickets.
- * Elimina duplicación de lógica de validación en endpoints.
+ * Centralized ticket validators.
+ * Eliminates duplicate validation logic in endpoints.
  */
 
 import type { ValidationResult } from '@/utils/validation-result'
 import { MAX_TICKET_CREDITS } from '@/consts/constants'
 
-// Constantes de validación
+// Validation constants
 const MIN_TICKET_LENGTH = 10
 const MAX_TICKET_LENGTH = 24
 const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
@@ -17,16 +17,16 @@ const ONLY_NUMBERS_REGEX = /^\d+$/
 const MIN_TICKET_CREDITS = 1
 
 /**
- * Validar nombre de ticket
+ * Validate ticket name
  *
- * Reglas:
- * - No vacío
- * - Entre 10 y 24 caracteres
- * - Solo letras y números
- * - No puede ser solo números
+ * Rules:
+ * - Not empty
+ * - Between 10 and 24 characters
+ * - Only letters and numbers
+ * - Cannot be only numbers
  *
- * @param name - Nombre del ticket a validar
- * @returns ValidationResult con string normalizado o error
+ * @param name - Ticket name to validate
+ * @returns ValidationResult with normalized string or error
  */
 export function validateTicketName(name: string): ValidationResult<string> {
 	if (!name || !name.trim()) {
@@ -83,20 +83,20 @@ export function validateTicketName(name: string): ValidationResult<string> {
 
 	return {
 		success: true,
-		data: trimmedName.toUpperCase(), // Normalizado a mayúsculas
+		data: trimmedName.toUpperCase(), // Normalized to uppercase
 	}
 }
 
 /**
- * Validar cantidad de créditos para ticket
+ * Validate credits quantity for ticket
  *
- * @param credits - Cantidad de créditos a validar (puede ser any)
- * @returns ValidationResult con número validado o error
+ * @param credits - Credits quantity to validate (can be any)
+ * @returns ValidationResult with validated number or error
  *
- * Reglas:
- * - Debe ser un número
- * - Entre 1 y MAX_TICKET_CREDITS (100)
- * - Debe ser entero
+ * Rules:
+ * - Must be a number
+ * - Between 1 and MAX_TICKET_CREDITS (100)
+ * - Must be an integer
  */
 export function validateTicketCredits(
 	credits: unknown
@@ -148,17 +148,17 @@ export function validateTicketCredits(
 }
 
 /**
- * Validar delta de actualización de créditos
+ * Validate credits update delta
  *
- * @param currentCredits - Créditos actuales del ticket
- * @param delta - Cambio a aplicar (positivo o negativo)
- * @returns ValidationResult con delta y nuevos créditos calculados
+ * @param currentCredits - Current credits of the ticket
+ * @param delta - Change to apply (positive or negative)
+ * @returns ValidationResult with delta and newly calculated credits
  *
- * Reglas:
- * - Debe ser un número
- * - No puede ser cero
- * - Debe ser entero
- * - Los nuevos créditos deben estar en rango válido
+ * Rules:
+ * - Must be a number
+ * - Cannot be zero
+ * - Must be an integer
+ * - New credits must be in valid range
  */
 export function validateCreditsDelta(
 	currentCredits: number,
@@ -223,15 +223,15 @@ export function validateCreditsDelta(
 }
 
 /**
- * Validar descripción de ticket (opcional)
+ * Validate ticket description (optional)
  *
- * @param description - Descripción del ticket
- * @returns ValidationResult con string trimmed o null
+ * @param description - Ticket description
+ * @returns ValidationResult with trimmed string or null
  */
 export function validateTicketDescription(
 	description: unknown
 ): ValidationResult<string | null> {
-	// Descripción es opcional
+	// Description is optional
 	if (description === undefined || description === null) {
 		return {
 			success: true,
@@ -251,7 +251,7 @@ export function validateTicketDescription(
 
 	const trimmed = description.trim()
 
-	// Descripción vacía es válida (se guarda como null)
+	// Empty description is valid (saved as null)
 	if (trimmed.length === 0) {
 		return {
 			success: true,
@@ -259,7 +259,7 @@ export function validateTicketDescription(
 		}
 	}
 
-	// Límite razonable para descripción
+	// Reasonable limit for description
 	if (trimmed.length > 200) {
 		return {
 			success: false,
@@ -277,7 +277,7 @@ export function validateTicketDescription(
 }
 
 /**
- * Exportar constantes para uso externo
+ * Export constants for external use
  */
 export const TICKET_VALIDATION_CONSTANTS = {
 	MIN_TICKET_LENGTH,

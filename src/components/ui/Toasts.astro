@@ -1,7 +1,7 @@
 ---
 /**
  * 🍞 TOAST STACK COMPONENT
- * Sistema centralizado de notificaciones toast accesible y compatible con View Transitions
+ * Centralized, accessible toast notification system compatible with View Transitions
  */
 ---
 
@@ -44,8 +44,8 @@
   }
 
   /**
-   * Mapea variante a SVG icónico (outline simple adaptable).
-   * Retorna string de SVG.
+   * Maps variant to iconic SVG (simple adaptable outline).
+   * Returns SVG string.
    */
   function getIconForType(type: ToastType): string {
     switch (type) {
@@ -75,7 +75,7 @@
     const body = document.createElement('div')
     body.className = 'flex min-w-0 flex-col'
 
-    // Soporte título: si mensaje contiene ': ' dividimos
+    // Title support: if message contains ': ', we split
     const parts = item.message.split(': ')
     let title: string | undefined
     let rest: string
@@ -109,11 +109,11 @@
     close.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l12 12M13 1 1 13"/></svg>`
     close.addEventListener('click', () => dismissToast(item.id))
 
-    // Barra de progreso
+    // Progress bar
     const progress = document.createElement('div')
     progress.className =
       'absolute bottom-0 left-0 h-0.5 w-full origin-left scale-x-0 bg-gradient-to-r from-current/30 via-current/50 to-current/30 will-change-transform'
-    // Animación progress
+    // Progress animation
     requestAnimationFrame(() => {
       progress.style.transition = `transform ${item.duration || config.defaultDuration}ms linear`
       progress.style.transform = 'scaleX(1)'
@@ -138,14 +138,14 @@
       }
     })
 
-    // Añadir nuevos
+    // Add new ones
     toasts.forEach((t, idx) => {
       if (!region.querySelector(`[data-id="${t.id}"]`)) {
         const el = buildToastElement(t)
         // stacking offset
         el.style.transform = `translateY(${idx * 4}px)`
         region.appendChild(el)
-        // salida automática
+        // automatic dismissal
         const ttl = t.duration ?? config.defaultDuration
         setTimeout(() => dismissToast(t.id), ttl)
       }
@@ -196,17 +196,17 @@
     renderToasts()
   }
 
-  // Guard: prevenir múltiples inicializaciones
+  // Guard: prevent multiple initializations
   type ToastWindow = Window & { __TOAST_INITIALIZED__?: boolean }
   const toastWindow = window as ToastWindow
   if (!toastWindow.__TOAST_INITIALIZED__) {
     toastWindow.__TOAST_INITIALIZED__ = true
 
-    // Exponer API con namespace en lugar de funciones globales sueltas
+    // Expose API with namespace instead of loose global functions
     toastWindow.showToast = showToast
     toastWindow.dismissToast = dismissToast
 
-    // View Transitions support: limpiar toasts en navegación
+    // View Transitions support: clear toasts on navigation
     document.addEventListener('astro:after-swap', () => {
       toasts = []
       toastKeyRegistry.clear()
@@ -217,7 +217,7 @@
 </script>
 
 <style>
-  /* Animaciones simples (Tailwind 4 puede usar @theme, se define manual aquí) */
+  /* Simple animations (Tailwind 4 can use @theme, defined manually here) */
   @keyframes toast-in {
     from {
       opacity: 0;

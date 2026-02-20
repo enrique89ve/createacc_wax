@@ -1,16 +1,17 @@
 /**
  * 🔍 HIVE TRANSACTION VERIFIER
  *
- * Utilidades para verificar transacciones custom JSON en la blockchain de Hive
+ * Utilities to verify custom JSON transactions on the Hive blockchain
  */
 
 import { createHiveChain, type TWaxRestExtended } from '@hiveio/wax'
+import { BRAND } from '@/consts/branding'
 
 interface ITransactionByIdRequest {
   transactionId: string
 }
 
-// Estructura real de la respuesta de Wax
+// Real structure of Wax response
 interface IHiveTransaction {
   transaction_id: string
   block_num: number
@@ -34,7 +35,7 @@ interface IHiveTransaction {
   }
 }
 
-// Crear la estructura API extendida
+// Create extended API structure
 type TExtendedRestApi = {
   'hafah-api': {
     transactions: {
@@ -60,7 +61,7 @@ export interface ClaimVerificationResult {
 }
 
 /**
- * Verifica una transacción custom JSON para operaciones de claim
+ * Verifies a custom JSON transaction for claim operations
  */
 export async function verifyClaimTransaction(
   transactionId: string,
@@ -68,10 +69,10 @@ export async function verifyClaimTransaction(
   expectedUsername: string
 ): Promise<ClaimVerificationResult> {
   try {
-    // Crear instancia de la cadena Hive
+    // Create Hive chain instance
     const chain = await createHiveChain()
 
-    // Extender la API REST para incluir hafah-api
+    // Extend REST API to include hafah-api
     const extended: TWaxRestExtended<TExtendedRestApi> = chain.extendRest({
       'hafah-api': {
         transactions: {
@@ -82,7 +83,7 @@ export async function verifyClaimTransaction(
       },
     })
 
-    // Obtener la transacción por ID
+    // Get transaction by ID
     const transaction = await extended.restApi['hafah-api'].transactions.byId({
       transactionId,
     })
@@ -90,11 +91,11 @@ export async function verifyClaimTransaction(
     if (!transaction) {
       return {
         valid: false,
-        error: 'Transacción no encontrada en la blockchain',
+        error: 'Transaction not found on the blockchain',
       }
     }
 
-    // Buscar operación custom_json con id 'claim_credits'
+    // Find custom_json operation with id 'claim_credits'
     const customJsonOp = transaction.transaction_json.operations?.find(
       op =>
         op.type === 'custom_json_operation' && op.value.id === 'claim_credits'
@@ -102,46 +103,46 @@ export async function verifyClaimTransaction(
     if (!customJsonOp) {
       return {
         valid: false,
-        error: 'No se encontró operación claim_credits en la transacción',
+        error: 'No claim_credits operation found in the transaction',
       }
     }
 
-    // Acceder a los datos de la operación
+    // Access operation data
     const opData = customJsonOp.value
 
-    // Verificar que el usuario tiene autorización posting
+    // Verify that the user has posting authorization
     const requiredPostingAuths = opData.required_posting_auths || []
     if (!requiredPostingAuths.includes(expectedUsername)) {
       return {
         valid: false,
-        error: 'El usuario no tiene autorización posting en la transacción',
+        error: 'The user does not have posting authorization in the transaction',
         transaction,
       }
     }
 
-    // Parsear el JSON de la operación
+    // Parse the operation JSON
     let customJsonData
     try {
       customJsonData = JSON.parse(opData.json)
     } catch (parseError) {
       return {
         valid: false,
-        error: 'JSON de la operación inválido',
+        error: 'Invalid operation JSON',
       }
     }
 
-    // Verificar estructura del custom JSON
-    if (!customJsonData.app || customJsonData.app !== 'holahiveCreateAcc') {
+    // Verify custom JSON structure
+    if (!customJsonData.app || customJsonData.app !== BRAND.CLAIM_APP_ID) {
       return {
         valid: false,
-        error: 'App identificador incorrecto en custom JSON',
+        error: 'Incorrect app identifier in custom JSON',
       }
     }
 
     if (!customJsonData.hash || customJsonData.hash !== expectedHash) {
       return {
         valid: false,
-        error: 'Hash de validación no coincide',
+        error: 'Validation hash does not match',
       }
     }
 
@@ -151,26 +152,26 @@ export async function verifyClaimTransaction(
     ) {
       return {
         valid: false,
-        error: 'Username en custom JSON no coincide',
+        error: 'Username in custom JSON does not match',
       }
     }
 
     if (customJsonData.action !== 'claim_credits') {
       return {
         valid: false,
-        error: 'Acción en custom JSON incorrecta',
+        error: 'Incorrect action in custom JSON',
       }
     }
 
-    // Verificar que la transacción no sea demasiado antigua (máximo 30 minutos)
+    // Verify that the transaction is not too old (maximum 30 minutes)
     const transactionTime = new Date(transaction.timestamp).getTime()
     const now = Date.now()
-    const maxAge = 30 * 60 * 1000 // 30 minutos
+    const maxAge = 30 * 60 * 1000 // 30 minutes
 
     if (now - transactionTime > maxAge) {
       return {
         valid: false,
-        error: 'La transacción es demasiado antigua para ser válida',
+        error: 'The transaction is too old to be valid',
       }
     }
 
@@ -182,13 +183,13 @@ export async function verifyClaimTransaction(
   } catch (error) {
     return {
       valid: false,
-      error: `Error verificando transacción: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+      error: `Error verifying transaction: ${error instanceof Error ? error.message : 'Unknown error'}`,
     }
   }
 }
 
 /**
- * Limpia hashes expirados de la base de datos
+ * Cleans up expired hashes from the database
  */
 export async function cleanupExpiredHashes(): Promise<void> {
   try {

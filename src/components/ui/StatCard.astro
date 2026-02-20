@@ -1,7 +1,7 @@
 ---
 /**
- * Componente StatCard reutilizable
- * Usa clase .card-stat definida en global.css
+ * Reusable StatCard component
+ * Uses .card-stat class defined in global.css
  */
 interface Props {
   title: string
@@ -25,7 +25,7 @@ const {
   action,
 } = Astro.props
 
-// Formatear timestamp si existe (normalizado a UTC)
+// Format timestamp if it exists (normalized to UTC)
 let formattedTimestamp = ''
 if (timestamp) {
   try {

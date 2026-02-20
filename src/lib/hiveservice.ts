@@ -15,13 +15,13 @@ import type {
 import { getBooleanEnv } from '@/lib/env'
 
 /**
- * Sistema de failover híbrido "try-default-first + smart-backup"
- * - Siempre intenta API default primero
- * - Si falla, usa HealthChecker para elegir el mejor backup
- * - Próxima petición vuelve a intentar default
+ * Hybrid failover system "try-default-first + smart-backup"
+ * - Always tries default API first
+ * - If it fails, uses HealthChecker to choose the best backup
+ * - Next request tries default again
  */
 
-// Configuración de endpoints
+// Endpoints configuration
 const MAINNET_DEFAULT = 'https://api.hive.blog'
 const MAINNET_BACKUPS = [
   'https://api.openhive.network',
@@ -33,7 +33,7 @@ const TESTNET_API = 'https://api.fake.openhive.network'
 const TESTNET_CHAIN_ID =
   '4200000000000000000000000000000000000000000000000000000000000000'
 
-// Constantes para HealthChecker
+// Constants for HealthChecker
 const HEALTH_CHECK_TIMEOUT = 5000
 const EVALUATION_DELAY = 1500
 
@@ -50,7 +50,7 @@ function hasProperty<K extends PropertyKey>(
 }
 
 /**
- * Type guard para verificar errores internos del servidor
+ * Type guard to check internal server errors
  * Uses proper type narrowing without any casts
  * @param apiError - The apiError property from WaxChainApiError
  * @returns true if the error is an internal server error
@@ -85,12 +85,12 @@ const isInternalServerError = (apiError: object): boolean => {
 }
 
 /**
- * Clasifica errores para determinar si debe activarse failover
- * @param error - Error capturado
- * @returns true si debe intentar failover, false si es error de negocio
+ * Classifies errors to determine if failover should be triggered
+ * @param error - Captured error
+ * @returns true if failover should be attempted, false if business error
  */
 const shouldTriggerFailover = (error: unknown): boolean => {
-  // Errores de conectividad/red que requieren failover
+  // Connectivity/network errors that require failover
   if (
     error instanceof WaxRequestError ||
     error instanceof WaxRequestTimeoutError ||
@@ -99,13 +99,13 @@ const shouldTriggerFailover = (error: unknown): boolean => {
     return true
   }
 
-  // WaxChainApiError puede ser error de servidor o de negocio
+  // WaxChainApiError can be server or business error
   // error.apiError is already typed as object from the library
   if (error instanceof WaxChainApiError) {
     return isInternalServerError(error.apiError)
   }
 
-  // WaxError genérico - analizar mensaje para determinar tipo
+  // Generic WaxError - analyze message to determine type
   if (error instanceof WaxError) {
     const message = error.message.toLowerCase()
     if (
@@ -119,7 +119,7 @@ const shouldTriggerFailover = (error: unknown): boolean => {
     return false
   }
 
-  // Otros errores (nativos de JS) - probablemente de conectividad
+  // Other errors (native JS) - probably connectivity
   if (error instanceof Error) {
     const message = error.message.toLowerCase()
     if (
@@ -132,21 +132,21 @@ const shouldTriggerFailover = (error: unknown): boolean => {
     }
   }
 
-  // Por defecto, no activar failover para errores desconocidos
+  // By default, do not trigger failover for unknown errors
   return false
 }
 
 /**
- * Encuentra el mejor endpoint usando HealthChecker
+ * Finds the best endpoint using HealthChecker
  */
 const findBestBackup = async (backups: readonly string[]): Promise<string> => {
   const healthChecker = new HealthChecker([...backups], HEALTH_CHECK_TIMEOUT)
 
   try {
-    // Crear chain temporal solo para el primer backup disponible
+    // Create temporary chain only for the first available backup
     const tempChain = await createHiveChain({ apiEndpoint: backups[0] })
 
-    // Registrar validador nativo con tipo correcto de la librería
+    // Register native validator with correct library type
     healthChecker.register(
       tempChain.api.database_api.get_dynamic_global_properties,
       {},
@@ -156,12 +156,12 @@ const findBestBackup = async (backups: readonly string[]): Promise<string> => {
       }
     )
 
-    // Breve evaluación
+    // Brief evaluation
     await new Promise<void>(resolve =>
       setTimeout(() => resolve(), EVALUATION_DELAY)
     )
 
-    // Obtener mejor endpoint con tipado fuerte
+    // Get best endpoint with strong typing
     const endpoints: TScoredEndpoint[] = healthChecker.list()
     const bestEndpoint = endpoints
       .filter(ep => ep.up)
@@ -178,7 +178,7 @@ const findBestBackup = async (backups: readonly string[]): Promise<string> => {
 }
 
 /**
- * Intenta conectar con backups secuencialmente (fallback)
+ * Try to connect with backups sequentially (fallback)
  */
 const tryBackupsSequentially = async (
   backups: readonly string[]
@@ -194,10 +194,10 @@ const tryBackupsSequentially = async (
 }
 
 /**
- * Crea una instancia de Hive Chain con failover híbrido
+ * Creates a Hive Chain instance with hybrid failover
  */
 export const hiveChain = async (): Promise<IHiveChainInterface> => {
-  // TESTNET: Configuración simple
+  // TESTNET: Simple configuration
   if (!isMainnet()) {
     return await createHiveChain({
       chainId: TESTNET_CHAIN_ID,
@@ -210,18 +210,18 @@ export const hiveChain = async (): Promise<IHiveChainInterface> => {
     const defaultChain = await createHiveChain({ apiEndpoint: MAINNET_DEFAULT })
     return defaultChain
   } catch (error) {
-    // Solo intentar failover si es error de conectividad/servidor
+    // Only trigger failover if network/server error
     if (!shouldTriggerFailover(error)) {
-      throw error // Re-lanzar errores de negocio sin intentar backup
+      throw error // Re-throw business errors without trying backup
     }
 
     try {
-      // Estrategia 1: HealthChecker inteligente
+      // Strategy 1: Smart HealthChecker
       const bestBackupUrl = await findBestBackup(MAINNET_BACKUPS)
       const smartChain = await createHiveChain({ apiEndpoint: bestBackupUrl })
       return smartChain
     } catch (healthError) {
-      // Estrategia 2: Fallback secuencial
+      // Strategy 2: Sequential fallback
       try {
         return await tryBackupsSequentially(MAINNET_BACKUPS)
       } catch (fallbackError) {

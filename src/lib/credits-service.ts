@@ -1,8 +1,8 @@
 /**
- * CREDITS SERVICE - Simplificado
+ * CREDITS SERVICE - Simplified
  *
- * Sistema simplificado de créditos con 1 fila por builder
- * Columnas: pending_amount, available_amount, total_assigned, total_consumed
+ * Simplified credits system with 1 row per builder
+ * Columns: pending_amount, available_amount, total_assigned, total_consumed
  */
 
 import { db } from './database'
@@ -16,19 +16,19 @@ interface UserIdRow {
 }
 
 /**
- * Información completa de créditos de un builder
+ * Complete credits information for a builder
  */
 export interface BuilderCreditsInfo {
   builder_id: number
   hive_username: string
-  pending_amount: number // Asignados pero no reclamados
-  available_amount: number // Reclamados y disponibles para crear tickets
-  total_assigned: number // Total histórico asignado
-  total_consumed: number // Total histórico consumido
+  pending_amount: number // Assigned but not claimed
+  available_amount: number // Claimed and available to create tickets
+  total_assigned: number // Total historically assigned
+  total_consumed: number // Total historically consumed
 }
 
 /**
- * Operación para asignar créditos
+ * Operation to assign credits
  */
 export interface AssignCreditsOperation {
   hive_username: string
@@ -39,8 +39,8 @@ export interface AssignCreditsOperation {
 
 class CreditsService {
   /**
-   * Obtener o crear fila de créditos para un builder
-   * Si no existe, la crea automáticamente
+   * Get or create credits row for a builder
+   * If it doesn't exist, create it automatically
    */
   private async getOrCreateCreditRow(builder_id: number): Promise<void> {
     const existing = await db.execute({
@@ -60,15 +60,15 @@ class CreditsService {
   }
 
   /**
-   * 1. Asignar créditos a un builder (admin → builder)
-   * Incrementa: pending_amount, total_assigned
-   * Crea el builder automáticamente si no existe
+   * 1. Assign credits to a builder (admin → builder)
+   * Increments: pending_amount, total_assigned
+   * Creates the builder automatically if it doesn't exist
    */
   async assignCredits(
     operation: AssignCreditsOperation
   ): Promise<BuilderCreditsInfo> {
     try {
-      // Buscar o crear builder
+      // Find or create builder
       let builderResult = await db.execute({
         sql: "SELECT id FROM Users WHERE role = 'builder' AND username = ?",
         args: [operation.hive_username],
@@ -77,7 +77,7 @@ class CreditsService {
       let builder_id: number
 
       if (builderResult.rows.length === 0) {
-        // Crear builder automáticamente
+        // Create builder automatically
         const createResult = await db.execute({
           sql: 'INSERT INTO Users (username, role, is_active, password_hash) VALUES (?, ?, ?, ?)',
           args: [operation.hive_username, 'builder', true, null],
@@ -87,10 +87,10 @@ class CreditsService {
         builder_id = (builderResult.rows[0] as unknown as UserIdRow).id
       }
 
-      // Asegurar que existe fila de créditos
+      // Ensure credits row exists
       await this.getOrCreateCreditRow(builder_id)
 
-      // Incrementar pending_amount y total_assigned
+      // Increment pending_amount and total_assigned
       await db.execute({
         sql: `
 					UPDATE Credits
@@ -103,7 +103,7 @@ class CreditsService {
         args: [operation.amount, operation.amount, builder_id],
       })
 
-      // Crear entrada de auditoría
+      // Create audit entry
       await db.execute({
         sql: `
 					INSERT INTO CreditAudit (
@@ -119,15 +119,15 @@ class CreditsService {
         ],
       })
 
-      // Crear notificación de créditos pendientes
+      // Create pending credits notification
       try {
         await notifyPendingCredits(builder_id, operation.amount)
       } catch (notificationError) {
-        // No fallar si la notificación falla, solo loguear
+        // Do not fail if notification fails, just log
         logger.error('Failed to create notification:', notificationError)
       }
 
-      // Retornar información actualizada
+      // Return updated info
       const credits = await creditBalanceTracker.getBalanceById(builder_id)
       if (!credits) {
         throw new Error('Failed to retrieve updated credits')
@@ -146,14 +146,14 @@ class CreditsService {
   }
 
   /**
-   * 2. Reclamar créditos (pending → available)
-   * Decrementa: pending_amount
-   * Incrementa: available_amount
+   * 2. Claim credits (pending → available)
+   * Decrements: pending_amount
+   * Increments: available_amount
    *
-   * SEGURIDAD: Operación atómica para prevenir race conditions.
+   * SECURITY: Atomic operation to prevent race conditions.
    */
   async claimCredits(builder_id: number, amount: number): Promise<void> {
-    // Operación atómica: solo actualiza si hay suficientes créditos pendientes
+    // Atomic operation: only updates if there are enough pending credits
     const result = await db.execute({
       sql: `
         UPDATE Credits
@@ -166,12 +166,12 @@ class CreditsService {
       args: [amount, amount, builder_id, amount],
     })
 
-    // Si no se actualizó ninguna fila, no había suficientes créditos pendientes
+    // If no row was updated, there were not enough pending credits
     if (result.rowsAffected === 0) {
-      throw new Error('Créditos pendientes insuficientes')
+      throw new Error('Insufficient pending credits')
     }
 
-    // Auditoría (solo si el claim fue exitoso)
+    // Audit (only if the claim was successful)
     await db.execute({
       sql: `
         INSERT INTO CreditAudit (
@@ -183,21 +183,21 @@ class CreditsService {
   }
 
   /**
-   * 3. Descontar créditos al crear ticket
-   * Decrementa: available_amount
+   * 3. Deduct credits when creating ticket
+   * Decrements: available_amount
    *
-   * SEGURIDAD: Operación atómica para prevenir race conditions.
-   * El UPDATE solo afecta filas donde available_amount >= amount,
-   * garantizando que no se pueden gastar más créditos de los disponibles
-   * incluso con requests concurrentes.
+   * SECURITY: Atomic operation to prevent race conditions.
+   * The UPDATE only affects rows where available_amount >= amount,
+   * guaranteeing that no more credits can be spent than available
+   * even with concurrent requests.
    */
   async deductCreditsForTicket(
     builder_id: number,
     amount: number,
     ticket_code: string
   ): Promise<void> {
-    // Operación atómica: solo actualiza si hay suficientes créditos
-    // El WHERE available_amount >= ? previene race conditions
+    // Atomic operation: only updates if there are enough credits
+    // The WHERE available_amount >= ? prevents race conditions
     const result = await db.execute({
       sql: `
         UPDATE Credits
@@ -209,12 +209,12 @@ class CreditsService {
       args: [amount, builder_id, amount],
     })
 
-    // Si no se actualizó ninguna fila, no había suficientes créditos
+    // If no row was updated, there were not enough credits
     if (result.rowsAffected === 0) {
-      throw new Error('Créditos insuficientes')
+      throw new Error('Insufficient credits')
     }
 
-    // Auditoría (solo si la deducción fue exitosa)
+    // Audit (only if the deduction was successful)
     await db.execute({
       sql: `
         INSERT INTO CreditAudit (
@@ -231,9 +231,9 @@ class CreditsService {
   }
 
   /**
-   * 4. Marcar créditos como consumidos al crear cuenta
-   * Incrementa: total_consumed
-   * Nota: Los créditos YA fueron descontados al crear el ticket
+   * 4. Mark credits as consumed when creating account
+   * Increments: total_consumed
+   * Note: The credits were ALREADY deducted when creating the ticket
    */
   async markCreditsAsConsumed(
     builder_id: number,
@@ -241,7 +241,7 @@ class CreditsService {
     account_username: string
   ): Promise<void> {
     try {
-      // Incrementar contador total_consumed
+      // Increment total_consumed counter
       await db.execute({
         sql: `
 					UPDATE Credits
@@ -253,7 +253,7 @@ class CreditsService {
         args: [amount, builder_id],
       })
 
-      // Auditoría
+      // Audit
       await db.execute({
         sql: `
 					INSERT INTO CreditAudit (
@@ -273,8 +273,8 @@ class CreditsService {
   }
 
   /**
-   * 5. Reembolsar créditos al borrar ticket
-   * Incrementa: available_amount
+   * 5. Refund credits when deleting ticket
+   * Increments: available_amount
    */
   async refundCreditsFromTicket(
     builder_id: number,
@@ -282,7 +282,7 @@ class CreditsService {
     ticket_code: string
   ): Promise<void> {
     try {
-      // Incrementar available_amount
+      // Increment available_amount
       await db.execute({
         sql: `
 					UPDATE Credits
@@ -294,7 +294,7 @@ class CreditsService {
         args: [amount, builder_id],
       })
 
-      // Auditoría
+      // Audit
       await db.execute({
         sql: `
 					INSERT INTO CreditAudit (
@@ -314,7 +314,7 @@ class CreditsService {
   }
 
   /**
-   * Obtener historial de auditoría de créditos de un builder
+   * Get credit audit history for a builder
    */
   async getCreditAuditHistory(builder_id: number) {
     const result = await db.execute({
@@ -330,46 +330,46 @@ class CreditsService {
   }
 
   /**
-   * Transferir créditos entre builders
+   * Transfer credits between builders
    *
-   * SEGURIDAD: Operación atómica para prevenir race conditions.
-   * El UPDATE del remitente usa WHERE available_amount >= amount
-   * para garantizar que no se transfieran más créditos de los disponibles,
-   * incluso con requests concurrentes.
+   * SECURITY: Atomic operation to prevent race conditions.
+   * The sender's UPDATE uses WHERE available_amount >= amount
+   * to guarantee that no more credits can be transferred than available,
+   * even with concurrent requests.
    */
   async transferCredits(
     from_builder_id: number,
     to_builder_id: number,
     amount: number
   ): Promise<void> {
-    // Validación básica
+    // Basic validation
     if (from_builder_id === to_builder_id) {
-      throw new Error('No se puede transferir créditos a uno mismo')
+      throw new Error('Cannot transfer credits to self')
     }
 
     if (amount <= 0) {
-      throw new Error('El monto debe ser mayor a 0')
+      throw new Error('The amount must be greater than 0')
     }
 
-    // Verificar que builder destino existe
+    // Verify that the destination builder exists
     const toBuilderResult = await db.execute({
       sql: "SELECT id FROM Users WHERE role = 'builder' AND id = ?",
       args: [to_builder_id],
     })
 
     if (toBuilderResult.rows.length === 0) {
-      throw new Error('Builder destino no encontrado')
+      throw new Error('Destination builder not found')
     }
 
-    // Asegurar que ambos builders tienen fila de créditos
+    // Ensure both builders have a credits row
     await this.getOrCreateCreditRow(from_builder_id)
     await this.getOrCreateCreditRow(to_builder_id)
 
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // Operación atómica: descontar del remitente SOLO si tiene suficientes créditos
-      // El WHERE available_amount >= ? previene race conditions
+      // Atomic operation: deduct from sender ONLY if they have enough credits
+      // The WHERE available_amount >= ? prevents race conditions
       const deductResult = await db.execute({
         sql: `
           UPDATE Credits
@@ -379,12 +379,12 @@ class CreditsService {
         args: [amount, from_builder_id, amount],
       })
 
-      // Si no se actualizó ninguna fila, no había suficientes créditos
+      // If no row was updated, there were not enough credits
       if (deductResult.rowsAffected === 0) {
-        throw new Error('Créditos disponibles insuficientes para transferencia')
+        throw new Error('Insufficient available credits for transfer')
       }
 
-      // Agregar al destinatario (seguro porque ya validamos el origen)
+      // Add to destination (safe because we already validated the source)
       await db.execute({
         sql: `
           UPDATE Credits
@@ -394,7 +394,7 @@ class CreditsService {
         args: [amount, to_builder_id],
       })
 
-      // Auditoría para remitente
+      // Audit for sender
       await db.execute({
         sql: `
           INSERT INTO CreditAudit (
@@ -409,7 +409,7 @@ class CreditsService {
         ],
       })
 
-      // Auditoría para destinatario
+      // Audit for destination
       await db.execute({
         sql: `
           INSERT INTO CreditAudit (
@@ -432,9 +432,9 @@ class CreditsService {
   }
 
   /**
-   * 6. Ajuste directo de créditos por admin (establecer valores absolutos)
-   * Permite establecer directamente pending_amount y/o available_amount
-   * Solo para uso de administradores en caso de correcciones
+   * 6. Direct credit adjustment by admin (set absolute values)
+   * Allows setting pending_amount and/or available_amount directly
+   * Only for use by administrators in case of corrections
    */
   async adjustCredits(params: {
     readonly builder_id: number
@@ -451,13 +451,13 @@ class CreditsService {
       performed_by_admin,
     } = params
 
-    // Obtener valores actuales
+    // Get current values
     const currentCredits = await creditBalanceTracker.getBalanceById(builder_id)
     if (!currentCredits) {
-      throw new Error('Builder no encontrado')
+      throw new Error('Builder not found')
     }
 
-    // Calcular diferencias para auditoría
+    // Calculate differences for audit
     const pendingDiff =
       pending_amount !== undefined
         ? pending_amount - currentCredits.pending_amount
@@ -467,7 +467,7 @@ class CreditsService {
         ? available_amount - currentCredits.available_amount
         : 0
 
-    // Solo actualizar si hay cambios
+    // Only update if there are changes
     if (pendingDiff === 0 && availableDiff === 0) {
       return currentCredits
     }
@@ -475,7 +475,7 @@ class CreditsService {
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // Construir UPDATE dinámico
+      // Build dynamic UPDATE
       const updates: string[] = []
       const args: (number | string)[] = []
 
@@ -495,8 +495,8 @@ class CreditsService {
         args,
       })
 
-      // Registrar auditoría con detalles del ajuste
-      // NOTA: amount = availableDiff porque el breakdown calcula available_amount desde auditoría
+      // Log audit with adjustment details
+      // NOTE: amount = availableDiff because the breakdown calculates available_amount from audit
       const auditReason = `Admin adjustment: ${reason} | pending: ${currentCredits.pending_amount} → ${pending_amount ?? currentCredits.pending_amount} | available: ${currentCredits.available_amount} → ${available_amount ?? currentCredits.available_amount}`
 
       await db.execute({
@@ -520,10 +520,10 @@ class CreditsService {
       throw error
     }
 
-    // Retornar información actualizada
+    // Return updated information
     const updatedCredits = await creditBalanceTracker.getBalanceById(builder_id)
     if (!updatedCredits) {
-      throw new Error('Error al obtener créditos actualizados')
+      throw new Error('Error obtaining updated credits')
     }
 
     return {
@@ -537,9 +537,9 @@ class CreditsService {
   }
 
   /**
-   * Obtener historial de créditos de un builder
-   * @param builderId - ID del builder
-   * @returns Array de operaciones de créditos ordenadas por timestamp DESC
+   * Get credit history for a builder
+   * @param builderId - Builder ID
+   * @returns Array of credit operations sorted by timestamp DESC
    */
   async getCreditHistory(builderId: number): Promise<
     Array<{

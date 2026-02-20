@@ -1,14 +1,14 @@
 /**
  * 🎫 TICKETS REPOSITORY
  *
- * Centraliza todas las operaciones de base de datos relacionadas con tickets.
- * Evita queries SQL directas en páginas Astro y APIs.
+ * Centralizes all database operations related to tickets.
+ * Avoids direct SQL queries in Astro pages and APIs.
  *
- * Responsabilidades:
- * - CRUD básico de tickets
- * - Queries especializadas (por código, por builder, por admin)
- * - Queries complejas con JOINs (tickets con información de creadores)
- * - Validaciones de negocio relacionadas con tickets
+ * Responsibilities:
+ * - Basic ticket CRUD
+ * - Specialized queries (by code, by builder, by admin)
+ * - Complex queries with JOINs (tickets with creator information)
+ * - Business validations related to tickets
  */
 
 import { db } from '@/lib/database'
@@ -23,7 +23,7 @@ import {
 } from '@/types/database'
 
 /**
- * Resultado de creación de ticket con información del creador
+ * Ticket creation result with creator information
  */
 export interface TicketCreationResult {
   readonly id: number
@@ -34,7 +34,7 @@ export interface TicketCreationResult {
 }
 
 /**
- * Filtros para búsqueda de tickets
+ * Filters for ticket search
  */
 export interface TicketFilters {
   readonly createdBy?: number
@@ -43,7 +43,7 @@ export interface TicketFilters {
 }
 
 /**
- * Estadísticas de tickets para un creador
+ * Ticket statistics for a creator
  */
 export interface TicketStats {
   readonly totalTickets: number
@@ -54,21 +54,21 @@ export interface TicketStats {
 }
 
 export class TicketsRepository {
-  // ===== CRUD BÁSICO =====
+  // ===== BASIC CRUD =====
 
   /**
-   * Crear un nuevo ticket
+   * Create a new ticket
    */
   async create(data: CreateTicketData): Promise<TicketCreationResult> {
     try {
-      // Validar créditos
+      // Validate credits
       if (data.original_credits <= 0 || data.credits < 0) {
-        throw new Error('Los créditos deben ser mayores a 0')
+        throw new Error('Credits must be greater than 0')
       }
 
       if (data.credits > data.original_credits) {
         throw new Error(
-          'Los créditos actuales no pueden ser mayores a los originales'
+          'Current credits cannot be greater than original credits'
         )
       }
 
@@ -90,7 +90,7 @@ export class TicketsRepository {
       })
 
       if (result.rows.length === 0) {
-        throw new Error('No se pudo crear el ticket')
+        throw new Error('Could not create ticket')
       }
 
       const row = result.rows[0] as Record<string, unknown>
@@ -108,7 +108,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener ticket por ID
+   * Get ticket by ID
    */
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
@@ -128,7 +128,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener ticket por código (clave única)
+   * Get ticket by code (unique key)
    */
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
@@ -148,11 +148,11 @@ export class TicketsRepository {
   }
 
   /**
-   * Actualizar un ticket
+   * Update a ticket
    */
   async update(id: number, data: UpdateTicketData): Promise<void> {
     try {
-      // Construir query dinámica solo con campos presentes
+      // Build dynamic query with only present fields
       const updates: string[] = []
       const args: (string | number | null)[] = []
 
@@ -187,7 +187,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Eliminar un ticket
+   * Delete a ticket
    */
   async delete(id: number): Promise<void> {
     try {
@@ -200,10 +200,10 @@ export class TicketsRepository {
     }
   }
 
-  // ===== QUERIES ESPECIALIZADAS =====
+  // ===== SPECIALIZED QUERIES =====
 
   /**
-   * Obtener todos los tickets creados por un usuario (admin o builder)
+   * Get all tickets created by a user (admin or builder)
    */
   async findByCreator(userId: number): Promise<DatabaseTicketRow[]> {
     try {
@@ -225,9 +225,9 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener tickets activos (con créditos disponibles)
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
+   * Get active tickets (with available credits)
+   * @deprecated Not used in current codebase. Kept for compatibility.
+   * Consider deleting in v2.0
    */
   async findActiveTickets(): Promise<DatabaseTicketRow[]> {
     try {
@@ -249,9 +249,9 @@ export class TicketsRepository {
   }
 
   /**
-   * Buscar tickets con filtros múltiples
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
+   * Search tickets with multiple filters
+   * @deprecated Not used in current codebase. Kept for compatibility.
+   * Consider deleting in v2.0
    */
   async findWithFilters(filters: TicketFilters): Promise<DatabaseTicketRow[]> {
     try {
@@ -292,11 +292,11 @@ export class TicketsRepository {
     }
   }
 
-  // ===== QUERIES COMPLEJAS CON JOINS =====
+  // ===== COMPLEX QUERIES WITH JOINS =====
 
   /**
-   * Obtener todos los tickets con información de sus creadores
-   * JOIN con Users table
+   * Get all tickets with creator information
+   * JOIN with Users table
    */
   async getAllWithCreators(): Promise<TicketWithCreator[]> {
     try {
@@ -322,7 +322,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener tickets de un usuario con información del creador
+   * Get tickets for a user with creator information
    */
   async getUserTicketsWithCreator(
     userId: number
@@ -351,7 +351,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener tickets creados por un builder específico (helper para vistas de builders)
+   * Get tickets created by a specific builder (helper for builder views)
    */
   async getBuilderTicketsWithCreator(
     builderId: number
@@ -360,8 +360,8 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener tickets recientes con creadores (para dashboards)
-   * Limitado a N resultados más recientes
+   * Get recent tickets with creators (for dashboards)
+   * Limited to N most recent results
    */
   async getRecentWithCreators(limit: number = 5): Promise<TicketWithCreator[]> {
     try {
@@ -387,12 +387,12 @@ export class TicketsRepository {
     }
   }
 
-  // ===== ESTADÍSTICAS Y AGREGACIONES =====
+  // ===== STATISTICS AND AGGREGATIONS =====
 
   /**
-   * Obtener estadísticas de tickets para un usuario
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
+   * Get ticket statistics for a user
+   * @deprecated Not used in current codebase. Kept for compatibility.
+   * Consider deleting in v2.0
    */
   async getUserStats(userId: number): Promise<TicketStats> {
     try {
@@ -435,9 +435,9 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener conteo total de tickets en el sistema
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
+   * Get total count of tickets in the system
+   * @deprecated Not used in current codebase. Kept for compatibility.
+   * Consider deleting in v2.0
    */
   async countAll(): Promise<number> {
     try {
@@ -453,9 +453,9 @@ export class TicketsRepository {
   }
 
   /**
-   * Obtener conteo de tickets usados
-   * @deprecated No usado en codebase actual. Se mantendrá por compatibilidad.
-   * Considerar eliminar en v2.0
+   * Get count of used tickets
+   * @deprecated Not used in current codebase. Kept for compatibility.
+   * Consider deleting in v2.0
    */
   async countUsed(): Promise<number> {
     try {
@@ -471,18 +471,18 @@ export class TicketsRepository {
   }
 
   /**
-   * Descontar créditos de un ticket (usado al crear cuenta)
+   * Deduct credits from a ticket (used when creating an account)
    */
   async deductCredit(code: string): Promise<void> {
     try {
       const ticket = await this.findByCode(code)
 
       if (!ticket) {
-        throw new Error(`Ticket no encontrado: ${code}`)
+        throw new Error(`Ticket not found: ${code}`)
       }
 
       if (ticket.credits <= 0) {
-        throw new Error(`Ticket sin créditos disponibles: ${code}`)
+        throw new Error(`Ticket without available credits: ${code}`)
       }
 
       await db.execute({

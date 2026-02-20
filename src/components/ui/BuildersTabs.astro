@@ -12,23 +12,23 @@ const tabs = [
   { key: 'creditos', label: 'Créditos', emoji: '💰', href: '/builders/creditos' },
 ]
 
-// Clases según variante
+// Classes based on variant
 let navClasses = ''
 let tabClasses = ''
 let ulClasses = ''
 
 if (variant === 'mobile') {
-  // Mobile: tabs de ancho completo con diseño horizontal compacto
+  // Mobile: full width tabs with compact horizontal layout
   navClasses = 'w-full py-2'
   ulClasses = 'flex w-full justify-around'
   tabClasses = 'flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors'
 } else if (variant === 'header') {
-  // Header desktop: tabs compactos con borde
+  // Header desktop: compact tabs with border
   navClasses = ''
   ulClasses = 'flex gap-2'
   tabClasses = 'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors'
 } else {
-  // Page variant: estilo original
+  // Page variant: original style
   navClasses = 'border-border/60 mb-6 w-full border-b'
   ulClasses = 'flex flex-wrap gap-2 -mb-px'
   tabClasses = 'inline-flex items-center gap-2 rounded-t-md border px-4 py-2 text-sm font-medium transition-colors'
@@ -44,7 +44,7 @@ if (variant === 'mobile') {
       tabs.map(tab => {
         const isActive = tab.key === active
 
-        // Clases específicas por variante
+        // Specific classes by variant
         let activeClasses = ''
         let inactiveClasses = ''
 

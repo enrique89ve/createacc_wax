@@ -21,17 +21,17 @@ interface TicketCreateRequest {
   readonly credits?: number
 }
 
-// GET: Listar tickets
+// GET: List tickets
 export const GET: APIRoute = async context => {
   return withAdminSession(context, async session => {
     try {
       let tickets
 
       if (session.role === UserRole.Admin) {
-        // Admin puede ver todos los tickets
+        // Admin can see all tickets
         tickets = await ticketsRepository.getAllWithCreators()
       } else {
-        // Builder solo ve sus tickets
+        // Builder only sees their tickets
         tickets = await ticketsRepository.getUserTicketsWithCreator(
           session.userId
         )
@@ -45,7 +45,7 @@ export const GET: APIRoute = async context => {
 }
 
 
-// Helper: Obtener datos del usuario (usando unified repository)
+// Helper: Get user data (using unified repository)
 const getUserData = async (
   userId: number
 ): Promise<{ id: number; username: string } | null> => {
@@ -55,13 +55,13 @@ const getUserData = async (
     : null
 }
 
-// Helper: Verificar si el código de ticket ya existe (usando repository)
+// Helper: Verify if the ticket code already exists (using repository)
 const ticketCodeExists = async (code: string): Promise<boolean> => {
   const ticket = await ticketsRepository.findByCode(code)
   return ticket !== null
 }
 
-// Helper: Crear auditoría de ticket
+// Helper: Create ticket audit log
 const createTicketAudit = async (
   ticketCode: string,
   userId: number
@@ -73,7 +73,7 @@ const createTicketAudit = async (
   })
 }
 
-// POST: Crear ticket
+// POST: Create ticket
 export const POST: APIRoute = async context => {
   return withAdminSession(context, async session => {
     try {
@@ -81,19 +81,19 @@ export const POST: APIRoute = async context => {
 
       const { code = '', description, credits: creditsInput } = data
 
-      // Validar código de ticket
+      // Validate ticket code
       const codeValidation = validateTicketName(code)
       if (!isValidationSuccess(codeValidation)) {
         return apiError(codeValidation.error.message, 400)
       }
 
-      // Validar créditos
+      // Validate credits
       const creditsValidation = validateTicketCredits(creditsInput)
       if (!isValidationSuccess(creditsValidation)) {
         return apiError(creditsValidation.error.message, 400)
       }
 
-      // Validar descripción
+      // Validate description
       const descriptionValidation = validateTicketDescription(description)
       if (!isValidationSuccess(descriptionValidation)) {
         return apiError(descriptionValidation.error.message, 400)
@@ -103,7 +103,7 @@ export const POST: APIRoute = async context => {
       const credits = creditsValidation.data
       const validDescription = descriptionValidation.data ?? ''
 
-      // Obtener datos del usuario
+      // Get user data
       const userData = await getUserData(session.userId)
       if (!userData) {
         return apiError(API_MESSAGES.ERRORS.USER_NOT_FOUND, 404)
@@ -111,7 +111,7 @@ export const POST: APIRoute = async context => {
 
       const username = userData.username
 
-      // Verificar créditos disponibles para builders
+      // Verify available credits for builders
       if (session.role === UserRole.Builder) {
         const userCredits = await creditBalanceTracker.getBalance(username)
 
@@ -127,12 +127,12 @@ export const POST: APIRoute = async context => {
         }
       }
 
-      // Validación: Código ya existe
+      // Validation: Code already exists
       if (await ticketCodeExists(cleanCode)) {
         return apiError(API_MESSAGES.ERRORS.TICKET_CODE_EXISTS, 400)
       }
 
-      // Consumir créditos (solo para builders)
+      // Consume credits (only for builders)
       if (session.role === UserRole.Builder) {
         try {
           await creditsService.deductCreditsForTicket(
@@ -149,7 +149,7 @@ export const POST: APIRoute = async context => {
         }
       }
 
-      // Crear ticket en base de datos (usando campos correctos del nuevo schema)
+      // Create ticket in database (using correct fields from new schema)
       const ticketResult = await db.execute({
         sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
 					VALUES (?, ?, ?, ?, ?) RETURNING id`,
@@ -158,10 +158,10 @@ export const POST: APIRoute = async context => {
 
       const ticketId = ticketResult.rows[0]?.id as number
 
-      // Log de auditoría
+      // Audit log
       await createTicketAudit(cleanCode, session.userId)
 
-      // Obtener balance final
+      // Get final balance
       const finalUserCredits = await creditBalanceTracker.getBalance(username)
 
       return apiSuccess({

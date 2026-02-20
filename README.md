@@ -192,3 +192,37 @@ scripts/         Scripts de inicializacion y admin
 - RBAC: admin y builder con permisos diferenciados
 - Triggers SQL: max 1 admin, roles inmutables, integridad de password
 - CSP headers configurados en middleware
+
+---
+
+## Rebranding (para forks)
+
+Toda la identidad de marca esta centralizada en `src/consts/branding.ts`. Para hacer un rebrand completo:
+
+### 1. Editar `src/consts/branding.ts`
+
+```ts
+export const BRAND = {
+  NAME: 'TuMarca',
+  TAGLINE: 'Tu descripcion...',
+  URL: 'https://tu-dominio.com',
+  LOGO_ALT: 'TuMarca',
+  APP_ID: 'TuMarca/1.0.0',        // ⚠️ inmutable una vez en blockchain
+  CLAIM_APP_ID: 'tuMarcaCreateAcc', // ⚠️ inmutable una vez en blockchain
+} as const
+```
+
+### 2. Reemplazar assets visuales
+
+- `public/favicon.svg` - Favicon del sitio
+- `public/og.jpg` - Imagen de preview para redes sociales
+- Logos en `src/assets/` (si existen)
+
+### 3. Colores (opcional)
+
+Editar el bloque `@theme {}` en `src/styles/global.css` para cambiar la paleta de colores.
+
+### Importante
+
+- `APP_ID` y `CLAIM_APP_ID` se escriben en la blockchain de Hive. Cambiarlos despues de haber creado cuentas o reclamado creditos rompe la verificacion de operaciones anteriores.
+- `BEEKEEPER_CONFIG.SESSION_SALT` en `src/consts/constants.ts` invalida sesiones existentes si se cambia.

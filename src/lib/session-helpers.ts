@@ -12,8 +12,8 @@ export interface RetrievedSessions {
 }
 
 /**
- * Helper para obtener la sesión de administrador desde Auth.js
- * Convierte la sesión de Auth.js al formato esperado por las páginas
+ * Helper to get the administrator session from Auth.js
+ * Converts the Auth.js session to the format expected by the pages
  */
 export async function getAdminSession(
   request: Request
@@ -32,7 +32,7 @@ export async function getAdminSession(
       return null // REJECT session with invalid role
     }
 
-    // Convertir sesión de Auth.js al formato AdminSession
+    // Convert Auth.js session to AdminSession format
     return {
       userId: parseInt(session.user.id),
       username: session.user.username || '',
@@ -45,7 +45,7 @@ export async function getAdminSession(
 }
 
 /**
- * Carga sesiones usando managers sólo si aún no están en locals.
+ * Loads sessions using managers only if they are not already in locals.
  */
 export async function loadSessions(
   context: APIContext
@@ -81,17 +81,17 @@ export async function loadSessions(
   return result
 }
 
-/** Obtiene admin session si existe */
+/** Gets admin session if it exists */
 export function getAdmin(context: APIContext) {
   return context.locals.adminUser ?? null
 }
 
-/** Obtiene creation session si existe */
+/** Gets creation session if it exists */
 export function getCreation(context: APIContext) {
   return context.locals.creation ?? null
 }
 
-/** Requiere admin session; si falta, retorna redirect Response */
+/** Requires admin session; if missing, returns redirect Response */
 export async function requireAdmin(
   context: APIContext
 ): Promise<AdminSession | Response> {
@@ -106,7 +106,7 @@ export async function requireAdmin(
   return context.locals.adminUser
 }
 
-/** Helper específico para APIs que requieren admin session */
+/** Specific helper for APIs that require admin session */
 export async function withAdminSession<T>(
   context: APIContext,
   handler: (session: AdminSession) => T | Promise<T>
@@ -119,19 +119,19 @@ export async function withAdminSession<T>(
 }
 
 /**
- * Helper específico para APIs REST que requieren admin session
- * Retorna 401 Unauthorized en lugar de redireccionar
+ * Specific helper for REST APIs that require admin session
+ * Returns 401 Unauthorized instead of redirecting
  */
 export async function withAdminApiSession<T>(
   context: APIContext,
   handler: (session: AdminSession) => T | Promise<T>
 ): Promise<T | Response> {
-  // Intentar obtener sesión de locals primero
+  // Try to get session from locals first
   if (context.locals.adminUser) {
     return handler(context.locals.adminUser)
   }
 
-  // Intentar obtener sesión de Auth.js
+  // Try to get session from Auth.js
   const session = await getAdminSession(context.request)
 
   if (!session) {
@@ -148,7 +148,7 @@ export async function withAdminApiSession<T>(
   return handler(session)
 }
 
-/** Asegura creation session presente o devuelve null (no redirect) */
+/** Ensures creation session is present or returns null (no redirect) */
 export async function ensureCreation(context: APIContext) {
   if (!context.locals.creation) {
     const session = new CreationSessionManager(

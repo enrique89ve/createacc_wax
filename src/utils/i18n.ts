@@ -1,3 +1,5 @@
+import { BRAND } from '@/consts/branding'
+
 export type Locale = 'es' | 'en' | 'pt'
 
 export interface Translations {
@@ -59,7 +61,7 @@ const es: Translations = {
   },
   keys: {
     header: 'CLAVES DE CUENTA HIVE - {USERNAME}',
-    footer: 'Generado con HolaHive - https://holahive.io',
+    footer: `Generado con ${BRAND.NAME} - ${BRAND.URL}`,
     keepSafe: '⚠️  GUARDA ESTAS CLAVES SEGURAS - NUNCA LAS COMPARTAS ⚠️',
     masterKey: 'CLAVE MASTER',
     ownerKey: 'CLAVE PRIVADA OWNER',
@@ -111,7 +113,7 @@ const en: Translations = {
   },
   keys: {
     header: 'HIVE ACCOUNT KEYS - {USERNAME}',
-    footer: 'Generated with HolaHive - https://holahive.io',
+    footer: `Generated with ${BRAND.NAME} - ${BRAND.URL}`,
     keepSafe: '⚠️  KEEP THESE KEYS SAFE - NEVER SHARE THEM ⚠️',
     masterKey: 'MASTER KEY',
     ownerKey: 'OWNER PRIVATE KEY',
@@ -163,7 +165,7 @@ const pt: Translations = {
   },
   keys: {
     header: 'CHAVES DA CONTA HIVE - {USERNAME}',
-    footer: 'Gerado com HolaHive - https://holahive.io',
+    footer: `Gerado com ${BRAND.NAME} - ${BRAND.URL}`,
     keepSafe: '⚠️  MANTENHA ESSAS CHAVES SEGURAS - NUNCA AS COMPARTILHE ⚠️',
     masterKey: 'CHAVE MESTRE',
     ownerKey: 'CHAVE PRIVADA OWNER',
@@ -254,6 +256,6 @@ export class I18nManager {
   }
 }
 
-// Función de conveniencia para usar en componentes
+// Convenience function to use in components
 export const t = (key: string, params?: Record<string, string>): string =>
   I18nManager.t(key, params)

@@ -1,24 +1,24 @@
 /**
- * COMMON TYPES - Utility types unificados para /utils
+ * COMMON TYPES - Unified utility types for /utils
  *
- * Este archivo centraliza los patrones de tipos comunes para eliminar duplicación
- * y garantizar consistencia en todo el directorio /utils.
+ * This file centralizes common type patterns to eliminate duplication
+ * and guarantee consistency across the /utils directory.
  *
- * Creado para estandarización TypeScript - Mejoras de Prioridad Alta
+ * Created for TypeScript standardization - High Priority Improvements
  */
 
 // ===== RESULT PATTERNS =====
 
 /**
- * Tipo genérico unificado para operaciones que pueden fallar
- * Reemplaza las múltiples interfaces similares en diferentes archivos
+ * Unified generic type for operations that can fail
+ * Replaces the multiple similar interfaces in different files
  */
 export type Result<T, E = string> =
   | { success: true; data: T }
   | { success: false; error: E }
 
 /**
- * Especializaciones para casos de uso específicos
+ * Specializations for specific use cases
  */
 export interface ValidationError {
   readonly message: string
@@ -40,29 +40,29 @@ export interface DatabaseError extends OperationError {
 // ===== SPECIALIZED RESULT TYPES =====
 
 /**
- * Para validaciones de entrada de usuario
+ * For user input validations
  */
 export type ValidationResult<T> = Result<T, ValidationError>
 
 /**
- * Para operaciones de base de datos
+ * For database operations
  */
 export type DatabaseResult<T> = Result<T, DatabaseError>
 
 /**
- * Para operaciones de API
+ * For API operations
  */
 export type ApiResult<T> = Result<T, OperationError>
 
 /**
- * Para operaciones síncronas simples
+ * For simple synchronous operations
  */
 export type SyncResult<T> = Result<T, string>
 
 // ===== HELPER FUNCTIONS =====
 
 /**
- * Helper para crear resultado exitoso
+ * Helper to create successful result
  */
 export const success = <T>(data: T): Result<T, never> => ({
   success: true,
@@ -70,7 +70,7 @@ export const success = <T>(data: T): Result<T, never> => ({
 })
 
 /**
- * Helper para crear resultado fallido
+ * Helper to create failed result
  */
 export const failure = <E>(error: E): Result<never, E> => ({
   success: false,
@@ -78,7 +78,7 @@ export const failure = <E>(error: E): Result<never, E> => ({
 })
 
 /**
- * Helper para crear error de validación
+ * Helper to create validation error
  */
 export const validationFailure = (
   message: string,
@@ -90,7 +90,7 @@ export const validationFailure = (
 })
 
 /**
- * Helper para crear error de base de datos
+ * Helper to create database error
  */
 export const databaseFailure = (
   message: string,
@@ -105,28 +105,28 @@ export const databaseFailure = (
 // ===== TYPE GUARDS =====
 
 /**
- * Type guard para verificar si un resultado fue exitoso
+ * Type guard to check if a result was successful
  */
 export const isSuccess = <T, E>(
   result: Result<T, E>
 ): result is { success: true; data: T } => result.success === true
 
 /**
- * Type guard para verificar si un resultado falló
+ * Type guard to check if a result failed
  */
 export const isFailure = <T, E>(
   result: Result<T, E>
 ): result is { success: false; error: E } => result.success === false
 
 /**
- * Type guard para ValidationResult exitoso
+ * Type guard for successful ValidationResult
  */
 export const isValidationSuccess = <T>(
   result: ValidationResult<T>
 ): result is { success: true; data: T } => result.success === true
 
 /**
- * Type guard para ValidationResult fallido
+ * Type guard for failed ValidationResult
  */
 export const isValidationFailure = <T>(
   result: ValidationResult<T>
@@ -136,38 +136,38 @@ export const isValidationFailure = <T>(
 // ===== INPUT VALIDATION TYPES =====
 
 /**
- * Tipo base para entradas que requieren validación
+ * Base type for inputs that require validation
  */
 export type UnknownInput = unknown
 
 /**
- * Tipo para inputs de string que necesitan validación
+ * Type for string inputs that need validation
  */
 export type StringInput = unknown
 
 /**
- * Tipo para inputs numéricos que necesitan validación
+ * Type for numeric inputs that need validation
  */
 export type NumberInput = unknown
 
 // ===== COMMON INTERFACES =====
 
 /**
- * Interface para objetos que tienen timestamp
+ * Interface for objects that have a timestamp
  */
 export interface Timestamped {
   readonly timestamp: string
 }
 
 /**
- * Interface para objetos que tienen ID
+ * Interface for objects that have an ID
  */
 export interface WithId<T = string | number> {
   readonly id: T
 }
 
 /**
- * Interface para objetos que pueden ser auditados
+ * Interface for objects that can be audited
  */
 export interface Auditable {
   readonly createdAt: string
@@ -175,4 +175,4 @@ export interface Auditable {
   readonly createdBy?: string | number
 }
 
-// (Se eliminaron tipos y helpers legacy no utilizados para mantener el código limpio)
+// (Removed unused legacy types and helpers to keep the code clean)

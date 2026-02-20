@@ -1,4 +1,5 @@
-// Moved from lib/constants.ts to consts/constants.ts for clearer separation
+import { BRAND } from './branding'
+
 // WALLET_PASSWORD moved to environment variables for security
 export const BEEKEEPER_CONFIG = {
   WALLET_PREFIX: 'holahive',
@@ -128,7 +129,7 @@ export const FILE_CONFIG = {
   FILENAME_TEMPLATE: 'hive-keys-{username}.txt',
   CONTENT_TYPE: 'text/plain',
   HEADER_TEMPLATE: 'HIVE ACCOUNT KEYS - {USERNAME}',
-  FOOTER_TEXT: 'Generated with HolaHive - https://holahive.io',
+  FOOTER_TEXT: `Generated with ${BRAND.NAME} - ${BRAND.URL}`,
 } as const
 
 export const BLOCKCHAIN_VERIFICATION_CONFIG = {

@@ -13,7 +13,7 @@ interface BuilderIdRow {
 	readonly username: string
 }
 
-// PATCH: Actualizar builder (solo is_active)
+// PATCH: Update builder (is_active only)
 export const PATCH: APIRoute = async context => {
   return withAdminSession(context, async session => {
     try {
@@ -38,12 +38,12 @@ export const PATCH: APIRoute = async context => {
 
       const { is_active } = data as BuilderUpdateRequest
 
-      // Validar is_active
+      // Validate is_active
       if (typeof is_active !== 'boolean') {
         return apiError('is_active debe ser booleano', 400)
       }
 
-      // Verificar que el builder existe
+      // Verify that the builder exists
       const builderResult = await db.execute({
         sql: 'SELECT id, username FROM Users WHERE id = ? AND role = \'builder\'',
         args: [builderId],
@@ -55,7 +55,7 @@ export const PATCH: APIRoute = async context => {
 
       const builder = builderResult.rows[0] as unknown as BuilderIdRow
 
-      // Actualizar estado
+      // Update status
       await db.execute({
         sql: 'UPDATE Users SET is_active = ? WHERE id = ? AND role = \'builder\'',
         args: [is_active, builderId],
@@ -75,7 +75,7 @@ export const PATCH: APIRoute = async context => {
   })
 }
 
-// DELETE: Eliminar usuario builder específico por ID
+// DELETE: Delete specific builder user by ID
 export const DELETE: APIRoute = async context => {
   return withAdminSession(context, async session => {
     try {
@@ -93,7 +93,7 @@ export const DELETE: APIRoute = async context => {
         return apiError('ID de usuario inválido', 400)
       }
 
-      // Verificar que el builder existe
+      // Verify that the builder exists
       const builderResult = await db.execute({
         sql: 'SELECT id, username FROM Users WHERE id = ? AND role = \'builder\'',
         args: [userId],
@@ -103,7 +103,7 @@ export const DELETE: APIRoute = async context => {
         return apiError('Builder no encontrado', 404)
       }
 
-      // Eliminar builder
+      // Delete builder
       await db.execute({
         sql: 'DELETE FROM Users WHERE id = ? AND role = \'builder\'',
         args: [userId],

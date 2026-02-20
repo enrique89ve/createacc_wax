@@ -1,8 +1,8 @@
 /**
  * 🎫 BUILDERS API: TICKET BY ID
  *
- * PATCH  /api/builders/tickets/:id - Actualizar créditos de un ticket
- * DELETE /api/builders/tickets/:id - Eliminar un ticket
+ * PATCH  /api/builders/tickets/:id - Update ticket credits
+ * DELETE /api/builders/tickets/:id - Delete a ticket
  */
 
 import type { APIRoute } from 'astro'
@@ -26,7 +26,7 @@ import type {
 
 /**
  * PATCH /api/builders/tickets/:id
- * Actualizar créditos de un ticket (agregar o reducir)
+ * Update ticket credits (add or reduce)
  */
 export const PATCH: APIRoute = async ({ request, params }) => {
   try {
@@ -40,7 +40,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
     const body: UpdateTicketCreditsRequest = await request.json()
     const { code, delta } = body
 
-    // Validar que el ticket existe y pertenece al builder
+    // Validate that the ticket exists and belongs to the builder
     const ticket = await ticketsRepository.findById(ticketId)
 
     if (!ticket) {
@@ -54,12 +54,12 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       )
     }
 
-    // Verificar que el código coincide (seguridad adicional)
+    // Verify that the code matches (additional security)
     if (ticket.code !== code) {
       return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
     }
 
-    // Validar delta (validar contra créditos actuales, no originales)
+    // Validate delta (validate against current credits, not original ones)
     const deltaValidation = validateCreditsDelta(ticket.credits, delta)
     if (!isValidationSuccess(deltaValidation)) {
       return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
@@ -67,7 +67,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
     const { newCredits } = deltaValidation.data
 
-    // Si delta es positivo, verificar créditos disponibles del builder
+    // If delta is positive, verify available builder credits
     if (delta > 0) {
       const validation = await creditBalanceTracker.validateOperation(
         builderId,
@@ -82,13 +82,13 @@ export const PATCH: APIRoute = async ({ request, params }) => {
         )
       }
 
-      // Descontar créditos del builder
+      // Deduct credits from builder
       await creditsService.deductCreditsForTicket(builderId, delta, ticket.code)
     }
 
-    // Si delta es negativo, devolver créditos al builder
+    // If delta is negative, return credits to builder
     if (delta < 0) {
-      // Reembolsar créditos al builder
+      // Refund credits to builder
       await creditsService.refundCreditsFromTicket(
         builderId,
         Math.abs(delta),
@@ -96,7 +96,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       )
     }
 
-    // Actualizar el ticket
+    // Update the ticket
     await ticketsRepository.update(ticketId, {
       credits: ticket.credits + delta,
       original_credits: newCredits,
@@ -129,7 +129,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
 
 /**
  * DELETE /api/builders/tickets/:id
- * Eliminar un ticket (solo si no ha sido usado)
+ * Delete a ticket (only if it has not been used)
  */
 export const DELETE: APIRoute = async ({ request, params }) => {
   try {
@@ -140,7 +140,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
     }
 
-    // Verificar que el ticket existe y pertenece al builder
+    // Verify that the ticket exists and belongs to the builder
     const ticket = await ticketsRepository.findById(ticketId)
 
     if (!ticket) {
@@ -154,14 +154,14 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       )
     }
 
-    // Calcular créditos a reembolsar:
-    // - Si el ticket NO fue usado: reembolsar créditos originales
-    // - Si el ticket FUE usado: reembolsar solo los créditos restantes (no los consumidos)
+    // Calculate credits to refund:
+    // - If the ticket was NOT used: refund original credits
+    // - If the ticket WAS used: refund only the remaining credits (not the consumed ones)
     const creditsToRefund = ticket.has_been_used
-      ? ticket.credits // Solo los créditos restantes
-      : ticket.original_credits // Todos los créditos originales
+      ? ticket.credits // Only the remaining credits
+      : ticket.original_credits // All the original credits
 
-    // Reembolsar créditos al builder (si hay créditos que reembolsar)
+    // Refund credits to builder (if there are credits to refund)
     if (creditsToRefund > 0) {
       await creditsService.refundCreditsFromTicket(
         builderId,
@@ -170,7 +170,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       )
     }
 
-    // Eliminar el ticket
+    // Delete the ticket
     await ticketsRepository.delete(ticketId)
 
     const response: DeleteTicketResponse = {

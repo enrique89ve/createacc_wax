@@ -1,10 +1,10 @@
 /**
  * 🔐 BUILDER AUTHENTICATION HELPERS
  *
- * Helpers centralizados para autenticación y obtención de datos de builders.
- * Elimina duplicación de código de autenticación en múltiples endpoints.
+ * Centralized helpers for authentication and getting builders data.
+ * Eliminates authentication code duplication in multiple endpoints.
  *
- * Uso:
+ * Usage:
  * ```typescript
  * const builderId = await getAuthenticatedBuilderId(request)
  * const builder = await getAuthenticatedBuilder(request)
@@ -16,11 +16,11 @@ import { db } from '@/lib/database'
 import { parseUserRow, type DatabaseUserRow } from '@/types/database'
 import { HTTP_STATUS } from '@/consts/constants'
 
-// Constante para role de builder (evita magic strings)
+// Constant for builder role (avoids magic strings)
 const BUILDER_ROLE = 'builder' as const
 
 /**
- * Error lanzado cuando no hay sesión autenticada
+ * Error thrown when there is no authenticated session
  */
 export class UnauthenticatedError extends Error {
   readonly status = HTTP_STATUS.UNAUTHORIZED
@@ -31,7 +31,7 @@ export class UnauthenticatedError extends Error {
 }
 
 /**
- * Error lanzado cuando el usuario no es un builder
+ * Error thrown when the user is not a builder
  */
 export class NotBuilderError extends Error {
   readonly status = HTTP_STATUS.FORBIDDEN
@@ -42,7 +42,7 @@ export class NotBuilderError extends Error {
 }
 
 /**
- * Error lanzado cuando el builder no está activo
+ * Error thrown when the builder is not active
  */
 export class InactiveBuilderError extends Error {
   readonly status = HTTP_STATUS.FORBIDDEN
@@ -53,10 +53,10 @@ export class InactiveBuilderError extends Error {
 }
 
 /**
- * Obtener el ID del builder autenticado
+ * Get the authenticated builder ID
  *
- * @throws {UnauthenticatedError} Si no hay sesión o username
- * @throws {NotBuilderError} Si el usuario no es un builder
+ * @throws {UnauthenticatedError} If there is no session or username
+ * @throws {NotBuilderError} If the user is not a builder
  * @returns Builder ID
  */
 export async function getAuthenticatedBuilderId(
@@ -83,11 +83,11 @@ export async function getAuthenticatedBuilderId(
 }
 
 /**
- * Obtener los datos completos del builder autenticado
+ * Get the full data of the authenticated builder
  *
- * @throws {UnauthenticatedError} Si no hay sesión o username
- * @throws {NotBuilderError} Si el usuario no es un builder
- * @returns Datos completos del builder
+ * @throws {UnauthenticatedError} If there is no session or username
+ * @throws {NotBuilderError} If the user is not a builder
+ * @returns Full builder data
  */
 export async function getAuthenticatedBuilder(
   request: Request
@@ -101,7 +101,7 @@ export async function getAuthenticatedBuilder(
   const hiveUsername = session.user.username
 
   const builderResult = await db.execute({
-    // SEGURIDAD: Columnas explícitas - NO incluir password_hash
+    // SECURITY: Explicit columns - DO NOT include password_hash
     sql: `SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ? AND role = ?`,
     args: [hiveUsername, BUILDER_ROLE],
   })
@@ -120,11 +120,11 @@ export async function getAuthenticatedBuilder(
 }
 
 /**
- * Obtener el ID del builder autenticado solo si está activo
+ * Get the authenticated builder ID only if it is active
  *
- * @throws {UnauthenticatedError} Si no hay sesión o username
- * @throws {NotBuilderError} Si el usuario no es un builder
- * @throws {InactiveBuilderError} Si el builder no está activo
+ * @throws {UnauthenticatedError} If there is no session or username
+ * @throws {NotBuilderError} If the user is not a builder
+ * @throws {InactiveBuilderError} If the builder is not active
  * @returns Builder ID
  */
 export async function getActiveBuilderId(request: Request): Promise<number> {
@@ -145,7 +145,7 @@ export async function getActiveBuilderId(request: Request): Promise<number> {
     throw new NotBuilderError('Builder no encontrado')
   }
 
-  // Usar parseUserRow parcial para type safety
+  // Use partial parseUserRow for type safety
   const rawRow = builderResult.rows[0]
   const builderId = Number(rawRow.id)
   const isActive = Boolean(rawRow.is_active)
@@ -158,9 +158,9 @@ export async function getActiveBuilderId(request: Request): Promise<number> {
 }
 
 /**
- * Helper para manejar errores de autenticación y convertirlos en Response
+ * Helper to handle authentication errors and convert them to Response
  *
- * Uso:
+ * Usage:
  * ```typescript
  * export const GET: APIRoute = async ({ request }) => {
  *   try {
@@ -190,7 +190,7 @@ export function handleAuthError(error: unknown): Response {
     )
   }
 
-  // Error no esperado
+  // Unexpected error
   return new Response(
     JSON.stringify({
       success: false,

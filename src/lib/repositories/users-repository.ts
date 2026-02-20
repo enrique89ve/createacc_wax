@@ -1,13 +1,13 @@
 /**
  * 👥 USERS REPOSITORY
  *
- * Centraliza todas las operaciones de base de datos relacionadas con usuarios (admins y builders).
- * Gestiona la tabla unificada Users con roles 'admin' y 'builder'.
+ * Centralizes all database operations related to users (admins and builders).
+ * Manages the unified Users table with 'admin' and 'builder' roles.
  *
- * Responsabilidades:
- * - CRUD de usuarios (admins y builders)
- * - Queries especializadas con estadísticas
- * - Evita duplicación de código SQL entre páginas
+ * Responsibilities:
+ * - User CRUD (admins and builders)
+ * - Specialized queries with statistics
+ * - Avoids SQL code duplication across pages
  */
 
 import { db } from '@/lib/database'
@@ -20,7 +20,7 @@ import {
 import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 
 /**
- * Builder con estadísticas de tickets y créditos
+ * Builder with ticket and credit statistics
  */
 export interface BuilderWithStats {
   readonly id: number
@@ -34,10 +34,10 @@ export interface BuilderWithStats {
 }
 
 export class UsersRepository {
-  // ===== CRUD BÁSICO =====
+  // ===== BASIC CRUD =====
 
   /**
-   * Crear un nuevo usuario (admin o builder)
+   * Create a new user (admin or builder)
    */
   async create({
     username,
@@ -67,8 +67,8 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener usuario por ID
-   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
+   * Get user by ID
+   * SECURITY: Explicit columns - DO NOT include password_hash
    */
   async getById(id: number): Promise<DatabaseUserRow | null> {
     try {
@@ -88,8 +88,8 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener usuario por username
-   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
+   * Get user by username
+   * SECURITY: Explicit columns - DO NOT include password_hash
    */
   async getByUsername(username: string): Promise<DatabaseUserRow | null> {
     try {
@@ -109,7 +109,7 @@ export class UsersRepository {
   }
 
   /**
-   * Actualizar usuario
+   * Update user
    */
   async update(
     id: number,
@@ -161,11 +161,11 @@ export class UsersRepository {
     }
   }
 
-  // ===== QUERIES ESPECIALIZADAS =====
+  // ===== SPECIALIZED QUERIES =====
 
   /**
-   * Obtener todos los usuarios con rol 'admin'
-   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
+   * Get all users with 'admin' role
+   * SECURITY: Explicit columns - DO NOT include password_hash
    */
   async getAdmins(): Promise<DatabaseUserRow[]> {
     try {
@@ -187,8 +187,8 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener todos los usuarios con rol 'builder'
-   * SEGURIDAD: Columnas explícitas - NO incluir password_hash
+   * Get all users with 'builder' role
+   * SECURITY: Explicit columns - DO NOT include password_hash
    */
   async getBuilders(): Promise<DatabaseUserRow[]> {
     try {
@@ -210,15 +210,15 @@ export class UsersRepository {
   }
 
   /**
-   * Alias requerido por endpoints legacy que esperan incluir estadísticas básicas
+   * Alias required by legacy endpoints that expect basic statistics
    */
   async getAllBuilders(): Promise<BuilderWithStats[]> {
     return this.getBuildersWithStats()
   }
 
   /**
-   * Obtener builders con estadísticas de tickets y créditos
-   * Usado en management console
+   * Get builders with ticket and credit statistics
+   * Used in management console
    */
   async getBuildersWithStats(): Promise<BuilderWithStats[]> {
     try {
@@ -259,7 +259,7 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener conteo de usuarios por rol
+   * Get count of users by role
    */
   async countByRole(role: 'admin' | 'builder'): Promise<number> {
     try {
@@ -275,7 +275,7 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener conteo total de usuarios
+   * Get total user count
    */
   async countAll(): Promise<number> {
     try {
@@ -291,7 +291,7 @@ export class UsersRepository {
   }
 
   /**
-   * Verificar si existe un admin en el sistema
+   * Check if an admin exists in the system
    */
   async hasAdmin(): Promise<boolean> {
     try {
@@ -303,7 +303,7 @@ export class UsersRepository {
   }
 
   /**
-   * Verificar si un username ya existe
+   * Check if a username already exists
    */
   async usernameExists(username: string): Promise<boolean> {
     try {
@@ -315,7 +315,7 @@ export class UsersRepository {
   }
 
   /**
-   * Verificar existencia de builder por username normalizado
+   * Check builder existence by normalized username
    */
   async builderExistsByUsername(username: string): Promise<boolean> {
     try {
@@ -337,51 +337,51 @@ export class UsersRepository {
   }
 
   /**
-   * Alias para compatibilidad con código existente
+   * Alias for compatibility with existing code
    */
   async findById(id: number): Promise<DatabaseUserRow | null> {
     return this.getById(id)
   }
 
   /**
-   * Alias para compatibilidad con código existente
+   * Alias for compatibility with existing code
    */
   async findByUsername(username: string): Promise<DatabaseUserRow | null> {
     return this.getByUsername(username)
   }
 
   /**
-   * Desactivar/Banear builder (Soft Delete)
+   * Deactivate/Ban builder (Soft Delete)
    *
-   * En lugar de eliminar físicamente, marcamos como inactivo para:
-   * - Preservar el ID único (evitar colisiones con nuevos builders)
-   * - Mantener todo el historial intacto (CreditAudit, TicketAudit, Accounts)
-   * - Poder reactivar si es necesario
+   * Instead of hard deleting, we mark as inactive to:
+   * - Preserve unique ID (avoid collisions with new builders)
+   * - Keep complete history intact (CreditAudit, TicketAudit, Accounts)
+   * - Allow reactivation if necessary
    *
-   * SE HACE:
-   * - Marcar usuario como is_active = false
-   * - Desactivar todos los tickets (is_active = false)
-   * - Poner créditos a 0 (pending y available)
+   * WHAT IT DOES:
+   * - Mark user as is_active = false
+   * - Deactivate all tickets (is_active = false)
+   * - Set credits to 0 (pending and available)
    *
-   * SE PRESERVA:
-   * - El registro del usuario (con is_active = false)
-   * - Todos los tickets (marcados como inactivos)
-   * - Accounts: historial completo de cuentas creadas
-   * - CreditAudit: historial completo de créditos
-   * - TicketAudit: historial completo de tickets
+   * WHAT IT PRESERVES:
+   * - User record (with is_active = false)
+   * - All tickets (marked as inactive)
+   * - Accounts: complete history of created accounts
+   * - CreditAudit: complete credit history
+   * - TicketAudit: complete ticket history
    */
   async deleteBuilderWithReferences(builderId: number): Promise<void> {
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // 1. Desactivar todos los tickets del builder (poner créditos a 0)
-      // is_active es columna VIRTUAL (credits > 0), no se puede escribir directamente
+      // 1. Deactivate all tickets from builder (set credits to 0)
+      // is_active is VIRTUAL column (credits > 0), cannot be written directly
       await db.execute({
         sql: 'UPDATE Tickets SET credits = 0, updated_at = CURRENT_TIMESTAMP WHERE created_by = ?',
         args: [builderId],
       })
 
-      // 2. Poner créditos a 0 (pero mantener el registro para referencia)
+      // 2. Set credits to 0 (but keep record for reference)
       await db.execute({
         sql: `UPDATE Credits 
               SET pending_amount = 0, 
@@ -391,7 +391,7 @@ export class UsersRepository {
         args: [builderId],
       })
 
-      // 3. Registrar en auditoría que el builder fue desactivado
+      // 3. Record in audit that the builder was deactivated
       await db.execute({
         sql: `INSERT INTO CreditAudit (
                 builder_id, operation, amount, reason, timestamp
@@ -400,11 +400,11 @@ export class UsersRepository {
           builderId,
           'builder_deactivated',
           0,
-          'Builder desactivado/baneado por admin',
+          'Builder deactivated/banned by admin',
         ],
       })
 
-      // 4. Marcar el usuario como inactivo (Soft Delete)
+      // 4. Mark user as inactive (Soft Delete)
       await db.execute({
         sql: `UPDATE Users 
               SET is_active = 0, 
@@ -421,7 +421,7 @@ export class UsersRepository {
   }
 
   /**
-   * Reactivar un builder previamente desactivado
+   * Reactivate a previously deactivated builder
    */
   async reactivateBuilder(builderId: number): Promise<void> {
     await db.execute({
@@ -432,7 +432,7 @@ export class UsersRepository {
       args: [builderId],
     })
 
-    // Registrar en auditoría
+    // Record in audit
     await db.execute({
       sql: `INSERT INTO CreditAudit (
               builder_id, operation, amount, reason, timestamp
@@ -441,16 +441,16 @@ export class UsersRepository {
         builderId,
         'builder_reactivated',
         0,
-        'Builder reactivado por admin',
+        'Builder reactivated by admin',
       ],
     })
   }
 
-  // ===== MÉTODOS ESPECÍFICOS PARA BUILDERS =====
+  // ===== BUILDER SPECIFIC METHODS =====
 
   /**
-   * Obtener cuentas creadas por un builder específico (por ID)
-   * Usa el campo ticket_by de Accounts para mostrar cuentas incluso si el ticket fue eliminado
+   * Get accounts created by a specific builder (by ID)
+   * Uses the ticket_by field from Accounts to show accounts even if the ticket was deleted
    */
   async getAccountsByUser(builderId: number): Promise<AccountWithTicketInfo[]> {
     try {
@@ -462,7 +462,7 @@ export class UsersRepository {
 
       const builderUsername = builder.username
 
-      // Buscar cuentas por ticket_by (preserva historial aunque el ticket no exista)
+      // Find accounts by ticket_by (preserves history even if ticket doesn't exist)
       const accountsResult = await db.execute({
         sql: `SELECT
 					a.id,
@@ -497,8 +497,8 @@ export class UsersRepository {
   }
 
   /**
-   * Obtener estadísticas de un builder específico (por ID)
-   * Usa ticket_by para contar cuentas incluso si los tickets fueron eliminados
+   * Get statistics of a specific builder (by ID)
+   * Uses ticket_by to count accounts even if tickets were deleted
    */
   async getBuildersStats(builderId: number): Promise<BuildersStats> {
     try {
@@ -515,13 +515,13 @@ export class UsersRepository {
 
       const builderUsername = builder.username
 
-      // Contar cuentas totales usando ticket_by (preserva historial)
+      // Count total accounts using ticket_by (preserves history)
       const accountsCountResult = await db.execute({
         sql: `SELECT COUNT(*) as total FROM Accounts WHERE ticket_by = ?`,
         args: [builderUsername],
       })
 
-      // Contar tickets activos
+      // Count active tickets
       const activeTicketsResult = await db.execute({
         sql: `SELECT COUNT(*) as total
 					FROM Tickets t
@@ -529,7 +529,7 @@ export class UsersRepository {
         args: [builderId],
       })
 
-      // Calcular créditos restantes en tickets activos
+      // Calculate remaining credits in active tickets
       const creditsResult = await db.execute({
         sql: `SELECT
 					SUM(t.original_credits) as total_original,
@@ -562,10 +562,10 @@ export class UsersRepository {
   }
 }
 
-// ===== TIPOS NECESARIOS =====
+// ===== NECESSARY TYPES =====
 
 /**
- * Cuenta con información del ticket
+ * Account with ticket information
  */
 export interface AccountWithTicketInfo {
   readonly id: number
@@ -579,7 +579,7 @@ export interface AccountWithTicketInfo {
 }
 
 /**
- * Estadísticas de un builder
+ * Builder statistics
  */
 export interface BuildersStats {
   readonly totalAccounts: number

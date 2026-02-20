@@ -173,7 +173,7 @@ export const POST: APIRoute = async (context) => {
 
     const user = validationResult.user
 
-    // Verificar que el usuario sea admin
+    // Verify that the user is an admin
     if (user.role !== UserRole.Admin) {
       await persistLoginAttempt(
         request,
@@ -196,7 +196,7 @@ export const POST: APIRoute = async (context) => {
       )
     }
 
-    // Obtener secreto
+    // Get secret
     const secret = process.env.AUTH_SECRET
     if (!secret) {
       logger.error('AUTH_SECRET is missing')
@@ -209,13 +209,13 @@ export const POST: APIRoute = async (context) => {
       )
     }
 
-    // Determinar nombre de cookie y opciones
+    // Determine cookie name and options
     const isSecure = shouldUseSecureCookie(request)
     const cookieName = isSecure
       ? '__Secure-authjs.session-token'
       : 'authjs.session-token'
 
-    // Crear payload del token (debe coincidir con lo que espera jwtCallback)
+    // Create token payload (must match what jwtCallback expects)
     const token = {
       sub: user.id,
       userId: user.id,
@@ -224,11 +224,11 @@ export const POST: APIRoute = async (context) => {
       auth_method: user.auth_method,
       loginTime: user.loginTime,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 horas
+      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
       jti: crypto.randomUUID(),
     }
 
-    // Firmar token
+    // Sign token
     const encodedToken = await encode({
       token,
       secret,
@@ -242,7 +242,7 @@ export const POST: APIRoute = async (context) => {
       true
     )
 
-    // Crear header Set-Cookie
+    // Create Set-Cookie header
     const cookieOptions = [
       `${cookieName}=${encodedToken}`,
       `Path=/`,

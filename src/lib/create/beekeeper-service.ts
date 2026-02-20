@@ -46,7 +46,7 @@ export class BeekeeperService {
 				},
 			}
 		} catch (error) {
-			// Si fallo antes de retornar, limpiar el runtime WASM
+			// If it fails before returning, clean up the WASM runtime
 			if (bk) {
 				try { await bk.delete() } catch { /* best-effort */ }
 			}

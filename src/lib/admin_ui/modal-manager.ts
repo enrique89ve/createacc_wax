@@ -1,6 +1,6 @@
 /**
- * ModalManager - Gestión genérica de modales client-side
- * Utilidad reutilizable para management y builders portals
+ * ModalManager - Generic client-side modal management
+ * Reusable utility for management and builders portals
  */
 
 import { MANAGEMENT_UI } from '@/consts/constants'
@@ -20,7 +20,7 @@ export class ModalManager {
   }
 
   /**
-   * Muestra el modal
+   * Shows the modal
    */
   show(): void {
     if (!this.modal) return
@@ -30,7 +30,7 @@ export class ModalManager {
   }
 
   /**
-   * Oculta el modal y resetea el formulario si existe
+   * Hides the modal and resets the form if it exists
    */
   hide(): void {
     if (!this.modal) return
@@ -58,7 +58,7 @@ export class ModalManager {
   }
 
   /**
-   * Resetea el formulario asociado (si existe)
+   * Resets the associated form (if it exists)
    */
   resetForm(): void {
     if (this.form) {
@@ -67,7 +67,7 @@ export class ModalManager {
   }
 
   /**
-   * Setup para cerrar el modal al hacer clic en el backdrop
+   * Setup to close the modal when clicking on the backdrop
    */
   private setupBackdropClick(): void {
     this.modal?.addEventListener('click', event => {
@@ -78,7 +78,7 @@ export class ModalManager {
   }
 
   /**
-   * Añade listener para un botón de cerrar custom
+   * Adds listener for a custom close button
    */
   addCloseButton(buttonId: string): void {
     const button = document.getElementById(buttonId)
@@ -86,14 +86,14 @@ export class ModalManager {
   }
 
   /**
-   * Getter para el modal element (útil para manipulaciones custom)
+   * Getter for the modal element (useful for custom manipulations)
    */
   getElement(): HTMLElement | null {
     return this.modal
   }
 
   /**
-   * Getter para el form element (útil para validaciones custom)
+   * Getter for the form element (useful for custom validations)
    */
   getForm(): HTMLFormElement | null {
     return this.form

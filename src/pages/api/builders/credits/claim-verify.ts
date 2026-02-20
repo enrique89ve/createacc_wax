@@ -57,7 +57,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Verificar y consumir hash del cache
+    // Verify and consume hash from cache
     const hashData = claimHashCache.validateAndConsume(
       hash,
       session.user.username
@@ -75,7 +75,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Verificar la transacción en la blockchain
+    // Verify the transaction on the blockchain
     const verificationResult = await verifyClaimTransaction(
       transactionId,
       hash,
@@ -94,7 +94,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Verificar que el usuario es un builder activo
+    // Verify that the user is an active builder
     const builderResult = await db.execute({
       sql: `SELECT id FROM Users WHERE username = ? AND role = ? AND is_active = TRUE`,
       args: [session.user.username, UserRole.Builder],
@@ -115,7 +115,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
 
-    // Extraer creditId del claimCode (formato: credit_123_timestamp)
+    // Extract creditId from the claimCode (format: credit_123_timestamp)
     const creditIdMatch = hashData.ticketCode.match(/credit_(\d+)_/)
     if (!creditIdMatch) {
       return new Response(
@@ -133,7 +133,7 @@ export const POST: APIRoute = async ({ request }) => {
     const creditId = parseInt(creditIdMatch[1])
     const creditsToAdd = hashData.creditsAvailable
 
-    // Obtener registro de créditos del builder
+    // Get builder credits record
     const creditResult = await db.execute({
       sql: `SELECT id, pending_amount FROM Credits
 			      WHERE id = ? AND builder_id = ?`,
@@ -169,11 +169,11 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    // Procesar el claim usando transacción
+    // Process the claim using transaction
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
-      // 1. Mover créditos de pending a available
+      // 1. Move credits from pending to available
       await db.execute({
         sql: `UPDATE Credits
 				      SET pending_amount = pending_amount - ?,
@@ -183,7 +183,7 @@ export const POST: APIRoute = async ({ request }) => {
         args: [creditsToAdd, creditsToAdd, creditId],
       })
 
-      // 2. Crear entrada de auditoría
+      // 2. Create audit entry
       await db.execute({
         sql: `INSERT INTO CreditAudit (
 				        builder_id, operation, amount, reason, timestamp
@@ -198,7 +198,7 @@ export const POST: APIRoute = async ({ request }) => {
 
       await db.execute({ sql: 'COMMIT', args: [] })
 
-      // Obtener el nuevo balance de créditos disponibles
+      // Get the new available credits balance
       const balanceResult = await db.execute({
         sql: `SELECT available_amount as total
 				      FROM Credits
@@ -213,7 +213,7 @@ export const POST: APIRoute = async ({ request }) => {
           success: true,
           message: 'Créditos reclamados exitosamente',
           credits: creditsToAdd,
-          // creditId removido por seguridad - no exponer IDs internos
+          // creditId removed for security - do not expose internal IDs
           transactionId: transactionId,
           newBalance,
         }),

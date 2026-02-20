@@ -1,6 +1,6 @@
 /**
- * Hive Signature Verifier - Verificación criptográfica de firmas de Keychain
- * Valida que la firma corresponde al mensaje y usuario específico
+ * Hive Signature Verifier - Cryptographic verification of Keychain signatures
+ * Validates that the signature corresponds to the specific message and user
  */
 
 import { createWaxFoundation } from '@hiveio/wax'
@@ -56,39 +56,39 @@ export class HiveSignatureVerifier {
 			if (!username || !message) {
 				return this.createErrorResult(
 					'INVALID_USERNAME',
-					'Username y message son requeridos'
+					'Username and message are required'
 				)
 			}
 
 			if (!signature || signature.length < 128 || signature.length > 140) {
 				return this.createErrorResult(
 					'INVALID_SIGNATURE',
-					'Signature requerida para verificación criptográfica'
+					'Signature required for cryptographic verification'
 				)
 			}
 
 			if (!publicKey) {
 				return this.createErrorResult(
 					'INVALID_SIGNATURE',
-					'PublicKey es requerida para verificación'
+					'PublicKey is required for verification'
 				)
 			}
 
 			const hiveUsername = createHiveUsername(username)
 			const hivePublicKey = createHivePublicKey(publicKey)
 
-			// Verificar que el usuario existe y obtener sus posting keys
+			// Verify that the user exists and get their posting keys
 			const chain = await this.ensureChainConnection()
 			const accountResult = await this.lookupPostingKeys(hiveUsername, chain)
 
 			if (!accountResult.found) {
 				return {
 					valid: false,
-					error: accountResult.error || 'Usuario no encontrado en Hive blockchain',
+					error: accountResult.error || 'User not found on Hive blockchain',
 				}
 			}
 
-			// Verificar que la publicKey pertenece al usuario (posting authority)
+			// Verify that the publicKey belongs to the user (posting authority)
 			const { postingKeyAuths } = accountResult
 			const publicKeyInAuthorities = postingKeyAuths.find(
 				([key]) => key === hivePublicKey
@@ -96,11 +96,11 @@ export class HiveSignatureVerifier {
 			if (!publicKeyInAuthorities) {
 				return this.createErrorResult(
 					'SIGNATURE_VERIFICATION_FAILED',
-					'La clave pública proporcionada no pertenece al usuario'
+					'The provided public key does not belong to the user'
 				)
 			}
 
-			// Verificación criptográfica: recuperar public key desde firma y comparar
+			// Cryptographic verification: recover public key from signature and compare
 			return await this.verifySignatureCryptographically(
 				message,
 				signature,
@@ -110,14 +110,14 @@ export class HiveSignatureVerifier {
 		} catch (error) {
 			return {
 				valid: false,
-				error: `Error en verificación: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+				error: `Verification error: ${error instanceof Error ? error.message : 'Unknown error'}`,
 			}
 		}
 	}
 
 	/**
-	 * Recupera la public key desde la firma y verifica que pertenece al usuario.
-	 * Keychain firma un SHA-256 del mensaje challenge.
+	 * Recovers the public key from the signature and verifies that it belongs to the user.
+	 * Keychain signs a SHA-256 of the challenge message.
 	 */
 	private async verifySignatureCryptographically(
 		message: string,
@@ -131,7 +131,7 @@ export class HiveSignatureVerifier {
 			const sigDigest = createHash('sha256').update(message).digest('hex')
 			const recoveredKey = wax.getPublicKeyFromSignature(sigDigest, signature)
 
-			// Verificar que la key recuperada está en las posting key_auths del usuario
+			// Verify that the recovered key is in the user's posting key_auths
 			const keyInAuthorities = postingKeyAuths.find(
 				([key]) => key === recoveredKey
 			)
@@ -139,15 +139,15 @@ export class HiveSignatureVerifier {
 			if (!keyInAuthorities) {
 				return this.createErrorResult(
 					'SIGNATURE_VERIFICATION_FAILED',
-					'La firma no corresponde a ninguna clave posting del usuario'
+					'The signature does not correspond to any posting key of the user'
 				)
 			}
 
-			// Anti-inyección: la key enviada por el cliente debe coincidir con la recuperada
+			// Anti-injection: the key sent by the client must match the recovered one
 			if (recoveredKey !== hivePublicKey) {
 				return this.createErrorResult(
 					'PUBLIC_KEY_MISMATCH',
-					'La clave pública enviada no coincide con la clave que generó la firma'
+					'The public key sent does not match the key that generated the signature'
 				)
 			}
 
@@ -158,8 +158,8 @@ export class HiveSignatureVerifier {
 	}
 
 	/**
-	 * Busca la cuenta en Hive y extrae las posting key_auths directamente del API response.
-	 * Evita castear el ApiAccount completo a tipos custom.
+	 * Searches for the account on Hive and extracts the posting key_auths directly from the API response.
+	 * Avoids casting the entire ApiAccount to custom types.
 	 */
 	private async lookupPostingKeys(
 		username: HiveUsername,
@@ -175,7 +175,7 @@ export class HiveSignatureVerifier {
 				return {
 					found: false,
 					postingKeyAuths: [],
-					error: `Cuenta ${username} no encontrada en Hive blockchain`,
+					error: `Account ${username} not found on Hive blockchain`,
 				}
 			}
 
@@ -189,7 +189,7 @@ export class HiveSignatureVerifier {
 			return {
 				found: false,
 				postingKeyAuths: [],
-				error: `Error al verificar cuenta: ${error instanceof Error ? error.message : 'Error desconocido'}`,
+				error: `Error verifying account: ${error instanceof Error ? error.message : 'Unknown error'}`,
 			}
 		}
 	}

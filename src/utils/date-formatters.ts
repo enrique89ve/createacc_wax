@@ -1,15 +1,15 @@
 /**
- * Utilidades de formateo de fechas normalizadas a UTC-0.
- * SQLite almacena timestamps sin zona horaria, se asume UTC.
+ * Utilities for formatting dates normalized to UTC-0.
+ * SQLite stores timestamps without time zone, UTC is assumed.
  */
 
-/** Asegura que un timestamp de SQLite sea interpretado como UTC */
+/** Ensures that a SQLite timestamp is interpreted as UTC */
 function toUtcDate(dateStr: string): Date {
 	const normalized = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`
 	return new Date(normalized)
 }
 
-/** Fecha corta: "10 feb 2026" */
+/** Short date: "10 feb 2026" */
 export function formatDate(dateStr: string): string {
 	return toUtcDate(dateStr).toLocaleDateString('es-ES', {
 		day: 'numeric',
@@ -19,7 +19,7 @@ export function formatDate(dateStr: string): string {
 	})
 }
 
-/** Fecha con hora: "10 feb 2026, 04:09" */
+/** Date with time: "10 feb 2026, 04:09" */
 export function formatDateTime(dateStr: string): string {
 	return toUtcDate(dateStr).toLocaleDateString('es-ES', {
 		day: 'numeric',
@@ -31,7 +31,7 @@ export function formatDateTime(dateStr: string): string {
 	})
 }
 
-/** Fecha con hora y segundos: "10 feb 2026, 04:09:32" */
+/** Date with time and seconds: "10 feb 2026, 04:09:32" */
 export function formatDateTimeFull(dateStr: string): string {
 	return toUtcDate(dateStr).toLocaleDateString('es-ES', {
 		day: 'numeric',
@@ -44,7 +44,7 @@ export function formatDateTimeFull(dateStr: string): string {
 	})
 }
 
-/** Solo hora: "04:09" */
+/** Time only: "04:09" */
 export function formatTime(dateStr: string): string {
 	return toUtcDate(dateStr).toLocaleTimeString('es-ES', {
 		hour: '2-digit',
@@ -53,7 +53,7 @@ export function formatTime(dateStr: string): string {
 	})
 }
 
-/** Fecha relativa: "Hoy", "Ayer", "Hace 3 días", o fecha formateada */
+/** Relative date: "Today", "Yesterday", "3 days ago", or formatted date */
 export function formatRelativeDate(dateStr: string): string {
 	const date = toUtcDate(dateStr)
 	const now = new Date()
@@ -67,7 +67,7 @@ export function formatRelativeDate(dateStr: string): string {
 	return formatDate(dateStr)
 }
 
-/** Fecha corta para tablas: "10 feb, 04:09" (sin año) */
+/** Short date for tables: "10 feb, 04:09" (without year) */
 export function formatShortDateTime(dateStr: string): string {
 	return toUtcDate(dateStr).toLocaleDateString('es-ES', {
 		day: 'numeric',

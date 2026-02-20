@@ -1,14 +1,14 @@
 /**
- * Utilidades para manejo type-safe de variables de entorno
- * Variables de entorno cargadas desde .env.local (mismo archivo para dev y prod)
+ * Utilities for type-safe environment variable management
+ * Environment variables loaded from .env.local (same file for dev and prod)
  */
 
 import { ENV_KEYS } from '@/consts/constants'
 
 /**
- * Obtiene una variable de entorno como string con validación
- * @param name - Clave de la variable de entorno
- * @returns Valor trimmed o string vacío si no existe
+ * Gets an environment variable as a string with validation
+ * @param name - Environment variable key
+ * @returns Trimmed value or empty string if it does not exist
  */
 export function getEnvString(name: keyof ImportMetaEnv): string {
 	const value = import.meta.env[name]
@@ -16,9 +16,9 @@ export function getEnvString(name: keyof ImportMetaEnv): string {
 }
 
 /**
- * Obtiene una variable de entorno como string requerida
- * @param name - Clave de la variable de entorno
- * @throws Error si la variable no existe o está vacía
+ * Gets a required environment variable as a string
+ * @param name - Environment variable key
+ * @throws Error if the variable does not exist or is empty
  */
 export function getRequiredEnvString(name: keyof ImportMetaEnv): string {
 	const value = getEnvString(name)
@@ -29,9 +29,9 @@ export function getRequiredEnvString(name: keyof ImportMetaEnv): string {
 }
 
 /**
- * Convierte una variable de entorno string a boolean
- * @param name - Clave de la variable de entorno
- * @returns true si el valor es "TRUE", false en caso contrario
+ * Converts a string environment variable to boolean
+ * @param name - Environment variable key
+ * @returns true if the value is "TRUE", false otherwise
  */
 export function getBooleanEnv(name: keyof ImportMetaEnv): boolean {
 	const value = import.meta.env[name]
@@ -39,8 +39,8 @@ export function getBooleanEnv(name: keyof ImportMetaEnv): boolean {
 }
 
 /**
- * Evalúa si un valor de process.env es truthy (true/1/yes)
- * Útil para variables que no están en import.meta.env (e.g. runtime-only vars)
+ * Evaluates if a process.env value is truthy (true/1/yes)
+ * Useful for variables that are not in import.meta.env (e.g. runtime-only vars)
  */
 export function isTruthyProcessEnv(name: string): boolean {
 	const value = process.env[name]
@@ -50,8 +50,8 @@ export function isTruthyProcessEnv(name: string): boolean {
 }
 
 /**
- * Valida que todas las variables de entorno requeridas estén presentes
- * @throws Error si alguna variable requerida falta
+ * Validates that all required environment variables are present
+ * @throws Error if any required variable is missing
  */
 export function validateEnvironment(): void {
 	const required: (keyof ImportMetaEnv)[] = [

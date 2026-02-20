@@ -6,6 +6,8 @@ import BuildersTabs from '@/components/ui/BuildersTabs.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { getSession } from 'auth-astro/server'
 import { UsersRepository } from '@/lib/repositories/users-repository'
+import { TITLE_SUFFIXES } from '@/consts/seo'
+import { BRAND } from '@/consts/branding'
 
 export interface Props {
   title: string
@@ -40,8 +42,8 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
 ---
 
 <Base 
-  title={`${title} - HolaHive Builders`} 
-  description="HolaHive - Área de Builders"
+  title={`${title} - ${TITLE_SUFFIXES.BUILDERS}`}
+  description={`${BRAND.NAME} - Área de Builders`}
   noindex={true}
   htmlClass="dark"
   bodyAttributes={{ 'data-builder-credits': builderCreditsAttribute }}

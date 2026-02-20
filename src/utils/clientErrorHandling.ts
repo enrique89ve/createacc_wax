@@ -1,6 +1,6 @@
 /**
- * Utilidades para manejo de errores del lado cliente
- * Basado en patrones observados en la-velada-web-oficial
+ * Utilities for client-side error handling
+ * Based on patterns observed in la-velada-web-oficial
  */
 
 import type {
@@ -11,7 +11,7 @@ import { validateAccountName } from '@/utils/validate-username'
 import { validateTicket } from '@/utils/validate-ticket'
 
 /**
- * Configuración de retry para operaciones cliente
+ * Retry configuration for client operations
  */
 interface RetryConfig {
   maxRetries: number
@@ -26,7 +26,7 @@ const DEFAULT_RETRY_CONFIG: RetryConfig = {
 }
 
 /**
- * Resultado de operación cliente
+ * Client operation result
  */
 export interface ClientOperationResult<T = unknown> {
   success: boolean
@@ -37,22 +37,22 @@ export interface ClientOperationResult<T = unknown> {
 }
 
 /**
- * Sleep utility para delays
+ * Sleep utility for delays
  */
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 /**
- * Determina si un error de red es retryable
+ * Determines if a network error is retryable
  */
 function isRetryableError(error: unknown): boolean {
-  // Errores de red típicamente retryables
+  // Typically retryable network errors
   if (error instanceof TypeError && error.message.includes('fetch')) {
     return true
   }
 
-  // Errores de timeout
+  // Timeout errors
   if (
     error &&
     typeof error === 'object' &&
@@ -65,7 +65,7 @@ function isRetryableError(error: unknown): boolean {
     return true
   }
 
-  // Códigos HTTP retryables
+  // Retryable HTTP codes
   if (error && typeof error === 'object' && 'status' in error) {
     const retryableStatuses = [408, 429, 500, 502, 503, 504]
     return retryableStatuses.includes(error.status as number)
@@ -75,7 +75,7 @@ function isRetryableError(error: unknown): boolean {
 }
 
 /**
- * Wrapper para fetch con retry logic y error handling mejorado
+ * Fetch wrapper with retry logic and improved error handling
  */
 export async function fetchWithRetry<T = unknown>(
   url: string,
@@ -95,11 +95,11 @@ export async function fetchWithRetry<T = unknown>(
         },
       })
 
-      // Parse de respuesta
+      // Parse response
       const data = await response.json()
 
       if (!response.ok) {
-        // Manejar errores de API estructurados
+        // Handle structured API errors
         if (data.error && data.code) {
           const apiError = data as ApiErrorResponse
           return {
@@ -110,13 +110,13 @@ export async function fetchWithRetry<T = unknown>(
           }
         }
 
-        // Error HTTP genérico
+        // Generic HTTP error
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      // Respuesta exitosa
+      // Successful response
       if (data.success !== undefined) {
-        // Formato ApiSuccessResponse
+        // ApiSuccessResponse format
         const apiSuccess = data as ApiSuccessResponse<T>
         return {
           success: true,
@@ -124,7 +124,7 @@ export async function fetchWithRetry<T = unknown>(
         }
       }
 
-      // Datos directos
+      // Direct data
       return {
         success: true,
         data,
@@ -132,7 +132,7 @@ export async function fetchWithRetry<T = unknown>(
     } catch (error) {
       lastError = error
 
-      // Si no es retryable o ya agotamos intentos, devolver error
+      // If not retryable or attempts exhausted, return error
       if (!isRetryableError(error) || attempt === config.maxRetries) {
         return {
           success: false,
@@ -141,14 +141,14 @@ export async function fetchWithRetry<T = unknown>(
         }
       }
 
-      // Delay exponencial para siguiente intento
+      // Exponential delay for next attempt
       const delay = config.delayMs * Math.pow(config.backoffMultiplier, attempt)
-      // Log retry en desarrollo
+      // Log retry in development
       await sleep(delay)
     }
   }
 
-  // Esto no debería ejecutarse, pero TypeScript lo requiere
+  // This should not be executed, but TypeScript requires it
   return {
     success: false,
     error:
@@ -160,11 +160,11 @@ export async function fetchWithRetry<T = unknown>(
 }
 
 /**
- * Cache simple para evitar requests duplicados
+ * Simple cache to avoid duplicate requests
  */
 class RequestCache {
   private cache = new Map<string, { data: unknown; expiry: number }>()
-  private readonly defaultTtl = 30000 // 30 segundos
+  private readonly defaultTtl = 30000 // 30 seconds
 
   set<T>(key: string, data: T, ttl: number = this.defaultTtl): void {
     this.cache.set(key, {
@@ -197,7 +197,7 @@ class RequestCache {
 export const requestCache = new RequestCache()
 
 /**
- * Fetch con cache automático
+ * Fetch with automatic cache
  */
 export async function fetchWithCache<T = unknown>(
   url: string,
@@ -206,7 +206,7 @@ export async function fetchWithCache<T = unknown>(
 ): Promise<ClientOperationResult<T>> {
   const cacheKey = cacheConfig.key || `${options.method || 'GET'}_${url}`
 
-  // Intentar obtener desde cache solo para GET requests
+  // Try to get from cache only for GET requests
   if (!options.method || options.method === 'GET') {
     const cached = requestCache.get<T>(cacheKey)
     if (cached) {
@@ -216,7 +216,7 @@ export async function fetchWithCache<T = unknown>(
 
   const result = await fetchWithRetry<T>(url, options)
 
-  // Cachear solo respuestas exitosas de GET
+  // Cache only successful GET responses
   if (result.success && (!options.method || options.method === 'GET')) {
     requestCache.set(cacheKey, result.data, cacheConfig.ttl)
   }
@@ -225,7 +225,7 @@ export async function fetchWithCache<T = unknown>(
 }
 
 /**
- * Helper para mostrar errores al usuario con fallback
+ * Helper to show errors to the user with fallback
  */
 export function formatErrorForUser(
   error: ClientOperationResult | string,
@@ -236,7 +236,7 @@ export function formatErrorForUser(
   }
 
   if (error.error) {
-    // Si hay un mensaje específico, usarlo
+    // If there is a specific message, use it
     return error.error
   }
 
@@ -253,7 +253,7 @@ interface ValidationResult<T = any> {
 }
 
 /**
- * Valida formulario antes de envío
+ * Validates form before submission
  */
 export function validateFormData(formData: FormData): ValidationResult<{
   username: string
@@ -262,7 +262,7 @@ export function validateFormData(formData: FormData): ValidationResult<{
   const username = formData.get('username') as string
   const ticketCode = formData.get('ticketCode') as string
 
-  // Validar username
+  // Validate username
   const trimmedUsername = username?.trim()
   if (!trimmedUsername) {
     return { isValid: false, error: 'Username is required' }
@@ -272,7 +272,7 @@ export function validateFormData(formData: FormData): ValidationResult<{
   if (usernameError) {
     return { isValid: false, error: usernameError }
   }
-  // Ticket es opcional pero si está presente debe ser válido
+  // Ticket is optional but if present must be valid
   if (ticketCode?.trim()) {
     const ticketError = validateTicket(ticketCode.trim())
     if (ticketError) {
@@ -290,7 +290,7 @@ export function validateFormData(formData: FormData): ValidationResult<{
 }
 
 /**
- * Handler mejorado para errores de formulario con validación
+ * Improved handler for form errors with validation
  */
 export function handleFormError(
   error: ClientOperationResult | ValidationResult | string,
@@ -301,16 +301,16 @@ export function handleFormError(
   if (typeof error === 'string') {
     message = error
   } else if ('isValid' in error && !error.isValid) {
-    // Es un ValidationResult
-    message = error.error || 'Error de validación'
+    // It is a ValidationResult
+    message = error.error || 'Validation error'
   } else if ('success' in error && !error.success) {
-    // Es un ClientOperationResult
-    message = error.error || 'Error desconocido'
+    // It is a ClientOperationResult
+    message = error.error || 'Unknown error'
   } else {
     message = 'Ha ocurrido un error inesperado'
   }
 
-  // ✅ FAIL FAST: Mostrar error inmediatamente sin procesar más
+  // ✅ FAIL FAST: Show error immediately without further processing
 
   if (formElement) {
     let errorElement = formElement.querySelector<HTMLElement>('.form-error')
@@ -323,7 +323,7 @@ export function handleFormError(
 
     errorElement.textContent = message
 
-    // Auto-hide después de 5 segundos
+    // Auto-hide after 5 seconds
     setTimeout(() => {
       errorElement?.remove()
     }, 5000)
@@ -333,7 +333,7 @@ export function handleFormError(
 }
 
 /**
- * Estado global simple para manejo de loading
+ * Simple global state for loading management
  */
 export class LoadingState {
   private loadingElements = new Set<HTMLElement>()

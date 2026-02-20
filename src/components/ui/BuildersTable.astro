@@ -2,8 +2,8 @@
 import { formatDateTime, formatShortDateTime } from '@/utils/date-formatters'
 
 /**
- * Componente reutilizable para mostrar tablas de datos en el área de builders
- * Soporta diferentes configuraciones de columnas y tipos de datos
+ * Reusable component to display data tables in the builders area
+ * Supports different column configurations and data types
  */
 export interface Props {
   title: string
@@ -124,7 +124,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
     data.length === 0 ? (
       <div class="p-10 text-center">
         <div class="mb-4 text-5xl">📋</div>
-        <p class="mb-2 font-semibold text-foreground">Sin datos</p>
+        <p class="mb-2 font-semibold text-foreground">No data</p>
         <p class="text-sm text-muted-foreground">{emptyMessage}</p>
       </div>
     ) : (
@@ -253,14 +253,14 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
         <div class="md:hidden space-y-3 p-3">
           {data.map((rowData, index) => {
             const row = rowData as TableRow
-            // Primera columna como título principal (username)
+            // First column as main title (username)
             const primaryColumn = columns[0]
             const secondaryColumns = columns.slice(1)
             const dateColumn = secondaryColumns.find(c => c.type === 'date')
             const actionsColumn = secondaryColumns.find(c => c.type === 'actions')
             const primaryValue = getRowValue(row, primaryColumn.key)
             const primaryText = toDisplayText(primaryValue)
-            // Detectar si es una cuenta de usuario (tiene username)
+            // Detect if it is a user account (has username)
             const isUserAccount = primaryColumn.key === 'username' && primaryText.length > 0
             const profileUrl = isUserAccount ? `https://peakd.com/@${primaryText}` : null
 
@@ -272,7 +272,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                 class={`block relative bg-muted/30 rounded-lg border border-border/50 overflow-hidden transition-all ${profileUrl ? 'hover:border-primary/50 hover:bg-muted/40 cursor-pointer' : ''}`}
                 data-search-content={JSON.stringify(row)}
               >
-                {/* Pestaña con dato principal */}
+                {/* Tab with main data */}
                 <div class="bg-muted/60 px-3 py-2 border-b border-border/30">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
@@ -285,7 +285,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                         </svg>
                       )}
                     </div>
-                    {/* Mostrar fecha si existe en las columnas */}
+                    {/* Show date if it exists in the columns */}
                     {dateColumn && (
                       <span class="text-muted-foreground text-xs">
                         {formatShortDateCell(getRowValue(row, dateColumn.key))}
@@ -294,7 +294,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                   </div>
                 </div>
 
-                {/* Contenido */}
+                {/* Content */}
                 <div class="p-3">
                   <div class="grid grid-cols-2 gap-2">
                     {secondaryColumns.filter(c => c.type !== 'date' && c.type !== 'actions').map((column) => (
@@ -329,14 +329,14 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                     ))}
                   </div>
 
-                  {/* Fecha completa al final si existe */}
+                  {/* Full date at the end if it exists */}
                   {dateColumn && (
                     <div class="mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
                       {formatDateCell(getRowValue(row, dateColumn.key))}
                     </div>
                   )}
 
-                  {/* Acciones si existen */}
+                  {/* Actions if they exist */}
                   {actionsColumn && (
                     <div class="flex gap-2 mt-3 pt-2 border-t border-border/30">
                       {actionsColumn.actions?.map(action => (

@@ -1,5 +1,6 @@
 import type { create_claimed_account } from '@hiveio/wax'
 import { createCreatorService } from '@/lib/hive-transaction-service'
+import { BRAND } from '@/consts/branding'
 
 export interface ICreateAccountParams {
   readonly username: string
@@ -35,7 +36,7 @@ export async function createAccount(
       },
       memo_key: params.memoPublicKey,
       json_metadata: JSON.stringify({
-        app: 'HolaHive/1.0.0',
+        app: BRAND.APP_ID,
         ticket: '',
       }),
       extensions: [],

@@ -59,7 +59,7 @@ async function getUserByUsername(
 }
 
 /**
- * Verifica autenticación por usuario/contraseña
+ * Verifies authentication by user/password
  */
 export async function verifyPasswordAuth(
   request: PasswordAuthRequest
@@ -67,7 +67,7 @@ export async function verifyPasswordAuth(
   try {
     const { username, password } = request
 
-    // Validar campos requeridos
+    // Validate required fields
     if (!username || !password) {
       return {
         success: false,
@@ -75,7 +75,7 @@ export async function verifyPasswordAuth(
       }
     }
 
-    // Obtener usuario
+    // Get user
     const user = await getUserByUsername(username)
     if (!user) {
       return {
@@ -84,7 +84,7 @@ export async function verifyPasswordAuth(
       }
     }
 
-    // Verificar contraseña
+    // Verify password
     if (!user.password_hash) {
       return {
         success: false,

@@ -10,9 +10,9 @@ import { UserRole } from '@/lib/roles'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 /**
- * PATCH: Asignar créditos pendientes a un builder
- * Los créditos se agregan a pending_amount para que el builder los reclame
- * Usa creditsService para mantener consistencia
+ * PATCH: Assign pending credits to a builder
+ * Credits are added to pending_amount for the builder to claim
+ * Uses creditsService to maintain consistency
  */
 export const PATCH: APIRoute = async context => {
   return withAdminApiSession(context, async session => {
@@ -42,7 +42,7 @@ export const PATCH: APIRoute = async context => {
 
       const { amount } = data as CreditsUpdateRequest
 
-      // Validar cantidad
+      // Validate amount
       if (!amount || typeof amount !== 'number' || amount < 1) {
         return apiError('La cantidad debe ser mayor a 0', 400)
       }
@@ -51,7 +51,7 @@ export const PATCH: APIRoute = async context => {
         return apiError('La cantidad máxima es 10000 créditos', 400)
       }
 
-      // Verificar que el builder existe
+      // Verify that the builder exists
       const builderResult = await db.execute({
         sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
         args: [username.toLowerCase(), UserRole.Builder],
@@ -61,7 +61,7 @@ export const PATCH: APIRoute = async context => {
         return apiError('Builder no encontrado', 404)
       }
 
-      // Usar creditsService para asignar créditos (mantiene consistencia)
+      // Use creditsService to assign credits (maintains consistency)
       const updatedCredits = await creditsService.assignCredits({
         hive_username: username.toLowerCase(),
         amount,
@@ -84,13 +84,13 @@ export const PATCH: APIRoute = async context => {
 }
 
 /**
- * PUT: Ajustar créditos directamente (establecer valores absolutos)
- * Solo para admin - permite corregir valores de pending_amount y available_amount
+ * PUT: Adjust credits directly (set absolute values)
+ * Admin only - allows correcting pending_amount and available_amount values
  */
 export const PUT: APIRoute = async context => {
   return withAdminApiSession(context, async session => {
     try {
-      // RBAC: Solo admin puede hacer ajustes directos
+      // RBAC: Only admin can make direct adjustments
       try {
         assertCanPerform(
           session,
@@ -118,12 +118,12 @@ export const PUT: APIRoute = async context => {
       const { pending_amount, available_amount, reason } =
         data as CreditsAdjustRequest
 
-      // Validar que al menos un valor se proporciona
+      // Validate that at least one value is provided
       if (pending_amount === undefined && available_amount === undefined) {
         return apiError('Debe proporcionar pending_amount o available_amount', 400)
       }
 
-      // Validar valores no negativos
+      // Validate non-negative values
       if (
         (pending_amount !== undefined &&
           (typeof pending_amount !== 'number' || pending_amount < 0)) ||
@@ -133,7 +133,7 @@ export const PUT: APIRoute = async context => {
         return apiError('Los valores de créditos no pueden ser negativos', 400)
       }
 
-      // Límite máximo de seguridad
+      // Maximum security limit
       if (
         (pending_amount !== undefined && pending_amount > 100000) ||
         (available_amount !== undefined && available_amount > 100000)
@@ -141,7 +141,7 @@ export const PUT: APIRoute = async context => {
         return apiError('El valor máximo permitido es 100000', 400)
       }
 
-      // Obtener builder ID
+      // Get builder ID
       const builderResult = await db.execute({
         sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
         args: [username.toLowerCase(), UserRole.Builder],
@@ -153,7 +153,7 @@ export const PUT: APIRoute = async context => {
 
       const builderId = Number(builderResult.rows[0]?.id)
 
-      // Usar el servicio de créditos para hacer el ajuste
+      // Use the credits service to make the adjustment
       const updatedCredits = await creditsService.adjustCredits({
         builder_id: builderId,
         pending_amount,

@@ -1,8 +1,8 @@
 /**
  * SIMPLIFIED ERROR PROCESSING CHAIN
  *
- * Versión simplificada del sistema de manejo de errores.
- * Mantiene funcionalidad esencial sin over-engineering.
+ * Simplified error handling system version.
+ * Keeps essential functionality without over-engineering.
  */
 
 import {
@@ -39,32 +39,32 @@ export interface ProcessedError {
 }
 
 /**
- * Procesador simplificado de errores
- * Combina análisis y formateo en un solo paso
+ * Simplified error processor
+ * Combines analysis and formatting in a single step
  */
 export class SimplifiedErrorProcessor {
   /**
-   * Procesa un error de manera simplificada
+   * Processes an error in a simplified way
    */
   process(error: unknown, context?: Partial<ErrorContext>): ProcessedError {
-    // Normalizar error
+    // Normalize error
     const normalizedError = this.normalizeError(error)
 
-    // Convertir a UnifiedError
+    // Convert to UnifiedError
     const unifiedError = this.unifyError(normalizedError)
 
-    // Crear contexto completo
+    // Create full context
     const fullContext = this.createFullContext(context)
 
-    // Determinar si es retryable
+    // Determine if retryable
     const shouldRetry = this.determineRetryability(
       unifiedError,
       normalizedError
     )
-    // Generar mensaje de usuario
+    // Generate user message
     const userMessage = this.generateUserMessage(unifiedError, normalizedError)
 
-    // Obtener status HTTP
+    // Get HTTP status
     const httpStatus = getHttpStatus(unifiedError.code)
 
     return {
@@ -92,7 +92,7 @@ export class SimplifiedErrorProcessor {
   }
 
   private unifyError(error: Error): UnifiedError {
-    // Usar análisis Wax si es aplicable
+    // Use Wax analysis if applicable
     const waxAnalysis = analyzeWaxError(error)
     if (waxAnalysis.code !== 'GENERIC_HIVE_ERROR') {
       return new UnifiedError(
@@ -103,7 +103,7 @@ export class SimplifiedErrorProcessor {
       )
     }
 
-    // Mapeo simple por patrones
+    // Simple mapping by patterns
     const code = this.mapErrorToCode(error.message)
     return new UnifiedError(code, error.message, error, 'blockchain')
   }
@@ -150,12 +150,12 @@ export class SimplifiedErrorProcessor {
     unifiedError: UnifiedError,
     originalError: Error
   ): boolean {
-    // Usar análisis Wax si está disponible
+    // Use Wax analysis if available
     if (shouldRetryWaxError(originalError)) {
       return true
     }
 
-    // Lógica simple por código
+    // Simple logic by code
     const retryableCodes: UnifiedErrorCode[] = [
       'INTERNAL_ERROR',
       'CHAIN_VERIFICATION_TIMEOUT',
@@ -168,20 +168,20 @@ export class SimplifiedErrorProcessor {
     unifiedError: UnifiedError,
     originalError: Error
   ): string {
-    // Intentar mensaje específico de Wax
+    // Try Wax specific message
     const waxMessage = formatWaxErrorForUser(originalError)
     if (
       waxMessage !==
-      'Ha ocurrido un error inesperado. Por favor, inténtalo de nuevo.'
+      'An unexpected error has occurred. Please try again.'
     ) {
       return waxMessage
     }
 
-    // Usar mensaje unificado
+    // Use unified message
     try {
       return getErrorMessage(unifiedError.code)
     } catch {
-      return unifiedError.message || 'Ha ocurrido un error inesperado'
+      return unifiedError.message || 'An unexpected error has occurred'
     }
   }
 
@@ -199,7 +199,7 @@ export class SimplifiedErrorProcessor {
 const processor = new SimplifiedErrorProcessor()
 
 /**
- * Función principal para procesar errores (síncrona)
+ * Main function to process errors (synchronous)
  */
 export function processErrorSync(
   error: unknown,
@@ -209,7 +209,7 @@ export function processErrorSync(
 }
 
 /**
- * Función principal para procesar errores (asíncrona - por compatibilidad)
+ * Main function to process errors (asynchronous - for compatibility)
  */
 export async function processError(
   error: unknown,

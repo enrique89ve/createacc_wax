@@ -11,13 +11,13 @@ interface NonceEntry {
 	readonly createdAt: number
 }
 
-const NONCE_TTL_MS = 2 * 60 * 1000 // 2 minutos
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutos
+const NONCE_TTL_MS = 2 * 60 * 1000 // 2 minutes
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 
 const CHALLENGE_RATE_LIMIT = {
 	MAX_REQUESTS: 10,
-	WINDOW_MS: 60 * 1000, // 1 minuto
-	MAX_ENTRIES: 10_000, // límite de IPs en memoria
+	WINDOW_MS: 60 * 1000, // 1 minute
+	MAX_ENTRIES: 10_000, // IP limit in memory
 } as const
 
 interface RateLimitEntry {
@@ -29,7 +29,7 @@ const nonceStore = new Map<string, NonceEntry>()
 const rateLimitStore = new Map<string, RateLimitEntry>()
 
 /**
- * Limpia nonces expirados y entries de rate limit vencidos
+ * Cleans up expired nonces and rate limit entries
  */
 function cleanupExpiredEntries(): void {
 	const now = Date.now()
@@ -45,11 +45,11 @@ function cleanupExpiredEntries(): void {
 	}
 }
 
-// Limpieza periódica automática (unref para no bloquear shutdown en serverless)
+// Automatic periodic cleanup (unref to not block shutdown in serverless)
 setInterval(cleanupExpiredEntries, CLEANUP_INTERVAL_MS).unref()
 
 /**
- * Genera un nonce criptográfico y lo almacena
+ * Generates a cryptographic nonce and stores it
  */
 export function generateNonce(): { nonce: string; expiresAt: number } {
 	const nonce = randomBytes(32).toString('hex')
@@ -61,8 +61,8 @@ export function generateNonce(): { nonce: string; expiresAt: number } {
 }
 
 /**
- * Valida y consume un nonce: existe, no expirado.
- * Lo elimina inmediatamente del store (one-time use, libera memoria).
+ * Validates and consumes a nonce: exists, not expired.
+ * Removes it immediately from the store (one-time use, frees memory).
  */
 export function consumeNonce(nonce: string): boolean {
 	const entry = nonceStore.get(nonce)
@@ -79,8 +79,8 @@ export function consumeNonce(nonce: string): boolean {
 }
 
 /**
- * Evicta entries expirados cuando el store excede MAX_ENTRIES.
- * Si tras la limpieza sigue excediendo, limpia todo para prevenir OOM.
+ * Evicts expired entries when the store exceeds MAX_ENTRIES.
+ * If it still exceeds after cleanup, clears everything to prevent OOM.
  */
 function evictIfNeeded(): void {
 	if (rateLimitStore.size <= CHALLENGE_RATE_LIMIT.MAX_ENTRIES) return
@@ -98,9 +98,9 @@ function evictIfNeeded(): void {
 }
 
 /**
- * Verifica rate limit para generación de challenges.
+ * Verifies rate limit for challenge generation.
  * Sliding window: MAX_REQUESTS por WINDOW_MS por IP.
- * @returns true si la petición está permitida, false si excede el límite
+ * @returns true if the request is allowed, false if it exceeds the limit
  */
 export function checkChallengeRateLimit(clientIp: string): boolean {
 	evictIfNeeded()

@@ -166,8 +166,8 @@ export async function notifyPendingCredits(
 	return createNotification({
 		user_id: userId,
 		type: 'pending_credits',
-		title: 'Créditos Pendientes',
-		message: `Tienes ${amount} ${amount === 1 ? 'crédito' : 'créditos'} por reclamar`,
+		title: 'Pending Credits',
+		message: `You have ${amount} ${amount === 1 ? 'credit' : 'credits'} to claim`,
 		metadata: JSON.stringify({ amount }),
 	})
 }
@@ -181,13 +181,13 @@ export async function notifyCreditAssigned(
 	assignedBy?: string
 ): Promise<boolean> {
 	const message = assignedBy
-		? `Se te han asignado ${amount} ${amount === 1 ? 'crédito' : 'créditos'} por ${assignedBy}`
-		: `Se te han asignado ${amount} ${amount === 1 ? 'crédito' : 'créditos'}`
+		? `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'} by ${assignedBy}`
+		: `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'}`
 
 	return createNotification({
 		user_id: userId,
 		type: 'credit_assigned',
-		title: 'Créditos Asignados',
+		title: 'Assigned Credits',
 		message,
 		metadata: JSON.stringify({ amount, assignedBy }),
 	})
