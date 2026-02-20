@@ -1,11 +1,6 @@
 /**
  * Utilidad para estandarizar respuestas de error en API routes
- * Basado en patrones de la-velada-web-oficial y mejores prácticas
  */
-
-import { AppError, AppErrorCode } from '@/consts/errors'
-import { getHttpStatus } from '@/consts/unified-errors'
-import { processErrorSync, type ErrorContext } from '@/lib/error-chain'
 
 export interface ApiErrorResponse {
   error: string
@@ -23,46 +18,6 @@ export interface ApiSuccessResponse<T = unknown> {
 interface ResponseOptions {
   readonly noCache?: boolean
   readonly headers?: Record<string, string>
-}
-
-/**
- * Crea una respuesta compatible con el formato actual de la API
- * Para migración gradual desde createJsonResponse hacia el sistema unificado
- */
-export function createCompatibleErrorResponse(
-  error: unknown,
-  status?: number,
-  options?: ResponseOptions
-): Response {
-  // Usar la cadena de procesamiento completa
-  const processed = processErrorSync(error, {
-    metadata: { compatibilityMode: true },
-  })
-
-  const responseBody = {
-    success: false,
-    message: processed.userMessage,
-    error: processed.userMessage,
-    errorCode: processed.error.code,
-    timestamp: processed.context.timestamp,
-  }
-
-  return createResponseWithOptions(
-    responseBody,
-    status || processed.httpStatus,
-    options
-  )
-}
-
-/**
- * Crea una respuesta de éxito compatible con createJsonResponse
- */
-export function createCompatibleSuccessResponse<T>(
-  data: T,
-  status: number = 200,
-  options?: ResponseOptions
-): Response {
-  return createResponseWithOptions(data, status, options)
 }
 
 /**

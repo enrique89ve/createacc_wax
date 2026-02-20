@@ -1,9 +1,8 @@
-import type { APIContext } from 'astro'
 import { type TPublicKey } from '@hiveio/wax'
-import { ensureCreation } from '@/lib/session-helpers'
 import { USERNAME_CONSTRAINTS, VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import type { ICreateAccountParams } from '@/lib/create/create-account'
-import { validateHiveKeySet, type PublicKeySet } from '@/utils/key-validation'
+import { validateHiveKeySet } from '@/utils/key-validation'
+import type { CreationSession } from '@/types/auth'
 import {
 	type ValidationResult,
 	createValidationSuccess,
@@ -20,174 +19,113 @@ export interface ValidatedAccountRequest {
 
 export interface ValidatedSession {
 	readonly username: string
-	readonly ticket?: string
+	readonly ticket: string
 	readonly confirmedDownload: boolean
 	readonly accountCreated: boolean
 }
 
 /**
- * ACCOUNT CREATION VALIDATOR
- * 
- * Esta clase centraliza toda la lógica de validación para la creación de cuentas Hive.
- * Separa las validaciones en pasos claros y manejables:
- * 
- * 1. validateRequestData() - Valida datos del request (formato, claves)
- * 2. validateSession() - Valida sesión de usuario (descarga confirmada)
- * 3. Conversión a parámetros para crear cuenta
- * 
- * Patron usado: Validation Result Pattern
- * - Retorna ValidationResult<T> en lugar de mezclar con HTTP responses
- * - Hace el código más testeable y fácil de entender
- * - Separa lógica de validación de lógica de HTTP
+ * Valida los datos del request de creacion de cuenta (funcion pura).
+ *
+ * Valida: campos requeridos, formato de username, claves publicas validas.
  */
-export class AccountCreationValidator {
-	/**
-	 * Valida los datos del request de creación de cuenta.
-	 * 
-	 * Este método valida:
-	 * - Campos requeridos están presentes
-	 * - Username tiene formato correcto
-	 * - Claves públicas son válidas según Hive
-	 * 
-	 * @param context - Contexto de la petición HTTP
-	 * @returns ValidationResult con datos validados o error
-	 */
-	async validateRequestData(context: APIContext): Promise<ValidationResult<ValidatedAccountRequest>> {
-		try {
-			const data = await context.request.json()
-			const { username, ownerPublicKey, activePublicKey, postingPublicKey, memoPublicKey } = data
+export function validateRequestData(
+	data: Record<string, unknown>
+): ValidationResult<ValidatedAccountRequest> {
+	const { username, ownerPublicKey, activePublicKey, postingPublicKey, memoPublicKey } = data
 
-			// PASO 1: Validar campos requeridos
-			if (!username || !ownerPublicKey || !activePublicKey || !postingPublicKey || !memoPublicKey) {
-				return createValidationFailure(
-					VALIDATION_ERROR_MESSAGES.MISSING_REQUIRED_FIELDS,
-					'request_body',
-					'MISSING_REQUIRED_FIELDS'
-				)
-			}
-
-			// PASO 2: Validar formato de username usando validación básica
-			if (
-				typeof username !== 'string' ||
-				username.length < USERNAME_CONSTRAINTS.MIN_LENGTH ||
-				username.length > USERNAME_CONSTRAINTS.MAX_LENGTH
-			) {
-				return createValidationFailure(
-					VALIDATION_ERROR_MESSAGES.INVALID_USERNAME_FORMAT,
-					'username',
-					'INVALID_USERNAME_FORMAT'
-				)
-			}
-
-			// Nota: Validación de username contra blockchain se hace en el endpoint principal
-			// Este validator solo hace validaciones de formato básicas
-
-			// PASO 3: Validar claves públicas usando type guards seguros
-			try {
-				const validatedKeys = validateHiveKeySet({
-					ownerPublicKey,
-					activePublicKey,
-					postingPublicKey,
-					memoPublicKey,
-				})
-				
-				// Todos los datos son válidos - retornar resultado exitoso
-				return createValidationSuccess({
-					username,
-					...validatedKeys,
-				})
-			} catch (keyError) {
-				const errorMessage = keyError instanceof Error ? keyError.message : 'Key validation failed'
-				return createValidationFailure(
-					`Invalid public key: ${errorMessage}`,
-					'public_keys',
-					'INVALID_PUBLIC_KEY_FORMAT'
-				)
-			}
-
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown validation error'
-			return createValidationFailure(
-				`Request validation failed: ${errorMessage}`,
-				'request',
-				'INTERNAL_ERROR'
-			)
-		}
+	if (!username || !ownerPublicKey || !activePublicKey || !postingPublicKey || !memoPublicKey) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.MISSING_REQUIRED_FIELDS,
+			'request_body',
+			'MISSING_REQUIRED_FIELDS'
+		)
 	}
 
-	/**
-	 * Valida la sesión de creación de cuenta.
-	 *
-	 * Verifica que:
-	 * - El usuario tiene una sesión activa
-	 * - Ha confirmado la descarga de claves
-	 * - El username del request coincide con el de la sesión (anti-tampering)
-	 *
-	 * @param context - Contexto de la petición HTTP
-	 * @param requestUsername - Username del request body para comparar con la sesión
-	 * @returns ValidationResult con datos de sesión o error
-	 */
-	async validateSessionData(
-		context: APIContext,
-		requestUsername: string
-	): Promise<ValidationResult<ValidatedSession>> {
-		try {
-			const creationSession = await ensureCreation(context)
-
-			if (!creationSession || !creationSession.confirmedDownload) {
-				return createValidationFailure(
-					VALIDATION_ERROR_MESSAGES.KEYS_DOWNLOAD_NOT_CONFIRMED,
-					'session',
-					'KEYS_DOWNLOAD_NOT_CONFIRMED'
-				)
-			}
-
-			// G1: Validar que el username del request coincide con el de la sesión
-			if (creationSession.username !== requestUsername) {
-				return createValidationFailure(
-					VALIDATION_ERROR_MESSAGES.USERNAME_SESSION_MISMATCH,
-					'username',
-					'USERNAME_SESSION_MISMATCH'
-				)
-			}
-
-			// F1 FIX: Require ticket in session - prevents ticketless account creation
-			if (!creationSession.ticket || !creationSession.ticket.trim()) {
-				return createValidationFailure(
-					VALIDATION_ERROR_MESSAGES.TICKET_REQUIRED,
-					'ticket',
-					'TICKET_REQUIRED'
-				)
-			}
-
-			return createValidationSuccess(creationSession as ValidatedSession)
-
-		} catch (error) {
-			const errorMessage = error instanceof Error ? error.message : 'Unknown session error'
-			return createValidationFailure(
-				`Session validation failed: ${errorMessage}`,
-				'session',
-				'INTERNAL_ERROR'
-			)
-		}
+	if (
+		typeof username !== 'string' ||
+		username.length < USERNAME_CONSTRAINTS.MIN_LENGTH ||
+		username.length > USERNAME_CONSTRAINTS.MAX_LENGTH
+	) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.INVALID_USERNAME_FORMAT,
+			'username',
+			'INVALID_USERNAME_FORMAT'
+		)
 	}
 
-	/**
-	 * Convierte datos validados a parámetros de creación de cuenta.
-	 * 
-	 * Esta función es un simple mapper que convierte el resultado de validación
-	 * al formato esperado por la función de creación de cuenta de Hive.
-	 * 
-	 * @param validatedData - Datos ya validados por validateRequestData()
-	 * @returns Parámetros listos para createAccount() de Hive
-	 */
-	toCreateAccountParams(validatedData: ValidatedAccountRequest): ICreateAccountParams {
-		return {
-			username: validatedData.username,
-			ownerPublicKey: validatedData.ownerPublicKey,
-			activePublicKey: validatedData.activePublicKey,
-			postingPublicKey: validatedData.postingPublicKey,
-			memoPublicKey: validatedData.memoPublicKey,
-		}
+	try {
+		const validatedKeys = validateHiveKeySet({
+			ownerPublicKey,
+			activePublicKey,
+			postingPublicKey,
+			memoPublicKey,
+		})
+
+		return createValidationSuccess({
+			username,
+			...validatedKeys,
+		})
+	} catch (keyError) {
+		const errorMessage = keyError instanceof Error ? keyError.message : 'Key validation failed'
+		return createValidationFailure(
+			`Invalid public key: ${errorMessage}`,
+			'public_keys',
+			'INVALID_PUBLIC_KEY_FORMAT'
+		)
+	}
+}
+
+/**
+ * Valida la sesion de creacion de cuenta (funcion pura).
+ *
+ * Verifica: sesion activa, descarga confirmada, username match, ticket presente.
+ */
+export function validateSessionData(
+	session: CreationSession | null,
+	requestUsername: string
+): ValidationResult<ValidatedSession> {
+	if (!session || !session.confirmedDownload) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.KEYS_DOWNLOAD_NOT_CONFIRMED,
+			'session',
+			'KEYS_DOWNLOAD_NOT_CONFIRMED'
+		)
+	}
+
+	if (session.username !== requestUsername) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.USERNAME_SESSION_MISMATCH,
+			'username',
+			'USERNAME_SESSION_MISMATCH'
+		)
+	}
+
+	if (!session.ticket || !session.ticket.trim()) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.TICKET_REQUIRED,
+			'ticket',
+			'TICKET_REQUIRED'
+		)
+	}
+
+	return createValidationSuccess({
+		username: session.username,
+		ticket: session.ticket,
+		confirmedDownload: session.confirmedDownload ?? false,
+		accountCreated: session.accountCreated ?? false,
+	} satisfies ValidatedSession)
+}
+
+/**
+ * Convierte datos validados a parametros de creacion de cuenta.
+ */
+export function toCreateAccountParams(validatedData: ValidatedAccountRequest): ICreateAccountParams {
+	return {
+		username: validatedData.username,
+		ownerPublicKey: validatedData.ownerPublicKey,
+		activePublicKey: validatedData.activePublicKey,
+		postingPublicKey: validatedData.postingPublicKey,
+		memoPublicKey: validatedData.memoPublicKey,
 	}
 }

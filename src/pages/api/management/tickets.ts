@@ -4,7 +4,7 @@ import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
-import { jsonResponse } from '@/utils/api-response'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
@@ -19,21 +19,6 @@ interface TicketCreateRequest {
   readonly code?: string
   readonly description?: string
   readonly credits?: number
-}
-
-interface TicketCreationResult {
-  readonly success: true
-  readonly message: string
-  readonly ticket: {
-    readonly id: number
-    readonly code: string
-    readonly description: string
-    readonly original_credits: number
-  }
-  readonly credits_info: {
-    readonly credits_deducted: number
-    readonly new_credits: number
-  }
 }
 
 // GET: Listar tickets
@@ -52,9 +37,9 @@ export const GET: APIRoute = async context => {
         )
       }
 
-      return jsonResponse({ success: true, tickets }, 200)
+      return apiSuccess({ tickets })
     } catch (error) {
-      return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)
+      return apiError(API_MESSAGES.ERRORS.INTERNAL_ERROR, 500)
     }
   })
 }
@@ -99,28 +84,19 @@ export const POST: APIRoute = async context => {
       // Validar código de ticket
       const codeValidation = validateTicketName(code)
       if (!isValidationSuccess(codeValidation)) {
-        return jsonResponse(
-          { error: codeValidation.error.message },
-          400
-        )
+        return apiError(codeValidation.error.message, 400)
       }
 
       // Validar créditos
       const creditsValidation = validateTicketCredits(creditsInput)
       if (!isValidationSuccess(creditsValidation)) {
-        return jsonResponse(
-          { error: creditsValidation.error.message },
-          400
-        )
+        return apiError(creditsValidation.error.message, 400)
       }
 
       // Validar descripción
       const descriptionValidation = validateTicketDescription(description)
       if (!isValidationSuccess(descriptionValidation)) {
-        return jsonResponse(
-          { error: descriptionValidation.error.message },
-          400
-        )
+        return apiError(descriptionValidation.error.message, 400)
       }
 
       const cleanCode = codeValidation.data
@@ -130,7 +106,7 @@ export const POST: APIRoute = async context => {
       // Obtener datos del usuario
       const userData = await getUserData(session.userId)
       if (!userData) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.USER_NOT_FOUND }, 404)
+        return apiError(API_MESSAGES.ERRORS.USER_NOT_FOUND, 404)
       }
 
       const username = userData.username
@@ -140,23 +116,20 @@ export const POST: APIRoute = async context => {
         const userCredits = await creditBalanceTracker.getBalance(username)
 
         if (!userCredits || userCredits.available_amount < credits) {
-          return jsonResponse(
+          return apiError(
+            `Créditos insuficientes. Necesitas ${credits} créditos, pero solo tienes ${userCredits?.available_amount || 0} disponibles.`,
+            403,
             {
-              error: `Créditos insuficientes. Necesitas ${credits} créditos, pero solo tienes ${userCredits?.available_amount || 0} disponibles.`,
               required_credits: credits,
               available_credits: userCredits?.available_amount || 0,
-            },
-            403
+            }
           )
         }
       }
 
       // Validación: Código ya existe
       if (await ticketCodeExists(cleanCode)) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS },
-          400
-        )
+        return apiError(API_MESSAGES.ERRORS.TICKET_CODE_EXISTS, 400)
       }
 
       // Consumir créditos (solo para builders)
@@ -168,12 +141,10 @@ export const POST: APIRoute = async context => {
             cleanCode
           )
         } catch (error) {
-          return jsonResponse(
-            {
-              error: API_MESSAGES.ERRORS.CREDITS_DEDUCTION_ERROR,
-              details: error instanceof Error ? error.message : 'Unknown error',
-            },
-            500
+          return apiError(
+            API_MESSAGES.ERRORS.CREDITS_DEDUCTION_ERROR,
+            500,
+            error instanceof Error ? error.message : 'Unknown error'
           )
         }
       }
@@ -193,8 +164,7 @@ export const POST: APIRoute = async context => {
       // Obtener balance final
       const finalUserCredits = await creditBalanceTracker.getBalance(username)
 
-      const result: TicketCreationResult = {
-        success: true,
+      return apiSuccess({
         message: API_MESSAGES.SUCCESS.TICKET_CREATED,
         ticket: {
           id: ticketId,
@@ -206,21 +176,16 @@ export const POST: APIRoute = async context => {
           credits_deducted: credits,
           new_credits: finalUserCredits?.available_amount || 0,
         },
-      }
-
-      return jsonResponse(result, 201)
+      }, 201)
     } catch (error) {
       if (
         error instanceof Error &&
         error.message.includes('UNIQUE constraint failed')
       ) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_CODE_EXISTS },
-          400
-        )
+        return apiError(API_MESSAGES.ERRORS.TICKET_CODE_EXISTS, 400)
       }
 
-      return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)
+      return apiError(API_MESSAGES.ERRORS.INTERNAL_ERROR, 500)
     }
   })
 }

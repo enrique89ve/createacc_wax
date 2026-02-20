@@ -1,11 +1,27 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { db } from '@/lib/database'
+import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
-// Logger removed
 import { verifyClaimTransaction } from '@/lib/hive-transaction-verifier'
 import { claimHashCache } from '@/lib/claim-hash-cache'
+
+/** Partial row from SELECT id */
+interface UserIdRow {
+  readonly id: number
+}
+
+/** Partial row from SELECT id, pending_amount */
+interface CreditPendingRow {
+  readonly id: number
+  readonly pending_amount: number
+}
+
+/** Partial row from SELECT available_amount as total */
+interface BalanceTotalRow {
+  readonly total: number
+}
 
 export interface ClaimVerifyRequest {
   transactionId: string
@@ -97,7 +113,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const builderId = (builderResult.rows[0] as any).id
+    const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
 
     // Extraer creditId del claimCode (formato: credit_123_timestamp)
     const creditIdMatch = hashData.ticketCode.match(/credit_(\d+)_/)
@@ -137,7 +153,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const currentPending = Number((creditResult.rows[0] as any).pending_amount)
+    const currentPending = Number((creditResult.rows[0] as unknown as CreditPendingRow).pending_amount)
 
     if (currentPending < creditsToAdd) {
       return new Response(
@@ -190,7 +206,7 @@ export const POST: APIRoute = async ({ request }) => {
         args: [creditId],
       })
 
-      const newBalance = (balanceResult.rows[0] as any).total
+      const newBalance = (balanceResult.rows[0] as unknown as BalanceTotalRow).total
 
       return new Response(
         JSON.stringify({
@@ -211,7 +227,7 @@ export const POST: APIRoute = async ({ request }) => {
       throw dbError
     }
   } catch (error) {
-    console.error('Error en claim-verify:', error)
+    logger.error('Error en claim-verify:', error)
     return new Response(
       JSON.stringify({ success: false, error: 'Error interno del servidor' }),
       {

@@ -1,89 +1,102 @@
 import createBeekeeper, {
-  type IBeekeeperUnlockedWallet,
-  type IBeekeeperWallet,
+	type IBeekeeperInstance,
+	type IBeekeeperSession,
+	type IBeekeeperUnlockedWallet,
 } from '@hiveio/beekeeper'
 import { BEEKEEPER_CONFIG, ERROR_MESSAGES, ENV_KEYS } from '@/consts/constants'
 import { getRequiredEnvString } from '@/lib/env'
 
 export interface IWalletSession {
-  readonly wallet: IBeekeeperUnlockedWallet
-  readonly publicKey: string
+	readonly wallet: IBeekeeperUnlockedWallet
+	readonly publicKey: string
+	readonly cleanup: () => Promise<void>
 }
 
 export interface IBeekeeperServiceConfig {
-  readonly privateKey: string
-  readonly walletName: string
+	readonly privateKey: string
+	readonly walletName: string
 }
 
 export class BeekeeperService {
-  private constructor(private readonly config: IBeekeeperServiceConfig) {}
+	private constructor(private readonly config: IBeekeeperServiceConfig) {}
 
-  static create(config: IBeekeeperServiceConfig): BeekeeperService {
-    return new BeekeeperService(config)
-  }
+	static create(config: IBeekeeperServiceConfig): BeekeeperService {
+		return new BeekeeperService(config)
+	}
 
-  async createWalletSession(): Promise<IWalletSession> {
-    try {
-      const bk = await createBeekeeper()
-      const session = bk.createSession(BEEKEEPER_CONFIG.SESSION_SALT)
-      return await this.initializeWallet(session)
-    } catch (error) {
-      throw new Error(
-        `${ERROR_MESSAGES.WALLET.SESSION_CREATION_FAILED}: ${error instanceof Error ? error.message : String(error)}`
-      )
-    }
-  }
+	async createWalletSession(): Promise<IWalletSession> {
+		let bk: IBeekeeperInstance | undefined
 
-  private async initializeWallet(session: any): Promise<IWalletSession> {
-    try {
-      const lockedWallet: IBeekeeperWallet = await session.openWallet(
-        this.config.walletName
-      )
-      const unlockedWallet = await lockedWallet.unlock(
-        getRequiredEnvString(
-          ENV_KEYS.BEEKEEPER_WALLET_PASSWORD
-        )
-      )
-      const publicKeys = unlockedWallet.getPublicKeys()
+		try {
+			bk = await createBeekeeper()
+			const session = bk.createSession(BEEKEEPER_CONFIG.SESSION_SALT)
+			const { wallet, publicKey } = await this.initializeWallet(session)
 
-      if (!publicKeys || publicKeys.length === 0) {
-        throw new Error(ERROR_MESSAGES.WALLET.NO_PUBLIC_KEYS)
-      }
+			const beekeeperRef = bk
+			return {
+				wallet,
+				publicKey,
+				cleanup: async () => {
+					try {
+						session.close()
+					} catch { /* session may already be closed */ }
+					try {
+						await beekeeperRef.delete()
+					} catch { /* best-effort WASM cleanup */ }
+				},
+			}
+		} catch (error) {
+			// Si fallo antes de retornar, limpiar el runtime WASM
+			if (bk) {
+				try { await bk.delete() } catch { /* best-effort */ }
+			}
+			throw new Error(
+				`${ERROR_MESSAGES.WALLET.SESSION_CREATION_FAILED}: ${error instanceof Error ? error.message : String(error)}`
+			)
+		}
+	}
 
-      return { wallet: unlockedWallet, publicKey: publicKeys[0] }
-    } catch (openErr) {
-      try {
-        return await this.createNewWallet(session)
-      } catch (createErr: any) {
-        // Si falla la creación porque ya existe, el error crítico es el de apertura (openErr)
-        // Esto nos revelará por qué no se pudo abrir la wallet existente (ej: password incorrecto, archivo corrupto, lock)
-        if (
-          createErr?.message?.includes('already exists') ||
-          String(createErr).includes('already exists')
-        ) {
-          console.error(`[Beekeeper] Failed to open existing wallet:`, openErr)
-          throw new Error(
-            `${ERROR_MESSAGES.WALLET.SESSION_CREATION_FAILED}: Unable to open existing wallet. Cause: ${openErr instanceof Error ? openErr.message : String(openErr)}`
-          )
-        }
-        throw createErr
-      }
-    }
-  }
+	private async initializeWallet(
+		session: IBeekeeperSession
+	): Promise<{ wallet: IBeekeeperUnlockedWallet; publicKey: string }> {
+		const password = getRequiredEnvString(ENV_KEYS.BEEKEEPER_WALLET_PASSWORD)
 
-  private async createNewWallet(session: any): Promise<IWalletSession> {
-    if (!this.config.privateKey) {
-      throw new Error(ERROR_MESSAGES.WALLET.PRIVATE_KEY_REQUIRED)
-    }
+		if (session.hasWallet(this.config.walletName)) {
+			return this.openExistingWallet(session, password)
+		}
 
-    const { wallet } = await session.createWallet(
-      this.config.walletName,
-      getRequiredEnvString(
-        ENV_KEYS.BEEKEEPER_WALLET_PASSWORD
-      ),
-      false
-    )
-    const publicKey = await wallet.importKey(this.config.privateKey)
-    return { wallet, publicKey }
-  }
+		return this.createNewWallet(session, password)
+	}
+
+	private openExistingWallet(
+		session: IBeekeeperSession,
+		password: string
+	): { wallet: IBeekeeperUnlockedWallet; publicKey: string } {
+		const lockedWallet = session.openWallet(this.config.walletName)
+		const wallet = lockedWallet.unlock(password)
+		const publicKeys = wallet.getPublicKeys()
+
+		if (publicKeys.length === 0) {
+			throw new Error(ERROR_MESSAGES.WALLET.NO_PUBLIC_KEYS)
+		}
+
+		return { wallet, publicKey: publicKeys[0] }
+	}
+
+	private async createNewWallet(
+		session: IBeekeeperSession,
+		password: string
+	): Promise<{ wallet: IBeekeeperUnlockedWallet; publicKey: string }> {
+		if (!this.config.privateKey) {
+			throw new Error(ERROR_MESSAGES.WALLET.PRIVATE_KEY_REQUIRED)
+		}
+
+		const { wallet } = await session.createWallet(
+			this.config.walletName,
+			password,
+			false
+		)
+		const publicKey = await wallet.importKey(this.config.privateKey)
+		return { wallet, publicKey }
+	}
 }

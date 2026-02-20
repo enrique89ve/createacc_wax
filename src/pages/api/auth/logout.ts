@@ -2,16 +2,7 @@ import type { APIRoute } from 'astro'
 import { ROUTES, HTTP_STATUS } from '@/consts/constants'
 // Logger removed
 import { CreationSessionManager } from '@/lib/session-manager'
-
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    },
-  })
-}
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 async function signOutViaAuth(
   context: Parameters<APIRoute>[0]
@@ -62,18 +53,20 @@ export const POST: APIRoute = async context => {
     context.locals.adminUser = undefined
     context.locals.creation = undefined
 
-    return json(
+    return apiSuccess(
       {
-        success: true,
         message: 'Sesión cerrada exitosamente',
         redirectTo: ROUTES.LOGIN,
       },
-      HTTP_STATUS.OK
+      HTTP_STATUS.OK,
+      { noCache: true }
     )
   } catch (error) {
-    return json(
-      { success: false, error: 'Error durante el cierre de sesión' },
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    return apiError(
+      'Error durante el cierre de sesión',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      undefined,
+      { noCache: true }
     )
   }
 }

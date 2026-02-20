@@ -138,7 +138,7 @@ export function unauthorizedResponse(
  * Wrapper for API routes that require specific operation permission
  * Automatically returns 403 if unauthorized
  */
-export function requireOperation<T>(
+export function requireOperation(
 	session: AdminSession | null | undefined,
 	operation: ManagementOperation
 ): session is AdminSession {

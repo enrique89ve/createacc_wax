@@ -25,6 +25,7 @@ const CREATION_RATE_LIMITS = {
 	suspicious: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
 	similarity: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
 	ticket: { maxRequests: 5, windowMs: 60_000, maxEntries: 10_000 },
+	powChallenge: { maxRequests: 30, windowMs: 60_000, maxEntries: 10_000 },
 } as const satisfies Record<string, RateLimiterConfig>
 
 type EndpointName = keyof typeof CREATION_RATE_LIMITS

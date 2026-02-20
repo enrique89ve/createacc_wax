@@ -1,7 +1,6 @@
 import { hiveChain, isMainnet } from '@/lib/hiveservice'
-import { BeekeeperService } from '@/lib/create/beekeeper-service'
-import type { ITransactionBase, ITransaction } from '@hiveio/wax'
-import type { IBeekeeperUnlockedWallet } from '@hiveio/beekeeper'
+import { BeekeeperService, type IWalletSession } from '@/lib/create/beekeeper-service'
+import type { ITransactionBase } from '@hiveio/wax'
 import { getEnvString } from '@/lib/env'
 import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
@@ -14,7 +13,7 @@ export interface IHiveTransactionConfig {
   readonly retryDelayMs?: number
 }
 
-export type OperationBuilder = (tx: ITransaction, account: string) => void
+export type OperationBuilder = (tx: ITransactionBase, account: string) => void
 
 interface RetryConfig {
   readonly maxRetries: number
@@ -43,21 +42,18 @@ export class HiveTransactionService {
   }
 
   async executeTransaction(
-    operationBuilder: OperationBuilder,
-    successMessage?: string
+    operationBuilder: OperationBuilder
   ): Promise<{ id: string }> {
     const beekeeperService = BeekeeperService.create({
       privateKey: this.config.privateKey,
       walletName: this.config.walletName,
     })
 
-    let wallet: IBeekeeperUnlockedWallet | undefined
-    let publicKey: string | undefined
+    let walletSession: IWalletSession | undefined
 
     try {
-      const walletSession = await beekeeperService.createWalletSession()
-      wallet = walletSession.wallet
-      publicKey = walletSession.publicKey
+      walletSession = await beekeeperService.createWalletSession()
+      const { wallet, publicKey } = walletSession
 
       return await this.executeWithRetry(async () => {
         const chain = await hiveChain()
@@ -67,15 +63,8 @@ export class HiveTransactionService {
 
           operationBuilder(tx, this.config.account)
 
-          // Validate transaction using Wax native validation
           tx.validate()
 
-          // Ensure wallet and publicKey are defined before signing
-          if (!wallet || !publicKey) {
-            throw new Error('Wallet or public key is not available')
-          }
-
-          // Sign the transaction with the beekeeper wallet
           const signature = wallet.signDigest(publicKey, tx.sigDigest)
           tx.addSignature(signature)
 
@@ -85,18 +74,14 @@ export class HiveTransactionService {
             await chain.broadcast(tx)
           }
 
-          // Capture ID before deleting chain (tx.id uses WASM internally)
           return { id: tx.id }
         } finally {
           chain.delete()
         }
       })
     } finally {
-      // Asegurar que el wallet se bloquee siempre, incluso si hubo error en la creación
-      if (wallet) {
-        try {
-          wallet.lock()
-        } catch (lockError) {}
+      if (walletSession) {
+        await walletSession.cleanup()
       }
     }
   }

@@ -6,7 +6,6 @@ import type {
   RecentTicketInfo,
   RecentAccountInfo,
 } from '@/lib/repositories/dashboard-service'
-import { UserRole } from '@/lib/roles'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -31,7 +30,9 @@ try {
   stats = summary.stats
   recentTickets = summary.recentTickets
   recentAccounts = summary.recentAccounts
-} catch (error) {}
+} catch (_error) {
+  // Non-critical: dashboard renders with default zero stats as fallback
+}
 ---
 
 <ManagementLayout title="Console de Gestión - HolaHive" activeTab="dashboard">

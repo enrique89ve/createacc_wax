@@ -1,9 +1,6 @@
 ---
-// Componente: CreationStepper estilizado tipo Stepper (inspirado en ejemplo proporcionado)
-// Reproduce estructura conceptual: Stepper > StepperItem > StepperTrigger > StepperIndicator + (Title, Description) + StepperSeparator.
 const pathname = Astro.url.pathname
 
-// Detección de paso actual
 let current = 1
 let username: string | undefined
 switch (true) {
@@ -28,23 +25,26 @@ interface StepDef {
   readonly href: string
 }
 
+const labels = {
+  1: 'Elige un usuario',
+  2: 'Detalles de la cuenta',
+  3: 'Explora a Hive',
+}
+
 const steps: readonly StepDef[] = [
-  { id: 1, label: 'Elige un usuario', href: '/' },
+  { id: 1, label: labels[1], href: '/' },
   {
     id: 2,
-    label: 'Detalles de la cuenta',
+    label: labels[2],
     href: username ? `/details/${username}` : '#',
   },
   {
     id: 3,
-    label: 'Explora a Hive',
+    label: labels[3],
     href: username ? `/success/${username}` : '#',
   },
 ]
 
-// Ya no usamos barra continua; cada segmento renderiza su propio estado.
-
-// Utility para clases (simple). Evita dependencias.
 function cls(...parts: (string | false | undefined)[]): string {
   return parts.filter(Boolean).join(' ')
 }
@@ -143,7 +143,6 @@ function cls(...parts: (string | false | undefined)[]): string {
 </nav>
 
 <style>
-  /* Animación sutil de aparición */
   nav[aria-label='Progreso de creación de cuenta'] {
     animation: fadeSlideIn 0.4s ease both;
   }

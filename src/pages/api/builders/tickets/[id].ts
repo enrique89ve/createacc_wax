@@ -6,6 +6,7 @@
  */
 
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import {
   getAuthenticatedBuilderId,
@@ -118,7 +119,7 @@ export const PATCH: APIRoute = async ({ request, params }) => {
       return handleAuthError(error)
     }
 
-    console.error('Error updating ticket:', error)
+    logger.error('Error updating ticket:', error)
     return apiError(
       'Error interno del servidor',
       HTTP_STATUS.INTERNAL_SERVER_ERROR
@@ -190,7 +191,7 @@ export const DELETE: APIRoute = async ({ request, params }) => {
       return handleAuthError(error)
     }
 
-    console.error('Error deleting ticket:', error)
+    logger.error('Error deleting ticket:', error)
     return apiError(
       'Error interno del servidor',
       HTTP_STATUS.INTERNAL_SERVER_ERROR

@@ -5,6 +5,13 @@ import {
 	assertCanPerform,
 	unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
+
+/** Partial row from SELECT id, username */
+interface BuilderIdRow {
+	readonly id: number
+	readonly username: string
+}
 
 // PATCH: Actualizar builder (solo is_active)
 export const PATCH: APIRoute = async context => {
@@ -21,13 +28,7 @@ export const PATCH: APIRoute = async context => {
       const builderId = Number(id)
 
       if (!Number.isInteger(builderId)) {
-        return new Response(
-          JSON.stringify({ error: 'ID de builder inválido' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('ID de builder inválido', 400)
       }
 
       const data = await context.request.json()
@@ -39,13 +40,7 @@ export const PATCH: APIRoute = async context => {
 
       // Validar is_active
       if (typeof is_active !== 'boolean') {
-        return new Response(
-          JSON.stringify({ error: 'is_active debe ser booleano' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('is_active debe ser booleano', 400)
       }
 
       // Verificar que el builder existe
@@ -55,13 +50,10 @@ export const PATCH: APIRoute = async context => {
       })
 
       if (builderResult.rows.length === 0) {
-        return new Response(JSON.stringify({ error: 'Builder no encontrado' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        return apiError('Builder no encontrado', 404)
       }
 
-      const builder = builderResult.rows[0] as any
+      const builder = builderResult.rows[0] as unknown as BuilderIdRow
 
       // Actualizar estado
       await db.execute({
@@ -69,26 +61,16 @@ export const PATCH: APIRoute = async context => {
         args: [is_active, builderId],
       })
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Builder actualizado exitosamente',
-          user: {
-            id: builderId,
-            hive_username: builder.username,
-            is_active,
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      return apiSuccess({
+        message: 'Builder actualizado exitosamente',
+        user: {
+          id: builderId,
+          hive_username: builder.username,
+          is_active,
+        },
       })
+    } catch (error) {
+      return apiError('Error interno', 500)
     }
   })
 }
@@ -108,13 +90,7 @@ export const DELETE: APIRoute = async context => {
       const userId = Number(id)
 
       if (!Number.isInteger(userId)) {
-        return new Response(
-          JSON.stringify({ error: 'ID de usuario inválido' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('ID de usuario inválido', 400)
       }
 
       // Verificar que el builder existe
@@ -124,10 +100,7 @@ export const DELETE: APIRoute = async context => {
       })
 
       if (builderResult.rows.length === 0) {
-        return new Response(JSON.stringify({ error: 'Builder no encontrado' }), {
-          status: 404,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        return apiError('Builder no encontrado', 404)
       }
 
       // Eliminar builder
@@ -136,21 +109,11 @@ export const DELETE: APIRoute = async context => {
         args: [userId],
       })
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Usuario eliminado exitosamente',
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      return apiSuccess({
+        message: 'Usuario eliminado exitosamente',
       })
+    } catch (error) {
+      return apiError('Error interno', 500)
     }
   })
 }

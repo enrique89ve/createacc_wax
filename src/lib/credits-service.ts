@@ -1,5 +1,5 @@
 /**
- * 💳 CREDITS SERVICE - Simplificado
+ * CREDITS SERVICE - Simplificado
  *
  * Sistema simplificado de créditos con 1 fila por builder
  * Columnas: pending_amount, available_amount, total_assigned, total_consumed
@@ -8,6 +8,12 @@
 import { db } from './database'
 import { creditBalanceTracker } from './credit-balance-tracker'
 import { notifyPendingCredits } from './notification-service'
+import { logger } from '@/lib/logger'
+
+/** Partial row from SELECT id */
+interface UserIdRow {
+  readonly id: number
+}
 
 /**
  * Información completa de créditos de un builder
@@ -78,7 +84,7 @@ class CreditsService {
         })
         builder_id = Number(createResult.lastInsertRowid)
       } else {
-        builder_id = (builderResult.rows[0] as any).id
+        builder_id = (builderResult.rows[0] as unknown as UserIdRow).id
       }
 
       // Asegurar que existe fila de créditos
@@ -118,7 +124,7 @@ class CreditsService {
         await notifyPendingCredits(builder_id, operation.amount)
       } catch (notificationError) {
         // No fallar si la notificación falla, solo loguear
-        console.error('Failed to create notification:', notificationError)
+        logger.error('Failed to create notification:', notificationError)
       }
 
       // Retornar información actualizada

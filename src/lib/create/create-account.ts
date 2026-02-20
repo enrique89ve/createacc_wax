@@ -1,4 +1,4 @@
-import { type create_claimed_account, type ITransactionBase } from '@hiveio/wax'
+import type { create_claimed_account } from '@hiveio/wax'
 import { createCreatorService } from '@/lib/hive-transaction-service'
 
 export interface ICreateAccountParams {

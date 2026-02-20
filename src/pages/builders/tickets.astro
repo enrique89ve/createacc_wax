@@ -311,8 +311,9 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
               type="text"
               id="ticket-name"
               name="ticketName"
-              maxlength="16"
-              placeholder="Ej: PROMO2025"
+              minlength="10"
+              maxlength="24"
+              placeholder="Ej: PROMO2025AB"
               class="bg-background border-border focus:ring-primary w-full rounded-lg border px-3 py-2 uppercase text-white focus:border-transparent focus:outline-none focus:ring-2"
               required
             />
@@ -324,7 +325,7 @@ if (!currentUser || currentUser.role !== UserRole.Builder) {
             </div>
           </div>
           <p class="mt-1 text-xs text-gray-400">
-            4-16 caracteres, letras y números (no solo números)
+            10-24 caracteres, letras y números (no solo números)
           </p>
           <p id="ticket-availability" class="mt-1 text-xs"></p>
         </div>

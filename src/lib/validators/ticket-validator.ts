@@ -9,8 +9,8 @@ import type { ValidationResult } from '@/utils/validation-result'
 import { MAX_TICKET_CREDITS } from '@/consts/constants'
 
 // Constantes de validación
-const MIN_TICKET_LENGTH = 4
-const MAX_TICKET_LENGTH = 16
+const MIN_TICKET_LENGTH = 10
+const MAX_TICKET_LENGTH = 24
 const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
 const ONLY_NUMBERS_REGEX = /^\d+$/
 
@@ -21,7 +21,7 @@ const MIN_TICKET_CREDITS = 1
  *
  * Reglas:
  * - No vacío
- * - Entre 4 y 16 caracteres
+ * - Entre 10 y 24 caracteres
  * - Solo letras y números
  * - No puede ser solo números
  *

@@ -6,6 +6,17 @@ import { UserRole } from '@/lib/roles'
 // Logger removed
 import { claimHashCache } from '@/lib/claim-hash-cache'
 
+/** Partial row from SELECT id */
+interface UserIdRow {
+  readonly id: number
+}
+
+/** Partial row from SELECT id, pending_amount */
+interface CreditPendingRow {
+  readonly id: number
+  readonly pending_amount: number
+}
+
 export const POST: APIRoute = async ({ request }) => {
   try {
     const session = await getSession(request)
@@ -39,7 +50,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const builderId = (builderResult.rows[0] as any).id
+    const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
 
     // Verificar que hay créditos pendientes para reclamar
     const pendingCreditsResult = await db.execute({
@@ -62,7 +73,7 @@ export const POST: APIRoute = async ({ request }) => {
       )
     }
 
-    const pendingCredit = pendingCreditsResult.rows[0] as any
+    const pendingCredit = pendingCreditsResult.rows[0] as unknown as CreditPendingRow
     const creditsToGrant = Number(pendingCredit.pending_amount)
     const creditId = pendingCredit.id
 

@@ -223,11 +223,15 @@ export class I18nManager {
 
   public static t(key: string, params?: Record<string, string>): string {
     const keys = key.split('.')
-    let value: any =
+    let value: unknown =
       translations[this.currentLocale as keyof typeof translations]
 
     for (const k of keys) {
-      value = value?.[k]
+      if (value && typeof value === 'object') {
+        value = (value as Record<string, unknown>)[k]
+      } else {
+        value = undefined
+      }
     }
 
     if (typeof value !== 'string') {

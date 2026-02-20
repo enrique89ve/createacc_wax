@@ -283,6 +283,7 @@ const { username } = Astro.props
       type DownloadFormat,
     } from '@/utils/key-download-manager'
     import { I18nManager } from '@/utils/i18n'
+    import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
 
     // Global window extensions interface
     interface ExtendedWindow {
@@ -320,6 +321,7 @@ const { username } = Astro.props
       copyFeedbackTimeout: number | undefined
       username: string
       keysetId: string
+      timingTokenId: string | undefined
     }
 
     // Constants
@@ -339,6 +341,11 @@ const { username } = Astro.props
         this.state = this.initializeState()
         this.setupEventListeners()
         this.setupGlobalMethods()
+
+        // Fetch timing token on page load (server-side anti-bot timer)
+        fetchTimingToken()
+          .then(id => { this.state.timingTokenId = id })
+          .catch(() => {})
       }
 
       private initializeDOMElements(): DOMElements {
@@ -390,6 +397,7 @@ const { username } = Astro.props
           copyFeedbackTimeout: undefined,
           username,
           keysetId: '',
+          timingTokenId: undefined,
         }
       }
 
@@ -405,16 +413,18 @@ const { username } = Astro.props
       private async ensureCreationSession(): Promise<boolean> {
         try {
           if (!this.state.username) return false
+          const pow = await obtainPowSolution()
           const res = await fetch('/api/create/session', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: this.state.username }),
+            body: JSON.stringify({ username: this.state.username, pow }),
           })
           if (!res.ok) {
             return false
           }
           return true
-        } catch (e) {
+        } catch (_error) {
+          // Session creation failed; caller handles the false return
           return false
         }
       }
@@ -606,7 +616,9 @@ const { username } = Astro.props
             () => trigger?.classList.remove('ring-2', 'ring-gray-400'),
             800
           )
-        } catch (error) {}
+        } catch (_error) {
+				// Non-critical: clipboard API may not be available in all contexts
+			}
         if (trigger instanceof HTMLElement) {
           window.setTimeout(() => trigger.blur(), 0)
         }
@@ -676,7 +688,7 @@ const { username } = Astro.props
         }
       }
 
-      private async notifyServerKeysDownloaded(publicKeys: any): Promise<void> {
+      private async notifyServerKeysDownloaded(publicKeys: Record<string, string>): Promise<void> {
         try {
           let res = await fetch('/api/create/keys-hash', {
             method: 'POST',
@@ -707,7 +719,9 @@ const { username } = Astro.props
 
           if (!res.ok) {
           }
-        } catch (e) {}
+        } catch (_error) {
+					// Non-critical: server notification is best-effort; keys are already saved locally
+				}
       }
 
       private showProgressModal(): void {
@@ -858,8 +872,25 @@ const { username } = Astro.props
         try {
           const publicKeys = this.state.allKeys.getAllPublicKeys()
 
+          // Solve PoW during step 0 (Verificando información)
+          let pow
+          try {
+            pow = await obtainPowSolution()
+          } catch {
+            this.renderProgressStepper(-1, [], 0)
+            this.showProgressError()
+            if (this.extWindow.showToast) {
+              this.extWindow.showToast('error', 'Error de verificación. Inténtalo de nuevo.', 6000)
+            }
+            if (this.elements.submitBtn) {
+              this.elements.submitBtn.innerHTML = this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+              this.elements.submitBtn.disabled = false
+              this.updateState()
+            }
+            return
+          }
+
           // Step 1: Creando la cuenta
-          await new Promise(resolve => setTimeout(resolve, 1500)) // More time to see verification step
           this.renderProgressStepper(1, [0])
 
           // Call create-account API
@@ -874,6 +905,8 @@ const { username } = Astro.props
               activePublicKey: publicKeys.active,
               postingPublicKey: publicKeys.posting,
               memoPublicKey: publicKeys.memo,
+              pow,
+              timingTokenId: this.state.timingTokenId,
             }),
           })
 

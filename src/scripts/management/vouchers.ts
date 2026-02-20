@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 export {}
 
 // DOM Elements
@@ -67,13 +68,13 @@ if (createForm) {
     const description = ticketDescriptionInput?.value.trim() || ''
     const credits = parseInt(ticketCreditsInput.value)
 
-    if (!code || code.length < 4) {
-      showError('El código debe tener al menos 4 caracteres')
+    if (!code || code.length < 10) {
+      showError('El código debe tener al menos 10 caracteres')
       return
     }
 
-    if (code.length > 16) {
-      showError('El código no puede exceder 16 caracteres')
+    if (code.length > 24) {
+      showError('El código no puede exceder 24 caracteres')
       return
     }
 
@@ -125,9 +126,9 @@ if (createForm) {
       // Success!
       closeModal()
       window.location.reload()
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error:', error)
-      showError(error.message || 'Ocurrió un error inesperado')
+      showError(error instanceof Error ? error.message : 'Ocurrió un error inesperado')
     } finally {
       submitBtn.disabled = false
       submitBtn.textContent = 'Crear'

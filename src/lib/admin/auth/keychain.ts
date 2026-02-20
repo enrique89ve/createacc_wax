@@ -6,6 +6,18 @@ import type {
   HivePublicKey,
   HiveSignature,
 } from '@/types/hive-signature'
+import { logger } from '@/lib/logger'
+
+/** Partial row from SELECT id, username, role, is_active, last_claim_at, created_at, updated_at */
+interface BuilderRow {
+  readonly id: number
+  readonly username: string
+  readonly role: string
+  readonly is_active: boolean | number
+  readonly last_claim_at: string | null
+  readonly created_at: string
+  readonly updated_at: string
+}
 
 export interface KeychainAuthRequest {
   readonly username: HiveUsername
@@ -144,7 +156,7 @@ export async function verifyKeychainAuth(
       } as NewUser
     } else {
       // Builder existe en BD
-      const builder = builderResult.rows[0] as any
+      const builder = builderResult.rows[0] as unknown as BuilderRow
 
       // Mapear builder a formato de usuario para compatibilidad con sesión
       user = {
@@ -164,7 +176,7 @@ export async function verifyKeychainAuth(
       user,
     }
   } catch (error) {
-    console.error('Error en verificación de Keychain:', error)
+    logger.error('Error en verificación de Keychain:', error)
     return {
       success: false,
       error: 'Error interno del servidor',

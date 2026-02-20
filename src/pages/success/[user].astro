@@ -30,7 +30,6 @@ if (usernameError) {
 // 3. Si falla cookie -> redirect home.
 
 let allowAccess = false
-let via: 'session' | 'cookie' | 'none' = 'none'
 const creationSession: CreationSession | undefined = Astro.locals.creation
 
 if (
@@ -39,12 +38,13 @@ if (
   creationSession.accountCreated
 ) {
   allowAccess = true
-  via = 'session'
   // Limpiar sesión (solo una vez). Ignorar errores silenciosamente.
   try {
     const { clearCreationCookie } = await import('@/lib/session-cookies')
     clearCreationCookie(Astro.cookies)
-  } catch (_error) {}
+  } catch (_error) {
+    // Non-critical: session cleanup is best-effort; cookie will expire naturally
+  }
   // F6 FIX: Set HMAC-signed cookie (15 min) - prevents forgery
   Astro.cookies.set('success_account', signValue(user), {
     httpOnly: true,
@@ -61,7 +61,6 @@ if (
     const verifiedUser = verifySignedValue(cookie.value)
     if (verifiedUser && verifiedUser === user) {
       allowAccess = true
-      via = 'cookie'
     }
   }
 }

@@ -4,6 +4,7 @@ import type { CreationSession } from '@/types/auth'
 import { getRequiredEnvString } from '@/lib/env'
 import { CREATION_SESSION_CONFIG, ENV_KEYS } from '@/consts/constants'
 import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
+import { logger } from '@/lib/logger'
 
 /**
  * Cookie-based session manager for account creation flow.
@@ -37,7 +38,7 @@ function verifyNodeRuntimeCompatibility(): void {
 		const errorMessage =
 			'[SessionCookie] CRITICAL: node:crypto not available. ' +
 			'This module requires Node.js runtime with node:crypto support.'
-		console.error(errorMessage, {
+		logger.error(errorMessage, {
 			error: error instanceof Error ? error.message : 'Unknown error',
 			timestamp: new Date().toISOString(),
 		})
@@ -71,7 +72,7 @@ function verifySignedData(signedData: string): string | null {
 	try {
 		const [data, signature] = signedData.split('.')
 		if (!data || !signature) {
-			console.warn('[SessionCookie] Invalid signed data format')
+			logger.warn('[SessionCookie] Invalid signed data format')
 			return null
 		}
 
@@ -87,18 +88,18 @@ function verifySignedData(signedData: string): string | null {
 		const actualBuffer = Buffer.from(signature, 'base64url')
 
 		if (expectedBuffer.length !== actualBuffer.length) {
-			console.warn('[SessionCookie] Signature length mismatch')
+			logger.warn('[SessionCookie] Signature length mismatch')
 			return null
 		}
 
 		if (!timingSafeEqual(expectedBuffer, actualBuffer)) {
-			console.warn('[SessionCookie] Signature verification failed')
+			logger.warn('[SessionCookie] Signature verification failed')
 			return null
 		}
 
 		return data
 	} catch (error) {
-		console.error('[SessionCookie] Error verifying signature:', {
+		logger.error('[SessionCookie] Error verifying signature:', {
 			error: error instanceof Error ? error.message : 'Unknown error',
 			timestamp: new Date().toISOString(),
 		})
@@ -124,13 +125,13 @@ function decodeSession(encoded: string): CreationSession | null {
 
 		// Validate required fields
 		if (!data.username || typeof data.username !== 'string') {
-			console.warn('[SessionCookie] Invalid session data: missing username')
+			logger.warn('[SessionCookie] Invalid session data: missing username')
 			return null
 		}
 
 		return data
 	} catch (error) {
-		console.error('[SessionCookie] Error decoding session:', {
+		logger.error('[SessionCookie] Error decoding session:', {
 			error: error instanceof Error ? error.message : 'Unknown error',
 			timestamp: new Date().toISOString(),
 		})
@@ -176,7 +177,7 @@ export function getCreationCookie(cookies: AstroCookies): CreationSession | null
 
 		return decodeSession(verified)
 	} catch (error) {
-		console.error('[SessionCookie] Error retrieving cookie:', {
+		logger.error('[SessionCookie] Error retrieving cookie:', {
 			error: error instanceof Error ? error.message : 'Unknown error',
 			timestamp: new Date().toISOString(),
 		})

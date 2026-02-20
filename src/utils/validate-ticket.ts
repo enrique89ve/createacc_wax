@@ -4,13 +4,13 @@
  */
 
 // Constantes de validación
-const MIN_TICKET_LENGTH = 4 as const
+const MIN_TICKET_LENGTH = 10 as const
 const MAX_TICKET_LENGTH = 24 as const
 
 // Mensajes de error específicos
 const enum TicketMessage {
   NOT_EMPTY = 'El ticket no puede estar vacío.',
-  TOO_SHORT = 'El ticket debe tener al menos 4 caracteres.',
+  TOO_SHORT = 'El ticket debe tener al menos 10 caracteres.',
   TOO_LONG = 'El ticket debe tener máximo 24 caracteres.',
   INVALID_CHARS = 'El ticket solo puede contener letras y números.',
   ONLY_NUMBERS = 'El ticket no puede ser solo números.',
@@ -28,7 +28,7 @@ const ONLY_NUMBERS_REGEX = /^\d+$/
  * - Solo letras y números (sin caracteres especiales)
  * - No puede ser solo números
  * - Puede ser solo letras
- * - Longitud: 4-24 caracteres
+ * - Longitud: 10-24 caracteres
  * - Tipo: string
  *
  * @param ticket - Código de ticket a validar

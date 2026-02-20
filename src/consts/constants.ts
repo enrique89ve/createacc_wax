@@ -240,8 +240,8 @@ export const BUILDERS_UI = {
     ACCOUNTS: '/api/builders/accounts',
   },
   TICKET_VALIDATION: {
-    MIN_LENGTH: 4,
-    MAX_LENGTH: 16,
+    MIN_LENGTH: 10,
+    MAX_LENGTH: 24,
     ALPHANUMERIC_REGEX: /^[a-zA-Z0-9]+$/,
     ONLY_NUMBERS_REGEX: /^\d+$/,
   },

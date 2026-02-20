@@ -1,5 +1,6 @@
 import { createClient } from '@libsql/client'
 import { UserRole } from '@/lib/roles'
+import { logger } from '@/lib/logger'
 
 export const db = createClient({
 	url: process.env.DATABASE_URL || 'file:holahive.db',
@@ -304,7 +305,7 @@ export async function initializeDatabase() {
 
     return true
   } catch (error) {
-    console.error('Database initialization error:', error)
+    logger.error('Database initialization error:', error)
     return false
   }
 }

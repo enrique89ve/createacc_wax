@@ -1,4 +1,5 @@
 import { db } from '@/lib/database'
+import { logger } from '@/lib/logger'
 import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
@@ -29,7 +30,7 @@ export const TICKET_ERROR_CODES = {
 } as const
 
 // Constantes para evitar magic numbers
-const TICKET_CODE_MIN = 4
+const TICKET_CODE_MIN = 10
 const TICKET_CODE_MAX = 24
 
 function sanitizeTicketCode(raw: string): string | null {
@@ -400,7 +401,7 @@ export async function rollbackTicketReservation(
     })
 
     if (result.rows.length === 0) {
-      console.error(
+      logger.error(
         `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
       )
       return {
@@ -411,13 +412,13 @@ export async function rollbackTicketReservation(
       }
     }
 
-    console.warn(
+    logger.warn(
       `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back successfully`
     )
     return { success: true, correlationId }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    console.error(
+    logger.error(
       `[${correlationId}] CRITICAL: Ticket rollback failed: ${errorMessage}`
     )
     return {
@@ -557,7 +558,7 @@ export async function enqueueReconciliation(params: {
 
     // Reject insert if both sanitizations fail — never write raw untrusted data
     if (!cleanUsername || !cleanTicket) {
-      console.error(
+      logger.error(
         `[${params.correlationId}] Cannot enqueue reconciliation: sanitization failed (username=${!!cleanUsername}, ticket=${!!cleanTicket})`
       )
       return
@@ -579,7 +580,7 @@ export async function enqueueReconciliation(params: {
     })
   } catch (error) {
     // Best-effort: log but don't throw — the response already told the client
-    console.error(
+    logger.error(
       `[${params.correlationId}] Failed to enqueue reconciliation: ${error instanceof Error ? error.message : 'Unknown error'}`
     )
   }

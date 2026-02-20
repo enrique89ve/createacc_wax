@@ -7,6 +7,7 @@ import {
 } from '@/lib/admin/permissions-management'
 import { creditsService } from '@/lib/credits-service'
 import { UserRole } from '@/lib/roles'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 /**
  * PATCH: Asignar créditos pendientes a un builder
@@ -30,13 +31,7 @@ export const PATCH: APIRoute = async context => {
       const { username } = context.params
 
       if (!username) {
-        return new Response(
-          JSON.stringify({ error: 'Username no proporcionado' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Username no proporcionado', 400)
       }
 
       const data = await context.request.json()
@@ -49,23 +44,11 @@ export const PATCH: APIRoute = async context => {
 
       // Validar cantidad
       if (!amount || typeof amount !== 'number' || amount < 1) {
-        return new Response(
-          JSON.stringify({ error: 'La cantidad debe ser mayor a 0' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('La cantidad debe ser mayor a 0', 400)
       }
 
       if (amount > 10000) {
-        return new Response(
-          JSON.stringify({ error: 'La cantidad máxima es 10000 créditos' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('La cantidad máxima es 10000 créditos', 400)
       }
 
       // Verificar que el builder existe
@@ -75,13 +58,7 @@ export const PATCH: APIRoute = async context => {
       })
 
       if (builderResult.rows.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'Builder no encontrado' }),
-          {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Builder no encontrado', 404)
       }
 
       // Usar creditsService para asignar créditos (mantiene consistencia)
@@ -92,26 +69,16 @@ export const PATCH: APIRoute = async context => {
         assigned_by_admin: session.userId,
       })
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: `${amount} créditos asignados exitosamente`,
-          credits: {
-            available: updatedCredits.available_amount,
-            pending: updatedCredits.pending_amount,
-            total_assigned: updatedCredits.total_assigned,
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      return apiSuccess({
+        message: `${amount} créditos asignados exitosamente`,
+        credits: {
+          available: updatedCredits.available_amount,
+          pending: updatedCredits.pending_amount,
+          total_assigned: updatedCredits.total_assigned,
+        },
       })
+    } catch (error) {
+      return apiError('Error interno', 500)
     }
   })
 }
@@ -137,13 +104,7 @@ export const PUT: APIRoute = async context => {
       const { username } = context.params
 
       if (!username) {
-        return new Response(
-          JSON.stringify({ error: 'Username no proporcionado' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Username no proporcionado', 400)
       }
 
       const data = await context.request.json()
@@ -159,15 +120,7 @@ export const PUT: APIRoute = async context => {
 
       // Validar que al menos un valor se proporciona
       if (pending_amount === undefined && available_amount === undefined) {
-        return new Response(
-          JSON.stringify({
-            error: 'Debe proporcionar pending_amount o available_amount',
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Debe proporcionar pending_amount o available_amount', 400)
       }
 
       // Validar valores no negativos
@@ -177,15 +130,7 @@ export const PUT: APIRoute = async context => {
         (available_amount !== undefined &&
           (typeof available_amount !== 'number' || available_amount < 0))
       ) {
-        return new Response(
-          JSON.stringify({
-            error: 'Los valores de créditos no pueden ser negativos',
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Los valores de créditos no pueden ser negativos', 400)
       }
 
       // Límite máximo de seguridad
@@ -193,13 +138,7 @@ export const PUT: APIRoute = async context => {
         (pending_amount !== undefined && pending_amount > 100000) ||
         (available_amount !== undefined && available_amount > 100000)
       ) {
-        return new Response(
-          JSON.stringify({ error: 'El valor máximo permitido es 100000' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('El valor máximo permitido es 100000', 400)
       }
 
       // Obtener builder ID
@@ -209,13 +148,7 @@ export const PUT: APIRoute = async context => {
       })
 
       if (builderResult.rows.length === 0) {
-        return new Response(
-          JSON.stringify({ error: 'Builder no encontrado' }),
-          {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Builder no encontrado', 404)
       }
 
       const builderId = Number(builderResult.rows[0]?.id)
@@ -229,29 +162,19 @@ export const PUT: APIRoute = async context => {
         performed_by_admin: session.userId,
       })
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Créditos ajustados exitosamente',
-          credits: {
-            available: updatedCredits.available_amount,
-            pending: updatedCredits.pending_amount,
-            total_assigned: updatedCredits.total_assigned,
-            total_consumed: updatedCredits.total_consumed,
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      return apiSuccess({
+        message: 'Créditos ajustados exitosamente',
+        credits: {
+          available: updatedCredits.available_amount,
+          pending: updatedCredits.pending_amount,
+          total_assigned: updatedCredits.total_assigned,
+          total_consumed: updatedCredits.total_consumed,
+        },
+      })
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : 'Error interno'
-      return new Response(JSON.stringify({ error: errorMessage }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return apiError(errorMessage, 500)
     }
   })
 }

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 export {}
 
 // DOM Elements - Assign Modal
@@ -183,9 +184,9 @@ if (assignForm) {
       // Success!
       closeModal()
       showSuccessModal(username, amount)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error:', error)
-      displayError(assignError, error.message || 'Ocurrió un error inesperado')
+      displayError(assignError, error instanceof Error ? error.message : 'Ocurrió un error inesperado')
     } finally {
       submitBtn.disabled = false
       submitBtn.textContent = 'Asignar Créditos'

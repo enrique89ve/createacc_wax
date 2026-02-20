@@ -24,7 +24,9 @@ let builders: BuilderWithStats[] = []
 
 try {
   builders = await usersRepository.getBuildersWithStats()
-} catch (error) {}
+} catch (_error) {
+	// Non-critical: page renders with empty builders list as fallback
+}
 ---
 
 <ManagementLayout title="Gestión de Builders - HolaHive" activeTab="builders">

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * 🍞 TOAST NOTIFICATION UTILITIES
  * API canónica para mostrar notificaciones en toda la aplicación

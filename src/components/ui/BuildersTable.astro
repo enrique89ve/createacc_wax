@@ -7,7 +7,7 @@ import { formatDateTime, formatShortDateTime } from '@/utils/date-formatters'
  */
 export interface Props {
   title: string
-  data: any[]
+  data: object[]
   columns: TableColumn[]
   emptyMessage?: string
   showSearch?: boolean
@@ -19,7 +19,7 @@ export interface TableColumn {
   label: string
   type?: 'text' | 'date' | 'badge' | 'actions' | 'key'
   width?: string
-  badgeVariant?: (value: any) => 'success' | 'warning' | 'danger' | 'info'
+  badgeVariant?: (value: unknown) => 'success' | 'warning' | 'danger' | 'info'
   actions?: TableAction[]
   truncate?: boolean
 }
@@ -39,6 +39,48 @@ const {
   showSearch = false,
   searchPlaceholder = 'Buscar...',
 } = Astro.props
+
+type TableRow = Record<string, unknown>
+
+function getRowValue(row: TableRow, key: string): unknown {
+  return row[key]
+}
+
+function toDisplayText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+  if (value === null || value === undefined) return ''
+  return JSON.stringify(value) ?? ''
+}
+
+function toDateInput(value: unknown): string | null {
+  if (typeof value === 'string' && value.trim().length > 0) return value
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return new Date(value).toISOString()
+  }
+  if (value instanceof Date) return value.toISOString()
+  return null
+}
+
+function formatDateCell(value: unknown): string {
+  const dateValue = toDateInput(value)
+  if (!dateValue) return '-'
+  return formatDateTime(dateValue)
+}
+
+function formatShortDateCell(value: unknown): string {
+  const dateValue = toDateInput(value)
+  if (!dateValue) return '-'
+  return formatShortDateTime(dateValue)
+}
+
+function getRowId(row: TableRow, fallbackIndex: number): string | number {
+  const id = row.id
+  if (typeof id === 'string' || typeof id === 'number') return id
+  return fallbackIndex
+}
 ---
 
 <div class="overflow-hidden rounded-lg border border-border bg-card">
@@ -104,111 +146,123 @@ const {
               </tr>
             </thead>
             <tbody class="divide-y divide-border">
-              {data.map((row, index) => (
-                <tr
-                  class="hover:bg-muted/40"
-                  data-search-content={JSON.stringify(row)}
-                >
-                  {columns.map((column, idx) => (
-                    <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
-                      {column.type === 'date' && (
-                        <span class="text-muted-foreground text-sm">
-                          {formatDateTime(row[column.key])}
-                        </span>
-                      )}
-
-                      {column.type === 'badge' && (
-                        <span
-                          class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                            column.badgeVariant?.(row[column.key]) === 'success'
-                              ? 'bg-green-500/20 text-green-300'
-                              : column.badgeVariant?.(row[column.key]) ===
-                                  'warning'
-                                ? 'bg-yellow-500/20 text-yellow-300'
-                                : column.badgeVariant?.(row[column.key]) ===
-                                    'danger'
-                                  ? 'bg-red-500/20 text-red-300'
-                                  : 'bg-blue-500/20 text-blue-300'
-                          }`}
-                        >
-                          {row[column.key]}
-                        </span>
-                      )}
-
-                      {column.type === 'key' && (
-                        <div class="font-mono text-sm text-foreground">
-                          <span
-                            class={
-                              column.truncate ? 'block max-w-xs truncate' : ''
-                            }
-                          >
-                            {row[column.key]}
-                          </span>
-                        </div>
-                      )}
-
-                      {column.type === 'actions' && (
-                        <div class="flex justify-center space-x-3">
-                          {column.actions?.map(action => (
-                            <button
-                              onclick={`${action.onClick}('${row.id || index}')`}
-                              class={`text-xs font-medium transition-colors ${
-                                action.variant === 'danger'
-                                  ? 'text-red-400 hover:text-red-300'
-                                  : action.variant === 'secondary'
-                                    ? 'text-gray-400 hover:text-gray-300'
-                                    : 'text-blue-400 hover:text-blue-300'
-                              }`}
-                            >
-                              {action.icon && (
-                                <span class="mr-1">{action.icon}</span>
-                              )}
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {(!column.type || column.type === 'text') && (
-                        <>
-                          {column.key === 'username' && row[column.key] ? (
-                            <a
-                              href={`https://peakd.com/@${row[column.key]}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              class="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
-                            >
-                              @{row[column.key]}
-                              <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
-                            </a>
-                          ) : (
-                            <span
-                              class={`text-foreground text-sm ${column.truncate ? 'block max-w-xs truncate' : ''}`}
-                            >
-                              {row[column.key]}
+              {data.map((rowData, index) => {
+                const row = rowData as TableRow
+                return (
+                  <tr
+                    class="hover:bg-muted/40"
+                    data-search-content={JSON.stringify(row)}
+                  >
+                    {columns.map((column, idx) => {
+                      const cellValue = getRowValue(row, column.key)
+                      const cellText = toDisplayText(cellValue)
+                      return (
+                        <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
+                          {column.type === 'date' && (
+                            <span class="text-muted-foreground text-sm">
+                              {formatDateCell(cellValue)}
                             </span>
                           )}
-                        </>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+
+                          {column.type === 'badge' && (
+                            <span
+                              class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                column.badgeVariant?.(cellValue) === 'success'
+                                  ? 'bg-green-500/20 text-green-300'
+                                  : column.badgeVariant?.(cellValue) ===
+                                      'warning'
+                                    ? 'bg-yellow-500/20 text-yellow-300'
+                                    : column.badgeVariant?.(cellValue) ===
+                                        'danger'
+                                      ? 'bg-red-500/20 text-red-300'
+                                      : 'bg-blue-500/20 text-blue-300'
+                              }`}
+                            >
+                              {cellText}
+                            </span>
+                          )}
+
+                          {column.type === 'key' && (
+                            <div class="font-mono text-sm text-foreground">
+                              <span
+                                class={
+                                  column.truncate ? 'block max-w-xs truncate' : ''
+                                }
+                              >
+                                {cellText}
+                              </span>
+                            </div>
+                          )}
+
+                          {column.type === 'actions' && (
+                            <div class="flex justify-center space-x-3">
+                              {column.actions?.map(action => (
+                                <button
+                                  onclick={`${action.onClick}('${getRowId(row, index)}')`}
+                                  class={`text-xs font-medium transition-colors ${
+                                    action.variant === 'danger'
+                                      ? 'text-red-400 hover:text-red-300'
+                                      : action.variant === 'secondary'
+                                        ? 'text-gray-400 hover:text-gray-300'
+                                        : 'text-blue-400 hover:text-blue-300'
+                                  }`}
+                                >
+                                  {action.icon && (
+                                    <span class="mr-1">{action.icon}</span>
+                                  )}
+                                  {action.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {(!column.type || column.type === 'text') && (
+                            <>
+                              {column.key === 'username' && cellText ? (
+                                <a
+                                  href={`https://peakd.com/@${cellText}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  class="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+                                >
+                                  @{cellText}
+                                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
+                                </a>
+                              ) : (
+                                <span
+                                  class={`text-foreground text-sm ${column.truncate ? 'block max-w-xs truncate' : ''}`}
+                                >
+                                  {cellText}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
 
         {/* Mobile Cards (below md) */}
         <div class="md:hidden space-y-3 p-3">
-          {data.map((row, index) => {
+          {data.map((rowData, index) => {
+            const row = rowData as TableRow
             // Primera columna como título principal (username)
             const primaryColumn = columns[0]
             const secondaryColumns = columns.slice(1)
+            const dateColumn = secondaryColumns.find(c => c.type === 'date')
+            const actionsColumn = secondaryColumns.find(c => c.type === 'actions')
+            const primaryValue = getRowValue(row, primaryColumn.key)
+            const primaryText = toDisplayText(primaryValue)
             // Detectar si es una cuenta de usuario (tiene username)
-            const isUserAccount = primaryColumn.key === 'username' && row[primaryColumn.key]
-            const profileUrl = isUserAccount ? `https://peakd.com/@${row[primaryColumn.key]}` : null
+            const isUserAccount = primaryColumn.key === 'username' && primaryText.length > 0
+            const profileUrl = isUserAccount ? `https://peakd.com/@${primaryText}` : null
 
             return (
               <a
@@ -223,7 +277,7 @@ const {
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <span class={`font-semibold text-sm ${isUserAccount ? 'text-primary' : 'text-foreground'}`}>
-                        {isUserAccount && '@'}{row[primaryColumn.key]}
+                        {isUserAccount && '@'}{primaryText}
                       </span>
                       {profileUrl && (
                         <svg class="h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,9 +286,9 @@ const {
                       )}
                     </div>
                     {/* Mostrar fecha si existe en las columnas */}
-                    {secondaryColumns.find(c => c.type === 'date') && (
+                    {dateColumn && (
                       <span class="text-muted-foreground text-xs">
-                        {formatShortDateTime(row[secondaryColumns.find(c => c.type === 'date')!.key])}
+                        {formatShortDateCell(getRowValue(row, dateColumn.key))}
                       </span>
                     )}
                   </div>
@@ -252,23 +306,23 @@ const {
                           {column.type === 'badge' ? (
                             <span
                               class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                                column.badgeVariant?.(row[column.key]) === 'success'
+                                column.badgeVariant?.(getRowValue(row, column.key)) === 'success'
                                   ? 'bg-green-500/20 text-green-300'
-                                  : column.badgeVariant?.(row[column.key]) === 'warning'
+                                  : column.badgeVariant?.(getRowValue(row, column.key)) === 'warning'
                                     ? 'bg-yellow-500/20 text-yellow-300'
-                                    : column.badgeVariant?.(row[column.key]) === 'danger'
+                                    : column.badgeVariant?.(getRowValue(row, column.key)) === 'danger'
                                       ? 'bg-red-500/20 text-red-300'
                                       : 'bg-blue-500/20 text-blue-300'
                               }`}
                             >
-                              {row[column.key]}
+                              {toDisplayText(getRowValue(row, column.key))}
                             </span>
                           ) : column.type === 'key' ? (
                             <span class="font-mono text-xs break-all">
-                              {row[column.key]}
+                              {toDisplayText(getRowValue(row, column.key))}
                             </span>
                           ) : (
-                            row[column.key]
+                            toDisplayText(getRowValue(row, column.key))
                           )}
                         </dd>
                       </div>
@@ -276,18 +330,18 @@ const {
                   </div>
 
                   {/* Fecha completa al final si existe */}
-                  {secondaryColumns.find(c => c.type === 'date') && (
+                  {dateColumn && (
                     <div class="mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
-                      {formatDateTime(row[secondaryColumns.find(c => c.type === 'date')!.key])}
+                      {formatDateCell(getRowValue(row, dateColumn.key))}
                     </div>
                   )}
 
                   {/* Acciones si existen */}
-                  {secondaryColumns.find(c => c.type === 'actions') && (
+                  {actionsColumn && (
                     <div class="flex gap-2 mt-3 pt-2 border-t border-border/30">
-                      {secondaryColumns.find(c => c.type === 'actions')!.actions?.map(action => (
+                      {actionsColumn.actions?.map(action => (
                         <button
-                          onclick={`event.preventDefault(); event.stopPropagation(); ${action.onClick}('${row.id || index}')`}
+                          onclick={`event.preventDefault(); event.stopPropagation(); ${action.onClick}('${getRowId(row, index)}')`}
                           class={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
                             action.variant === 'danger'
                               ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20'

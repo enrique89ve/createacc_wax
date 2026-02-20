@@ -4,6 +4,7 @@
  */
 
 import { db } from './database'
+import { logger } from '@/lib/logger'
 import type {
 	CreateNotificationData,
 	DatabaseNotificationRow,
@@ -27,7 +28,7 @@ export async function getUnreadCount(userId: number): Promise<number> {
 		const row = result.rows[0] as unknown as { count: number }
 		return row?.count ?? 0
 	} catch (error) {
-		console.error('Error getting unread notification count:', error)
+		logger.error('Error getting unread notification count:', error)
 		return 0
 	}
 }
@@ -53,7 +54,7 @@ export async function getNotifications(
 
 		return result.rows.map(parseRow).filter((n): n is DatabaseNotificationRow => n !== null)
 	} catch (error) {
-		console.error('Error getting notifications:', error)
+		logger.error('Error getting notifications:', error)
 		return []
 	}
 }
@@ -77,7 +78,7 @@ export async function getUnreadNotifications(
 
 		return result.rows.map(parseRow).filter((n): n is DatabaseNotificationRow => n !== null)
 	} catch (error) {
-		console.error('Error getting unread notifications:', error)
+		logger.error('Error getting unread notifications:', error)
 		return []
 	}
 }
@@ -105,7 +106,7 @@ export async function createNotification(
 
 		return true
 	} catch (error) {
-		console.error('Error creating notification:', error)
+		logger.error('Error creating notification:', error)
 		return false
 	}
 }
@@ -129,7 +130,7 @@ export async function markAsRead(
 
 		return result.rowsAffected > 0
 	} catch (error) {
-		console.error('Error marking notification as read:', error)
+		logger.error('Error marking notification as read:', error)
 		return false
 	}
 }
@@ -150,7 +151,7 @@ export async function markAllAsRead(userId: number): Promise<boolean> {
 
 		return true
 	} catch (error) {
-		console.error('Error marking all notifications as read:', error)
+		logger.error('Error marking all notifications as read:', error)
 		return false
 	}
 }
@@ -209,7 +210,7 @@ export async function markAsViewed(userId: number): Promise<boolean> {
 
 		return true
 	} catch (error) {
-		console.error('Error marking notifications as viewed:', error)
+		logger.error('Error marking notifications as viewed:', error)
 		return false
 	}
 }

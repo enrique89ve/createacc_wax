@@ -5,7 +5,7 @@ import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
-import { jsonResponse } from '@/utils/api-response'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { requireValidOrigin } from '@/utils/csrf-protection'
@@ -15,15 +15,6 @@ interface CreatorInfo {
   readonly userId: number
   readonly username: string
   readonly role: UserRole
-}
-
-interface TicketDeletionResult {
-  readonly success: true
-  readonly message: string
-  readonly credits_info: {
-    readonly credits_returned: number
-    readonly new_credits: number
-  }
 }
 
 // Helper: Obtener información del creador del ticket
@@ -90,10 +81,7 @@ export const DELETE: APIRoute = async context => {
 
       // Validaci�n: ID de ticket
       if (!ticketId || isNaN(Number(ticketId))) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_ID_INVALID },
-          400
-        )
+        return apiError(API_MESSAGES.ERRORS.TICKET_ID_INVALID, 400)
       }
 
       // Obtener ticket
@@ -103,40 +91,28 @@ export const DELETE: APIRoute = async context => {
       })
 
       if (ticketResult.rows.length === 0) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_NOT_FOUND },
-          404
-        )
+        return apiError(API_MESSAGES.ERRORS.TICKET_NOT_FOUND, 404)
       }
 
       const ticket = parseTicketRow(ticketResult.rows[0])
       if (!ticket) {
-        return jsonResponse({ error: API_MESSAGES.ERRORS.TICKET_INVALID }, 500)
+        return apiError(API_MESSAGES.ERRORS.TICKET_INVALID, 500)
       }
 
       // Validaci�n: Ticket ya usado
       if (ticket.has_been_used) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.TICKET_CANNOT_DELETE_USED },
-          400
-        )
+        return apiError(API_MESSAGES.ERRORS.TICKET_CANNOT_DELETE_USED, 400)
       }
 
       // Obtener informaci�n del creador
       const creator = await getTicketCreator(ticket)
       if (!creator) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.CANNOT_DETERMINE_CREATOR },
-          500
-        )
+        return apiError(API_MESSAGES.ERRORS.CANNOT_DETERMINE_CREATOR, 500)
       }
 
       // Validaci�n: Permisos
       if (!canDeleteTicket(session.role, session.userId, creator.userId)) {
-        return jsonResponse(
-          { error: API_MESSAGES.ERRORS.UNAUTHORIZED_DELETE_TICKET },
-          403
-        )
+        return apiError(API_MESSAGES.ERRORS.UNAUTHORIZED_DELETE_TICKET, 403)
       }
 
       // Devolver créditos al creador directamente como 'claimed' (disponibles de inmediato)
@@ -152,12 +128,10 @@ export const DELETE: APIRoute = async context => {
           )
         }
       } catch (error) {
-        return jsonResponse(
-          {
-            error: API_MESSAGES.ERRORS.CREDITS_REFUND_ERROR,
-            details: error instanceof Error ? error.message : 'Unknown error',
-          },
-          500
+        return apiError(
+          API_MESSAGES.ERRORS.CREDITS_REFUND_ERROR,
+          500,
+          error instanceof Error ? error.message : 'Unknown error'
         )
       }
 
@@ -178,18 +152,15 @@ export const DELETE: APIRoute = async context => {
         creator.username
       )
 
-      const result: TicketDeletionResult = {
-        success: true,
+      return apiSuccess({
         message: API_MESSAGES.SUCCESS.TICKET_DELETED,
         credits_info: {
           credits_returned: ticket.original_credits,
           new_credits: finalCredits?.available_amount || 0,
         },
-      }
-
-      return jsonResponse(result, 200)
+      })
     } catch (error) {
-      return jsonResponse({ error: API_MESSAGES.ERRORS.INTERNAL_ERROR }, 500)
+      return apiError(API_MESSAGES.ERRORS.INTERNAL_ERROR, 500)
     }
   })
 }

@@ -3,7 +3,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import StatCard from '@/components/ui/StatCard.astro'
 import BuildersTable from '@/components/ui/BuildersTable.astro'
-import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
+import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { usersRepository } from '@/lib/repositories/users-repository'
 
 // Verificar autenticación y obtener usuario
@@ -16,7 +16,7 @@ if (currentUser instanceof Response) {
 
 // Obtener datos usando el servicio centralizado
 // currentUser garantizado (ya se manejó el redirect arriba)
-const username = (currentUser as any).username as string
+const username = (currentUser as AuthenticatedUser).username
 const builder = await usersRepository.findByUsername(username)
 const builderId = builder?.id
 

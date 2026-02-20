@@ -5,6 +5,21 @@ import { formatDateTime } from '@/utils/date-formatters'
 import { HTTP_STATUS } from '@/consts/constants'
 // Logger removed
 
+/** Row from joined Tickets + TicketAudit + Users query */
+interface CreditHistoryRow {
+  readonly id: number
+  readonly code: string
+  readonly description: string | null
+  readonly original_credits: number
+  readonly credits: number
+  readonly created_at: string
+  readonly action: string | null
+  readonly timestamp: string | null
+  readonly created_by_username: string | null
+  readonly creator_role: string | null
+  readonly type?: string
+}
+
 export const GET: APIRoute = async ({ request, url }) => {
   try {
     const session = await getSession(request)
@@ -78,7 +93,7 @@ export const GET: APIRoute = async ({ request, url }) => {
       args: queryArgs,
     })
 
-    const creditHistory = historyResult.rows as any[]
+    const creditHistory = historyResult.rows as unknown as CreditHistoryRow[]
 
     if (format === 'csv') {
       // Generar CSV

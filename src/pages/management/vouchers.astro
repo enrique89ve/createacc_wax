@@ -39,7 +39,9 @@ try {
       remainingQuota = 0
     }
   }
-} catch (error) {}
+} catch (_error) {
+	// Non-critical: page renders with empty ticket list as fallback
+}
 ---
 
 <ManagementLayout title="Gestión de Tickets - HolaHive" activeTab="tickets">
@@ -277,10 +279,14 @@ try {
         <input
           id="ticket-code"
           type="text"
-          maxlength="16"
-          placeholder="TICKET2024"
+          minlength="10"
+          maxlength="24"
+          placeholder="TICKET2024AB"
           class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
         />
+        <p class="text-muted-foreground mt-1 text-xs">
+          10-24 caracteres, letras y números (no solo números)
+        </p>
       </div>
 
       <div>

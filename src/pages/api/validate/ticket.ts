@@ -2,6 +2,8 @@ import type { APIRoute } from 'astro'
 import { validateTicketInDB } from '@/utils/db-ticket-validator'
 import { resolveClientIp } from '@/lib/client-ip'
 import { checkCreationRateLimit } from '@/lib/creation-rate-limiter'
+import { validatePowSolution, validateTimingToken } from '@/lib/pow'
+import { TIMING_THRESHOLDS } from '@/consts/pow'
 
 /**
  * F5c FIX: Response only returns { valid: boolean } - no ticket code/description.
@@ -32,7 +34,28 @@ export const POST: APIRoute = async (context) => {
 			)
 		}
 
-		const data: { ticket?: unknown } = await context.request.json()
+		const data: {
+			ticket?: unknown
+			pow?: { challengeId?: string; nonce?: string }
+			timingTokenId?: string
+		} = await context.request.json()
+
+		// Validate PoW before any business logic
+		if (!data.pow?.challengeId || !data.pow?.nonce || !validatePowSolution(data.pow as { challengeId: string; nonce: string })) {
+			return new Response(
+				JSON.stringify({ valid: false }),
+				{ status: 400, headers: NO_CACHE_HEADERS }
+			)
+		}
+
+		// Validate timing token (anti-bot: user must spend minimum time on page)
+		if (!data.timingTokenId || !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.ticket)) {
+			return new Response(
+				JSON.stringify({ valid: false }),
+				{ status: 400, headers: NO_CACHE_HEADERS }
+			)
+		}
+
 		const { ticket } = data
 
 		if (!ticket || typeof ticket !== 'string') {

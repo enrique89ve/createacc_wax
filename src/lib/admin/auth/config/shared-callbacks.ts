@@ -6,6 +6,7 @@
 import type { JWT } from '@auth/core/jwt'
 import type { Session, User } from '@auth/core/types'
 import { type UserRole, isValidRole } from '@/lib/roles'
+import { logger } from '@/lib/logger'
 
 /**
  * JWT callback - Stores user data in token
@@ -22,7 +23,7 @@ export async function jwtCallback({
   if (user) {
     // Validate role BEFORE storing in token
     if (!isValidRole(user.role)) {
-      console.error('JWT callback: Invalid role rejected:', user.role)
+      logger.error('JWT callback: Invalid role rejected:', user.role)
       throw new Error(`Invalid role in user object: ${user.role}`)
     }
 
@@ -52,7 +53,7 @@ export async function sessionCallback({
     // Validate role from token - do NOT cast, validate
     const role = token.role
     if (!isValidRole(role)) {
-      console.error('Session callback: Invalid role in token:', role)
+      logger.error('Session callback: Invalid role in token:', role)
       throw new Error(`Invalid role in token: ${role}`)
     }
 
@@ -73,7 +74,7 @@ export async function sessionCallback({
 export async function signInCallback({ user }: { user: User }) {
   // Validate that user has a valid role - reject if invalid
   if (!isValidRole(user?.role)) {
-    console.error('Sign in rejected: invalid role', user?.role)
+    logger.error('Sign in rejected: invalid role', user?.role)
     return false
   }
 

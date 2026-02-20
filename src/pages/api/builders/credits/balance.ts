@@ -11,7 +11,7 @@
 import type { APIRoute } from 'astro'
 import { getSession } from 'auth-astro/server'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { jsonResponse } from '@/utils/api-response'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { HTTP_STATUS } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
@@ -21,10 +21,7 @@ export const GET: APIRoute = async ({ request, url }) => {
     const session = await getSession(request)
 
     if (!session?.user) {
-      return jsonResponse(
-        { success: false, error: API_MESSAGES.ERRORS.UNAUTHORIZED },
-        HTTP_STATUS.UNAUTHORIZED
-      )
+      return apiError(API_MESSAGES.ERRORS.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED)
     }
 
     // Parámetros de query
@@ -38,10 +35,7 @@ export const GET: APIRoute = async ({ request, url }) => {
         : session.user.username
 
     if (!targetUsername) {
-      return jsonResponse(
-        { success: false, error: API_MESSAGES.ERRORS.USERNAME_NOT_SPECIFIED },
-        HTTP_STATUS.BAD_REQUEST
-      )
+      return apiError(API_MESSAGES.ERRORS.USERNAME_NOT_SPECIFIED, HTTP_STATUS.BAD_REQUEST)
     }
 
     // Obtener balance
@@ -50,50 +44,30 @@ export const GET: APIRoute = async ({ request, url }) => {
         await creditBalanceTracker.getDetailedBalance(targetUsername)
 
       if (!balance) {
-        return jsonResponse(
-          { success: false, error: API_MESSAGES.ERRORS.BUILDER_NOT_FOUND },
-          HTTP_STATUS.NOT_FOUND
-        )
+        return apiError(API_MESSAGES.ERRORS.BUILDER_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
       }
 
-      return jsonResponse(
-        {
-          success: true,
-          balance,
-          warning: balance.discrepancy.has_discrepancy
-            ? 'Se detectaron inconsistencias en el balance'
-            : null,
-        },
-        HTTP_STATUS.OK
-      )
+      return apiSuccess({
+        balance,
+        warning: balance.discrepancy.has_discrepancy
+          ? 'Se detectaron inconsistencias en el balance'
+          : null,
+      })
     } else {
       const balance = await creditBalanceTracker.getBalance(targetUsername)
 
       if (!balance) {
-        return jsonResponse(
-          { success: false, error: API_MESSAGES.ERRORS.BUILDER_NOT_FOUND },
-          HTTP_STATUS.NOT_FOUND
-        )
+        return apiError(API_MESSAGES.ERRORS.BUILDER_NOT_FOUND, HTTP_STATUS.NOT_FOUND)
       }
 
-      return jsonResponse(
-        {
-          success: true,
-          balance,
-          warning: !balance.is_consistent
-            ? 'Balance inconsistente, consultar /api/credits/diagnose'
-            : null,
-        },
-        HTTP_STATUS.OK
-      )
+      return apiSuccess({
+        balance,
+        warning: !balance.is_consistent
+          ? 'Balance inconsistente, consultar /api/credits/diagnose'
+          : null,
+      })
     }
   } catch (error) {
-    return jsonResponse(
-      {
-        success: false,
-        error: API_MESSAGES.ERRORS.INTERNAL_ERROR,
-      },
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    )
+    return apiError(API_MESSAGES.ERRORS.INTERNAL_ERROR, HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }

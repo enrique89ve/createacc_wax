@@ -9,8 +9,10 @@ import {
 } from '@/lib/admin/auth/helpers/auth-guards'
 import type { APIContext } from 'astro'
 import type { AdminSession } from '@/types/auth'
+import type { AuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { parseRole } from '@/lib/roles'
 import { getBooleanEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 
 /**
  * Route protection configuration
@@ -42,12 +44,11 @@ function isLoginPage(pathname: string): boolean {
  * Maneja usuarios temporales (ID 0) rechazándolos para evitar acceso no autorizado
  * Validates role strictly - does NOT assume unknown roles are 'builder'
  */
-function mapGuardResultToAdmin(guardResult: any): AdminSession {
-  const rawId = guardResult.id ?? ''
-  const userId = Number.parseInt(rawId, 10)
+function mapGuardResultToAdmin(guardResult: AuthenticatedUser): AdminSession {
+  const userId = guardResult.id
 
   // Usuarios temporales (ID 0) no deben acceder a management
-  if (Number.isNaN(userId) || userId === 0) {
+  if (!userId || userId === 0) {
     throw new Error('Invalid user ID: temporary users cannot access management')
   }
 
@@ -228,7 +229,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   } catch (error) {
     // E3 fix: log middleware errors instead of silencing them
     const errorMessage = error instanceof Error ? error.message : 'Unknown middleware error'
-    console.warn(`[middleware] Auth/session error: ${errorMessage}`)
+    logger.warn(`[middleware] Auth/session error: ${errorMessage}`)
   }
 
   const response = await next()

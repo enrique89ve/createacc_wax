@@ -56,8 +56,6 @@ export interface ConsistencyCheck {
   readonly critical_issues: string[]
   /** Inconsistencias informativas que NO bloquean operaciones (ej: total_assigned histórico) */
   readonly warning_issues: string[]
-  /** @deprecated Use critical_issues y warning_issues */
-  readonly issues: string[]
   readonly calculated_available: number
   readonly stored_available: number
   readonly difference: number
@@ -223,7 +221,6 @@ class CreditBalanceTracker {
         is_consistent: false,
         critical_issues: ['No existe registro en tabla Credits'],
         warning_issues: [],
-        issues: ['No existe registro en tabla Credits'],
         calculated_available: 0,
         stored_available: 0,
         difference: 0,
@@ -260,15 +257,11 @@ class CreditBalanceTracker {
       )
     }
 
-    // is_consistent solo considera issues CRÍTICOS
-    const allIssues = [...critical_issues, ...warning_issues]
-
     return {
       builder_id,
       is_consistent: critical_issues.length === 0,
       critical_issues,
       warning_issues,
-      issues: allIssues,
       calculated_available: calculatedAvailable,
       stored_available: storedAvailable,
       difference: storedAvailable - calculatedAvailable,

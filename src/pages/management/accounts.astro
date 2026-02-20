@@ -50,9 +50,9 @@ try {
         new Date(a.creation_date).getTime()
     )
   }
-} catch (err) {
+} catch (loadError) {
   error = 'Error al cargar las cuentas'
-  console.error('Error loading accounts:', err)
+  console.error('Error loading accounts:', loadError)
 }
 
 ---

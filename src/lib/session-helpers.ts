@@ -4,6 +4,7 @@ import type { AdminSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getSession } from 'auth-astro/server'
 import { parseRole } from '@/lib/roles'
+import { logger } from '@/lib/logger'
 
 export interface RetrievedSessions {
   admin: import('@/types/auth').AdminSession | null
@@ -27,7 +28,7 @@ export async function getAdminSession(
     // Validate role - DO NOT degrade to builder if invalid
     const role = parseRole(session.user.role)
     if (!role) {
-      console.error('Invalid role in session, rejecting:', session.user.role)
+      logger.error('Invalid role in session, rejecting:', session.user.role)
       return null // REJECT session with invalid role
     }
 

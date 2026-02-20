@@ -1,4 +1,4 @@
-import { signIn } from 'auth-astro/client'
+/* eslint-disable no-console */
 
 const form = document.getElementById('login-form') as HTMLFormElement
 const errorMessage = document.getElementById('error-message')

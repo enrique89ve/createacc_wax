@@ -6,6 +6,7 @@
  */
 
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import {
 	getAuthenticatedBuilderId,
@@ -145,7 +146,7 @@ export const POST: APIRoute = async ({ request }) => {
 			return handleAuthError(error)
 		}
 
-		console.error('Error creating ticket:', error)
+		logger.error('Error creating ticket:', error)
 		return apiError(
 			'Error interno del servidor',
 			HTTP_STATUS.INTERNAL_SERVER_ERROR

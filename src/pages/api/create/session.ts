@@ -3,16 +3,17 @@ import type { CreationSession } from '@/types/auth'
 import { HTTP_STATUS } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { CreationSessionManager } from '@/lib/session-manager'
-import {
-  createCompatibleSuccessResponse,
-  createCompatibleErrorResponse
-} from '@/utils/errorResponse'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
+import { validatePowSolution, validateTimingToken } from '@/lib/pow'
+import { TIMING_THRESHOLDS } from '@/consts/pow'
 
 interface Body {
   readonly username?: string
   readonly ticket?: string
+  readonly pow?: { readonly challengeId?: string; readonly nonce?: string }
+  readonly timingTokenId?: string
 }
 
 export const POST: APIRoute = async context => {
@@ -27,12 +28,34 @@ export const POST: APIRoute = async context => {
 		const data: Body = await context.request.json()
 		const { username, ticket } = data
 
-		// Log para rastrear el ticket
+		// Validate PoW before any business logic
+		if (!data.pow?.challengeId || !data.pow?.nonce || !validatePowSolution(data.pow as { challengeId: string; nonce: string })) {
+			return apiError(
+				'Proof of work validation failed',
+				HTTP_STATUS.BAD_REQUEST,
+				undefined,
+				{ noCache: true }
+			)
+		}
+
+		// Validate timing token only when ticket is present (submit from Form.astro).
+		// Without ticket = session refresh from ensureCreationSession() → skip timing.
+		if (ticket && ticket.trim()) {
+			if (!data.timingTokenId || !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.session)) {
+				return apiError(
+					'Timing validation failed',
+					HTTP_STATUS.BAD_REQUEST,
+					undefined,
+					{ noCache: true }
+				)
+			}
+		}
 
 		if (!username) {
-			return createCompatibleErrorResponse(
-				new Error(VALIDATION_ERROR_MESSAGES.USERNAME_REQUIRED),
+			return apiError(
+				VALIDATION_ERROR_MESSAGES.USERNAME_REQUIRED,
 				HTTP_STATUS.BAD_REQUEST,
+				undefined,
 				{ noCache: true }
 			)
 		}
@@ -48,8 +71,8 @@ export const POST: APIRoute = async context => {
 		if (existingSession && existingSession.username === username) {
 			// Si la petición NO tiene ticket, preservar la sesión completa tal como está
 			if (!ticket || !ticket.trim()) {
-				return createCompatibleSuccessResponse(
-					{ success: true, username },
+				return apiSuccess(
+					{ username },
 					HTTP_STATUS.OK,
 					{ noCache: true }
 				)
@@ -62,8 +85,8 @@ export const POST: APIRoute = async context => {
 			}
 			sessionManager.set(updatedSession)
 
-			return createCompatibleSuccessResponse(
-				{ success: true, username },
+			return apiSuccess(
+				{ username },
 				HTTP_STATUS.OK,
 				{ noCache: true }
 			)
@@ -79,15 +102,17 @@ export const POST: APIRoute = async context => {
 
 		sessionManager.set(sessionData)
 
-		return createCompatibleSuccessResponse(
-			{ success: true, username },
+		return apiSuccess(
+			{ username },
 			HTTP_STATUS.OK,
 			{ noCache: true }
 		)
 	} catch (error) {
-		return createCompatibleErrorResponse(
-			error,
+		const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor'
+		return apiError(
+			errorMessage,
 			HTTP_STATUS.INTERNAL_SERVER_ERROR,
+			undefined,
 			{ noCache: true }
 		)
 	}

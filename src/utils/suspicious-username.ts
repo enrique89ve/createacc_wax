@@ -108,6 +108,19 @@ export function isSuspiciousUsername(username: string): boolean {
       }
     }
 
+    // 5. DETECCIÓN DE ENTROPÍA (Nombres generados por bots)
+    
+    // Racha de 4 o más consonantes seguidas (ignora números en el medio para evaluar legibilidad)
+    const lettersOnly = cleanUsername.replace(/[^a-z]/g, '')
+    if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(lettersOnly)) {
+      return true
+    }
+
+    // Letras y números intercalados sin sentido (ej: x1y2z3 o a1b2c3d4)
+    if (/([a-z]\d){3,}|(\d[a-z]){3,}/.test(cleanUsername)) {
+      return true
+    }
+
     return false
   } catch (error) {
     return true // En caso de error, consideramos sospechoso por seguridad
@@ -197,6 +210,15 @@ export function getSuspiciousReason(username: string): string | null {
 
     if (/(.)\1{4,}/.test(cleanUsername)) {
       return 'Repeated characters'
+    }
+
+    const lettersOnly = cleanUsername.replace(/[^a-z]/g, '')
+    if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(lettersOnly)) {
+      return 'High entropy: consecutive consonants'
+    }
+
+    if (/([a-z]\d){3,}|(\d[a-z]){3,}/.test(cleanUsername)) {
+      return 'High entropy: alternating letters and numbers'
     }
 
     return null

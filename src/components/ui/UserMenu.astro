@@ -12,7 +12,7 @@ const { username } = Astro.props
 		src={`https://images.hive.blog/u/${username}/avatar`}
 		alt={`Avatar de ${username}`}
 		class="h-8 w-8 rounded-full border border-border/50 object-cover shadow-sm"
-		onerror="this.src='/assets/default-avatar.svg'"
+		data-fallback="/assets/default-avatar.svg"
 	/>
 
 	<!-- Username -->
@@ -20,3 +20,21 @@ const { username } = Astro.props
 		{username}
 	</div>
 </div>
+
+<script>
+	document.querySelectorAll<HTMLImageElement>('img[data-fallback]').forEach(img => {
+		const applyFallback = () => {
+			const fallback = img.dataset.fallback
+			if (fallback && img.src !== fallback) {
+				img.src = fallback
+			}
+		}
+
+		if (img.complete && img.naturalWidth === 0) {
+			applyFallback()
+			return
+		}
+
+		img.addEventListener('error', applyFallback, { once: true })
+	})
+</script>

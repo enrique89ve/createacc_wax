@@ -9,6 +9,7 @@ import {
 import { CREDITS_LIMITS } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 // GET: Listar usuarios builders
 export const GET: APIRoute = async context => {
@@ -37,15 +38,9 @@ export const GET: APIRoute = async context => {
         created_at: builder.created_at,
       }))
 
-      return new Response(JSON.stringify({ success: true, users }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return apiSuccess({ users })
     } catch (error) {
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return apiError('Error interno', 500)
     }
   })
 }
@@ -79,15 +74,7 @@ export const POST: APIRoute = async context => {
       }
 
       if (!hive_username || hive_username.length < 3) {
-        return new Response(
-          JSON.stringify({
-            error: 'Hive username debe tener al menos 3 caracteres',
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Hive username debe tener al menos 3 caracteres', 400)
       }
 
       const cleanUsername = hive_username.trim().toLowerCase()
@@ -96,15 +83,7 @@ export const POST: APIRoute = async context => {
       let initialCredits = 100 // valor por defecto
       if (typeof amount === 'number' && amount > 0) {
         if (amount > CREDITS_LIMITS.MAX_ASSIGNMENT) {
-          return new Response(
-            JSON.stringify({
-              error: `El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`,
-            }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          )
+          return apiError(`El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`, 400)
         }
         initialCredits = amount
       }
@@ -114,10 +93,7 @@ export const POST: APIRoute = async context => {
         await usersRepository.builderExistsByUsername(cleanUsername)
 
       if (exists) {
-        return new Response(JSON.stringify({ error: 'El builder ya existe' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        return apiError('El builder ya existe', 400)
       }
 
       // Crear builder usando the unified repository
@@ -137,37 +113,24 @@ export const POST: APIRoute = async context => {
         assigned_by_admin: session.userId,
       })
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Builder creado exitosamente con 100 créditos pendientes',
-          user: {
-            id: builderId,
-            hive_username: cleanUsername,
-            role: UserRole.Builder,
-            initial_credits: 100,
-          },
-        }),
-        {
-          status: 201,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      return apiSuccess({
+        message: 'Builder creado exitosamente con 100 créditos pendientes',
+        user: {
+          id: builderId,
+          hive_username: cleanUsername,
+          role: UserRole.Builder,
+          initial_credits: 100,
+        },
+      }, 201)
     } catch (error) {
       if (
         error instanceof Error &&
         error.message.includes('UNIQUE constraint failed')
       ) {
-        return new Response(JSON.stringify({ error: 'El builder ya existe' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        return apiError('El builder ya existe', 400)
       }
 
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return apiError('Error interno', 500)
     }
   })
 }
@@ -202,46 +165,24 @@ export const DELETE: APIRoute = async context => {
         parsedId <= 0 ||
         parsedId > Number.MAX_SAFE_INTEGER
       ) {
-        return new Response(
-          JSON.stringify({ error: 'ID de usuario inválido' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('ID de usuario inválido', 400)
       }
 
       // Verificar que el builder existe usando the unified repository
       const user = await usersRepository.findById(parsedId)
 
       if (!user || user.role !== UserRole.Builder) {
-        return new Response(
-          JSON.stringify({ error: 'Builder no encontrado' }),
-          {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Builder no encontrado', 404)
       }
 
       // Eliminar builder y limpiar dependencias
       await usersRepository.deleteBuilderWithReferences(parsedId)
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Usuario eliminado exitosamente',
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    } catch (error) {
-      return new Response(JSON.stringify({ error: 'Error interno' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
+      return apiSuccess({
+        message: 'Usuario eliminado exitosamente',
       })
+    } catch (error) {
+      return apiError('Error interno', 500)
     }
   })
 }

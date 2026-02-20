@@ -3,10 +3,7 @@ import { ensureCreation } from '@/lib/session-helpers'
 import { CreationSessionManager } from '@/lib/session-manager'
 import { HTTP_STATUS, API_MESSAGES } from '@/consts/constants'
 import type { PublicKeysPayload } from '@/types/keys'
-import {
-  createCompatibleSuccessResponse,
-  createCompatibleErrorResponse,
-} from '@/utils/errorResponse'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { validateHiveKeySet } from '@/utils/key-validation'
 import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
@@ -22,9 +19,10 @@ export const POST: APIRoute = async context => {
 
     const existing = await ensureCreation(context)
     if (!existing) {
-      return createCompatibleErrorResponse(
-        new Error(API_MESSAGES.ERROR.NO_SESSION),
+      return apiError(
+        API_MESSAGES.ERROR.NO_SESSION,
         HTTP_STATUS.UNAUTHORIZED,
+        undefined,
         { noCache: true }
       )
     }
@@ -40,9 +38,10 @@ export const POST: APIRoute = async context => {
       !postingPublicKey ||
       !memoPublicKey
     ) {
-      return createCompatibleErrorResponse(
-        new Error(API_MESSAGES.ERROR.MISSING_KEYS),
+      return apiError(
+        API_MESSAGES.ERROR.MISSING_KEYS,
         HTTP_STATUS.BAD_REQUEST,
+        undefined,
         { noCache: true }
       )
     }
@@ -56,7 +55,8 @@ export const POST: APIRoute = async context => {
         memoPublicKey,
       })
     } catch (keyError) {
-      return createCompatibleErrorResponse(keyError, HTTP_STATUS.BAD_REQUEST, {
+      const keyErrorMessage = keyError instanceof Error ? keyError.message : 'Error de validación de claves'
+      return apiError(keyErrorMessage, HTTP_STATUS.BAD_REQUEST, undefined, {
         noCache: true,
       })
     }
@@ -71,13 +71,15 @@ export const POST: APIRoute = async context => {
       confirmedDownload: true,
     })
 
-    return createCompatibleSuccessResponse({ success: true }, HTTP_STATUS.OK, {
+    return apiSuccess({}, HTTP_STATUS.OK, {
       noCache: true,
     })
   } catch (error) {
-    return createCompatibleErrorResponse(
-      error,
+    const errorMessage = error instanceof Error ? error.message : 'Error interno del servidor'
+    return apiError(
+      errorMessage,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      undefined,
       { noCache: true }
     )
   }

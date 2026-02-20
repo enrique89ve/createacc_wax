@@ -1,6 +1,5 @@
 import {
   ResourceCreditsOperation,
-  type ITransactionBase,
   type TAccountName,
   type TNaiAssetConvertible,
 } from '@hiveio/wax'
@@ -39,7 +38,8 @@ export async function delegateResourceCredits(
   const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
   try {
     assertNotSelfDelegation(delegatorAccount, params.delegatee)
-  } catch (e) {
+  } catch (_error) {
+    // Re-throw as typed AppError for consistent error handling
     throw new AppError(AppErrorCode.SELF_DELEGATION)
   }
 
@@ -49,7 +49,7 @@ export async function delegateResourceCredits(
       .delegate(delegatorAccount, params.maxRc.toString(), params.delegatee)
       .authorize(delegatorAccount)
     tx.pushOperation(rcOperation)
-  }, `RC delegated successfully to: ${params.delegatee}`)
+  })
 }
 
 export async function removeDelegation(
@@ -61,7 +61,8 @@ export async function removeDelegation(
   const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
   try {
     assertNotSelfRemoval(delegatorAccount, params.delegatee)
-  } catch (e) {
+  } catch (_error) {
+    // Re-throw as typed AppError for consistent error handling
     throw new AppError(AppErrorCode.SELF_REMOVAL)
   }
 
@@ -70,5 +71,5 @@ export async function removeDelegation(
     rcOperation.removeDelegation(delegatorAccount, params.delegatee)
     rcOperation.authorize(delegatorAccount)
     tx.pushOperation(rcOperation)
-  }, `RC delegation removed successfully from: ${params.delegatee}`)
+  })
 }

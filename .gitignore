@@ -11,6 +11,7 @@ dist/
 
 # dependencies
 node_modules/
+.summarize-tmp
 
 # logs
 npm-debug.log*

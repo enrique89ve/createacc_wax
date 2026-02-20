@@ -5,6 +5,7 @@
  */
 
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { getSession } from 'auth-astro/server'
 import { markAsViewed } from '@/lib/notification-service'
 import { UsersRepository } from '@/lib/repositories/users-repository'
@@ -47,7 +48,7 @@ export const POST: APIRoute = async ({ request }) => {
 			{ status: 200, headers: { 'Content-Type': 'application/json' } }
 		)
 	} catch (error) {
-		console.error('Error marking notifications as viewed:', error)
+		logger.error('Error marking notifications as viewed:', error)
 		return new Response(
 			JSON.stringify({ success: false, error: 'Error interno del servidor' }),
 			{ status: 500, headers: { 'Content-Type': 'application/json' } }

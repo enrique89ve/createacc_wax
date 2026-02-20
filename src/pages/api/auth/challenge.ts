@@ -4,6 +4,7 @@
  */
 
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import { generateNonce, checkChallengeRateLimit } from '@/lib/nonce-store'
 
@@ -42,7 +43,7 @@ export const GET: APIRoute = async ({ clientAddress }) => {
 			}
 		)
 	} catch (error) {
-		console.error('Error generating challenge nonce:', error)
+		logger.error('Error generating challenge nonce:', error)
 		return new Response(
 			JSON.stringify({ error: 'Error generando challenge' }),
 			{

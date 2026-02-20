@@ -10,6 +10,13 @@ import {
 	WaxRequestError,
 	WaxRequestTimeoutError,
 	WaxRequestAbortedByUser,
+	WaxAssertionError,
+	WaxNon_2XX_3XX_ResponseCodeError,
+	WaxUnknownRequestError,
+	WaxMalformedJsonError,
+	WaxHealthCheckerError,
+	WaxHealthCheckerValidatorFailedError,
+	WaxPrivateKeyLeakDetectedException,
 } from '@hiveio/wax'
 
 /**
@@ -72,142 +79,116 @@ const KNOWN_ERROR_PATTERNS: Array<{
 ]
 
 /**
- * Mapeo de nombres de error de Wax a categorías
- * Actualizado con todos los tipos de error oficiales de @hiveio/wax
+ * Clasifica un error Wax por instanceof y retorna su categoría
+ * Orden: subclases más específicas primero, luego clases base
  */
-const ERROR_TYPE_MAPPING: Record<string, WaxErrorInfo['category']> = {
-  // Request errors (network-related)
-  WaxRequestError: 'network',
-  WaxRequestTimeoutError: 'network',
-  WaxRequestAbortedByUser: 'network',
-  WaxNon_2XX_3XX_ResponseCodeError: 'network',
-  WaxUnknownRequestError: 'network',
+function classifyByInstance(error: unknown): WaxErrorInfo['category'] | null {
+	// Request subclasses → network
+	if (error instanceof WaxRequestTimeoutError) return 'network'
+	if (error instanceof WaxRequestAbortedByUser) return 'network'
+	if (error instanceof WaxNon_2XX_3XX_ResponseCodeError) return 'network'
+	if (error instanceof WaxMalformedJsonError) return 'network'
+	if (error instanceof WaxUnknownRequestError) return 'network'
+	// Request base → network
+	if (error instanceof WaxRequestError) return 'network'
 
-  // HealthChecker errors (network-related)
-  WaxHealthCheckerEndpointUrlError: 'network',
-  WaxHealthCheckerError: 'network',
+	// HealthChecker → network/api
+	if (error instanceof WaxHealthCheckerValidatorFailedError) return 'api'
+	if (error instanceof WaxHealthCheckerError) return 'network'
 
-  // API errors
-  WaxChainApiError: 'api',
-  WaxHealthCheckerValidatorFailedError: 'api',
+	// Chain API → api
+	if (error instanceof WaxChainApiError) return 'api'
 
-  // Business/Security errors
-  WaxPrivateKeyLeakDetectedException: 'business',
+	// Assertion errors (tx.validate()) → business
+	if (error instanceof WaxAssertionError) return 'business'
 
-  // Generic fallback
-  WaxError: 'unknown',
+	// Security → business
+	if (error instanceof WaxPrivateKeyLeakDetectedException) return 'business'
+
+	// Generic WaxError base → unknown
+	if (error instanceof WaxError) return 'unknown'
+
+	return null
 }
 
 /**
- * Type guards para detectar tipos específicos de errores WAX
+ * Extrae el mensaje más informativo de un WaxChainApiError
  */
-function isWaxChainApiError(
-	error: unknown,
-): error is WaxChainApiError & { apiError: unknown } {
-	return (
-		error instanceof WaxChainApiError ||
-		(typeof error === 'object' &&
-			error !== null &&
-			'apiError' in error &&
-			'name' in error &&
-			(error as Record<string, unknown>).name === 'WaxChainApiError')
-	)
+function extractApiErrorMessage(error: WaxChainApiError): string | null {
+	const apiError: unknown = error.apiError
+	if (!apiError) return null
+
+	if (typeof apiError === 'string') return apiError
+	if (typeof apiError === 'object' && apiError !== null && 'message' in apiError) {
+		const msg = (apiError as Record<string, unknown>).message
+		if (typeof msg === 'string') return msg
+	}
+
+	return null
 }
 
-function isWaxRequestError(error: unknown): error is WaxRequestError {
-	return (
-		error instanceof WaxRequestError ||
-		(typeof error === 'object' &&
-			error !== null &&
-			'name' in error &&
-			typeof (error as Record<string, unknown>).name === 'string' &&
-			((error as Record<string, unknown>).name as string).includes(
-				'WaxRequest',
-			))
-	)
-}
-
-function isWaxError(error: unknown): error is WaxError {
-	return (
-		error instanceof WaxError ||
-		(typeof error === 'object' &&
-			error !== null &&
-			'name' in error &&
-			typeof (error as Record<string, unknown>).name === 'string' &&
-			((error as Record<string, unknown>).name as string).startsWith('Wax'))
-	)
+/**
+ * Type guard para verificar si un error es una instancia de WaxError
+ */
+export function isWaxError(error: unknown): error is WaxError {
+	return error instanceof WaxError
 }
 
 /**
  * Analiza un error de @hiveio/wax y lo clasifica
- * Ahora usa type guards y datos estructurados de errores WAX
+ * Usa instanceof para type safety real contra todas las clases exportadas
  */
 export function analyzeWaxError(error: unknown): WaxErrorInfo {
-  if (!error || typeof error !== 'object') {
-    return {
-      name: 'UnknownError',
-      message: 'Unknown error occurred',
-      code: AppErrorCode.GENERIC_HIVE_ERROR,
-      isRetryable: false,
-      category: 'unknown',
-    }
-  }
+	if (!error || typeof error !== 'object') {
+		return {
+			name: 'UnknownError',
+			message: 'Unknown error occurred',
+			code: AppErrorCode.GENERIC_HIVE_ERROR,
+			isRetryable: false,
+			category: 'unknown',
+		}
+	}
 
-  const err = error as Record<string, unknown>
-  const errorName = String(err.name || 'UnknownError')
-  let errorMessage = String(err.message || 'No message')
+	const errorName = error instanceof Error ? error.name : 'UnknownError'
+	let errorMessage = error instanceof Error ? error.message : 'No message'
 
-  // Si es WaxChainApiError, intentar extraer mensaje del apiError
-  if (isWaxChainApiError(error) && error.apiError) {
-    const apiError = error.apiError as Record<string, unknown>
-    if (apiError.message && typeof apiError.message === 'string') {
-      errorMessage = apiError.message
-    } else if (typeof error.apiError === 'string') {
-      errorMessage = error.apiError
-    }
-  }
+	// Extraer mensaje detallado de WaxChainApiError
+	if (error instanceof WaxChainApiError) {
+		const apiMessage = extractApiErrorMessage(error)
+		if (apiMessage) errorMessage = apiMessage
+	}
 
-  // Determinar categoría por nombre de error usando type guards primero
-  let category: WaxErrorInfo['category'] = 'unknown'
-  if (isWaxRequestError(error)) {
-    category = 'network'
-  } else if (isWaxChainApiError(error)) {
-    category = 'api'
-  } else if (isWaxError(error)) {
-    // Usar mapping para otros tipos de WaxError
-    category = ERROR_TYPE_MAPPING[errorName] || 'unknown'
-  } else {
-    category = ERROR_TYPE_MAPPING[errorName] || 'unknown'
-  }
+	// Clasificar por instanceof
+	const category = classifyByInstance(error) ?? 'unknown'
 
-  // Buscar patrón conocido en el mensaje (para errores de negocio de Hive)
-  for (const {
-    pattern,
-    code,
-    category: patternCategory,
-    isRetryable,
-  } of KNOWN_ERROR_PATTERNS) {
-    if (pattern.test(errorMessage)) {
-      return {
-        name: errorName,
-        message: errorMessage,
-        code,
-        isRetryable,
-        category: patternCategory,
-      }
-    }
-  }
+	// Buscar patrón conocido en el mensaje (para errores de negocio de Hive)
+	for (const {
+		pattern,
+		code,
+		category: patternCategory,
+		isRetryable,
+	} of KNOWN_ERROR_PATTERNS) {
+		if (pattern.test(errorMessage)) {
+			return {
+				name: errorName,
+				message: errorMessage,
+				code,
+				isRetryable,
+				category: patternCategory,
+			}
+		}
+	}
 
-  // Error no reconocido pero clasificable por tipo
-  const isRetryable = category === 'network' || category === 'api'
+	// Error no reconocido pero clasificable por tipo
+	const isRetryable = category === 'network' || category === 'api'
 
-  return {
-    name: errorName,
-    message: errorMessage,
-    code: AppErrorCode.GENERIC_HIVE_ERROR,
-    isRetryable,
-    category,
-  }
+	return {
+		name: errorName,
+		message: errorMessage,
+		code: AppErrorCode.GENERIC_HIVE_ERROR,
+		isRetryable,
+		category,
+	}
 }
 
 /**

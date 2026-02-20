@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 /**
  * 🎫 TICKET MODAL HANDLERS
  * Manejadores de eventos para modales de gestión de tickets con slider
@@ -366,7 +367,8 @@ function setupUpdateModalListeners() {
       } else {
         notify('error', data.error || 'Error al actualizar créditos')
       }
-    } catch (e) {
+    } catch (_error) {
+      // Network error: notify user with generic message
       notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
     }
   })
@@ -409,7 +411,8 @@ function setupDeleteModalListeners() {
         } else {
           notify('error', data.error || 'Error al eliminar')
         }
-      } catch (e) {
+      } catch (_error) {
+        // Network error: notify user with generic message
         notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
       }
     })

@@ -85,7 +85,7 @@ export class SimplifiedErrorProcessor {
       typeof error === 'string'
         ? error
         : error && typeof error === 'object'
-          ? String((error as any).message || error)
+          ? String((error as Record<string, unknown>).message || error)
           : 'Unknown error'
 
     return new Error(message)

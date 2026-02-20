@@ -72,9 +72,9 @@ try {
       )
     }
   }
-} catch (err) {
+} catch (loadError) {
   error = 'Error al cargar los logs'
-  console.error('Error loading logs:', err)
+  console.error('Error loading logs:', loadError)
 }
 
 // Helper para obtener badge de acción

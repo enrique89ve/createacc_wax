@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { withAdminApiSession } from '@/lib/session-helpers'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import {
@@ -6,6 +7,7 @@ import {
   unauthorizedResponse,
 } from '@/lib/admin/permissions-management'
 import { UserRole } from '@/lib/roles'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 /**
  * POST: Reactivar un builder previamente baneado
@@ -27,13 +29,7 @@ export const POST: APIRoute = async context => {
       const { id } = context.params
 
       if (!id || isNaN(Number(id))) {
-        return new Response(
-          JSON.stringify({ error: 'ID de builder inválido' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('ID de builder inválido', 400)
       }
 
       const builderId = Number(id)
@@ -42,57 +38,26 @@ export const POST: APIRoute = async context => {
       const builder = await usersRepository.getById(builderId)
 
       if (!builder) {
-        return new Response(
-          JSON.stringify({ error: 'Builder no encontrado' }),
-          {
-            status: 404,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('Builder no encontrado', 404)
       }
 
       if (builder.role !== UserRole.Builder) {
-        return new Response(
-          JSON.stringify({ error: 'El usuario no es un builder' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('El usuario no es un builder', 400)
       }
 
       if (builder.is_active) {
-        return new Response(
-          JSON.stringify({ error: 'El builder ya está activo' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        )
+        return apiError('El builder ya está activo', 400)
       }
 
       // Reactivar el builder
       await usersRepository.reactivateBuilder(builderId)
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: `Builder @${builder.username} reactivado exitosamente`,
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      return apiSuccess({
+        message: `Builder @${builder.username} reactivado exitosamente`,
+      })
     } catch (error) {
-      console.error('Error reactivating builder:', error)
-      return new Response(
-        JSON.stringify({ error: 'Error interno al reactivar builder' }),
-        {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
+      logger.error('Error reactivating builder:', error)
+      return apiError('Error interno al reactivar builder', 500)
     }
   })
 }

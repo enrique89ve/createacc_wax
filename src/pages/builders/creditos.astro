@@ -53,7 +53,9 @@ try {
 
     creditHistory = await creditsService.getCreditHistory(credits.builder_id)
   }
-} catch (error) {}
+} catch (_error) {
+	// Non-critical: page renders with default zero credits as fallback
+}
 
 // Calcular estadísticas
 const creditosPendientes = builderCredits.pending
@@ -507,7 +509,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
             'Posting',
             JSON.stringify(customJsonData.json),
             'Claim Credits - HolaHive',
-            function (response: any) {
+            function (response: unknown) {
               // Usar function() en lugar de arrow function para evitar problemas de contexto
               try {
                 // Si ya se resolvió, simplemente salir sin hacer nada

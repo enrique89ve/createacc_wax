@@ -8,6 +8,7 @@
  */
 
 import type { APIRoute } from 'astro'
+import { logger } from '@/lib/logger'
 import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import { encode } from '@auth/core/jwt'
@@ -53,7 +54,7 @@ async function persistLoginAttempt(
       errorMessage,
     })
   } catch (error) {
-    console.error('Failed to persist login attempt:', error)
+    logger.error('Failed to persist login attempt:', error)
   }
 }
 
@@ -198,7 +199,7 @@ export const POST: APIRoute = async (context) => {
     // Obtener secreto
     const secret = process.env.AUTH_SECRET
     if (!secret) {
-      console.error('AUTH_SECRET is missing')
+      logger.error('AUTH_SECRET is missing')
       return new Response(
         JSON.stringify({
           success: false,
@@ -273,7 +274,7 @@ export const POST: APIRoute = async (context) => {
       }
     )
   } catch (error) {
-    console.error('Management login error:', error)
+    logger.error('Management login error:', error)
     return new Response(
       JSON.stringify({
         success: false,

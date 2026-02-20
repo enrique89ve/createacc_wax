@@ -26,7 +26,6 @@ export interface HiveAccountData {
   readonly id: number
   readonly name: HiveUsername
   readonly created: string
-  readonly reputation: string
   readonly posting: HivePosting
   readonly active: HivePosting
   readonly owner: HivePosting
@@ -76,6 +75,7 @@ export interface HiveKeychainResponse {
   readonly publicKey?: HivePublicKey
   readonly request_id?: number
   readonly result?: HiveSignature
+  readonly signature?: HiveSignature
 }
 
 export interface HiveKeychainAuthResult {

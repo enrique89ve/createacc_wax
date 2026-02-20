@@ -207,7 +207,7 @@ ${t.keys.footer}
 
             return
           }
-        } catch (err) {
+        } catch (_error) {
           // Error abriendo ventana - manejado silenciosamente
         }
         // If new window failed, fall back to blob download

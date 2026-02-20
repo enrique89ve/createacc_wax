@@ -126,7 +126,7 @@ export class HiveKeychainService {
     if (!value) return 'Error desconocido'
     if (typeof value === 'string') return value
     if (typeof value === 'object') {
-      const obj = value as any
+      const obj = value as Record<string, unknown>
       if (obj.message) return String(obj.message)
       if (obj.error) return String(obj.error)
       try {
@@ -174,7 +174,7 @@ export class HiveKeychainService {
           (response: HiveKeychainResponse) => {
             if (response.success) {
               // Keychain signature field mapping
-              const signature = response.result || (response as any).signature
+              const signature = response.result || response.signature
 
               resolve({
                 success: true,

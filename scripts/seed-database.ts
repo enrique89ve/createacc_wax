@@ -35,7 +35,7 @@ async function seedAdmin(): Promise<number | null> {
 	return Number(result.lastInsertRowid)
 }
 
-async function seedBuilder(adminId: number): Promise<number | null> {
+async function seedBuilder(): Promise<number | null> {
 	if (await rowExists('Users', 'username', SEED_DEFAULTS.BUILDER_USERNAME)) {
 		console.log('  Builder already exists, skipping.')
 		const result = await db.execute({
@@ -97,7 +97,7 @@ async function main() {
 		}
 
 		console.log('[2/3] Builder user:')
-		const builderId = await seedBuilder(adminId)
+		const builderId = await seedBuilder()
 
 		console.log('[3/3] Demo ticket:')
 		await seedTicket(builderId || adminId)

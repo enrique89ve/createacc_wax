@@ -5,38 +5,30 @@ import AccountDetails from '@/components/AccountDetails.astro'
 import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
 
-// Obtener username de params
 const { user } = Astro.params
 
-// Validación básica de parámetro URL
 if (!user || typeof user !== 'string') {
   return Astro.redirect('/access-denied')
 }
 
-// Validación de formato de username usando las mismas reglas del form
 const usernameError = validateAccountName(user)
 if (usernameError) {
   console.warn('Invalid username format in URL', { user, usernameError })
   return Astro.redirect('/access-denied')
 }
 
-// Verificar sesión de creación existente - usar Astro.locals (configurado por middleware)
 const creationSession: CreationSession | undefined = Astro.locals.creation
 if (!creationSession) {
   return Astro.redirect('/access-denied')
 }
 
-// Verificar que el username en la URL coincida con el de la sesión
 if (user !== creationSession.username) {
   return Astro.redirect('/access-denied')
 }
 
-// Verificar que la cuenta no haya sido creada ya
 if (creationSession.accountCreated) {
   return Astro.redirect(`/success/${encodeURIComponent(user)}`)
 }
-
-// Si llegamos aquí, el acceso es válido
 ---
 
 <Layout>
