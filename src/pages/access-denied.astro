@@ -45,7 +45,7 @@ import Layout from '@/layouts/Layout.astro'
   import { notify } from '@/utils/toast'
 
   // Mostrar toast explicativo al cargar la página
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('astro:page-load', () => {
     setTimeout(() => {
       notify('warning', 'Completa el formulario de registro para continuar')
     }, 1000)

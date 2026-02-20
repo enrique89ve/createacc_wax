@@ -58,7 +58,7 @@ const { id, message, style = 'light' } = Astro.props as Props
 
 <script>
   // Script para manejar la visibilidad del tooltip
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('astro:page-load', () => {
     // Función para mostrar tooltip
     function showTooltip(targetId: string) {
       const tooltip = document.getElementById(targetId)

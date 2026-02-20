@@ -73,7 +73,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
     import { quickLogin, isKeychainReady } from '@/lib/keychain-service'
     import { notify } from '@/utils/toast'
 
-    document.addEventListener('DOMContentLoaded', async () => {
+    document.addEventListener('astro:page-load', async () => {
       await initPage()
       setupEventListeners()
     })
