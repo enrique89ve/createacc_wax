@@ -24,7 +24,7 @@ export const MAX_STORE_ENTRIES = 50_000
 export const TIMING_THRESHOLDS = {
 	ticket: 3_000,
 	session: 5_000,
-	account: 3_000,
+	account: 1_000,
 } as const
 
 /** Timing token validity window in milliseconds (10 minutes). */

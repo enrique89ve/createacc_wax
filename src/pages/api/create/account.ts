@@ -275,7 +275,6 @@ async function verifyNotOnChain(username: string): Promise<Response | void> {
 		chain,
 		accountName: username,
 	})
-	chain.delete()
 
 	if (existsOnChain) {
 		return failureResponse(
@@ -466,10 +465,13 @@ export const POST: APIRoute = async (context) => {
 		const powResult = validatePow(body)
 		if (powResult instanceof Response) return powResult
 
-		const requestResult = await validateRequest(body)
+		// Parallelize independent validation: request data + session retrieval
+		const [requestResult, creationSession] = await Promise.all([
+			validateRequest(body),
+			ensureCreation(context),
+		])
 		if (requestResult instanceof Response) return requestResult
 
-		const creationSession = await ensureCreation(context)
 		const sessionResult = await checkSessionAndIdempotency(creationSession, requestResult.username)
 		if (sessionResult instanceof Response) return sessionResult
 

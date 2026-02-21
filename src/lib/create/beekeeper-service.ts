@@ -17,6 +17,28 @@ export interface IBeekeeperServiceConfig {
 	readonly walletName: string
 }
 
+/**
+ * Cached beekeeper session per wallet name.
+ * Avoids ~50-200ms WASM init per transaction by reusing sessions.
+ * Beekeeper's built-in unlockTimeout (default 900s) auto-locks after inactivity.
+ */
+interface CachedSession {
+	readonly bk: IBeekeeperInstance
+	readonly session: IBeekeeperSession
+	readonly wallet: IBeekeeperUnlockedWallet
+	readonly publicKey: string
+}
+
+const sessionCache = new Map<string, CachedSession>()
+
+async function destroyCachedSession(walletName: string): Promise<void> {
+	const cached = sessionCache.get(walletName)
+	if (!cached) return
+	sessionCache.delete(walletName)
+	try { cached.session.close() } catch { /* may already be closed */ }
+	try { await cached.bk.delete() } catch { /* best-effort WASM cleanup */ }
+}
+
 export class BeekeeperService {
 	private constructor(private readonly config: IBeekeeperServiceConfig) {}
 
@@ -25,6 +47,24 @@ export class BeekeeperService {
 	}
 
 	async createWalletSession(): Promise<IWalletSession> {
+		// Try cached session first
+		const cached = sessionCache.get(this.config.walletName)
+		if (cached) {
+			try {
+				// Verify the wallet is still usable (not timed out)
+				cached.wallet.getPublicKeys()
+				return {
+					wallet: cached.wallet,
+					publicKey: cached.publicKey,
+					cleanup: async () => { /* no-op: pool manages lifecycle */ },
+				}
+			} catch {
+				// Cached session is stale (e.g., unlock timeout), recreate
+				await destroyCachedSession(this.config.walletName)
+			}
+		}
+
+		// Create fresh session
 		let bk: IBeekeeperInstance | undefined
 
 		try {
@@ -32,21 +72,15 @@ export class BeekeeperService {
 			const session = bk.createSession(BEEKEEPER_CONFIG.SESSION_SALT)
 			const { wallet, publicKey } = await this.initializeWallet(session)
 
-			const beekeeperRef = bk
+			// Cache the session for reuse
+			sessionCache.set(this.config.walletName, { bk, session, wallet, publicKey })
+
 			return {
 				wallet,
 				publicKey,
-				cleanup: async () => {
-					try {
-						session.close()
-					} catch { /* session may already be closed */ }
-					try {
-						await beekeeperRef.delete()
-					} catch { /* best-effort WASM cleanup */ }
-				},
+				cleanup: async () => { /* no-op: pool manages lifecycle */ },
 			}
 		} catch (error) {
-			// If it fails before returning, clean up the WASM runtime
 			if (bk) {
 				try { await bk.delete() } catch { /* best-effort */ }
 			}

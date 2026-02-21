@@ -173,8 +173,6 @@ async function main() {
 		console.error('\nSome entries had errors. Review logs above.')
 		process.exit(1)
 	}
-
-	chain.delete()
 }
 
 main().catch(error => {

@@ -194,39 +194,77 @@ const tryBackupsSequentially = async (
 }
 
 /**
- * Creates a Hive Chain instance with hybrid failover
+ * Chain pool with TTL.
+ * IHiveChainInterface is stateless for reads (find_accounts, createTransaction).
+ * Each createTransaction() returns an independent object, so concurrent use is safe.
+ * The pool avoids ~200-400ms of redundant WASM init per request during active usage.
+ */
+const CHAIN_TTL_MS = 60_000
+
+interface CachedChain {
+	instance: IHiveChainInterface
+	createdAt: number
+}
+
+let cachedChain: CachedChain | null = null
+
+function isCacheValid(): boolean {
+	return cachedChain !== null && (Date.now() - cachedChain.createdAt) < CHAIN_TTL_MS
+}
+
+function clearChainCache(): void {
+	if (cachedChain) {
+		try { cachedChain.instance.delete() } catch { /* best-effort WASM cleanup */ }
+		cachedChain = null
+	}
+}
+
+/**
+ * Creates a fresh Hive Chain instance with hybrid failover (no cache).
+ * Used internally by the pool and for cache-miss scenarios.
+ */
+const createFreshChain = async (): Promise<IHiveChainInterface> => {
+	// TESTNET: Simple configuration
+	if (!isMainnet()) {
+		return await createHiveChain({
+			chainId: TESTNET_CHAIN_ID,
+			apiEndpoint: TESTNET_API,
+		})
+	}
+
+	// MAINNET: Try-default-first + smart backup
+	try {
+		return await createHiveChain({ apiEndpoint: MAINNET_DEFAULT })
+	} catch (error) {
+		if (!shouldTriggerFailover(error)) {
+			throw error
+		}
+
+		try {
+			const bestBackupUrl = await findBestBackup(MAINNET_BACKUPS)
+			return await createHiveChain({ apiEndpoint: bestBackupUrl })
+		} catch {
+			try {
+				return await tryBackupsSequentially(MAINNET_BACKUPS)
+			} catch {
+				throw new Error('All Hive APIs are unavailable')
+			}
+		}
+	}
+}
+
+/**
+ * Returns a cached or fresh Hive Chain instance.
+ * Chain instances are reused within a 60-second TTL window.
+ * Callers MUST NOT call chain.delete() - the pool manages lifecycle.
  */
 export const hiveChain = async (): Promise<IHiveChainInterface> => {
-  // TESTNET: Simple configuration
-  if (!isMainnet()) {
-    return await createHiveChain({
-      chainId: TESTNET_CHAIN_ID,
-      apiEndpoint: TESTNET_API,
-    })
-  }
+	if (isCacheValid()) {
+		return cachedChain!.instance
+	}
 
-  // MAINNET: Try-default-first + smart backup
-  try {
-    const defaultChain = await createHiveChain({ apiEndpoint: MAINNET_DEFAULT })
-    return defaultChain
-  } catch (error) {
-    // Only trigger failover if network/server error
-    if (!shouldTriggerFailover(error)) {
-      throw error // Re-throw business errors without trying backup
-    }
-
-    try {
-      // Strategy 1: Smart HealthChecker
-      const bestBackupUrl = await findBestBackup(MAINNET_BACKUPS)
-      const smartChain = await createHiveChain({ apiEndpoint: bestBackupUrl })
-      return smartChain
-    } catch (healthError) {
-      // Strategy 2: Sequential fallback
-      try {
-        return await tryBackupsSequentially(MAINNET_BACKUPS)
-      } catch (fallbackError) {
-        throw new Error('All Hive APIs are unavailable')
-      }
-    }
-  }
+	clearChainCache()
+	const instance = await createFreshChain()
+	cachedChain = { instance, createdAt: Date.now() }
+	return instance
 }

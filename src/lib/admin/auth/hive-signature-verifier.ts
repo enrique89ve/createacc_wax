@@ -3,9 +3,9 @@
  * Validates that the signature corresponds to the specific message and user
  */
 
-import { createWaxFoundation } from '@hiveio/wax'
 import { hiveChain } from '@/lib/hiveservice'
 import type { IHiveChainInterface } from '@hiveio/wax'
+import { getWaxFoundation } from '@/lib/wax-foundation'
 import { createHash } from 'node:crypto'
 import type {
 	HiveSignatureVerificationRequest,
@@ -28,14 +28,6 @@ interface AccountLookupResult {
 }
 
 export class HiveSignatureVerifier {
-	private chain: IHiveChainInterface | null = null
-
-	private async ensureChainConnection(): Promise<IHiveChainInterface> {
-		if (!this.chain) {
-			this.chain = await hiveChain()
-		}
-		return this.chain
-	}
 
 	private createErrorResult(
 		code: HiveSignatureErrorCode,
@@ -78,7 +70,7 @@ export class HiveSignatureVerifier {
 			const hivePublicKey = createHivePublicKey(publicKey)
 
 			// Verify that the user exists and get their posting keys
-			const chain = await this.ensureChainConnection()
+			const chain = await hiveChain()
 			const accountResult = await this.lookupPostingKeys(hiveUsername, chain)
 
 			if (!accountResult.found) {
@@ -125,36 +117,32 @@ export class HiveSignatureVerifier {
 		hivePublicKey: HivePublicKey,
 		postingKeyAuths: readonly PostingKeyAuth[]
 	): Promise<HiveSignatureVerificationResult> {
-		const wax = await createWaxFoundation()
+		const wax = await getWaxFoundation()
 
-		try {
-			const sigDigest = createHash('sha256').update(message).digest('hex')
-			const recoveredKey = wax.getPublicKeyFromSignature(sigDigest, signature)
+		const sigDigest = createHash('sha256').update(message).digest('hex')
+		const recoveredKey = wax.getPublicKeyFromSignature(sigDigest, signature)
 
-			// Verify that the recovered key is in the user's posting key_auths
-			const keyInAuthorities = postingKeyAuths.find(
-				([key]) => key === recoveredKey
+		// Verify that the recovered key is in the user's posting key_auths
+		const keyInAuthorities = postingKeyAuths.find(
+			([key]) => key === recoveredKey
+		)
+
+		if (!keyInAuthorities) {
+			return this.createErrorResult(
+				'SIGNATURE_VERIFICATION_FAILED',
+				'The signature does not correspond to any posting key of the user'
 			)
-
-			if (!keyInAuthorities) {
-				return this.createErrorResult(
-					'SIGNATURE_VERIFICATION_FAILED',
-					'The signature does not correspond to any posting key of the user'
-				)
-			}
-
-			// Anti-injection: the key sent by the client must match the recovered one
-			if (recoveredKey !== hivePublicKey) {
-				return this.createErrorResult(
-					'PUBLIC_KEY_MISMATCH',
-					'The public key sent does not match the key that generated the signature'
-				)
-			}
-
-			return { valid: true }
-		} finally {
-			wax.delete()
 		}
+
+		// Anti-injection: the key sent by the client must match the recovered one
+		if (recoveredKey !== hivePublicKey) {
+			return this.createErrorResult(
+				'PUBLIC_KEY_MISMATCH',
+				'The public key sent does not match the key that generated the signature'
+			)
+		}
+
+		return { valid: true }
 	}
 
 	/**

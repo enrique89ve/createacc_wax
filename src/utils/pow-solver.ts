@@ -17,18 +17,79 @@ export interface PowSolution {
 	readonly nonce: string
 }
 
-const BATCH_SIZE = 1000
+/**
+ * Adaptive batch size based on device memory.
+ * Larger = fewer microtask boundaries = faster.
+ * Lower-end devices use smaller batches to reduce GC pressure.
+ *
+ * navigator.deviceMemory returns approximate RAM in GB (0.25, 0.5, 1, 2, 4, 8).
+ * Unsupported browsers default to conservative 2048.
+ */
+const BATCH_SIZE = (() => {
+	const memoryGB = (navigator as { deviceMemory?: number }).deviceMemory
+	if (memoryGB === undefined) return 2048
+	if (memoryGB <= 1) return 1024
+	if (memoryGB <= 2) return 2048
+	return 4096
+})()
 const POW_CHALLENGE_ENDPOINT = '/api/pow/challenge'
 const TIMING_TOKEN_ENDPOINT = '/api/pow/timing'
+
+/** Timeout per fetch attempt (generous for slow connections). */
+const FETCH_TIMEOUT_MS = 15_000
+/** Maximum retry attempts before giving up. */
+const MAX_RETRIES = 2
+/** Base delay between retries (doubles each attempt). */
+const RETRY_BASE_DELAY_MS = 1_000
+
+/**
+ * Fetch with timeout + retry for flaky/slow connections.
+ * Retries on network errors and 5xx responses with exponential backoff.
+ */
+async function fetchWithRetry(url: string): Promise<Response> {
+	let lastError: Error | undefined
+
+	for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+		if (attempt > 0) {
+			const delay = RETRY_BASE_DELAY_MS * (2 ** (attempt - 1))
+			await new Promise(resolve => setTimeout(resolve, delay))
+		}
+
+		try {
+			const controller = new AbortController()
+			const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+
+			const response = await fetch(url, { signal: controller.signal })
+			clearTimeout(timeoutId)
+
+			if (response.ok) return response
+
+			// Retry on server errors, fail fast on client errors
+			if (response.status >= 500 && attempt < MAX_RETRIES) {
+				lastError = new Error(`Server error: ${response.status}`)
+				continue
+			}
+
+			throw new Error(`Fetch failed: ${response.status}`)
+		} catch (error) {
+			if (error instanceof DOMException && error.name === 'AbortError') {
+				lastError = new Error('Request timed out')
+			} else if (error instanceof Error) {
+				lastError = error
+			}
+
+			if (attempt === MAX_RETRIES) break
+		}
+	}
+
+	throw lastError ?? new Error('Fetch failed after retries')
+}
 
 /**
  * Fetches a fresh PoW challenge from the server.
  */
 async function fetchPowChallenge(): Promise<PowChallenge> {
-	const response = await fetch(POW_CHALLENGE_ENDPOINT)
-	if (!response.ok) {
-		throw new Error(`Failed to fetch PoW challenge: ${response.status}`)
-	}
+	const response = await fetchWithRetry(POW_CHALLENGE_ENDPOINT)
 	return response.json()
 }
 
@@ -55,7 +116,8 @@ function hasLeadingZeroBits(hash: Uint8Array, bits: number): boolean {
  * Solves a PoW challenge by brute-forcing a nonce that produces
  * a SHA-256 hash with the required leading zero bits.
  *
- * Yields to the event loop between batches to keep the UI responsive.
+ * Fires all digests in a batch via Promise.all (1 microtask boundary
+ * per batch instead of BATCH_SIZE), then yields to the event loop.
  */
 async function solvePowChallenge(challenge: PowChallenge): Promise<PowSolution> {
 	if (!crypto?.subtle) {
@@ -66,23 +128,34 @@ async function solvePowChallenge(challenge: PowChallenge): Promise<PowSolution> 
 	let counter = 0
 
 	while (true) {
-		// Check expiration every batch
 		if (Date.now() >= challenge.expiresAt) {
 			throw new Error('PoW challenge expired')
 		}
 
+		// Prepare batch: encode all inputs and fire digests in parallel
+		const nonces: string[] = new Array(BATCH_SIZE)
+		const digests: Promise<ArrayBuffer>[] = new Array(BATCH_SIZE)
+
 		for (let i = 0; i < BATCH_SIZE; i++) {
-			const nonce = counter.toString(16)
-			const data = encoder.encode(challenge.prefix + nonce)
-			const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-			const hashArray = new Uint8Array(hashBuffer)
-
-			if (hasLeadingZeroBits(hashArray, challenge.difficulty)) {
-				return { challengeId: challenge.challengeId, nonce }
-			}
-
-			counter++
+			const nonce = (counter + i).toString(16)
+			nonces[i] = nonce
+			digests[i] = crypto.subtle.digest(
+				'SHA-256',
+				encoder.encode(challenge.prefix + nonce)
+			)
 		}
+
+		// Single microtask boundary for the entire batch
+		const results = await Promise.all(digests)
+
+		// Check results sequentially (early return on match)
+		for (let i = 0; i < results.length; i++) {
+			if (hasLeadingZeroBits(new Uint8Array(results[i]), challenge.difficulty)) {
+				return { challengeId: challenge.challengeId, nonce: nonces[i] }
+			}
+		}
+
+		counter += BATCH_SIZE
 
 		// Yield to event loop between batches
 		await new Promise<void>(resolve => setTimeout(resolve, 0))
@@ -95,10 +168,7 @@ async function solvePowChallenge(challenge: PowChallenge): Promise<PowSolution> 
  * an orphaned PoW challenge.
  */
 export async function fetchTimingToken(): Promise<string> {
-	const response = await fetch(TIMING_TOKEN_ENDPOINT)
-	if (!response.ok) {
-		throw new Error(`Failed to fetch timing token: ${response.status}`)
-	}
+	const response = await fetchWithRetry(TIMING_TOKEN_ENDPOINT)
 	const data: { timingTokenId: string } = await response.json()
 	return data.timingTokenId
 }

@@ -158,12 +158,15 @@ const { ticket = '' } = Astro.props as Props
 	import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
 	import { createHiveChain, HealthChecker } from '@hiveio/wax'
 	import { notify } from '@/utils/toast'
-	import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
+	import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
 
 	let debounceTimer: ReturnType<typeof setTimeout>
 
 	let isUsernameValid = false
 	let isTicketValid = false
+
+	// Pre-solved PoW for faster form submit
+	let preSolvedPow: Promise<PowSolution | null> | null = null
 
 	// Timing tokens (fetched on page load, one per protected action)
 	let ticketTimingToken: string | undefined
@@ -474,6 +477,11 @@ const { ticket = '' } = Astro.props as Props
 			elements.ticketInput.disabled = false
 		}
 
+		// Refetch timing token for retry (previous was consumed by server)
+		fetchTimingToken()
+			.then(id => { ticketTimingToken = id })
+			.catch(() => {})
+
 		resetTicketInput()
 	}
 
@@ -499,6 +507,14 @@ const { ticket = '' } = Astro.props as Props
 			elements.submitButton.disabled = false
 			elements.submitButton.classList.remove('opacity-50', 'cursor-not-allowed')
 			elements.submitButton.classList.add('cursor-pointer')
+
+			// Pre-solve PoW in background (user likely to submit soon)
+			if (!preSolvedPow) {
+				preSolvedPow = obtainPowSolution().catch((): PowSolution | null => {
+					preSolvedPow = null
+					return null
+				})
+			}
 		} else {
 			elements.submitButton.disabled = true
 			elements.submitButton.classList.add('opacity-50', 'cursor-not-allowed')
@@ -551,12 +567,15 @@ const { ticket = '' } = Astro.props as Props
 				return
 			}
 
-			if (await checkSuspiciousUsername(username)) {
+			const [isSuspicious, isSimilar] = await Promise.all([
+				checkSuspiciousUsername(username),
+				checkSimilarUsername(username),
+			])
+			if (isSuspicious) {
 				showErrorState('Este username no está permitido')
 				return
 			}
-
-			if (await checkSimilarUsername(username)) {
+			if (isSimilar) {
 				showErrorState('Username muy similar a una cuenta reciente')
 				return
 			}
@@ -678,7 +697,10 @@ const { ticket = '' } = Astro.props as Props
 		const originalText = elements.submitButton.textContent
 		setSubmitLoadingState('Verificando...')
 
-		const pow = await solvePowForSubmit()
+		const pow = preSolvedPow
+			? await preSolvedPow
+			: await solvePowForSubmit()
+		preSolvedPow = null
 		if (!pow) {
 			restoreSubmitButton(originalText)
 			return
@@ -692,6 +714,10 @@ const { ticket = '' } = Astro.props as Props
 			window.location.href = `/details/${username}`
 		} catch {
 			showSubmitError(originalText)
+			// Refetch timing token for retry (previous was consumed by server)
+			fetchTimingToken()
+				.then(id => { sessionTimingToken = id })
+				.catch(() => {})
 		}
 	}
 
@@ -708,12 +734,13 @@ const { ticket = '' } = Astro.props as Props
 		isTicketValid = false
 		updateSubmitButton()
 
-		Promise.all([fetchTimingToken(), fetchTimingToken()])
-			.then(([t1, t2]) => {
-				ticketTimingToken = t1
-				sessionTimingToken = t2
-			})
-			.catch(() => {})
+		Promise.all([
+			fetchTimingToken().catch(() => undefined),
+			fetchTimingToken().catch(() => undefined),
+		]).then(([t1, t2]) => {
+			ticketTimingToken = t1
+			sessionTimingToken = t2
+		})
 
 		elements.usernameInput.addEventListener('input', handleUsernameInput)
 		elements.ticketInput.addEventListener('input', handleTicketInput)

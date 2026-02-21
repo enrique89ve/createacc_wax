@@ -57,27 +57,22 @@ export class HiveTransactionService {
 
       return await this.executeWithRetry(async () => {
         const chain = await hiveChain()
+        const tx = await chain.createTransaction()
 
-        try {
-          const tx = await chain.createTransaction()
+        operationBuilder(tx, this.config.account)
 
-          operationBuilder(tx, this.config.account)
+        tx.validate()
 
-          tx.validate()
+        const signature = wallet.signDigest(publicKey, tx.sigDigest)
+        tx.addSignature(signature)
 
-          const signature = wallet.signDigest(publicKey, tx.sigDigest)
-          tx.addSignature(signature)
+        tx.toApi()
 
-          tx.toApi()
-
-          if (isMainnet()) {
-            await chain.broadcast(tx)
-          }
-
-          return { id: tx.id }
-        } finally {
-          chain.delete()
+        if (isMainnet()) {
+          await chain.broadcast(tx)
         }
+
+        return { id: tx.id }
       })
     } finally {
       if (walletSession) {

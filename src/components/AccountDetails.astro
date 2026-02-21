@@ -283,7 +283,7 @@ const { username } = Astro.props
       type DownloadFormat,
     } from '@/utils/key-download-manager'
     import { I18nManager } from '@/utils/i18n'
-    import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
+    import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
 
     // Global window extensions interface
     interface ExtendedWindow {
@@ -313,7 +313,16 @@ const { username } = Astro.props
       readonly progressContainer: HTMLElement | null
       readonly progressErrorActions: HTMLElement | null
       readonly closeProgressBtn: HTMLButtonElement | null
-    } // Application state interface
+    }
+
+    // Pre-solved PoW + timing token bundle (fetched together so token matures)
+    interface PreSolvedBundle {
+      readonly pow: PowSolution
+      readonly timingTokenId: string | undefined
+      readonly tokenFetchedAt: number
+    }
+
+    // Application state interface
     interface AppState {
       masterKey: string
       allKeys: HiveKeys | null
@@ -321,12 +330,14 @@ const { username } = Astro.props
       copyFeedbackTimeout: number | undefined
       username: string
       keysetId: string
-      timingTokenId: string | undefined
+      preSolvedBundle: Promise<PreSolvedBundle | null> | null
     }
 
     // Constants
     const KEYS_SESSION_KEY = 'hh_keys_downloaded'
     const KEYSET_SEPARATOR = '_'
+    /** Minimum age (ms) a timing token must have before server accepts it. */
+    const TIMING_FLOOR_MS = 1_100
 
     /**
      * Main class to manage account details functionality
@@ -341,11 +352,6 @@ const { username } = Astro.props
         this.state = this.initializeState()
         this.setupEventListeners()
         this.setupGlobalMethods()
-
-        // Fetch timing token on page load (server-side anti-bot timer)
-        fetchTimingToken()
-          .then(id => { this.state.timingTokenId = id })
-          .catch(() => {})
       }
 
       private initializeDOMElements(): DOMElements {
@@ -397,7 +403,7 @@ const { username } = Astro.props
           copyFeedbackTimeout: undefined,
           username,
           keysetId: '',
-          timingTokenId: undefined,
+          preSolvedBundle: null,
         }
       }
 
@@ -667,6 +673,29 @@ const { username } = Astro.props
           // Close modal
           this.closeDownloadModal()
 
+          // Pre-solve PoW + timing token in background (user likely to submit soon)
+          if (!this.state.preSolvedBundle) {
+            this.state.preSolvedBundle = (async (): Promise<PreSolvedBundle | null> => {
+              try {
+                let tokenFetchedAt = 0
+                const [pow, timingTokenId] = await Promise.all([
+                  obtainPowSolution(),
+                  fetchTimingToken().then(id => {
+                    tokenFetchedAt = Date.now()
+                    return id
+                  }).catch(() => {
+                    tokenFetchedAt = Date.now()
+                    return undefined
+                  }),
+                ])
+                return { pow, timingTokenId, tokenFetchedAt }
+              } catch {
+                this.state.preSolvedBundle = null
+                return null
+              }
+            })()
+          }
+
           // Show success message
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
@@ -872,11 +901,60 @@ const { username } = Astro.props
         try {
           const publicKeys = this.state.allKeys.getAllPublicKeys()
 
-          // Solve PoW during step 0 (Verificando información)
-          let pow
+          // Resolve PoW + timing token (from pre-solve bundle or fresh)
+          let pow: PowSolution
+          let timingTokenId: string | undefined
           try {
-            pow = await obtainPowSolution()
+            const bundle = this.state.preSolvedBundle
+              ? await this.state.preSolvedBundle
+              : null
+            this.state.preSolvedBundle = null
+
+            // Ensure timing token has matured (server requires >=1s)
+            const ensureTokenMatured = async (fetchedAt: number): Promise<void> => {
+              const elapsed = Date.now() - fetchedAt
+              if (elapsed < TIMING_FLOOR_MS) {
+                await new Promise(resolve => setTimeout(resolve, TIMING_FLOOR_MS - elapsed))
+              }
+            }
+
+            if (bundle) {
+              pow = bundle.pow
+              timingTokenId = bundle.timingTokenId
+              await ensureTokenMatured(bundle.tokenFetchedAt)
+            } else {
+              let tokenFetchedAt = 0
+              const [freshPow, freshToken] = await Promise.all([
+                obtainPowSolution(),
+                fetchTimingToken().then(id => {
+                  tokenFetchedAt = Date.now()
+                  return id
+                }).catch(() => {
+                  tokenFetchedAt = Date.now()
+                  return undefined
+                }),
+              ])
+              await ensureTokenMatured(tokenFetchedAt)
+              pow = freshPow
+              timingTokenId = freshToken
+            }
           } catch {
+            this.state.preSolvedBundle = null
+            this.renderProgressStepper(-1, [], 0)
+            this.showProgressError()
+            if (this.extWindow.showToast) {
+              this.extWindow.showToast('error', 'Error de verificación. Inténtalo de nuevo.', 6000)
+            }
+            if (this.elements.submitBtn) {
+              this.elements.submitBtn.innerHTML = this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+              this.elements.submitBtn.disabled = false
+              this.updateState()
+            }
+            return
+          }
+
+          // Bail out early if timing token fetch failed (avoids wasted 400 round-trip)
+          if (!timingTokenId) {
             this.renderProgressStepper(-1, [], 0)
             this.showProgressError()
             if (this.extWindow.showToast) {
@@ -906,25 +984,21 @@ const { username } = Astro.props
               postingPublicKey: publicKeys.posting,
               memoPublicKey: publicKeys.memo,
               pow,
-              timingTokenId: this.state.timingTokenId,
+              timingTokenId,
             }),
           })
 
           const result = await response.json()
 
           if (response.ok && result.success) {
-            // Allow time to see account creation step
-            await new Promise(resolve => setTimeout(resolve, 1200))
+            const PROGRESS_STEP_DELAY_MS = 300
+            const PROGRESS_COMPLETE_DELAY_MS = 400
 
-            // Step 2: Redirigiendo
             this.renderProgressStepper(2, [0, 1])
-            await new Promise(resolve => setTimeout(resolve, 2000)) // Longer delay to appreciate success
-
-            // Complete all steps
+            await new Promise(resolve => setTimeout(resolve, PROGRESS_STEP_DELAY_MS))
             this.renderProgressStepper(-1, [0, 1, 2])
-            await new Promise(resolve => setTimeout(resolve, 1500)) // More time to see completion
+            await new Promise(resolve => setTimeout(resolve, PROGRESS_COMPLETE_DELAY_MS))
 
-            // Account created successfully, redirect to success page
             window.location.href = `/success/${this.state.username}`
           } else {
             throw new Error(result.error || 'Failed to create account')

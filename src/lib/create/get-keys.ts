@@ -1,28 +1,10 @@
 import {
-  createWaxFoundation,
   type TPublicKey,
   type IPrivateKeyData,
 } from '@hiveio/wax'
 import type { ICreateAccountParams } from './create-account'
 import type { HiveKeyRole } from '@/types/keys'
-
-type WaxFoundation = Awaited<ReturnType<typeof createWaxFoundation>>
-
-let waxFoundationPromise: Promise<WaxFoundation> | undefined
-
-// Memoize Wax foundation initialization to reuse the WASM bridge
-async function getWaxFoundation(): Promise<WaxFoundation> {
-  if (!waxFoundationPromise) {
-    waxFoundationPromise = createWaxFoundation()
-  }
-
-  try {
-    return await waxFoundationPromise
-  } catch (error) {
-    waxFoundationPromise = undefined
-    throw error
-  }
-}
+import { getWaxFoundation } from '@/lib/wax-foundation'
 
 /**
  * Prefijo visual para distinguir el master password de las private keys WIF.

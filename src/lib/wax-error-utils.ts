@@ -256,7 +256,29 @@ export function getUserMessageForCode(code: AppErrorCode): string {
 }
 
 /**
- * Unified error handling system that combines analysis and formatting
+ * Derives a user-friendly message from an already-computed WaxErrorInfo.
+ * Avoids re-analyzing the error.
+ */
+function deriveUserMessage(info: WaxErrorInfo): string {
+	if (USER_ERROR_MESSAGES[info.code]) {
+		return USER_ERROR_MESSAGES[info.code]
+	}
+
+	switch (info.category) {
+		case 'network':
+			return 'Connection error with the Hive network. Try again.'
+		case 'api':
+			return 'Hive API error. Please try again.'
+		case 'business':
+			return 'Validation error in the operation.'
+		default:
+			return 'An unexpected error has occurred. Please try again.'
+	}
+}
+
+/**
+ * Unified error handling system that combines analysis and formatting.
+ * Computes analyzeWaxError once and derives all other values from the result.
  */
 export function handleWaxError(error: unknown): {
   info: WaxErrorInfo
@@ -264,12 +286,10 @@ export function handleWaxError(error: unknown): {
   shouldRetry: boolean
 } {
   const info = analyzeWaxError(error)
-  const userMessage = formatWaxErrorForUser(error)
-  const shouldRetry = shouldRetryWaxError(error)
 
   return {
     info,
-    userMessage,
-    shouldRetry,
+    userMessage: deriveUserMessage(info),
+    shouldRetry: info.isRetryable,
   }
 }

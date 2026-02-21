@@ -1,6 +1,4 @@
-import { createWaxFoundation } from '@hiveio/wax'
-
-const hivePromise = createWaxFoundation()
+import { getWaxFoundation } from '@/lib/wax-foundation'
 
 export type HiveAccountCheckResult =
 	| { valid: true }
@@ -9,7 +7,7 @@ export type HiveAccountCheckResult =
 
 export async function checkHiveAccount(account: string): Promise<HiveAccountCheckResult> {
 	try {
-		const hive = await hivePromise
+		const hive = await getWaxFoundation()
 		return hive.isValidAccountName(account) === true
 			? { valid: true }
 			: { valid: false, reason: 'invalid_format' }
