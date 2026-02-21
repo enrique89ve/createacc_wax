@@ -23,12 +23,14 @@ export const ERROR_MESSAGES = {
 } as const
 
 export const ROUTES = {
-  LOGIN: '/management/access',
-  CONSOLE: '/management/console',
-  MANAGEMENT: '/management/',
-  API_LOGIN: '/api/auth/login',
-  API_LOGOUT: '/api/auth/logout',
-  BUILDERS_LOGIN: '/builders/login',
+	LOGIN: '/management/access',
+	CONSOLE: '/management/console',
+	MANAGEMENT: '/management/',
+	API_LOGIN: '/api/auth/login',
+	API_LOGOUT: '/api/auth/logout',
+	BUILDERS_LOGIN: '/builders/login',
+	BUILDERS_PREFIX: '/builders/',
+	BUILDERS_DASHBOARD: '/builders/accounts',
 } as const
 
 export const SESSION_KEYS = {

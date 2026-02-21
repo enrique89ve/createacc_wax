@@ -37,7 +37,7 @@ export async function getAdminSession(
       userId: parseInt(session.user.id),
       username: session.user.username || '',
       role,
-      loginTime: new Date(session.user.loginTime).toISOString(),
+      loginTime: session.user.loginTime,
     }
   } catch (error) {
     return null
