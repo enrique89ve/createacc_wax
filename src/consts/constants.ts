@@ -63,7 +63,7 @@ export const ERROR_CONFIG = {
   MAX_RETRY_ATTEMPTS: 3,
   RETRY_DELAY_MS: 1000,
   LOG_LEVEL: 'error', // 'error' | 'warn' | 'info' | 'debug'
-  ENABLE_DETAILED_LOGGING: import.meta.env.DEV,
+  ENABLE_DETAILED_LOGGING: import.meta.env?.DEV ?? false,
 }
 
 // Wax-specific error patterns
@@ -141,13 +141,32 @@ export const BLOCKCHAIN_VERIFICATION_CONFIG = {
 } as const
 
 export const RC_DELEGATION_CONFIG = {
-  DELAY_MS: 2000,
+  DELAY_MS: 4000, // one full Hive block (~3s) + margin
+  RETRY_DELAY_MS: 3000,
+  MAX_RETRIES: 1,
   CACHE_CLEANUP_MS: 300000, // 5 minutes
 } as const
 
 export const RECONCILIATION_CONFIG = {
   RATE_LIMIT_DELAY_MS: 100,
+  AUTO_CHECK_INTERVAL_MS: 5 * 60 * 1000, // 5 minutes
+  MIN_ENTRY_AGE_MS: 2 * 60 * 1000, // Only process entries >2 min old
+  MAX_ATTEMPTS: 10, // Max retry attempts before abandoning entry
+  PROCESSING_TIMEOUT_MS: 5 * 60 * 1000, // 5 min — stuck entries reset to 'failed'
 } as const
+
+export const RECONCILIATION_STATUS = {
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  RESOLVED: 'resolved',
+  FAILED: 'failed',
+  ABANDONED: 'abandoned',
+} as const
+
+export type ReconciliationStatus = (typeof RECONCILIATION_STATUS)[keyof typeof RECONCILIATION_STATUS]
+
+/** Statuses returned by getPendingReconciliations (the only ones eligible for claim). */
+export type ActionableReconciliationStatus = typeof RECONCILIATION_STATUS.PENDING | typeof RECONCILIATION_STATUS.FAILED
 
 export const ENV_KEYS = {
   HIVE_CREATOR_ACCOUNT: 'HIVE_CREATOR_ACCOUNT',

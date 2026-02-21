@@ -1,6 +1,8 @@
 import { defineMiddleware } from 'astro:middleware'
 // Side-effect: instala hooks para normalizar valores no-Error lanzados
 import '@/lib/error-normalizer'
+// Side-effect: starts auto-reconciler interval (idempotent — safe to import from multiple sites)
+import '@/lib/auto-reconciler'
 import { ROUTES } from '@/consts/constants'
 import { CreationSessionManager } from '@/lib/session-manager'
 import {

@@ -32,3 +32,10 @@ export const TIMING_TOKEN_TTL_MS = 10 * 60 * 1000
 
 /** Maximum number of timing tokens stored in memory before forced eviction. */
 export const MAX_TIMING_ENTRIES = 10_000
+
+/**
+ * Client-side timing floor (ms). Used by the browser to ensure a timing token
+ * has matured before sending it. Adds 100ms margin over the server threshold
+ * to account for clock skew and network jitter.
+ */
+export const TIMING_FLOOR_MS = TIMING_THRESHOLDS.account + 100

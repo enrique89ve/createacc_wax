@@ -29,7 +29,7 @@ import {
 	type ValidatedSession,
 } from '@/lib/create/account-creation.validator'
 import { checkHiveAccount } from '@/utils/check-username'
-import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
+import { safeCheckAccountOnChain } from '@/utils/validate-hiveuser'
 import { hiveChain } from '@/lib/hiveservice'
 import { ensureCreation } from '@/lib/session-helpers'
 import { isValidationSuccess } from '@/utils/validation-result'
@@ -41,6 +41,8 @@ import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
+// Side-effect: auto-reconciler (also imported from middleware.ts; ES module imports are idempotent)
+import '@/lib/auto-reconciler'
 
 /**
  * Discriminated responses (stable contract):
@@ -83,6 +85,28 @@ export type AccountCreationResponse =
  * For multi-server, replace with Redis or a database flag.
  */
 const processedUsers = new Set<string>()
+
+/**
+ * In-memory lock to prevent concurrent account creation for the same username.
+ * Ensures only one request at a time can reserve credits and create an account.
+ *
+ * @limitation Single-process only. In horizontal scaling (multiple pods/instances),
+ * each instance has its own Set. The DB's atomic reserveTicketCredit() still
+ * prevents double-spend at the database level, but two instances could both
+ * attempt the on-chain broadcast. The reconciler handles that case safely.
+ * For full distributed locking, replace with Redis SETNX or a DB advisory lock.
+ */
+const creationsInProgress = new Set<string>()
+
+function acquireCreationLock(username: string): boolean {
+	if (creationsInProgress.has(username)) return false
+	creationsInProgress.add(username)
+	return true
+}
+
+function releaseCreationLock(username: string): void {
+	creationsInProgress.delete(username)
+}
 
 function scheduleUserCleanup(username: string) {
 	setTimeout(() => {
@@ -271,12 +295,22 @@ async function checkSessionAndIdempotency(
 
 async function verifyNotOnChain(username: string): Promise<Response | void> {
 	const chain = await hiveChain()
-	const existsOnChain = await validateHiveAccountExists({
+	const chainResult = await safeCheckAccountOnChain({
 		chain,
 		accountName: username,
 	})
 
-	if (existsOnChain) {
+	if (chainResult.status === 'error') {
+		logger.error(`[account-creation] Chain pre-check failed for ${username}: ${chainResult.message}`)
+		return failureResponse(
+			'Unable to verify account availability',
+			'Hive network temporarily unavailable',
+			ERROR_CODES.INTERNAL_ERROR,
+			HTTP_STATUS.INTERNAL_SERVER_ERROR
+		)
+	}
+
+	if (chainResult.status === 'found') {
 		return failureResponse(
 			VALIDATION_ERROR_MESSAGES.ACCOUNT_EXISTS_ON_CHAIN,
 			VALIDATION_ERROR_MESSAGES.ACCOUNT_EXISTS_ON_CHAIN,
@@ -325,22 +359,30 @@ async function createAccountOnChain(
 
 		if (errorInfo.code === AppErrorCode.ACCOUNT_ALREADY_EXISTS) {
 			logger.warn(
-				`[${correlationId}] Account ${username} already exists on-chain after pre-check passed. Enqueueing reconciliation.`
+				`[${correlationId}] Account ${username} already exists on-chain after pre-check passed. Attempting rollback.`
 			)
-			await enqueueReconciliation({
-				correlationId,
-				username,
-				ticketCode,
-				reason: 'ambiguous_chain_error',
-				errorCategory: errorInfo.category,
-				errorMessage: `account_exists_after_precheck: ${errorInfo.message}`,
-			})
+			const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+			if (rollbackResult.success) {
+				logger.info(`[${correlationId}] Rollback successful after ACCOUNT_ALREADY_EXISTS.`)
+			} else {
+				logger.error(
+					`[${correlationId}] Rollback failed after ACCOUNT_ALREADY_EXISTS: ${rollbackResult.error}. Enqueueing reconciliation.`
+				)
+				await enqueueReconciliation({
+					correlationId,
+					username,
+					ticketCode,
+					reason: 'ambiguous_chain_error',
+					errorCategory: errorInfo.category,
+					errorMessage: `rollback_failed_after_account_exists: ${rollbackResult.error}`,
+				})
+			}
 			return failureResponse(
 				'Account creation result is uncertain',
 				'Account already exists on-chain after pre-check',
 				ERROR_CODES.CHAIN_VERIFICATION_FAILED,
 				HTTP_STATUS.CONFLICT,
-				{ requiresReconciliation: true, correlationId }
+				{ requiresReconciliation: !rollbackResult.success, correlationId }
 			)
 		}
 
@@ -348,7 +390,20 @@ async function createAccountOnChain(
 			logger.error(
 				`[${correlationId}] On-chain failed (business): ${errorInfo.message}`
 			)
-			await rollbackTicketReservation(ticketCode, correlationId)
+			const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+			if (!rollbackResult.success) {
+				logger.error(
+					`[${correlationId}] Rollback failed after business error: ${rollbackResult.error}. Enqueueing reconciliation.`
+				)
+				await enqueueReconciliation({
+					correlationId,
+					username,
+					ticketCode,
+					reason: 'ambiguous_chain_error',
+					errorCategory: errorInfo.category,
+					errorMessage: `rollback_failed: ${rollbackResult.error}`,
+				})
+			}
 			throw chainError
 		}
 
@@ -378,16 +433,26 @@ function scheduleRcDelegation(username: string): void {
 	if (processedUsers.has(username)) return
 
 	processedUsers.add(username)
+	scheduleUserCleanup(username)
+
 	setTimeout(async () => {
-		try {
-			await delegateResourceCredits({
-				delegatee: username,
-				maxRc: RC_DELEGATION_AMOUNT,
-			})
-		} catch {
-			// Delegation failure does not affect account creation
-		} finally {
-			scheduleUserCleanup(username)
+		for (let attempt = 0; attempt <= RC_DELEGATION_CONFIG.MAX_RETRIES; attempt++) {
+			try {
+				await delegateResourceCredits({
+					delegatee: username,
+					maxRc: RC_DELEGATION_AMOUNT,
+				})
+				logger.info(`[rc-delegation] Successfully delegated RC to ${username}`)
+				return
+			} catch (error) {
+				const errMsg = error instanceof Error ? error.message : 'Unknown error'
+				if (attempt < RC_DELEGATION_CONFIG.MAX_RETRIES) {
+					logger.warn(`[rc-delegation] Attempt ${attempt + 1} failed for ${username}: ${errMsg}. Retrying...`)
+					await new Promise(r => setTimeout(r, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
+				} else {
+					logger.error(`[rc-delegation] All attempts failed for ${username}: ${errMsg}`)
+				}
+			}
 		}
 	}, RC_DELEGATION_CONFIG.DELAY_MS)
 }
@@ -481,23 +546,36 @@ export const POST: APIRoute = async (context) => {
 		const params = toCreateAccountParams(requestResult)
 		const correlationId = `${requestResult.username}-${Date.now().toString(36)}`
 
-		const reserveResult = await reserveTicket(sessionResult.ticket, correlationId)
-		if (reserveResult instanceof Response) return reserveResult
+		if (!acquireCreationLock(requestResult.username)) {
+			return failureResponse(
+				'Account creation already in progress',
+				'A creation request for this username is already being processed',
+				ERROR_CODES.INTERNAL_ERROR,
+				HTTP_STATUS.CONFLICT
+			)
+		}
 
-		const txResult = await createAccountOnChain(params, sessionResult.ticket, correlationId, requestResult.username)
-		if (txResult instanceof Response) return txResult
+		try {
+			const reserveResult = await reserveTicket(sessionResult.ticket, correlationId)
+			if (reserveResult instanceof Response) return reserveResult
 
-		scheduleRcDelegation(requestResult.username)
+			const txResult = await createAccountOnChain(params, sessionResult.ticket, correlationId, requestResult.username)
+			if (txResult instanceof Response) return txResult
 
-		const dbResult = await completeInDatabase(requestResult.username, sessionResult.ticket, correlationId, txResult.id)
-		if (dbResult instanceof Response) return dbResult
+			scheduleRcDelegation(requestResult.username)
 
-		finalizeSession(context, sessionResult)
+			const dbResult = await completeInDatabase(requestResult.username, sessionResult.ticket, correlationId, txResult.id)
+			if (dbResult instanceof Response) return dbResult
 
-		return successResponse(
-			`Account ${requestResult.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
-			{ transactionId: txResult.id, correlationId }
-		)
+			finalizeSession(context, sessionResult)
+
+			return successResponse(
+				`Account ${requestResult.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+				{ transactionId: txResult.id, correlationId }
+			)
+		} finally {
+			releaseCreationLock(requestResult.username)
+		}
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : 'Unknown error'
 		logger.error(`[account-creation] Unhandled error: ${errMsg}`)

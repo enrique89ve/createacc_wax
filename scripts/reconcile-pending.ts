@@ -7,6 +7,7 @@
  * - If account exists on-chain AND in DB → already reconciled, mark resolved.
  * - If account exists on-chain but NOT in DB → complete DB operations, mark resolved.
  * - If account does NOT exist on-chain → rollback the ticket credit, mark resolved.
+ * - If mutation fails post-claim → mark failed (retryable in next cycle).
  *
  * Usage:
  *   pnpm tsx scripts/reconcile-pending.ts
@@ -16,14 +17,18 @@
 import { initializeDatabase } from '@/lib/database'
 import {
 	getPendingReconciliations,
-	resolveReconciliationEntry,
+	claimReconciliationEntry,
+	markReconciliationResolved,
+	markReconciliationFailed,
+	markReconciliationAbandoned,
+	resetStuckProcessingEntries,
 	completeAccountCreationInDB,
 	rollbackTicketReservation,
 	accountExistsInDB,
 	obfuscateTicket,
 } from '@/utils/db-ticket-validator'
 import { hiveChain } from '@/lib/hiveservice'
-import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
+import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
 import { RECONCILIATION_CONFIG } from '@/consts/constants'
 
 const RESOLVER_ID = 'reconcile-script'
@@ -33,7 +38,7 @@ interface ReconciliationResult {
 	readonly entryId: number
 	readonly correlationId: string
 	readonly username: string
-	readonly action: 'completed_db' | 'rolled_back' | 'already_consistent' | 'error'
+	readonly action: 'completed_db' | 'rolled_back' | 'already_consistent' | 'abandoned' | 'error'
 	readonly detail: string
 }
 
@@ -41,48 +46,110 @@ async function reconcileEntry(
 	entry: Awaited<ReturnType<typeof getPendingReconciliations>>[number],
 	chain: Awaited<ReturnType<typeof hiveChain>>
 ): Promise<ReconciliationResult> {
-	const { id, correlationId, username, ticketCode, reason } = entry
+	const { id, correlationId, username, ticketCode, reason, attemptCount } = entry
 	const obfuscated = obfuscateTicket(ticketCode)
+	let claimed = false
 
 	try {
-		// Step 1: Check if account exists on-chain
-		const existsOnChain = await validateHiveAccountExists({
+		// Step 1: In non-dry-run mode, claim entry before any state transition.
+		if (!isDryRun) {
+			claimed = await claimReconciliationEntry(id, RESOLVER_ID)
+			if (!claimed) {
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'already_consistent',
+					detail: `Already claimed by another worker. Skipped.`,
+				}
+			}
+		}
+
+		// Step 2: Entries over retry budget move to abandoned terminal state.
+		if (attemptCount >= RECONCILIATION_CONFIG.MAX_ATTEMPTS) {
+			const detail = `Exceeded MAX_ATTEMPTS (${RECONCILIATION_CONFIG.MAX_ATTEMPTS}). Last known attempts before claim: ${attemptCount}. Ticket: ${obfuscated}`
+			if (isDryRun) {
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'abandoned',
+					detail: `Would mark as abandoned. ${detail}`,
+				}
+			}
+
+			const abandoned = await markReconciliationAbandoned(id, detail)
+			if (!abandoned) {
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'error',
+					detail: `Failed to mark as abandoned after claim. Ticket: ${obfuscated}`,
+				}
+			}
+
+			return {
+				entryId: id,
+				correlationId,
+				username,
+				action: 'abandoned',
+				detail: `Marked as abandoned. ${detail}`,
+			}
+		}
+
+		// Step 3: Poll on-chain state before deciding rollback.
+		const chainResult = await validateHiveAccountExistsWithPolling({
 			chain,
 			accountName: username,
 		})
 
-		// Step 2: Check if account exists in our DB
-		const existsInDB = await accountExistsInDB(username)
-
-		if (existsOnChain && existsInDB) {
-			// Already consistent — nothing to do
+		if (chainResult.status === 'error') {
 			if (!isDryRun) {
-				await resolveReconciliationEntry(id, RESOLVER_ID)
+				await markReconciliationFailed(
+					id,
+					`Chain polling error after ${chainResult.attempts} attempt(s): ${chainResult.message}`
+				)
 			}
 			return {
 				entryId: id,
 				correlationId,
 				username,
-				action: 'already_consistent',
-				detail: `Account exists on-chain and in DB. Resolved.`,
+				action: 'error',
+				detail: `Chain polling failed after ${chainResult.attempts} attempt(s)${chainResult.timedOut ? ' (timed out)' : ''}: ${chainResult.message}. ${isDryRun ? '' : 'Marked as failed (will retry).'} Ticket: ${obfuscated}`,
 			}
 		}
 
-		if (existsOnChain && !existsInDB) {
-			// Account was created on-chain but DB operations failed.
-			// Complete the DB side (save account, mark credits consumed).
+		// Step 4: status='found' path resolves consistency or DB completion.
+		if (chainResult.status === 'found') {
+			const existsInDB = await accountExistsInDB(username)
+
+			if (existsInDB) {
+				if (!isDryRun) {
+					await markReconciliationResolved(id, RESOLVER_ID)
+				}
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'already_consistent',
+					detail: `Account exists on-chain and in DB. Resolved.`,
+				}
+			}
+
 			if (!isDryRun) {
 				const dbResult = await completeAccountCreationInDB(username, ticketCode, correlationId)
 				if (!dbResult.success) {
+					await markReconciliationFailed(id, `DB completion failed: ${dbResult.error}`)
 					return {
 						entryId: id,
 						correlationId,
 						username,
 						action: 'error',
-						detail: `DB completion failed: ${dbResult.error}. Ticket: ${obfuscated}`,
+						detail: `DB completion failed: ${dbResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`,
 					}
 				}
-				await resolveReconciliationEntry(id, RESOLVER_ID)
+				await markReconciliationResolved(id, RESOLVER_ID)
 			}
 			return {
 				entryId: id,
@@ -93,21 +160,20 @@ async function reconcileEntry(
 			}
 		}
 
-		// Account does NOT exist on-chain → the broadcast truly failed.
-		// Rollback the ticket credit so it can be reused.
+		// Step 5: status='not_found' is the only branch that can rollback credits.
 		if (!isDryRun) {
 			const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
 			if (!rollbackResult.success) {
-				// Rollback failed — do NOT mark as resolved so it can be retried
+				await markReconciliationFailed(id, `Rollback failed: ${rollbackResult.error}`)
 				return {
 					entryId: id,
 					correlationId,
 					username,
 					action: 'error',
-					detail: `Rollback failed: ${rollbackResult.error}. Entry NOT resolved. Ticket: ${obfuscated}`,
+					detail: `Rollback failed: ${rollbackResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`,
 				}
 			}
-			await resolveReconciliationEntry(id, RESOLVER_ID)
+			await markReconciliationResolved(id, RESOLVER_ID)
 		}
 		return {
 			entryId: id,
@@ -118,12 +184,27 @@ async function reconcileEntry(
 		}
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : 'Unknown error'
+		// Best-effort: mark as failed if not dry-run
+		let statusNote = isDryRun
+			? ''
+			: 'Entry was not claimed; no status update applied.'
+		if (!isDryRun && claimed) {
+			try {
+				const marked = await markReconciliationFailed(id, errMsg)
+				statusNote = marked
+					? 'Marked as failed (will retry).'
+					: 'Failed to mark as failed after claim.'
+			} catch {
+				// If marking failed also fails, just report it
+				statusNote = 'Failed to mark as failed after claim.'
+			}
+		}
 		return {
 			entryId: id,
 			correlationId,
 			username,
 			action: 'error',
-			detail: `Error processing: ${errMsg}`,
+			detail: `Error processing: ${errMsg}. ${statusNote}`,
 		}
 	}
 }
@@ -132,6 +213,14 @@ async function main() {
 	console.log(`--- Reconciliation Consumer ${isDryRun ? '(DRY RUN)' : ''} ---`)
 
 	await initializeDatabase()
+
+	// Reset stuck processing entries before starting
+	if (!isDryRun) {
+		const resetCount = await resetStuckProcessingEntries(RECONCILIATION_CONFIG.PROCESSING_TIMEOUT_MS)
+		if (resetCount > 0) {
+			console.log(`Reset ${resetCount} stuck processing entry/entries to 'failed'.`)
+		}
+	}
 
 	const pending = await getPendingReconciliations()
 	console.log(`Found ${pending.length} pending reconciliation(s).`)
@@ -159,6 +248,7 @@ async function main() {
 		completedDb: results.filter(r => r.action === 'completed_db').length,
 		rolledBack: results.filter(r => r.action === 'rolled_back').length,
 		alreadyConsistent: results.filter(r => r.action === 'already_consistent').length,
+		abandoned: results.filter(r => r.action === 'abandoned').length,
 		errors: results.filter(r => r.action === 'error').length,
 	}
 
@@ -167,10 +257,11 @@ async function main() {
 	console.log(`Completed DB:       ${summary.completedDb}`)
 	console.log(`Rolled back:        ${summary.rolledBack}`)
 	console.log(`Already consistent: ${summary.alreadyConsistent}`)
+	console.log(`Abandoned:          ${summary.abandoned}`)
 	console.log(`Errors:             ${summary.errors}`)
 
-	if (summary.errors > 0) {
-		console.error('\nSome entries had errors. Review logs above.')
+	if (summary.errors > 0 || summary.abandoned > 0) {
+		console.error('\nSome entries had errors or were abandoned. Review logs above.')
 		process.exit(1)
 	}
 }

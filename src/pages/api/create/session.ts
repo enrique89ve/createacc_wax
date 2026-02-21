@@ -12,8 +12,16 @@ import { TIMING_THRESHOLDS } from '@/consts/pow'
 interface Body {
   readonly username?: string
   readonly ticket?: string
-  readonly pow?: { readonly challengeId?: string; readonly nonce?: string }
+  readonly pow?: unknown
   readonly timingTokenId?: string
+}
+
+function parsePowSolution(raw: unknown): { challengeId: string; nonce: string } | null {
+	if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+	const obj = raw as Record<string, unknown>
+	if (typeof obj.challengeId !== 'string' || !obj.challengeId) return null
+	if (typeof obj.nonce !== 'string' || !obj.nonce) return null
+	return { challengeId: obj.challengeId, nonce: obj.nonce }
 }
 
 export const POST: APIRoute = async context => {
@@ -29,7 +37,8 @@ export const POST: APIRoute = async context => {
 		const { username, ticket } = data
 
 		// Validate PoW before any business logic
-		if (!data.pow?.challengeId || !data.pow?.nonce || !validatePowSolution(data.pow as { challengeId: string; nonce: string })) {
+		const pow = parsePowSolution(data.pow)
+		if (!pow || !validatePowSolution(pow)) {
 			return apiError(
 				'Proof of work validation failed',
 				HTTP_STATUS.BAD_REQUEST,

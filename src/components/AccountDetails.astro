@@ -284,6 +284,7 @@ const { username } = Astro.props
     } from '@/utils/key-download-manager'
     import { I18nManager } from '@/utils/i18n'
     import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
+    import { TIMING_FLOOR_MS, CHALLENGE_TTL_MS } from '@/consts/pow'
 
     // Global window extensions interface
     interface ExtendedWindow {
@@ -320,6 +321,7 @@ const { username } = Astro.props
       readonly pow: PowSolution
       readonly timingTokenId: string | undefined
       readonly tokenFetchedAt: number
+      readonly solvedAt: number
     }
 
     // Application state interface
@@ -336,8 +338,6 @@ const { username } = Astro.props
     // Constants
     const KEYS_SESSION_KEY = 'hh_keys_downloaded'
     const KEYSET_SEPARATOR = '_'
-    /** Minimum age (ms) a timing token must have before server accepts it. */
-    const TIMING_FLOOR_MS = 1_100
 
     /**
      * Main class to manage account details functionality
@@ -345,6 +345,7 @@ const { username } = Astro.props
     class AccountDetailsManager {
       private elements: DOMElements
       private state: AppState
+      private isSubmitting = false
       private readonly extWindow = window as Window & ExtendedWindow
 
       constructor() {
@@ -688,7 +689,7 @@ const { username } = Astro.props
                     return undefined
                   }),
                 ])
-                return { pow, timingTokenId, tokenFetchedAt }
+                return { pow, timingTokenId, tokenFetchedAt, solvedAt: Date.now() }
               } catch {
                 this.state.preSolvedBundle = null
                 return null
@@ -882,9 +883,10 @@ const { username } = Astro.props
       private async handleFormSubmit(e: Event): Promise<void> {
         e.preventDefault()
 
-        if (!this.state.allKeys || !this.state.username) {
+        if (this.isSubmitting || !this.state.allKeys || !this.state.username) {
           return
         }
+        this.isSubmitting = true
 
         // Show progress modal and start with step 0
         this.showProgressModal()
@@ -904,11 +906,16 @@ const { username } = Astro.props
           // Resolve PoW + timing token (from pre-solve bundle or fresh)
           let pow: PowSolution
           let timingTokenId: string | undefined
+          // Discard pre-solved PoW after 4min (challenge TTL is 5min on server)
+          const POW_MAX_AGE_MS = CHALLENGE_TTL_MS - 60_000
           try {
-            const bundle = this.state.preSolvedBundle
+            const rawBundle = this.state.preSolvedBundle
               ? await this.state.preSolvedBundle
               : null
             this.state.preSolvedBundle = null
+            const bundle = rawBundle && (Date.now() - rawBundle.solvedAt) < POW_MAX_AGE_MS
+              ? rawBundle
+              : null
 
             // Ensure timing token has matured (server requires >=1s)
             const ensureTokenMatured = async (fetchedAt: number): Promise<void> => {
@@ -940,6 +947,7 @@ const { username } = Astro.props
             }
           } catch {
             this.state.preSolvedBundle = null
+            this.isSubmitting = false
             this.renderProgressStepper(-1, [], 0)
             this.showProgressError()
             if (this.extWindow.showToast) {
@@ -955,6 +963,7 @@ const { username } = Astro.props
 
           // Bail out early if timing token fetch failed (avoids wasted 400 round-trip)
           if (!timingTokenId) {
+            this.isSubmitting = false
             this.renderProgressStepper(-1, [], 0)
             this.showProgressError()
             if (this.extWindow.showToast) {
@@ -1029,7 +1038,8 @@ const { username } = Astro.props
             alert(`Account creation failed: ${errorMessage}`)
           }
 
-          // Reset button to original state
+          // Reset button and submit guard
+          this.isSubmitting = false
           if (this.elements.submitBtn) {
             this.elements.submitBtn.innerHTML =
               this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'

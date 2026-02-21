@@ -261,6 +261,10 @@ export async function initializeDatabase() {
 	`)
 
     // Create ReconciliationQueue table (traceability of ambiguous operations)
+    // NOTE: The CHECK on `status` only applies to new databases.
+    // Existing databases get the column via ALTER TABLE (migration below) which
+    // cannot add CHECK constraints in SQLite. All writes go through parameterized
+    // functions using RECONCILIATION_STATUS constants, so this is safe in practice.
     await db.execute(`
 		CREATE TABLE IF NOT EXISTS ReconciliationQueue (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -274,7 +278,11 @@ export async function initializeDatabase() {
 			resolved BOOLEAN DEFAULT FALSE,
 			resolved_at DATETIME,
 			resolved_by TEXT,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			status TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'processing', 'resolved', 'failed', 'abandoned')),
+			attempt_count INTEGER DEFAULT 0 NOT NULL,
+			last_error TEXT,
+			processing_since DATETIME
 		)
 	`)
 
@@ -282,6 +290,39 @@ export async function initializeDatabase() {
 		CREATE INDEX IF NOT EXISTS idx_reconciliation_pending
 		ON ReconciliationQueue(resolved, created_at DESC)
 		WHERE resolved = FALSE
+	`)
+
+    // --- Migration: add status-based reconciliation columns ---
+    // Idempotent ALTER TABLE — ignore "duplicate column" errors
+    const migrationColumns = [
+      { sql: `ALTER TABLE ReconciliationQueue ADD COLUMN status TEXT DEFAULT 'pending' NOT NULL` },
+      { sql: `ALTER TABLE ReconciliationQueue ADD COLUMN attempt_count INTEGER DEFAULT 0 NOT NULL` },
+      { sql: `ALTER TABLE ReconciliationQueue ADD COLUMN last_error TEXT` },
+      { sql: `ALTER TABLE ReconciliationQueue ADD COLUMN processing_since DATETIME` },
+    ]
+    for (const col of migrationColumns) {
+      try {
+        await db.execute(col.sql)
+      } catch (e) {
+        // Column already exists — safe to ignore
+        const msg = e instanceof Error ? e.message : ''
+        if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
+          logger.warn(`[db-migration] Non-critical ALTER TABLE warning: ${msg}`)
+        }
+      }
+    }
+
+    // Backfill: resolved=TRUE entries should have status='resolved'
+    await db.execute(`
+		UPDATE ReconciliationQueue
+		SET status = 'resolved'
+		WHERE resolved = TRUE AND status = 'pending'
+	`)
+
+    // Index for actionable entries (pending + failed)
+    await db.execute(`
+		CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable
+		ON ReconciliationQueue(status, created_at)
 	`)
 
     // Trigger: Create notification when an account is created

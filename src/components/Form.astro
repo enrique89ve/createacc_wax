@@ -159,18 +159,65 @@ const { ticket = '' } = Astro.props as Props
 	import { createHiveChain, HealthChecker } from '@hiveio/wax'
 	import { notify } from '@/utils/toast'
 	import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
+	import { TIMING_THRESHOLDS } from '@/consts/pow'
 
 	let debounceTimer: ReturnType<typeof setTimeout>
 
 	let isUsernameValid = false
 	let isTicketValid = false
+	let isSubmitting = false
 
 	// Pre-solved PoW for faster form submit
 	let preSolvedPow: Promise<PowSolution | null> | null = null
+	let preSolvedPowAt = 0
+
+	/** Discard pre-solved PoW after 4 min (challenge TTL is 5 min on server). */
+	const POW_PRESOLVED_MAX_AGE_MS = 4 * 60 * 1_000
 
 	// Timing tokens (fetched on page load, one per protected action)
 	let ticketTimingToken: string | undefined
 	let sessionTimingToken: string | undefined
+
+	// Timestamps tracking when each timing token was fetched
+	let ticketTimingTokenFetchedAt = 0
+	let sessionTimingTokenFetchedAt = 0
+
+	/**
+	 * Wait until a timing token has matured (elapsed >= thresholdMs).
+	 * Adds 100ms margin to account for clock skew and network jitter.
+	 */
+	async function ensureTimingMatured(fetchedAt: number, thresholdMs: number): Promise<void> {
+		if (fetchedAt <= 0) return
+		const elapsed = Date.now() - fetchedAt
+		const required = thresholdMs + 100
+		if (elapsed < required) {
+			await new Promise(resolve => setTimeout(resolve, required - elapsed))
+		}
+	}
+
+	/**
+	 * Ensure the ticket timing token is available. If missing (fetch failed at
+	 * page load or after a consumed retry), refetch inline so the request
+	 * doesn't send undefined and get a guaranteed 400.
+	 */
+	async function ensureTicketTimingToken(): Promise<string> {
+		if (ticketTimingToken) return ticketTimingToken
+		const id = await fetchTimingToken()
+		ticketTimingToken = id
+		ticketTimingTokenFetchedAt = Date.now()
+		return id
+	}
+
+	/**
+	 * Ensure the session timing token is available. Same logic as ticket variant.
+	 */
+	async function ensureSessionTimingToken(): Promise<string> {
+		if (sessionTimingToken) return sessionTimingToken
+		const id = await fetchTimingToken()
+		sessionTimingToken = id
+		sessionTimingTokenFetchedAt = Date.now()
+		return id
+	}
 
 	// --- Cached DOM elements ---
 
@@ -417,19 +464,6 @@ const { ticket = '' } = Astro.props as Props
 		}
 	}
 
-	async function submitTicketValidation(
-		ticket: string,
-		pow: Awaited<ReturnType<typeof obtainPowSolution>>
-	): Promise<{ valid: boolean; error?: string }> {
-		const response = await fetch('/api/validate/ticket', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ ticket, pow, timingTokenId: ticketTimingToken }),
-		})
-		const result = await response.json()
-		return { valid: response.ok && result.valid, error: result.error }
-	}
-
 	function showTicketApplied(ticket: string) {
 		if (!elements) return
 		elements.ticketChipCode.textContent = ticket
@@ -459,14 +493,30 @@ const { ticket = '' } = Astro.props as Props
 
 		setTicketLoadingState(ticket)
 
+		let resolvedToken: string
+		try {
+			resolvedToken = await ensureTicketTimingToken()
+		} catch {
+			showTicketError('Error de verificación. Inténtalo de nuevo.')
+			resetTicketInput()
+			return
+		}
+
 		const pow = await solvePowOrShowError(ticket)
 		if (!pow) return
+
+		await ensureTimingMatured(ticketTimingTokenFetchedAt, TIMING_THRESHOLDS.ticket)
 
 		elements.ticketApplyBtn.textContent = '...'
 
 		try {
-			const result = await submitTicketValidation(ticket, pow)
-			if (result.valid) {
+			const response = await fetch('/api/validate/ticket', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ticket, pow, timingTokenId: resolvedToken }),
+			})
+			const result = await response.json()
+			if (response.ok && result.valid) {
 				showTicketApplied(ticket)
 				return
 			}
@@ -477,10 +527,15 @@ const { ticket = '' } = Astro.props as Props
 			elements.ticketInput.disabled = false
 		}
 
-		// Refetch timing token for retry (previous was consumed by server)
+		// Clear consumed token, then refetch for retry
+		ticketTimingToken = undefined
+		ticketTimingTokenFetchedAt = 0
 		fetchTimingToken()
-			.then(id => { ticketTimingToken = id })
-			.catch(() => {})
+			.then(id => {
+				ticketTimingToken = id
+				ticketTimingTokenFetchedAt = Date.now()
+			})
+			.catch(() => { /* token stays undefined; server rejects clearly on next attempt */ })
 
 		resetTicketInput()
 	}
@@ -510,6 +565,7 @@ const { ticket = '' } = Astro.props as Props
 
 			// Pre-solve PoW in background (user likely to submit soon)
 			if (!preSolvedPow) {
+				preSolvedPowAt = Date.now()
 				preSolvedPow = obtainPowSolution().catch((): PowSolution | null => {
 					preSolvedPow = null
 					return null
@@ -586,12 +642,17 @@ const { ticket = '' } = Astro.props as Props
 				return
 			}
 
-			const accountExists = await validateHiveAccountExists({
+			const chainResult = await validateHiveAccountExists({
 				chain,
 				accountName: username,
 			})
 
-			if (accountExists) {
+			if (chainResult.status === 'error') {
+				showErrorState('Error conectando a la red Hive')
+				return
+			}
+
+			if (chainResult.status === 'found') {
 				showErrorState('Este username ya está en uso')
 				return
 			}
@@ -655,12 +716,13 @@ const { ticket = '' } = Astro.props as Props
 	async function createSession(
 		username: string,
 		ticket: string,
-		pow: Awaited<ReturnType<typeof obtainPowSolution>>
+		pow: Awaited<ReturnType<typeof obtainPowSolution>>,
+		timingTokenId: string
 	): Promise<boolean> {
 		const response = await fetch('/api/create/session', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username, ticket, pow, timingTokenId: sessionTimingToken }),
+			body: JSON.stringify({ username, ticket, pow, timingTokenId }),
 		})
 		const result = await response.json()
 		if (!response.ok || !result.success) {
@@ -688,36 +750,60 @@ const { ticket = '' } = Astro.props as Props
 
 	async function handleFormSubmit(event: Event) {
 		event.preventDefault()
-		if (!isUsernameValid || !isTicketValid || !elements) return
+		if (isSubmitting || !isUsernameValid || !isTicketValid || !elements) return
+		isSubmitting = true
 
 		const username = elements.usernameInput.value.toLowerCase().trim()
 		const ticket = elements.ticketChipCode.textContent?.trim() || elements.ticketInput.value.trim()
-		if (!username || username.length < 3) return
+		if (!username || username.length < 3) {
+			isSubmitting = false
+			return
+		}
 
 		const originalText = elements.submitButton.textContent
 		setSubmitLoadingState('Verificando...')
 
-		const pow = preSolvedPow
+		const isPowFresh = preSolvedPow && (Date.now() - preSolvedPowAt) < POW_PRESOLVED_MAX_AGE_MS
+		const pow = isPowFresh
 			? await preSolvedPow
 			: await solvePowForSubmit()
 		preSolvedPow = null
 		if (!pow) {
+			isSubmitting = false
 			restoreSubmitButton(originalText)
 			return
 		}
 
 		setSubmitLoadingState('Creando sesión...')
 
+		let resolvedSessionToken: string
 		try {
-			await createSession(username, ticket, pow)
+			resolvedSessionToken = await ensureSessionTimingToken()
+		} catch {
+			isSubmitting = false
+			notify('error', 'Error de verificación. Inténtalo de nuevo.')
+			restoreSubmitButton(originalText)
+			return
+		}
+
+		await ensureTimingMatured(sessionTimingTokenFetchedAt, TIMING_THRESHOLDS.session)
+
+		try {
+			await createSession(username, ticket, pow, resolvedSessionToken)
 			disposeHiveChain()
 			window.location.href = `/details/${username}`
 		} catch {
+			isSubmitting = false
 			showSubmitError(originalText)
-			// Refetch timing token for retry (previous was consumed by server)
+			// Clear consumed token, then refetch for retry
+			sessionTimingToken = undefined
+			sessionTimingTokenFetchedAt = 0
 			fetchTimingToken()
-				.then(id => { sessionTimingToken = id })
-				.catch(() => {})
+				.then(id => {
+					sessionTimingToken = id
+					sessionTimingTokenFetchedAt = Date.now()
+				})
+				.catch(() => { /* token stays undefined; server rejects clearly on next attempt */ })
 		}
 	}
 
@@ -732,11 +818,18 @@ const { ticket = '' } = Astro.props as Props
 
 		isUsernameValid = false
 		isTicketValid = false
+		isSubmitting = false
 		updateSubmitButton()
 
 		Promise.all([
-			fetchTimingToken().catch(() => undefined),
-			fetchTimingToken().catch(() => undefined),
+			fetchTimingToken().then(id => {
+				ticketTimingTokenFetchedAt = Date.now()
+				return id
+			}).catch(() => undefined),
+			fetchTimingToken().then(id => {
+				sessionTimingTokenFetchedAt = Date.now()
+				return id
+			}).catch(() => undefined),
 		]).then(([t1, t2]) => {
 			ticketTimingToken = t1
 			sessionTimingToken = t2
@@ -766,4 +859,5 @@ const { ticket = '' } = Astro.props as Props
 	}
 
 	document.addEventListener('astro:page-load', initForm)
+	document.addEventListener('astro:before-swap', disposeHiveChain)
 </script>

@@ -207,6 +207,7 @@ interface CachedChain {
 }
 
 let cachedChain: CachedChain | null = null
+let pendingCreation: Promise<IHiveChainInterface> | null = null
 
 function isCacheValid(): boolean {
 	return cachedChain !== null && (Date.now() - cachedChain.createdAt) < CHAIN_TTL_MS
@@ -256,6 +257,7 @@ const createFreshChain = async (): Promise<IHiveChainInterface> => {
 /**
  * Returns a cached or fresh Hive Chain instance.
  * Chain instances are reused within a 60-second TTL window.
+ * Concurrent callers share a single in-flight creation to avoid duplicate WASM init.
  * Callers MUST NOT call chain.delete() - the pool manages lifecycle.
  */
 export const hiveChain = async (): Promise<IHiveChainInterface> => {
@@ -263,8 +265,18 @@ export const hiveChain = async (): Promise<IHiveChainInterface> => {
 		return cachedChain!.instance
 	}
 
-	clearChainCache()
-	const instance = await createFreshChain()
-	cachedChain = { instance, createdAt: Date.now() }
-	return instance
+	if (pendingCreation) return pendingCreation
+
+	pendingCreation = (async () => {
+		try {
+			clearChainCache()
+			const instance = await createFreshChain()
+			cachedChain = { instance, createdAt: Date.now() }
+			return instance
+		} finally {
+			pendingCreation = null
+		}
+	})()
+
+	return pendingCreation
 }

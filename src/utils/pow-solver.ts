@@ -85,12 +85,28 @@ async function fetchWithRetry(url: string): Promise<Response> {
 	throw lastError ?? new Error('Fetch failed after retries')
 }
 
+/** Runtime type guard for server challenge responses. */
+function isPowChallenge(data: unknown): data is PowChallenge {
+	if (typeof data !== 'object' || data === null) return false
+	const d = data as Record<string, unknown>
+	return (
+		typeof d.challengeId === 'string' &&
+		typeof d.prefix === 'string' &&
+		typeof d.difficulty === 'number' &&
+		typeof d.expiresAt === 'number'
+	)
+}
+
 /**
  * Fetches a fresh PoW challenge from the server.
  */
 async function fetchPowChallenge(): Promise<PowChallenge> {
 	const response = await fetchWithRetry(POW_CHALLENGE_ENDPOINT)
-	return response.json()
+	const data: unknown = await response.json()
+	if (!isPowChallenge(data)) {
+		throw new Error('Invalid PoW challenge response')
+	}
+	return data
 }
 
 /**
@@ -162,6 +178,13 @@ async function solvePowChallenge(challenge: PowChallenge): Promise<PowSolution> 
 	}
 }
 
+/** Runtime type guard for timing token responses. */
+function isTimingTokenResponse(data: unknown): data is { timingTokenId: string } {
+	if (typeof data !== 'object' || data === null) return false
+	const d = data as Record<string, unknown>
+	return typeof d.timingTokenId === 'string' && d.timingTokenId.length > 0
+}
+
 /**
  * Fetches only a timing token from the dedicated lightweight endpoint.
  * Used to start the server-side timer on page load without generating
@@ -169,7 +192,10 @@ async function solvePowChallenge(challenge: PowChallenge): Promise<PowSolution> 
  */
 export async function fetchTimingToken(): Promise<string> {
 	const response = await fetchWithRetry(TIMING_TOKEN_ENDPOINT)
-	const data: { timingTokenId: string } = await response.json()
+	const data: unknown = await response.json()
+	if (!isTimingTokenResponse(data)) {
+		throw new Error('Invalid timing token response')
+	}
 	return data.timingTokenId
 }
 

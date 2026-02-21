@@ -10,6 +10,11 @@ import {
   VALIDATION_ERROR_CODES,
   type UnifiedErrorCode,
 } from '@/consts/unified-errors'
+import {
+  RECONCILIATION_STATUS,
+  type ReconciliationStatus,
+  type ActionableReconciliationStatus,
+} from '@/consts/constants'
 
 /**
  * Re-export unified system codes for compatibility
@@ -599,19 +604,26 @@ export interface ReconciliationEntry {
   readonly errorMessage: string | null
   readonly transactionId: string | null
   readonly createdAt: string
+  readonly status: ActionableReconciliationStatus
+  readonly attemptCount: number
 }
 
 /**
- * Fetch all unresolved reconciliation entries.
+ * Fetch all actionable reconciliation entries (pending or failed).
  */
 export async function getPendingReconciliations(): Promise<ReconciliationEntry[]> {
-  const result = await db.execute(
-    `SELECT id, correlation_id, username, ticket_code, reason,
-            error_category, error_message, transaction_id, created_at
-     FROM ReconciliationQueue
-     WHERE resolved = FALSE
-     ORDER BY created_at ASC`
-  )
+  const result = await db.execute({
+    sql: `SELECT id, correlation_id, username, ticket_code, reason,
+                  error_category, error_message, transaction_id, created_at,
+                  status, attempt_count
+           FROM ReconciliationQueue
+           WHERE status IN (?, ?)
+           ORDER BY created_at ASC`,
+    args: [
+      RECONCILIATION_STATUS.PENDING,
+      RECONCILIATION_STATUS.FAILED,
+    ],
+  })
 
   return result.rows.map(row => ({
     id: row.id as number,
@@ -623,24 +635,156 @@ export async function getPendingReconciliations(): Promise<ReconciliationEntry[]
     errorMessage: row.error_message as string | null,
     transactionId: row.transaction_id as string | null,
     createdAt: row.created_at as string,
+    status: (row.status as ActionableReconciliationStatus) || RECONCILIATION_STATUS.PENDING,
+    attemptCount: (row.attempt_count as number) || 0,
   }))
 }
 
 /**
- * Mark a reconciliation entry as resolved.
+ * @deprecated Broken after status-enum migration — always returns false
+ * unless the entry is already in 'processing' state (requires prior claim).
+ * Use claimReconciliationEntry + markReconciliationResolved instead.
  */
 export async function resolveReconciliationEntry(
   entryId: number,
   resolvedBy: string
 ): Promise<boolean> {
+  return markReconciliationResolved(entryId, resolvedBy)
+}
+
+/**
+ * Atomically claim a reconciliation entry for processing.
+ * Only one worker wins the claim (pending/failed → processing).
+ * Increments attempt_count and records processing_since timestamp.
+ */
+export async function claimReconciliationEntry(
+  entryId: number,
+  claimedBy: string
+): Promise<boolean> {
   const result = await db.execute({
     sql: `UPDATE ReconciliationQueue
-          SET resolved = TRUE, resolved_at = CURRENT_TIMESTAMP, resolved_by = ?
-          WHERE id = ? AND resolved = FALSE
+          SET status = ?,
+              attempt_count = attempt_count + 1,
+              processing_since = CURRENT_TIMESTAMP,
+              resolved_by = ?
+          WHERE id = ? AND status IN (?, ?)
           RETURNING id`,
-    args: [resolvedBy, entryId],
+    args: [
+      RECONCILIATION_STATUS.PROCESSING,
+      claimedBy,
+      entryId,
+      RECONCILIATION_STATUS.PENDING,
+      RECONCILIATION_STATUS.FAILED,
+    ],
   })
   return result.rows.length > 0
+}
+
+/**
+ * Mark a claimed entry as resolved after successful mutation.
+ * Sets both status='resolved' and resolved=TRUE for backward compatibility.
+ */
+export async function markReconciliationResolved(
+  entryId: number,
+  resolvedBy: string
+): Promise<boolean> {
+  const result = await db.execute({
+    sql: `UPDATE ReconciliationQueue
+          SET status = ?,
+              resolved = TRUE,
+              resolved_at = CURRENT_TIMESTAMP,
+              resolved_by = ?,
+              last_error = NULL,
+              processing_since = NULL
+          WHERE id = ? AND status = ?
+          RETURNING id`,
+    args: [
+      RECONCILIATION_STATUS.RESOLVED,
+      resolvedBy,
+      entryId,
+      RECONCILIATION_STATUS.PROCESSING,
+    ],
+  })
+  return result.rows.length > 0
+}
+
+/**
+ * Mark a claimed entry as failed after mutation error.
+ * The entry becomes retryable in the next reconciliation cycle.
+ */
+export async function markReconciliationFailed(
+  entryId: number,
+  errorMessage: string
+): Promise<boolean> {
+  const result = await db.execute({
+    sql: `UPDATE ReconciliationQueue
+          SET status = ?,
+              last_error = ?,
+              processing_since = NULL
+          WHERE id = ? AND status = ?
+          RETURNING id`,
+    args: [
+      RECONCILIATION_STATUS.FAILED,
+      errorMessage.slice(0, 512),
+      entryId,
+      RECONCILIATION_STATUS.PROCESSING,
+    ],
+  })
+  return result.rows.length > 0
+}
+
+/**
+ * Mark a claimed entry as abandoned after exceeding retry budget.
+ * Terminal state: removed from actionable queue and requires manual review.
+ */
+export async function markReconciliationAbandoned(
+  entryId: number,
+  errorMessage: string
+): Promise<boolean> {
+  const result = await db.execute({
+    sql: `UPDATE ReconciliationQueue
+          SET status = ?,
+              resolved = TRUE,
+              resolved_at = CURRENT_TIMESTAMP,
+              last_error = ?,
+              processing_since = NULL
+          WHERE id = ? AND status = ?
+          RETURNING id`,
+    args: [
+      RECONCILIATION_STATUS.ABANDONED,
+      errorMessage.slice(0, 512),
+      entryId,
+      RECONCILIATION_STATUS.PROCESSING,
+    ],
+  })
+  return result.rows.length > 0
+}
+
+/**
+ * Reset entries stuck in 'processing' for longer than timeoutMs.
+ * Called at the start of each reconciliation cycle to recover from
+ * worker crashes or hangs.
+ */
+export async function resetStuckProcessingEntries(
+  timeoutMs: number
+): Promise<number> {
+  const timeoutSeconds = Math.floor(timeoutMs / 1000)
+  const result = await db.execute({
+    sql: `UPDATE ReconciliationQueue
+          SET status = ?,
+              last_error = 'Stuck in processing (timeout)',
+              processing_since = NULL
+          WHERE status = ?
+            AND processing_since IS NOT NULL
+            AND datetime(processing_since, '+' || ? || ' seconds') <= datetime('now')
+          RETURNING id`,
+    args: [
+      RECONCILIATION_STATUS.FAILED,
+      RECONCILIATION_STATUS.PROCESSING,
+      timeoutSeconds,
+    ],
+  })
+  return result.rows.length
 }
 
 /**

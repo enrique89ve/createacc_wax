@@ -6,10 +6,16 @@ interface ValidateAccountParams {
   readonly accountName: TAccountName
 }
 
+/**
+ * Check if a Hive account exists. Returns a discriminated result so callers
+ * can distinguish "not found" from "RPC error" (avoids false positives).
+ *
+ * Used client-side in Form.astro. For server-side code, prefer safeCheckAccountOnChain.
+ */
 export const validateHiveAccountExists = async ({
   chain,
   accountName,
-}: ValidateAccountParams): Promise<boolean> => {
+}: ValidateAccountParams): Promise<ChainLookupResult> => {
   try {
     const accountData = await chain.api.database_api.find_accounts({
       accounts: [accountName],
@@ -17,9 +23,44 @@ export const validateHiveAccountExists = async ({
     })
 
     return accountData.accounts.length > 0
+      ? { status: 'found' }
+      : { status: 'not_found' }
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown chain error'
+    return { status: 'error', message }
+  }
+}
 
-    return false
+/**
+ * Result type for safe on-chain account lookup.
+ * Distinguishes "account not found" from "API error" to prevent
+ * incorrect rollbacks when the RPC is temporarily unreachable.
+ */
+export type ChainLookupResult =
+  | { readonly status: 'found' }
+  | { readonly status: 'not_found' }
+  | { readonly status: 'error'; readonly message: string }
+
+/**
+ * Safe variant of validateHiveAccountExists that never swallows errors.
+ * Returns a discriminated result so callers can handle network failures
+ * differently from "account does not exist".
+ */
+export async function safeCheckAccountOnChain({
+  chain,
+  accountName,
+}: ValidateAccountParams): Promise<ChainLookupResult> {
+  try {
+    const accountData = await chain.api.database_api.find_accounts({
+      accounts: [accountName],
+      delayed_votes_active: true,
+    })
+    return accountData.accounts.length > 0
+      ? { status: 'found' }
+      : { status: 'not_found' }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown chain error'
+    return { status: 'error', message }
   }
 }
 
@@ -37,12 +78,26 @@ interface PollingConfig {
 /**
  * Polling result with detailed information
  */
-interface PollingResult {
-  found: boolean
-  attempts: number
-  totalTimeMs: number
-  timedOut: boolean
-}
+export type PollingResult =
+  | {
+    readonly status: 'found'
+    readonly attempts: number
+    readonly totalTimeMs: number
+    readonly timedOut: boolean
+  }
+  | {
+    readonly status: 'not_found'
+    readonly attempts: number
+    readonly totalTimeMs: number
+    readonly timedOut: boolean
+  }
+  | {
+    readonly status: 'error'
+    readonly attempts: number
+    readonly totalTimeMs: number
+    readonly timedOut: boolean
+    readonly message: string
+  }
 
 /**
  * Helper function for delay with Promise
@@ -73,66 +128,71 @@ export const validateHiveAccountExistsWithPolling = async ({
   const startTime = Date.now()
   let currentDelay = finalConfig.initialDelayMs
   let attempt = 0
+  let hadRpcError = false
+  let lastRpcErrorMessage = 'Unknown chain polling error'
   while (attempt < finalConfig.maxAttempts) {
     attempt++
 
     // Check global timeout
     const elapsed = Date.now() - startTime
     if (elapsed > finalConfig.timeoutMs) {
+      return hadRpcError
+        ? {
+          status: 'error',
+          attempts: attempt - 1,
+          totalTimeMs: elapsed,
+          timedOut: true,
+          message: lastRpcErrorMessage,
+        }
+        : {
+          status: 'not_found',
+          attempts: attempt - 1,
+          totalTimeMs: elapsed,
+          timedOut: true,
+        }
+    }
 
+    const result = await safeCheckAccountOnChain({ chain, accountName })
+
+    if (result.status === 'found') {
+      const totalTime = Date.now() - startTime
       return {
-        found: false,
-        attempts: attempt - 1,
-        totalTimeMs: elapsed,
-        timedOut: true,
+        status: 'found',
+        attempts: attempt,
+        totalTimeMs: totalTime,
+        timedOut: false,
       }
     }
 
-    try {
-      const accountExists = await validateHiveAccountExists({
-        chain,
-        accountName,
-      })
+    if (result.status === 'error') {
+      hadRpcError = true
+      lastRpcErrorMessage = result.message
+    }
 
-      if (accountExists) {
-        const totalTime = Date.now() - startTime
-        return {
-          found: true,
-          attempts: attempt,
-          totalTimeMs: totalTime,
-          timedOut: false,
-        }
-      }
-
-      // Not found, wait before next attempt (except last)
-      if (attempt < finalConfig.maxAttempts) {
-        await delay(currentDelay)
-
-        // Exponential backoff with maximum limit
-        currentDelay = Math.min(
-          currentDelay * finalConfig.backoffMultiplier,
-          finalConfig.maxDelayMs
-        )
-      }
-    } catch (error) {
-
-      // In case of error, also apply backoff before retrying
-      if (attempt < finalConfig.maxAttempts) {
-        await delay(currentDelay)
-        currentDelay = Math.min(
-          currentDelay * finalConfig.backoffMultiplier,
-          finalConfig.maxDelayMs
-        )
-      }
+    // Both 'not_found' and 'error' → apply backoff before retrying
+    if (attempt < finalConfig.maxAttempts) {
+      await delay(currentDelay)
+      currentDelay = Math.min(
+        currentDelay * finalConfig.backoffMultiplier,
+        finalConfig.maxDelayMs
+      )
     }
   }
 
   const totalTime = Date.now() - startTime
 
-  return {
-    found: false,
-    attempts: attempt,
-    totalTimeMs: totalTime,
-    timedOut: false,
-  }
+  return hadRpcError
+    ? {
+      status: 'error',
+      attempts: attempt,
+      totalTimeMs: totalTime,
+      timedOut: false,
+      message: lastRpcErrorMessage,
+    }
+    : {
+      status: 'not_found',
+      attempts: attempt,
+      totalTimeMs: totalTime,
+      timedOut: false,
+    }
 }
