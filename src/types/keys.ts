@@ -2,25 +2,6 @@
  * Types for Hive blockchain keys management
  */
 
-export interface HivePublicKeys {
-  readonly owner: string
-  readonly active: string
-  readonly posting: string
-  readonly memo: string
-}
-
-export interface HivePrivateKeys {
-  readonly owner: string
-  readonly active: string
-  readonly posting: string
-  readonly memo: string
-}
-
-export interface HiveKeyPair {
-  readonly publicKey: string
-  readonly privateKey: string
-}
-
 export interface PublicKeysPayload {
   readonly ownerPublicKey?: string
   readonly activePublicKey?: string

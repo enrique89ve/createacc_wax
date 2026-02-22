@@ -25,17 +25,6 @@ export const TOAST_CONFIG = {
   MAX_VISIBLE: 4 as const,
 } as const
 
-// Constantes semánticas de duración
-export const TOAST_DURATIONS = {
-  QUICK: 2000, // Mensajes breves (copiado, etc.)
-  DEFAULT: 4000, // Mensajes normales
-  EXTENDED: 6000, // Warnings importantes
-  PERSISTENT: 8000, // Errores críticos
-} as const
-
-export type ToastDuration =
-  (typeof TOAST_DURATIONS)[keyof typeof TOAST_DURATIONS]
-
 // Clases base para cada variante (Flowbite-inspired + modo oscuro)
 export const TOAST_VARIANT_STYLES: Readonly<Record<ToastType, string>> = {
   success:

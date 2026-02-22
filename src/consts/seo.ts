@@ -56,12 +56,6 @@ export const TITLE_SUFFIXES = {
 } as const
 
 /**
- * Routes that should not be indexed by search engines
- * Used for documentation and validation
- */
-export const PRIVATE_ROUTES = ['/management/', '/builders/'] as const
-
-/**
  * Meta robots values for different page types
  */
 export const ROBOTS_META = {

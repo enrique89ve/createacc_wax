@@ -6,11 +6,7 @@
  */
 
 import type { ValidationResult } from '@/utils/validation-result'
-import { MAX_TICKET_CREDITS } from '@/consts/constants'
-
-// Validation constants
-const MIN_TICKET_LENGTH = 10
-const MAX_TICKET_LENGTH = 24
+import { MAX_TICKET_CREDITS, TICKET_LENGTH } from '@/consts/constants'
 const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
 const ONLY_NUMBERS_REGEX = /^\d+$/
 
@@ -41,21 +37,21 @@ export function validateTicketName(name: string): ValidationResult<string> {
 
 	const trimmedName = name.trim()
 
-	if (trimmedName.length < MIN_TICKET_LENGTH) {
+	if (trimmedName.length < TICKET_LENGTH.MIN) {
 		return {
 			success: false,
 			error: {
-				message: `El nombre debe tener al menos ${MIN_TICKET_LENGTH} caracteres`,
+				message: `El nombre debe tener al menos ${TICKET_LENGTH.MIN} caracteres`,
 				field: 'code',
 			},
 		}
 	}
 
-	if (trimmedName.length > MAX_TICKET_LENGTH) {
+	if (trimmedName.length > TICKET_LENGTH.MAX) {
 		return {
 			success: false,
 			error: {
-				message: `El nombre no puede exceder ${MAX_TICKET_LENGTH} caracteres`,
+				message: `El nombre no puede exceder ${TICKET_LENGTH.MAX} caracteres`,
 				field: 'code',
 			},
 		}
@@ -280,8 +276,8 @@ export function validateTicketDescription(
  * Export constants for external use
  */
 export const TICKET_VALIDATION_CONSTANTS = {
-	MIN_TICKET_LENGTH,
-	MAX_TICKET_LENGTH,
+	MIN_TICKET_LENGTH: TICKET_LENGTH.MIN,
+	MAX_TICKET_LENGTH: TICKET_LENGTH.MAX,
 	MIN_TICKET_CREDITS,
 	MAX_TICKET_CREDITS,
 	ALPHANUMERIC_REGEX,

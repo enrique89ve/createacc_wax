@@ -11,11 +11,6 @@ export type HiveMessage = string & { readonly __brand: 'HiveMessage' }
 
 // ===== HIVE ACCOUNT TYPES =====
 
-export interface HiveKeyAuthority {
-  readonly key: HivePublicKey
-  readonly weight: number
-}
-
 export interface HivePosting {
   readonly weight_threshold: number
   readonly account_auths: readonly [string, number][]
@@ -53,12 +48,6 @@ export interface HiveSignatureVerificationResult {
     readonly decodedKeys?: readonly HivePublicKey[]
     readonly verifyAuthorityResult?: boolean
   }
-}
-
-export interface HiveAccountVerificationResult {
-  readonly valid: boolean
-  readonly error?: string
-  readonly accountData?: HiveAccountData
 }
 
 // ===== KEYCHAIN TYPES =====

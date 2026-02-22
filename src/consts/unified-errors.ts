@@ -103,7 +103,7 @@ export const BLOCKCHAIN_ERROR_MESSAGES: Record<BlockchainErrorCode, string> = {
 		'Blockchain verification timeout',
 }
 
-export const DATABASE_ERROR_MESSAGES: Record<DatabaseErrorCode, string> = {
+const DATABASE_ERROR_MESSAGES: Record<DatabaseErrorCode, string> = {
 	[DATABASE_ERROR_CODES.CONSTRAINT_VIOLATION]: 'Database constraint violation',
 	[DATABASE_ERROR_CODES.NOT_FOUND]: 'Record not found',
 	[DATABASE_ERROR_CODES.INVALID_INPUT]: 'Invalid input data',
@@ -198,14 +198,3 @@ export function getHttpStatus(code: UnifiedErrorCode): number {
 	return ERROR_TO_HTTP_STATUS[code] || 500
 }
 
-export function isBlockchainError(code: UnifiedErrorCode): code is BlockchainErrorCode {
-	return code in BLOCKCHAIN_ERROR_CODES
-}
-
-export function isDatabaseError(code: UnifiedErrorCode): code is DatabaseErrorCode {
-	return code in DATABASE_ERROR_CODES
-}
-
-export function isValidationError(code: UnifiedErrorCode): code is ValidationErrorCode {
-	return code in VALIDATION_ERROR_CODES
-}

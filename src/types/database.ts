@@ -160,15 +160,6 @@ export interface TicketWithCreator extends DatabaseTicketRow {
   readonly creator_role: UserRole | null
 }
 
-/**
- * Account with ticket info
- */
-export interface AccountWithTicketInfo extends DatabaseAccountRow {
-  readonly ticket_description?: string | null
-  readonly ticket_original_credits?: number
-  readonly ticket_remaining_credits?: number
-}
-
 // ===== CRUD OPERATION TYPES =====
 
 /**
@@ -290,41 +281,6 @@ export interface CreateNotificationData {
 export interface UpdateNotificationData {
   readonly is_read?: boolean
   readonly read_at?: string | null
-}
-
-// ===== QUERY RESULT TYPES =====
-
-/**
- * Result wrapper for database operations
- */
-export interface DatabaseResult<T> {
-  readonly success: boolean
-  readonly data?: T
-  readonly error?: string
-  readonly errorCode?: string
-}
-
-/**
- * Paginated result for lists
- */
-export interface PaginatedResult<T> {
-  readonly items: readonly T[]
-  readonly totalCount: number
-  readonly page: number
-  readonly pageSize: number
-  readonly hasMore: boolean
-}
-
-/**
- * Statistics for admin dashboard
- */
-export interface DatabaseStats {
-  readonly totalUsers: number
-  readonly totalTickets: number
-  readonly totalAccounts: number
-  readonly activeTickets: number
-  readonly usedTickets: number
-  readonly todayAccounts: number
 }
 
 // ===== TYPE GUARDS =====

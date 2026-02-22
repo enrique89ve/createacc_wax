@@ -3,9 +3,7 @@
  * Returns null if the ticket is valid; otherwise a descriptive message.
  */
 
-// Validation constants
-const MIN_TICKET_LENGTH = 10 as const
-const MAX_TICKET_LENGTH = 24 as const
+import { TICKET_LENGTH } from '@/consts/constants'
 
 // Specific error messages
 const enum TicketMessage {
@@ -48,12 +46,12 @@ export const validateTicket = (ticket: unknown): string | null => {
   }
 
   // Verify minimum length
-  if (ticketTrimmed.length < MIN_TICKET_LENGTH) {
+  if (ticketTrimmed.length < TICKET_LENGTH.MIN) {
     return TicketMessage.TOO_SHORT
   }
 
   // Verify maximum length
-  if (ticketTrimmed.length > MAX_TICKET_LENGTH) {
+  if (ticketTrimmed.length > TICKET_LENGTH.MAX) {
     return TicketMessage.TOO_LONG
   }
 
@@ -84,16 +82,6 @@ export const cleanTicket = (ticket: string): string => {
   return ticket
     .trim() // Remove whitespace at the start and end
     .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
-    .slice(0, MAX_TICKET_LENGTH) // Limit length
+    .slice(0, TICKET_LENGTH.MAX) // Limit length
     .toUpperCase() // Convert to uppercase for consistency
-}
-
-/**
- * Verifies if a ticket is valid (convenience function)
- *
- * @param ticket - Ticket to verify
- * @returns true if valid, false if not
- */
-export const isValidTicket = (ticket: unknown): boolean => {
-  return validateTicket(ticket) === null
 }

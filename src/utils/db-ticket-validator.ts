@@ -154,6 +154,7 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
 
     return true
   } catch (error) {
+    logger.error('[markTicketAsUsed] Failed to mark ticket as used:', error)
     return false
   }
 }
@@ -182,6 +183,7 @@ export async function saveCreatedAccount(
 
     return true
   } catch (error) {
+    logger.error('[saveCreatedAccount] Failed to save account:', error)
     return false
   }
 }
@@ -201,6 +203,7 @@ export async function accountExistsInDB(username: string): Promise<boolean> {
 
     return result.rows.length > 0
   } catch (error) {
+    logger.error('[accountExistsInDB] Failed to check account existence:', error)
     return false
   }
 }
@@ -225,6 +228,7 @@ export async function isTicketAlreadyUsed(
     const row = result.rows[0] as { has_been_used?: unknown }
     return Boolean(row.has_been_used)
   } catch (error) {
+    logger.error('[isTicketAlreadyUsed] Failed to check ticket status:', error)
     return false
   }
 }

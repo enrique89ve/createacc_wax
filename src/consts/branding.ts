@@ -35,5 +35,3 @@ export const BRAND = {
 	 */
 	CLAIM_APP_ID: 'holahiveCreateAcc',
 } as const
-
-export type Brand = typeof BRAND

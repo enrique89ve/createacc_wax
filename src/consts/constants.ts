@@ -33,21 +33,8 @@ export const ROUTES = {
 	BUILDERS_DASHBOARD: '/builders/accounts',
 } as const
 
-export const SESSION_KEYS = {
-  ADMIN_USER: 'adminUser',
-  CREATE_FLOW: 'createFlow',
-  USER: 'user',
-} as const
-
 // Re-export UserRole enum from centralized roles module
 export { UserRole } from '@/lib/roles'
-
-export const AUTH_PROVIDERS = {
-  CREDENTIALS: 'credentials',
-  KEYCHAIN: 'keychain',
-} as const
-
-export type AuthProvider = (typeof AUTH_PROVIDERS)[keyof typeof AUTH_PROVIDERS]
 
 export const HTTP_STATUS = {
   OK: 200,
@@ -103,13 +90,6 @@ export const CREDITS_LIMITS = {
   MAX_ASSIGNMENT: 100000,
   /** Mínimo de créditos para una operación */
   MIN_ASSIGNMENT: 1,
-} as const
-
-export const FRONTEND_KEYS = {
-  SESSION_KEY: 'hh_keys_downloaded',
-  KEYSET_SEPARATOR: '_',
-  HIVE_PUBLIC_KEY_PREFIX: 'STM',
-  MIN_KEY_LENGTH: 50,
 } as const
 
 export const API_MESSAGES = {
@@ -221,12 +201,6 @@ export const MANAGEMENT_UI = {
   },
 } as const
 
-// Builders UI - Client-side constants for builders portal
-export enum TicketAction {
-  Update = 'update',
-  Delete = 'delete',
-}
-
 export const BUILDERS_UI = {
   MESSAGES: {
     TICKET_CREATED: 'Ticket creado exitosamente',
@@ -271,3 +245,8 @@ export const BUILDERS_UI = {
 } as const
 
 export const MAX_TICKET_CREDITS = 100 as const
+
+export const TICKET_LENGTH = {
+	MIN: 10,
+	MAX: 24,
+} as const

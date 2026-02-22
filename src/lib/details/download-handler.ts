@@ -5,14 +5,15 @@ import {
 } from '@/utils/key-download-manager'
 import { I18nManager } from '@/utils/i18n'
 import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
+import type { HiveKeyRole } from '@/types/keys'
 import type { PreSolvedBundle, ExtendedWindow } from './types'
 
 export interface DownloadDependencies {
 	readonly username: string
 	readonly masterKey: string
 	readonly allKeys: {
-		getAllPrivateKeys(): Record<string, string>
-		getAllPublicKeys(): Record<string, string>
+		getAllPrivateKeys(): Record<HiveKeyRole, string>
+		getAllPublicKeys(): Record<HiveKeyRole, string>
 	}
 	readonly keysetId: string
 	readonly recoverSession: () => Promise<boolean>

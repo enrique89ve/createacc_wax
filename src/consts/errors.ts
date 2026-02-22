@@ -3,9 +3,8 @@
  * Mantiene compatibilidad hacia atrás mientras migra al nuevo sistema.
  */
 
-import { 
+import {
   BLOCKCHAIN_ERROR_CODES,
-  BLOCKCHAIN_ERROR_MESSAGES,
   UnifiedError,
   type BlockchainErrorCode
 } from './unified-errors'
@@ -13,9 +12,6 @@ import {
 // Re-exportar códigos blockchain como AppErrorCode para compatibilidad
 export const AppErrorCode = BLOCKCHAIN_ERROR_CODES
 export type AppErrorCode = BlockchainErrorCode
-
-// Re-exportar mensajes para compatibilidad
-export const ERROR_MESSAGES = BLOCKCHAIN_ERROR_MESSAGES
 
 // Clase AppError que extiende UnifiedError para mantener compatibilidad
 export class AppError extends UnifiedError {
@@ -29,10 +25,3 @@ export class AppError extends UnifiedError {
   }
 }
 
-export interface ParsedHiveError {
-  readonly code: AppErrorCode
-  readonly originalMessage?: string
-  readonly data?: unknown
-  readonly format?: string
-  readonly timestamp: string
-}
