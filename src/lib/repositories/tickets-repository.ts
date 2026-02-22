@@ -16,6 +16,7 @@ import { db } from '@/lib/database'
 import {
   parseTicketRow,
   parseTicketWithCreatorRow,
+  compactMap,
   type DatabaseTicketRow,
   type TicketWithCreator,
   type CreateTicketData,
@@ -216,9 +217,7 @@ export class TicketsRepository {
         args: [userId],
       })
 
-      return result.rows
-        .map(row => parseTicketRow(row))
-        .filter((ticket): ticket is DatabaseTicketRow => ticket !== null)
+      return compactMap(result.rows, parseTicketRow)
     } catch (error) {
       throw error
     }
@@ -240,9 +239,7 @@ export class TicketsRepository {
         args: [],
       })
 
-      return result.rows
-        .map(row => parseTicketRow(row))
-        .filter((ticket): ticket is DatabaseTicketRow => ticket !== null)
+      return compactMap(result.rows, parseTicketRow)
     } catch (error) {
       throw error
     }
@@ -284,9 +281,7 @@ export class TicketsRepository {
 
       const result = await db.execute({ sql, args })
 
-      return result.rows
-        .map(row => parseTicketRow(row))
-        .filter((ticket): ticket is DatabaseTicketRow => ticket !== null)
+      return compactMap(result.rows, parseTicketRow)
     } catch (error) {
       throw error
     }
@@ -313,9 +308,7 @@ export class TicketsRepository {
         args: [],
       })
 
-      return result.rows
-        .map(row => parseTicketWithCreatorRow(row))
-        .filter((ticket): ticket is TicketWithCreator => ticket !== null)
+      return compactMap(result.rows, parseTicketWithCreatorRow)
     } catch (error) {
       throw error
     }
@@ -342,9 +335,7 @@ export class TicketsRepository {
         args: [userId],
       })
 
-      return result.rows
-        .map(row => parseTicketWithCreatorRow(row))
-        .filter((ticket): ticket is TicketWithCreator => ticket !== null)
+      return compactMap(result.rows, parseTicketWithCreatorRow)
     } catch (error) {
       throw error
     }
@@ -379,9 +370,7 @@ export class TicketsRepository {
         args: [limit],
       })
 
-      return result.rows
-        .map(row => parseTicketWithCreatorRow(row))
-        .filter((ticket): ticket is TicketWithCreator => ticket !== null)
+      return compactMap(result.rows, parseTicketWithCreatorRow)
     } catch (error) {
       throw error
     }

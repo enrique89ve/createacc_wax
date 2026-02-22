@@ -1,239 +1,191 @@
+/**
+ * API: Verify claim transaction and process credit claim
+ *
+ * POST /api/builders/credits/claim-verify
+ *
+ * Flow: validate hash (non-destructive) → verify blockchain tx →
+ *       DB transaction → consume hash ONLY after successful COMMIT.
+ *       If the transaction rolls back, the hash survives and the user can retry.
+ */
+
 import type { APIRoute } from 'astro'
-import { getSession } from 'auth-astro/server'
-import { db } from '@/lib/database'
+import { db, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
-import { UserRole } from '@/lib/roles'
 import { verifyClaimTransaction } from '@/lib/hive-transaction-verifier'
 import { claimHashCache } from '@/lib/claim-hash-cache'
+import { withBuilderApiSession } from '@/lib/session-helpers'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/admin/permissions-management'
+import { requireValidOrigin } from '@/utils/csrf-protection'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
-/** Partial row from SELECT id */
-interface UserIdRow {
-  readonly id: number
+/** Runtime-validated claim-verify request shape */
+type ClaimVerifyRequest = {
+	readonly transactionId: string
+	readonly hash: string
 }
 
-/** Partial row from SELECT id, pending_amount */
-interface CreditPendingRow {
-  readonly id: number
-  readonly pending_amount: number
+const OPAQUE_CLAIM_PATTERN = /^claim_([a-f0-9]{24})$/
+
+/**
+ * Narrows unknown input to ClaimVerifyRequest or returns null.
+ * Boundary proof: validates every field before the type assertion.
+ */
+function parseClaimVerifyBody(body: unknown): ClaimVerifyRequest | null {
+	if (typeof body !== 'object' || body === null) return null
+
+	const record = body as Record<string, unknown>
+	const transactionId = record.transactionId
+	const hash = record.hash
+
+	if (typeof transactionId !== 'string' || transactionId.length === 0) return null
+	if (typeof hash !== 'string' || hash.length === 0) return null
+
+	return { transactionId, hash }
 }
 
-/** Partial row from SELECT available_amount as total */
-interface BalanceTotalRow {
-  readonly total: number
-}
+export const POST: APIRoute = async (context) => {
+	const csrfCheck = requireValidOrigin(context.request)
+	if (csrfCheck) return csrfCheck
 
-export interface ClaimVerifyRequest {
-  transactionId: string
-  hash: string
-}
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'CLAIM_CREDITS', 'POST /api/builders/credits/claim-verify')
+		} catch {
+			return unauthorizedResponse()
+		}
 
-export const POST: APIRoute = async ({ request }) => {
-  try {
-    const session = await getSession(request)
+		try {
+			const rawBody: unknown = await context.request.json()
+			const parsed = parseClaimVerifyBody(rawBody)
 
-    if (!session?.user?.username) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No autorizado' }),
-        {
-          status: HTTP_STATUS.UNAUTHORIZED,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			if (!parsed) {
+				return apiError(
+					'Transaction ID y hash son requeridos',
+					HTTP_STATUS.BAD_REQUEST
+				)
+			}
 
-    const { transactionId, hash }: ClaimVerifyRequest = await request.json()
+			const { transactionId, hash } = parsed
 
-    if (!transactionId || !hash) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Transaction ID y hash son requeridos',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			// 1. Validate hash (non-destructive — hash stays in cache)
+			const hashData = claimHashCache.validate(hash, session.username)
+			if (!hashData) {
+				return apiError(
+					'Hash de validación no encontrado, inválido o expirado',
+					HTTP_STATUS.NOT_FOUND
+				)
+			}
 
-    // Verify and consume hash from cache
-    const hashData = claimHashCache.validateAndConsume(
-      hash,
-      session.user.username
-    )
-    if (!hashData) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Hash de validación no encontrado, inválido o expirado',
-        }),
-        {
-          status: HTTP_STATUS.NOT_FOUND,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			// 2. Verify blockchain transaction (parallelizable with builder check)
+			const [verificationResult, builderResult] = await Promise.all([
+				verifyClaimTransaction(transactionId, hash, session.username),
+				db.execute({
+					sql: 'SELECT id FROM Users WHERE id = ? AND is_active = TRUE',
+					args: [session.userId],
+				}),
+			])
 
-    // Verify the transaction on the blockchain
-    const verificationResult = await verifyClaimTransaction(
-      transactionId,
-      hash,
-      session.user.username
-    )
-    if (!verificationResult.valid) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: verificationResult.error || 'Transacción inválida',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			if (!verificationResult.valid) {
+				return apiError(
+					verificationResult.error || 'Transacción inválida',
+					HTTP_STATUS.BAD_REQUEST
+				)
+			}
 
-    // Verify that the user is an active builder
-    const builderResult = await db.execute({
-      sql: `SELECT id FROM Users WHERE username = ? AND role = ? AND is_active = TRUE`,
-      args: [session.user.username, UserRole.Builder],
-    })
+			if (builderResult.rows.length === 0) {
+				return apiError(
+					'Solo los builders activos pueden reclamar créditos',
+					HTTP_STATUS.FORBIDDEN
+				)
+			}
 
-    if (builderResult.rows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Solo los builders pueden reclamar créditos',
-        }),
-        {
-          status: HTTP_STATUS.FORBIDDEN,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			// 3. Resolve creditId from opaque claim token
+			const opaqueMatch = hashData.ticketCode.match(OPAQUE_CLAIM_PATTERN)
+			if (!opaqueMatch) {
+				return apiError(
+					'Código de claim inválido',
+					HTTP_STATUS.BAD_REQUEST
+				)
+			}
 
-    const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
+			const creditId = claimHashCache.getCreditMapping(opaqueMatch[1])
+			if (creditId === null) {
+				return apiError(
+					'Código de claim expirado o ya consumido',
+					HTTP_STATUS.NOT_FOUND
+				)
+			}
+			const creditsToAdd = hashData.creditsAvailable
 
-    // Extract creditId from the claimCode (format: credit_123_timestamp)
-    const creditIdMatch = hashData.ticketCode.match(/credit_(\d+)_/)
-    if (!creditIdMatch) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Código de claim inválido',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			// 4. Verify credit record exists and has sufficient pending
+			const creditResult = await db.execute({
+				sql: 'SELECT id, pending_amount FROM Credits WHERE id = ? AND builder_id = ?',
+				args: [creditId, session.userId],
+			})
 
-    const creditId = parseInt(creditIdMatch[1])
-    const creditsToAdd = hashData.creditsAvailable
+			if (creditResult.rows.length === 0) {
+				return apiError(
+					'Registro de créditos no encontrado',
+					HTTP_STATUS.NOT_FOUND
+				)
+			}
 
-    // Get builder credits record
-    const creditResult = await db.execute({
-      sql: `SELECT id, pending_amount FROM Credits
-			      WHERE id = ? AND builder_id = ?`,
-      args: [creditId, builderId],
-    })
+			const currentPending = Number(creditResult.rows[0].pending_amount)
 
-    if (creditResult.rows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Registro de créditos no encontrado',
-        }),
-        {
-          status: HTTP_STATUS.NOT_FOUND,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			if (currentPending < creditsToAdd) {
+				return apiError(
+					'Créditos pendientes insuficientes',
+					HTTP_STATUS.CONFLICT
+				)
+			}
 
-    const currentPending = Number((creditResult.rows[0] as unknown as CreditPendingRow).pending_amount)
+			// 5. Atomic DB transaction — hash is NOT consumed yet
+			await withTransaction(async () => {
+				await db.execute({
+					sql: `UPDATE Credits
+						SET pending_amount = pending_amount - ?,
+							available_amount = available_amount + ?,
+							updated_at = CURRENT_TIMESTAMP
+						WHERE id = ? AND pending_amount >= ?`,
+					args: [creditsToAdd, creditsToAdd, creditId, creditsToAdd],
+				})
 
-    if (currentPending < creditsToAdd) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error:
-            'La cantidad de créditos pendientes ha cambiado o es insuficiente',
-        }),
-        {
-          status: HTTP_STATUS.CONFLICT,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+				await db.execute({
+					sql: `INSERT INTO CreditAudit (
+						builder_id, operation, amount, reason, timestamp
+					) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+					args: [
+						session.userId,
+						'claim_via_blockchain',
+						creditsToAdd,
+						`Claimed via transaction: ${transactionId}`,
+					],
+				})
+			})
 
-    // Process the claim using transaction
-    await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+			// 6. COMMIT succeeded — NOW consume the hash (one-time use)
+			claimHashCache.consume(hash)
 
-    try {
-      // 1. Move credits from pending to available
-      await db.execute({
-        sql: `UPDATE Credits
-				      SET pending_amount = pending_amount - ?,
-                  available_amount = available_amount + ?,
-				          updated_at = CURRENT_TIMESTAMP
-				      WHERE id = ?`,
-        args: [creditsToAdd, creditsToAdd, creditId],
-      })
+			const balanceResult = await db.execute({
+				sql: 'SELECT available_amount FROM Credits WHERE id = ?',
+				args: [creditId],
+			})
 
-      // 2. Create audit entry
-      await db.execute({
-        sql: `INSERT INTO CreditAudit (
-				        builder_id, operation, amount, reason, timestamp
-				      ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        args: [
-          builderId,
-          'claim_via_blockchain',
-          creditsToAdd,
-          `Claimed via transaction: ${transactionId}`,
-        ],
-      })
+			const newBalance = Number(balanceResult.rows[0]?.available_amount ?? 0)
 
-      await db.execute({ sql: 'COMMIT', args: [] })
-
-      // Get the new available credits balance
-      const balanceResult = await db.execute({
-        sql: `SELECT available_amount as total
-				      FROM Credits
-				      WHERE id = ?`,
-        args: [creditId],
-      })
-
-      const newBalance = (balanceResult.rows[0] as unknown as BalanceTotalRow).total
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: 'Créditos reclamados exitosamente',
-          credits: creditsToAdd,
-          // creditId removed for security - do not expose internal IDs
-          transactionId: transactionId,
-          newBalance,
-        }),
-        {
-          status: HTTP_STATUS.OK,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    } catch (dbError) {
-      await db.execute({ sql: 'ROLLBACK', args: [] })
-      throw dbError
-    }
-  } catch (error) {
-    logger.error('Error en claim-verify:', error)
-    return new Response(
-      JSON.stringify({ success: false, error: 'Error interno del servidor' }),
-      {
-        status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
-  }
+			return apiSuccess({
+				message: 'Créditos reclamados exitosamente',
+				credits: creditsToAdd,
+				transactionId,
+				newBalance,
+			})
+		} catch (error) {
+			logger.error('Error en claim-verify:', error)
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }

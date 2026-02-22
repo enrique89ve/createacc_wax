@@ -13,6 +13,7 @@
 import { db } from '@/lib/database'
 import {
   parseUserRow,
+  compactMap,
   type DatabaseUserRow,
   type CreateUserData,
   type UpdateUserData,
@@ -178,9 +179,7 @@ export class UsersRepository {
         args: [],
       })
 
-      return result.rows
-        .map(row => parseUserRow(row))
-        .filter((user): user is DatabaseUserRow => user !== null)
+      return compactMap(result.rows, parseUserRow)
     } catch (error) {
       return []
     }
@@ -201,9 +200,7 @@ export class UsersRepository {
         args: [],
       })
 
-      return result.rows
-        .map(row => parseUserRow(row))
-        .filter((user): user is DatabaseUserRow => user !== null)
+      return compactMap(result.rows, parseUserRow)
     } catch (error) {
       return []
     }
@@ -450,20 +447,12 @@ export class UsersRepository {
 
   /**
    * Get accounts created by a specific builder (by ID)
-   * Uses the ticket_by field from Accounts to show accounts even if the ticket was deleted
+   * Uses subquery to resolve username, avoiding a sequential getById() call.
+   * Uses the ticket_by field from Accounts to show accounts even if the ticket was deleted.
    */
   async getAccountsByUser(builderId: number): Promise<AccountWithTicketInfo[]> {
     try {
-      const builder = await this.getById(builderId)
-
-      if (!builder) {
-        return []
-      }
-
-      const builderUsername = builder.username
-
-      // Find accounts by ticket_by (preserves history even if ticket doesn't exist)
-      const accountsResult = await db.execute({
+      const result = await db.execute({
         sql: `SELECT
 					a.id,
 					a.username,
@@ -476,12 +465,12 @@ export class UsersRepository {
 					t.credits as ticket_remaining_credits
 				FROM Accounts a
 				LEFT JOIN Tickets t ON a.ticket = t.code
-				WHERE a.ticket_by = ?
+				WHERE a.ticket_by = (SELECT username FROM Users WHERE id = ? LIMIT 1)
 				ORDER BY a.creation_date DESC`,
-        args: [builderUsername],
+        args: [builderId],
       })
 
-      return accountsResult.rows.map((row: Record<string, unknown>) => ({
+      return result.rows.map((row: Record<string, unknown>) => ({
         id: Number(row.id),
         username: String(row.username),
         ticket: String(row.ticket),
@@ -498,13 +487,30 @@ export class UsersRepository {
 
   /**
    * Get statistics of a specific builder (by ID)
-   * Uses ticket_by to count accounts even if tickets were deleted
+   * Single query with subqueries — avoids 4 sequential round-trips.
+   * Uses ticket_by to count accounts even if tickets were deleted.
    */
   async getBuildersStats(builderId: number): Promise<BuildersStats> {
     try {
-      const builder = await this.getById(builderId)
+      const result = await db.execute({
+        sql: `SELECT
+					(SELECT COUNT(*) FROM Accounts
+					 WHERE ticket_by = (SELECT username FROM Users WHERE id = ? LIMIT 1)
+					) as total_accounts,
+					(SELECT COUNT(*) FROM Tickets
+					 WHERE created_by = ? AND is_active = 1
+					) as active_tickets,
+					(SELECT COALESCE(SUM(original_credits), 0) FROM Tickets
+					 WHERE created_by = ? AND is_active = 1
+					) as total_original,
+					(SELECT COALESCE(SUM(credits), 0) FROM Tickets
+					 WHERE created_by = ? AND is_active = 1
+					) as total_remaining`,
+        args: [builderId, builderId, builderId, builderId],
+      })
 
-      if (!builder) {
+      const row = result.rows[0] as Record<string, unknown> | undefined
+      if (!row) {
         return {
           totalAccounts: 0,
           totalActiveTickets: 0,
@@ -513,42 +519,13 @@ export class UsersRepository {
         }
       }
 
-      const builderUsername = builder.username
-
-      // Count total accounts using ticket_by (preserves history)
-      const accountsCountResult = await db.execute({
-        sql: `SELECT COUNT(*) as total FROM Accounts WHERE ticket_by = ?`,
-        args: [builderUsername],
-      })
-
-      // Count active tickets
-      const activeTicketsResult = await db.execute({
-        sql: `SELECT COUNT(*) as total
-					FROM Tickets t
-					WHERE t.created_by = ? AND t.is_active = 1`,
-        args: [builderId],
-      })
-
-      // Calculate remaining credits in active tickets
-      const creditsResult = await db.execute({
-        sql: `SELECT
-					SUM(t.original_credits) as total_original,
-					SUM(t.credits) as total_remaining
-				FROM Tickets t
-				WHERE t.created_by = ? AND t.is_active = 1`,
-        args: [builderId],
-      })
-
-      const totalAccounts = Number(accountsCountResult.rows[0]?.total) || 0
-      const totalActiveTickets = Number(activeTicketsResult.rows[0]?.total) || 0
-      const totalOriginal = Number(creditsResult.rows[0]?.total_original) || 0
-      const totalRemaining = Number(creditsResult.rows[0]?.total_remaining) || 0
-      const totalCreditsUsed = totalOriginal - totalRemaining
+      const totalOriginal = Number(row.total_original || 0)
+      const totalRemaining = Number(row.total_remaining || 0)
 
       return {
-        totalAccounts,
-        totalActiveTickets,
-        totalCreditsUsed,
+        totalAccounts: Number(row.total_accounts || 0),
+        totalActiveTickets: Number(row.active_tickets || 0),
+        totalCreditsUsed: totalOriginal - totalRemaining,
         totalCreditsRemaining: totalRemaining,
       }
     } catch (error) {

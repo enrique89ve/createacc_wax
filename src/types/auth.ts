@@ -20,15 +20,19 @@ export interface CreationSession {
 export interface AdminSession {
 	readonly userId: number
 	readonly username: string
-	readonly role: UserRole
+	readonly role: typeof UserRole.Admin
 	readonly loginTime: number
 }
 
 export interface BuilderSession {
 	readonly userId: number
 	readonly username: string
-	readonly role: UserRole
+	readonly role: typeof UserRole.Builder
 	readonly loginTime: number
+}
+
+export interface PendingBuilder {
+	readonly username: string
 }
 
 declare global {
@@ -37,6 +41,7 @@ declare global {
 			creation?: CreationSession
 			adminUser?: AdminSession
 			builderUser?: BuilderSession
+			pendingBuilder?: PendingBuilder
 		}
 	}
 }

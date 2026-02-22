@@ -8,6 +8,27 @@ export const db = createClient({
 	syncUrl: process.env.TURSO_SYNC_URL,
 })
 
+/**
+ * Execute a callback inside a SQLite transaction.
+ * Automatically issues BEGIN / COMMIT and ROLLBACK on error.
+ *
+ * WARNING: Do NOT nest — SQLite does not support concurrent transactions
+ * on the same connection. Functions that already use their own
+ * BEGIN/COMMIT (e.g. transferCredits, adjustCredits) must NOT be
+ * called inside withTransaction.
+ */
+export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
+	await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+	try {
+		const result = await fn()
+		await db.execute({ sql: 'COMMIT', args: [] })
+		return result
+	} catch (error) {
+		await db.execute({ sql: 'ROLLBACK', args: [] })
+		throw error
+	}
+}
+
 // Initialize database
 export async function initializeDatabase() {
   try {

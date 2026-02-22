@@ -1,36 +1,16 @@
 ---
 import ProgressStepper from '@/components/ui/ProgressStepper.astro'
 
-interface Props {
-	readonly isVisible?: boolean
-	readonly currentStep?: number
-	readonly completedSteps?: readonly number[]
-	readonly errorStep?: number
-	readonly onClose?: string // Event handler name
-}
-
-const {
-	isVisible = false,
-	currentStep = -1,
-	completedSteps = [],
-	errorStep = -1,
-	onClose = 'closeProgressModal',
-} = Astro.props as Props
-
 const steps = [
 	'Verificando información',
 	'Creando la cuenta',
 	'Redirigiendo'
 ]
-
-const hasError = errorStep >= 0
 ---
 
 <div
 	id="progress-modal"
-	class={`fixed inset-0 z-50 items-center justify-center bg-black/50 backdrop-blur-sm ${
-		isVisible ? 'flex' : 'hidden'
-	}`}
+	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
 	role="dialog"
 	aria-modal="true"
 	aria-labelledby="progress-modal-title"
@@ -47,27 +27,24 @@ const hasError = errorStep >= 0
 				Por favor espera mientras procesamos tu solicitud
 			</p>
 		</div>
-		
+
 		<ProgressStepper
 			steps={steps}
-			currentStep={currentStep}
-			completedSteps={completedSteps}
-			errorStep={errorStep}
+			currentStep={-1}
+			completedSteps={[]}
+			errorStep={-1}
 			className="mb-6"
 		/>
-		
-		<!-- Botón de cerrar (solo visible si hay error) -->
-		{hasError && (
-			<div class="text-center">
-				<button
-					type="button"
-					id="btn-close-progress"
-					class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
-					onclick={`window.${onClose}?.()`}
-				>
-					Cerrar
-				</button>
-			</div>
-		)}
+
+		<!-- Close button (only visible if there is an error) -->
+		<div class="hidden text-center" data-progress-error-actions>
+			<button
+				type="button"
+				id="btn-close-progress"
+				class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
+			>
+				Cerrar
+			</button>
+		</div>
 	</div>
 </div>

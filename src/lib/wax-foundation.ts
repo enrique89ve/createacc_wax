@@ -21,3 +21,16 @@ export async function getWaxFoundation(): Promise<WaxFoundation> {
 		throw error
 	}
 }
+
+/**
+ * Pre-warm the WASM compilation so it's ready when needed.
+ * Fires and forgets — errors are silently ignored.
+ */
+export function prewarmWaxFoundation(): void {
+	if (!waxFoundationPromise) {
+		waxFoundationPromise = createWaxFoundation()
+		waxFoundationPromise.catch(() => {
+			waxFoundationPromise = undefined
+		})
+	}
+}

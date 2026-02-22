@@ -18,6 +18,7 @@ export interface ClaimHashData {
 
 class ClaimHashCache {
 	private cache = new Map<string, ClaimHashData>()
+	private creditMappings = new Map<string, { creditId: number; expiresAt: number }>()
 	private readonly TTL = 10 * 60 * 1000 // 10 minutes in milliseconds
 	private readonly MAX_ENTRIES = 10_000
 
@@ -60,37 +61,75 @@ class ClaimHashCache {
 	}
 
 	/**
-	 * Validate and consume hash
+	 * Validate and consume hash (atomic — for flows without DB transactions)
 	 */
 	validateAndConsume(hash: string, username: string): ClaimHashData | null {
-		// Clean expired
+		const hashData = this.validate(hash, username)
+		if (!hashData) return null
+		this.cache.delete(hash)
+		return hashData
+	}
+
+	/**
+	 * Non-destructive validation — hash stays in cache.
+	 * Use this when the hash must survive a subsequent DB transaction
+	 * and only be consumed after successful COMMIT.
+	 */
+	validate(hash: string, username: string): ClaimHashData | null {
 		this.cleanup()
 
 		const hashData = this.cache.get(hash)
+		if (!hashData) return null
 
-		if (!hashData) {
-			return null
-		}
+		if (hashData.username !== username) return null
 
-		// Verify that the username matches
-		if (hashData.username !== username) {
-			return null
-		}
-
-		// Verify that it has not expired
 		if (Date.now() > hashData.expiresAt) {
 			this.cache.delete(hash)
 			return null
 		}
 
-		// Consume hash (remove it from cache)
-		this.cache.delete(hash)
-
 		return hashData
 	}
 
 	/**
-	 * Clean expired hashes
+	 * Consume a previously validated hash.
+	 * Call ONLY after a successful DB commit to guarantee
+	 * the user can retry if the transaction rolled back.
+	 */
+	consume(hash: string): boolean {
+		return this.cache.delete(hash)
+	}
+
+	/**
+	 * Store an opaque token → creditId mapping.
+	 * Used to avoid exposing internal DB IDs in claim codes.
+	 */
+	setCreditMapping(opaqueToken: string, creditId: number): void {
+		this.creditMappings.set(opaqueToken, {
+			creditId,
+			expiresAt: Date.now() + this.TTL,
+		})
+	}
+
+	/**
+	 * Retrieve and consume the creditId for an opaque token.
+	 * Returns null if not found or expired.
+	 */
+	getCreditMapping(opaqueToken: string): number | null {
+		const mapping = this.creditMappings.get(opaqueToken)
+		if (!mapping) return null
+
+		if (Date.now() > mapping.expiresAt) {
+			this.creditMappings.delete(opaqueToken)
+			return null
+		}
+
+		this.creditMappings.delete(opaqueToken)
+		return mapping.creditId
+	}
+
+	/**
+	 * Clean expired hashes and credit mappings
 	 */
 	cleanup(): void {
 		const now = Date.now()
@@ -100,6 +139,12 @@ class ClaimHashCache {
 				this.cache.delete(hash)
 			}
 		}
+
+		for (const [token, mapping] of this.creditMappings) {
+			if (now > mapping.expiresAt) {
+				this.creditMappings.delete(token)
+			}
+		}
 	}
 
 	/**
@@ -107,6 +152,7 @@ class ClaimHashCache {
 	 */
 	clear(): void {
 		this.cache.clear()
+		this.creditMappings.clear()
 	}
 }
 

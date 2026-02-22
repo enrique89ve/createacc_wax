@@ -582,6 +582,25 @@ export function parseNotificationRow(
   return converted
 }
 
+// ===== COLLECTION UTILITIES =====
+
+/**
+ * Single-pass parse + filter for DB rows.
+ * Replaces `.map(parse).filter(x => x !== null)` chains
+ * that allocate two intermediate arrays.
+ */
+export function compactMap<T>(
+  rows: readonly unknown[],
+  parser: (row: unknown) => T | null
+): T[] {
+  const result: T[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const parsed = parser(rows[i])
+    if (parsed !== null) result.push(parsed)
+  }
+  return result
+}
+
 // ===== ERROR CODES =====
 import {
   DATABASE_ERROR_CODES as UNIFIED_DATABASE_CODES,

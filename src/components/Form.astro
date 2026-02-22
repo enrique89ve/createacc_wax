@@ -160,6 +160,8 @@ const { ticket = '' } = Astro.props as Props
 	import { notify } from '@/utils/toast'
 	import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
 	import { TIMING_THRESHOLDS } from '@/consts/pow'
+	import { navigate } from 'astro:transitions/client'
+	import { prewarmWaxFoundation } from '@/lib/wax-foundation'
 
 	let debounceTimer: ReturnType<typeof setTimeout>
 
@@ -563,6 +565,9 @@ const { ticket = '' } = Astro.props as Props
 			elements.submitButton.classList.remove('opacity-50', 'cursor-not-allowed')
 			elements.submitButton.classList.add('cursor-pointer')
 
+			// Pre-warm WAX WASM for the details page (user likely to navigate soon)
+			prewarmWaxFoundation()
+
 			// Pre-solve PoW in background (user likely to submit soon)
 			if (!preSolvedPow) {
 				preSolvedPowAt = Date.now()
@@ -791,7 +796,7 @@ const { ticket = '' } = Astro.props as Props
 		try {
 			await createSession(username, ticket, pow, resolvedSessionToken)
 			disposeHiveChain()
-			window.location.href = `/details/${username}`
+			navigate(`/details/${username}`)
 		} catch {
 			isSubmitting = false
 			showSubmitError(originalText)

@@ -4,8 +4,12 @@
  * Eliminates code duplication in permission checks
  */
 
-import type { AdminSession } from '@/types/auth'
+import type { AdminSession, BuilderSession } from '@/types/auth'
 import { UserRole } from '@/lib/roles'
+import { logger } from '@/lib/logger'
+
+/** Union of all authenticated session types for RBAC */
+export type AuthenticatedSession = AdminSession | BuilderSession
 
 // ===== MANAGEMENT PERMISSIONS =====
 
@@ -35,6 +39,10 @@ export const MANAGEMENT_OPERATIONS = {
 	CLAIM_CREDITS: UserRole.Builder, // Builder claims pending credits
 	VIEW_OWN_CREDITS: UserRole.Builder, // Builder views their credits
 	MANAGE_ALL_CREDITS: UserRole.Admin, // Admin manages all credits
+
+	// Builder-specific Operations
+	UPDATE_OWN_TICKET: UserRole.Builder, // Builder updates their own ticket
+	VIEW_OWN_ACCOUNTS: UserRole.Builder, // Builder views their created accounts
 } as const
 
 export type ManagementOperation = keyof typeof MANAGEMENT_OPERATIONS
@@ -45,7 +53,7 @@ export type ManagementOperation = keyof typeof MANAGEMENT_OPERATIONS
  * Check if session has permission for an operation
  */
 export function canPerform(
-	session: AdminSession | null | undefined,
+	session: AuthenticatedSession | null | undefined,
 	operation: ManagementOperation
 ): boolean {
 	if (!session) return false
@@ -66,13 +74,15 @@ export function canPerform(
  * Use in API routes for authorization
  */
 export function assertCanPerform(
-	session: AdminSession | null | undefined,
+	session: AuthenticatedSession | null | undefined,
 	operation: ManagementOperation,
 	context?: string
-): asserts session is AdminSession {
+): asserts session is AuthenticatedSession {
 	if (!canPerform(session, operation)) {
 		const role = session?.role || 'anonymous'
+		const userId = session && 'userId' in session ? session.userId : 'none'
 		const contextMsg = context ? ` [${context}]` : ''
+		logger.warn(`[RBAC] Denied: ${role} (id=${userId}) → ${operation}${contextMsg}`)
 		throw new Error(`Unauthorized: ${role} cannot perform ${operation}${contextMsg}`)
 	}
 }
@@ -82,8 +92,8 @@ export function assertCanPerform(
  * Convenience function for common check
  */
 export function isAdmin(
-	session: AdminSession | null | undefined
-): session is AdminSession {
+	session: AuthenticatedSession | null | undefined
+): session is AuthenticatedSession {
 	return session?.role === UserRole.Admin
 }
 
@@ -92,8 +102,8 @@ export function isAdmin(
  * Convenience function for common check
  */
 export function isBuilder(
-	session: AdminSession | null | undefined
-): session is AdminSession {
+	session: AuthenticatedSession | null | undefined
+): session is AuthenticatedSession {
 	return session?.role === UserRole.Builder
 }
 
@@ -102,9 +112,9 @@ export function isBuilder(
  * Use for admin-only routes
  */
 export function assertAdmin(
-	session: AdminSession | null | undefined,
+	session: AuthenticatedSession | null | undefined,
 	context?: string
-): asserts session is AdminSession {
+): asserts session is AuthenticatedSession {
 	assertCanPerform(session, 'MANAGE_BUILDERS', context)
 }
 
@@ -113,9 +123,9 @@ export function assertAdmin(
  * Use for builder-only routes
  */
 export function assertBuilder(
-	session: AdminSession | null | undefined,
+	session: AuthenticatedSession | null | undefined,
 	context?: string
-): asserts session is AdminSession {
+): asserts session is AuthenticatedSession {
 	assertCanPerform(session, 'CLAIM_CREDITS', context)
 }
 
@@ -139,9 +149,9 @@ export function unauthorizedResponse(
  * Automatically returns 403 if unauthorized
  */
 export function requireOperation(
-	session: AdminSession | null | undefined,
+	session: AuthenticatedSession | null | undefined,
 	operation: ManagementOperation
-): session is AdminSession {
+): session is AuthenticatedSession {
 	return canPerform(session, operation)
 }
 
@@ -166,6 +176,8 @@ export const OPERATION_DESCRIPTIONS: Record<ManagementOperation, string> = {
 	CLAIM_CREDITS: 'Reclamar créditos pendientes',
 	VIEW_OWN_CREDITS: 'Ver créditos propios',
 	MANAGE_ALL_CREDITS: 'Gestionar todos los créditos',
+	UPDATE_OWN_TICKET: 'Actualizar ticket propio',
+	VIEW_OWN_ACCOUNTS: 'Ver cuentas propias',
 }
 
 /**

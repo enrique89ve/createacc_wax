@@ -15,6 +15,7 @@ import { db } from '@/lib/database'
 // Logger removed
 import {
   parseAccountRow,
+  compactMap,
   type DatabaseAccountRow,
   type CreateAccountData,
 } from '@/types/database'
@@ -159,9 +160,7 @@ export class AccountsRepository {
         args: [ticketCode],
       })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }
@@ -184,9 +183,7 @@ export class AccountsRepository {
         args: [from, to],
       })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }
@@ -205,9 +202,7 @@ export class AccountsRepository {
         args: [],
       })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }
@@ -227,9 +222,7 @@ export class AccountsRepository {
         args: [limit],
       })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }
@@ -249,9 +242,7 @@ export class AccountsRepository {
         args: [`%${pattern}%`],
       })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }
@@ -306,9 +297,7 @@ export class AccountsRepository {
 
       const result = await db.execute({ sql, args })
 
-      return result.rows
-        .map(row => parseAccountRow(row))
-        .filter((account): account is DatabaseAccountRow => account !== null)
+      return compactMap(result.rows, parseAccountRow)
     } catch (error) {
       throw error
     }

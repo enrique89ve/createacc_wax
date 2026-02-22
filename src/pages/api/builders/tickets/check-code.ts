@@ -4,86 +4,51 @@
  * Endpoint for builders that validates if a ticket code is available
  * before creating the ticket. Only verifies availability, does not validate format.
  *
- * GET /api/tickets/check-code?code=ABC123
+ * GET /api/builders/tickets/check-code?code=ABC123
  */
 
 import type { APIRoute } from 'astro'
-import { getSession } from 'auth-astro/server'
+import { withBuilderApiSession } from '@/lib/session-helpers'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/admin/permissions-management'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { HTTP_STATUS } from '@/consts/constants'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
 
-export const GET: APIRoute = async ({ request, url }) => {
-	try {
-		const session = await getSession(request)
-
-		// Only authenticated users (builders and admins)
-		if (!session?.user) {
-			return new Response(
-				JSON.stringify({
-					available: false,
-					error: 'No autorizado',
-				}),
-				{
-					status: HTTP_STATUS.UNAUTHORIZED,
-					headers: { 'Content-Type': 'application/json' },
-				}
-			)
+export const GET: APIRoute = async (context) => {
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'CREATE_TICKET', 'GET /api/builders/tickets/check-code')
+		} catch {
+			return unauthorizedResponse()
 		}
 
-		const code = url.searchParams.get('code')
+		try {
+			const code = context.url.searchParams.get('code')
 
-		if (!code || !code.trim()) {
-			return new Response(
-				JSON.stringify({
-					available: false,
-					error: 'Código no especificado',
-				}),
-				{
-					status: HTTP_STATUS.BAD_REQUEST,
-					headers: { 'Content-Type': 'application/json' },
-				}
-			)
-		}
-
-		const ticketCode = code.trim().toUpperCase()
-
-		// Verify if the code already exists
-		const existingTicket = await ticketsRepository.findByCode(ticketCode)
-
-		if (existingTicket) {
-			return new Response(
-				JSON.stringify({
-					available: false,
-					message: 'El código ya está en uso',
-				}),
-				{
-					status: HTTP_STATUS.OK,
-					headers: { 'Content-Type': 'application/json' },
-				}
-			)
-		}
-
-		// Code available
-		return new Response(
-			JSON.stringify({
-				available: true,
-				message: 'Código disponible',
-			}),
-			{
-				status: HTTP_STATUS.OK,
-				headers: { 'Content-Type': 'application/json' },
+			if (!code || !code.trim()) {
+				return apiError('Código no especificado', HTTP_STATUS.BAD_REQUEST)
 			}
-		)
-	} catch (error) {
-		return new Response(
-			JSON.stringify({
-				available: false,
-				error: 'Error interno del servidor',
-			}),
-			{
-				status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-				headers: { 'Content-Type': 'application/json' },
+
+			const ticketCode = code.trim().toUpperCase()
+
+			const existingTicket = await ticketsRepository.findByCode(ticketCode)
+
+			if (existingTicket) {
+				return apiSuccess(
+					{ available: false, message: 'El código ya está en uso' },
+					HTTP_STATUS.OK
+				)
 			}
-		)
-	}
+
+			return apiSuccess(
+				{ available: true, message: 'Código disponible' },
+				HTTP_STATUS.OK
+			)
+		} catch (error) {
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }

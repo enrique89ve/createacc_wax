@@ -1,5 +1,5 @@
 /**
- * 🎫 BUILDERS API: TICKET BY ID
+ * BUILDERS API: TICKET BY ID
  *
  * PATCH  /api/builders/tickets/:id - Update ticket credits
  * DELETE /api/builders/tickets/:id - Delete a ticket
@@ -8,193 +8,187 @@
 import type { APIRoute } from 'astro'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
-import {
-  getAuthenticatedBuilderId,
-  handleAuthError,
-} from '@/lib/auth/builder-auth'
+import { withBuilderApiSession } from '@/lib/session-helpers'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/admin/permissions-management'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
+import { withTransaction } from '@/lib/database'
 import { validateCreditsDelta } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 import type {
-  UpdateTicketCreditsRequest,
-  UpdateTicketCreditsResponse,
-  DeleteTicketResponse,
+	UpdateTicketCreditsRequest,
+	UpdateTicketCreditsResponse,
+	DeleteTicketResponse,
 } from '@/types/api-contracts'
 
 /**
  * PATCH /api/builders/tickets/:id
  * Update ticket credits (add or reduce)
  */
-export const PATCH: APIRoute = async ({ request, params }) => {
-  try {
-    const builderId = await getAuthenticatedBuilderId(request)
+export const PATCH: APIRoute = async (context) => {
+	const csrfCheck = requireValidOrigin(context.request)
+	if (csrfCheck) return csrfCheck
 
-    const ticketId = Number(params.id)
-    if (!ticketId || isNaN(ticketId)) {
-      return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
-    }
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'UPDATE_OWN_TICKET', 'PATCH /api/builders/tickets/:id')
+		} catch {
+			return unauthorizedResponse()
+		}
 
-    const body: UpdateTicketCreditsRequest = await request.json()
-    const { code, delta } = body
+		try {
+			const ticketId = Number(context.params.id)
+			if (!ticketId || isNaN(ticketId)) {
+				return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
+			}
 
-    // Validate that the ticket exists and belongs to the builder
-    const ticket = await ticketsRepository.findById(ticketId)
+			const body: UpdateTicketCreditsRequest = await context.request.json()
+			const { code, delta } = body
 
-    if (!ticket) {
-      return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-    }
+			const ticket = await ticketsRepository.findById(ticketId)
 
-    if (ticket.created_by !== builderId) {
-      return apiError(
-        'No tienes permisos para modificar este ticket',
-        HTTP_STATUS.FORBIDDEN
-      )
-    }
+			if (!ticket) {
+				return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+			}
 
-    // Verify that the code matches (additional security)
-    if (ticket.code !== code) {
-      return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
-    }
+			if (ticket.created_by !== session.userId) {
+				return apiError(
+					'No tienes permisos para modificar este ticket',
+					HTTP_STATUS.FORBIDDEN
+				)
+			}
 
-    // Validate delta (validate against current credits, not original ones)
-    const deltaValidation = validateCreditsDelta(ticket.credits, delta)
-    if (!isValidationSuccess(deltaValidation)) {
-      return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
-    }
+			if (ticket.code !== code) {
+				return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
+			}
 
-    const { newCredits } = deltaValidation.data
+			const deltaValidation = validateCreditsDelta(ticket.credits, delta)
+			if (!isValidationSuccess(deltaValidation)) {
+				return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+			}
 
-    // If delta is positive, verify available builder credits
-    if (delta > 0) {
-      const validation = await creditBalanceTracker.validateOperation(
-        builderId,
-        'deduct',
-        delta
-      )
+			const { newCredits } = deltaValidation.data
 
-      if (!validation.valid) {
-        return apiError(
-          validation.reason || 'No tienes suficientes créditos disponibles',
-          HTTP_STATUS.BAD_REQUEST
-        )
-      }
+			if (delta > 0) {
+				const validation = await creditBalanceTracker.validateOperation(
+					session.userId,
+					'deduct',
+					delta
+				)
 
-      // Deduct credits from builder
-      await creditsService.deductCreditsForTicket(builderId, delta, ticket.code)
-    }
+				if (!validation.valid) {
+					return apiError(
+						validation.reason || 'No tienes suficientes créditos disponibles',
+						HTTP_STATUS.BAD_REQUEST
+					)
+				}
+			}
 
-    // If delta is negative, return credits to builder
-    if (delta < 0) {
-      // Refund credits to builder
-      await creditsService.refundCreditsFromTicket(
-        builderId,
-        Math.abs(delta),
-        ticket.code
-      )
-    }
+			await withTransaction(async () => {
+				if (delta > 0) {
+					await creditsService.deductCreditsForTicket(session.userId, delta, ticket.code)
+				}
 
-    // Update the ticket
-    await ticketsRepository.update(ticketId, {
-      credits: ticket.credits + delta,
-      original_credits: newCredits,
-    })
+				if (delta < 0) {
+					await creditsService.refundCreditsFromTicket(
+						session.userId,
+						Math.abs(delta),
+						ticket.code
+					)
+				}
 
-    const response: UpdateTicketCreditsResponse = {
-      success: true,
-      message: 'Ticket actualizado exitosamente',
-      oldCredits: ticket.credits,
-      newCredits: newCredits,
-    }
+				await ticketsRepository.update(ticketId, {
+					credits: ticket.credits + delta,
+					original_credits: newCredits,
+				})
+			})
 
-    return apiSuccess(response, HTTP_STATUS.OK)
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.name === 'UnauthenticatedError' ||
-        error.name === 'NotBuilderError')
-    ) {
-      return handleAuthError(error)
-    }
+			const response: UpdateTicketCreditsResponse = {
+				success: true,
+				message: 'Ticket actualizado exitosamente',
+				oldCredits: ticket.credits,
+				newCredits: newCredits,
+			}
 
-    logger.error('Error updating ticket:', error)
-    return apiError(
-      'Error interno del servidor',
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    )
-  }
+			return apiSuccess(response, HTTP_STATUS.OK)
+		} catch (error) {
+			logger.error('Error updating ticket:', error)
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }
 
 /**
  * DELETE /api/builders/tickets/:id
  * Delete a ticket (only if it has not been used)
  */
-export const DELETE: APIRoute = async ({ request, params }) => {
-  try {
-    const builderId = await getAuthenticatedBuilderId(request)
+export const DELETE: APIRoute = async (context) => {
+	const csrfCheck = requireValidOrigin(context.request)
+	if (csrfCheck) return csrfCheck
 
-    const ticketId = Number(params.id)
-    if (!ticketId || isNaN(ticketId)) {
-      return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
-    }
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'DELETE_OWN_TICKET', 'DELETE /api/builders/tickets/:id')
+		} catch {
+			return unauthorizedResponse()
+		}
 
-    // Verify that the ticket exists and belongs to the builder
-    const ticket = await ticketsRepository.findById(ticketId)
+		try {
+			const ticketId = Number(context.params.id)
+			if (!ticketId || isNaN(ticketId)) {
+				return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
+			}
 
-    if (!ticket) {
-      return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-    }
+			const ticket = await ticketsRepository.findById(ticketId)
 
-    if (ticket.created_by !== builderId) {
-      return apiError(
-        'No tienes permisos para eliminar este ticket',
-        HTTP_STATUS.FORBIDDEN
-      )
-    }
+			if (!ticket) {
+				return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+			}
 
-    // Calculate credits to refund:
-    // - If the ticket was NOT used: refund original credits
-    // - If the ticket WAS used: refund only the remaining credits (not the consumed ones)
-    const creditsToRefund = ticket.has_been_used
-      ? ticket.credits // Only the remaining credits
-      : ticket.original_credits // All the original credits
+			if (ticket.created_by !== session.userId) {
+				return apiError(
+					'No tienes permisos para eliminar este ticket',
+					HTTP_STATUS.FORBIDDEN
+				)
+			}
 
-    // Refund credits to builder (if there are credits to refund)
-    if (creditsToRefund > 0) {
-      await creditsService.refundCreditsFromTicket(
-        builderId,
-        creditsToRefund,
-        ticket.code
-      )
-    }
+			const creditsToRefund = ticket.has_been_used
+				? ticket.credits
+				: ticket.original_credits
 
-    // Delete the ticket
-    await ticketsRepository.delete(ticketId)
+			await withTransaction(async () => {
+				if (creditsToRefund > 0) {
+					await creditsService.refundCreditsFromTicket(
+						session.userId,
+						creditsToRefund,
+						ticket.code
+					)
+				}
 
-    const response: DeleteTicketResponse = {
-      success: true,
-      message: ticket.has_been_used
-        ? `Ticket eliminado. Se reembolsaron ${creditsToRefund} créditos restantes.`
-        : 'Ticket eliminado exitosamente',
-      refundedCredits: creditsToRefund,
-    }
+				await ticketsRepository.delete(ticketId)
+			})
 
-    return apiSuccess(response, HTTP_STATUS.OK)
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      (error.name === 'UnauthenticatedError' ||
-        error.name === 'NotBuilderError')
-    ) {
-      return handleAuthError(error)
-    }
+			const response: DeleteTicketResponse = {
+				success: true,
+				message: ticket.has_been_used
+					? `Ticket eliminado. Se reembolsaron ${creditsToRefund} créditos restantes.`
+					: 'Ticket eliminado exitosamente',
+				refundedCredits: creditsToRefund,
+			}
 
-    logger.error('Error deleting ticket:', error)
-    return apiError(
-      'Error interno del servidor',
-      HTTP_STATUS.INTERNAL_SERVER_ERROR
-    )
-  }
+			return apiSuccess(response, HTTP_STATUS.OK)
+		} catch (error) {
+			logger.error('Error deleting ticket:', error)
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }

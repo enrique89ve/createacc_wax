@@ -1,5 +1,5 @@
 /**
- * 🎫 BUILDERS API: TICKETS
+ * BUILDERS API: TICKETS
  *
  * GET  /api/builders/tickets - List authenticated builder tickets
  * POST /api/builders/tickets - Create new ticket
@@ -8,13 +8,12 @@
 import type { APIRoute } from 'astro'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
-import {
-	getAuthenticatedBuilderId,
-	handleAuthError,
-} from '@/lib/auth/builder-auth'
+import { withBuilderApiSession } from '@/lib/session-helpers'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/admin/permissions-management'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
+import { withTransaction } from '@/lib/database'
 import {
 	validateTicketName,
 	validateTicketCredits,
@@ -32,124 +31,125 @@ import type {
  * GET /api/builders/tickets
  * List all tickets of the authenticated builder
  */
-export const GET: APIRoute = async ({ request }) => {
-	try {
-		const builderId = await getAuthenticatedBuilderId(request)
+export const GET: APIRoute = async (context) => {
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'VIEW_OWN_TICKETS', 'GET /api/builders/tickets')
+		} catch {
+			return unauthorizedResponse()
+		}
 
-		// Get tickets with creator information
-		const tickets = await ticketsRepository.getBuilderTicketsWithCreator(
-			builderId
-		)
+		try {
+			const tickets = await ticketsRepository.getBuilderTicketsWithCreator(
+				session.userId
+			)
 
-		return apiSuccess(
-			{
-				tickets,
-				total: tickets.length,
-			},
-			HTTP_STATUS.OK
-		)
-	} catch (error) {
-		return handleAuthError(error)
-	}
+			return apiSuccess(
+				{
+					tickets,
+					total: tickets.length,
+				},
+				HTTP_STATUS.OK
+			)
+		} catch (error) {
+			logger.error('Error listing tickets:', error)
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }
 
 /**
  * POST /api/builders/tickets
  * Create a new ticket
  */
-export const POST: APIRoute = async ({ request }) => {
-	// CSRF Protection
-	const csrfCheck = requireValidOrigin(request)
+export const POST: APIRoute = async (context) => {
+	const csrfCheck = requireValidOrigin(context.request)
 	if (csrfCheck) return csrfCheck
 
-	try {
-		const builderId = await getAuthenticatedBuilderId(request)
-
-		const body: CreateTicketRequest = await request.json()
-		const { code, credits, description } = body
-
-		// Validate ticket name
-		const codeValidation = validateTicketName(code)
-		if (!isValidationSuccess(codeValidation)) {
-			return apiError(codeValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'CREATE_TICKET', 'POST /api/builders/tickets')
+		} catch {
+			return unauthorizedResponse()
 		}
 
-		// Validate credits
-		const creditsValidation = validateTicketCredits(credits)
-		if (!isValidationSuccess(creditsValidation)) {
-			return apiError(creditsValidation.error.message, HTTP_STATUS.BAD_REQUEST)
-		}
+		try {
+			const body: CreateTicketRequest = await context.request.json()
+			const { code, credits, description } = body
 
-		// Validate description (optional)
-		const descriptionValidation = validateTicketDescription(description)
-		if (!isValidationSuccess(descriptionValidation)) {
-			return apiError(descriptionValidation.error.message, HTTP_STATUS.BAD_REQUEST)
-		}
+			const codeValidation = validateTicketName(code)
+			if (!isValidationSuccess(codeValidation)) {
+				return apiError(codeValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+			}
 
-		const ticketCode = codeValidation.data
-		const ticketCredits = creditsValidation.data
-		const ticketDescription = descriptionValidation.data
+			const creditsValidation = validateTicketCredits(credits)
+			if (!isValidationSuccess(creditsValidation)) {
+				return apiError(creditsValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+			}
 
-		// Verify if the code already exists
-		const existingTicket = await ticketsRepository.findByCode(ticketCode)
-		if (existingTicket) {
+			const descriptionValidation = validateTicketDescription(description)
+			if (!isValidationSuccess(descriptionValidation)) {
+				return apiError(descriptionValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+			}
+
+			const ticketCode = codeValidation.data
+			const ticketCredits = creditsValidation.data
+			const ticketDescription = descriptionValidation.data
+
+			const existingTicket = await ticketsRepository.findByCode(ticketCode)
+			if (existingTicket) {
+				return apiError(
+					'Ya existe un ticket con ese código',
+					HTTP_STATUS.CONFLICT
+				)
+			}
+
+			const validation = await creditBalanceTracker.validateOperation(
+				session.userId,
+				'deduct',
+				ticketCredits
+			)
+
+			if (!validation.valid) {
+				return apiError(
+					validation.reason || 'Operación inválida',
+					HTTP_STATUS.BAD_REQUEST
+				)
+			}
+
+			const createdTicket = await withTransaction(async () => {
+				await creditsService.deductCreditsForTicket(
+					session.userId,
+					ticketCredits,
+					ticketCode
+				)
+
+				return ticketsRepository.create({
+					code: ticketCode,
+					description: ticketDescription,
+					original_credits: ticketCredits,
+					credits: ticketCredits,
+					created_by: session.userId,
+				})
+			})
+
+			const response: CreateTicketResponse = {
+				success: true,
+				ticketId: createdTicket.id,
+				code: createdTicket.code,
+				credits: createdTicket.original_credits,
+			}
+
+			return apiSuccess(response, HTTP_STATUS.OK)
+		} catch (error) {
+			logger.error('Error creating ticket:', error)
 			return apiError(
-				'Ya existe un ticket con ese código',
-				HTTP_STATUS.CONFLICT
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
 			)
 		}
-
-		// Verify that the builder has enough credits
-		const validation = await creditBalanceTracker.validateOperation(
-			builderId,
-			'deduct',
-			ticketCredits
-		)
-
-		if (!validation.valid) {
-			return apiError(
-				validation.reason || 'Operación inválida',
-				HTTP_STATUS.BAD_REQUEST
-			)
-		}
-
-		// Deduct credits using credits-service
-		await creditsService.deductCreditsForTicket(
-			builderId,
-			ticketCredits,
-			ticketCode
-		)
-
-		// Create the ticket
-		const createdTicket = await ticketsRepository.create({
-			code: ticketCode,
-			description: ticketDescription,
-			original_credits: ticketCredits,
-			credits: ticketCredits,
-			created_by: builderId,
-		})
-
-		const response: CreateTicketResponse = {
-			success: true,
-			ticketId: createdTicket.id,
-			code: createdTicket.code,
-			credits: createdTicket.original_credits,
-		}
-
-		return apiSuccess(response, HTTP_STATUS.OK)
-	} catch (error) {
-		if (
-			error instanceof Error &&
-			(error.name === 'UnauthenticatedError' ||
-				error.name === 'NotBuilderError')
-		) {
-			return handleAuthError(error)
-		}
-
-		logger.error('Error creating ticket:', error)
-		return apiError(
-			'Error interno del servidor',
-			HTTP_STATUS.INTERNAL_SERVER_ERROR
-		)
-	}
+	})
 }

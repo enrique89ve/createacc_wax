@@ -1,126 +1,103 @@
+/**
+ * API: Generate claim hash for credit claiming via Keychain
+ *
+ * POST /api/builders/credits/claim-hash
+ */
+
 import type { APIRoute } from 'astro'
-import { getSession } from 'auth-astro/server'
+import { randomBytes } from 'crypto'
 import { db } from '@/lib/database'
 import { HTTP_STATUS } from '@/consts/constants'
 import { BRAND } from '@/consts/branding'
-import { UserRole } from '@/lib/roles'
 import { claimHashCache } from '@/lib/claim-hash-cache'
+import { withBuilderApiSession } from '@/lib/session-helpers'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/admin/permissions-management'
+import { apiSuccess, apiError } from '@/utils/errorResponse'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 
-/** Partial row from SELECT id */
-interface UserIdRow {
-  readonly id: number
-}
+export const POST: APIRoute = async (context) => {
+	const csrfCheck = requireValidOrigin(context.request)
+	if (csrfCheck) return csrfCheck
 
-/** Partial row from SELECT id, pending_amount */
-interface CreditPendingRow {
-  readonly id: number
-  readonly pending_amount: number
-}
+	return withBuilderApiSession(context, async (session) => {
+		try {
+			assertCanPerform(session, 'CLAIM_CREDITS', 'POST /api/builders/credits/claim-hash')
+		} catch {
+			return unauthorizedResponse()
+		}
 
-export const POST: APIRoute = async ({ request }) => {
-  try {
-    const session = await getSession(request)
+		try {
+			// Belt-and-suspenders: verify builder is active in DB for credit operations
+			const builderResult = await db.execute({
+				sql: 'SELECT id FROM Users WHERE id = ? AND is_active = TRUE',
+				args: [session.userId],
+			})
 
-    if (!session?.user?.username) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'No autorizado' }),
-        {
-          status: HTTP_STATUS.UNAUTHORIZED,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			if (builderResult.rows.length === 0) {
+				return apiError(
+					'Solo los builders activos pueden reclamar créditos',
+					HTTP_STATUS.FORBIDDEN
+				)
+			}
 
-    // Verify that the user is an active builder
-    const builderResult = await db.execute({
-      sql: `SELECT id FROM Users WHERE username = ? AND role = ? AND is_active = TRUE`,
-      args: [session.user.username, UserRole.Builder],
-    })
+			// Verify that there are pending credits to claim
+			const pendingCreditsResult = await db.execute({
+				sql: `SELECT id, pending_amount FROM Credits
+					WHERE builder_id = ? AND pending_amount > 0
+					LIMIT 1`,
+				args: [session.userId],
+			})
 
-    if (builderResult.rows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Solo los builders pueden reclamar créditos',
-        }),
-        {
-          status: HTTP_STATUS.FORBIDDEN,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			if (pendingCreditsResult.rows.length === 0) {
+				return apiError(
+					'No hay créditos pendientes para reclamar',
+					HTTP_STATUS.NOT_FOUND
+				)
+			}
 
-    const builderId = (builderResult.rows[0] as unknown as UserIdRow).id
+			const pendingCredit = pendingCreditsResult.rows[0]
+			const creditsToGrant = Number(pendingCredit.pending_amount)
+			const creditId = Number(pendingCredit.id)
 
-    // Verify that there are pending credits to claim
-    const pendingCreditsResult = await db.execute({
-      sql: `SELECT id, pending_amount FROM Credits
-            WHERE builder_id = ? AND pending_amount > 0
-            LIMIT 1`,
-      args: [builderId],
-    })
+			// Opaque claim code — maps internally to creditId without exposing it
+			const opaqueToken = randomBytes(12).toString('hex')
+			const claimCode = `claim_${opaqueToken}`
 
-    if (pendingCreditsResult.rows.length === 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'No hay créditos pendientes para reclamar',
-        }),
-        {
-          status: HTTP_STATUS.NOT_FOUND,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      )
-    }
+			// Store the creditId mapping inside the hash cache (via ticketCode field)
+			// claim-verify extracts creditId from this internal mapping
+			claimHashCache.setCreditMapping(opaqueToken, creditId)
 
-    const pendingCredit = pendingCreditsResult.rows[0] as unknown as CreditPendingRow
-    const creditsToGrant = Number(pendingCredit.pending_amount)
-    const creditId = pendingCredit.id
+			// Generate hash and store in cache
+			const hashData = claimHashCache.generateHash(
+				session.username,
+				claimCode,
+				creditsToGrant
+			)
 
-    // Generate unique code for this claim
-    const claimCode = `credit_${creditId}_${Date.now()}`
+			// Create the custom JSON structure for Keychain
+			const customJson = {
+				id: 'claim_credits',
+				json: {
+					app: BRAND.CLAIM_APP_ID,
+					hash: hashData.hash,
+					username: session.username,
+					timestamp: hashData.createdAt,
+					action: 'claim_credits',
+				},
+			}
 
-    // Generate hash and store in cache
-    const hashData = claimHashCache.generateHash(
-      session.user.username,
-      claimCode,
-      creditsToGrant
-    )
-
-    // Create the custom JSON structure for Keychain
-    const customJson = {
-      id: 'claim_credits',
-      json: {
-        app: BRAND.CLAIM_APP_ID,
-        hash: hashData.hash,
-        username: session.user.username,
-        timestamp: hashData.createdAt,
-        action: 'claim_credits',
-      },
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        hash: hashData.hash,
-        customJson: customJson,
-        claimCode: claimCode,
-        // creditId removed for security - do not expose internal IDs
-        creditsAvailable: creditsToGrant,
-        expiresAt: new Date(hashData.expiresAt).toISOString(),
-      }),
-      {
-        status: HTTP_STATUS.OK,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Error interno del servidor' }),
-      {
-        status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
-  }
+			return apiSuccess({
+				hash: hashData.hash,
+				customJson,
+				claimCode,
+				creditsAvailable: creditsToGrant,
+				expiresAt: new Date(hashData.expiresAt).toISOString(),
+			})
+		} catch (error) {
+			return apiError(
+				'Error interno del servidor',
+				HTTP_STATUS.INTERNAL_SERVER_ERROR
+			)
+		}
+	})
 }

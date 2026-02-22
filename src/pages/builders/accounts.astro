@@ -3,30 +3,24 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import StatCard from '@/components/ui/StatCard.astro'
 import BuildersTable from '@/components/ui/BuildersTable.astro'
-import { getAuthenticatedUser, type AuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { usersRepository } from '@/lib/repositories/users-repository'
 
-// Verificar autenticación y obtener usuario
-const currentUser = await getAuthenticatedUser(Astro, 'builders')
+const builderUser = Astro.locals.builderUser
+const pendingBuilder = Astro.locals.pendingBuilder
+if (!builderUser && !pendingBuilder) return Astro.redirect('/builders/login')
 
-// Si currentUser es una Response, significa que se está redirigiendo
-if (currentUser instanceof Response) {
-  return currentUser
+let accounts: Awaited<ReturnType<typeof usersRepository.getAccountsByUser>> = []
+let stats = { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 }
+
+if (builderUser) {
+  const builderId = builderUser.userId
+  const [fetchedAccounts, fetchedStats] = await Promise.all([
+    usersRepository.getAccountsByUser(builderId),
+    usersRepository.getBuildersStats(builderId),
+  ])
+  accounts = fetchedAccounts
+  stats = fetchedStats
 }
-
-// Obtener datos usando el servicio centralizado
-// currentUser garantizado (ya se manejó el redirect arriba)
-const username = (currentUser as AuthenticatedUser).username
-const builder = await usersRepository.findByUsername(username)
-const builderId = builder?.id
-
-// Obtener cuentas y estadísticas
-const [accounts, stats] = await Promise.all([
-  builderId ? usersRepository.getAccountsByUser(builderId) : [],
-  builderId
-    ? usersRepository.getBuildersStats(builderId)
-    : { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 },
-])
 
 // Obtener última cuenta creada para la 3ra card
 const lastAccount = accounts.length > 0 ? accounts[0] : null

@@ -3,25 +3,14 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import StatCard from '@/components/ui/StatCard.astro'
 import { formatDateTime } from '@/utils/date-formatters'
-import { getAuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
-import { UserRole } from '@/lib/roles'
 
-// Autenticación centralizada - si no está autenticado, se redirige automáticamente
-const currentUser = await getAuthenticatedUser(Astro, 'builders')
+const builderUser = Astro.locals.builderUser
+const pendingBuilder = Astro.locals.pendingBuilder
+if (!builderUser && !pendingBuilder) return Astro.redirect('/builders/login')
 
-// Si currentUser es una Response, significa que se está redirigiendo
-if (currentUser instanceof Response) {
-  return currentUser
-}
-
-// Asegurar que tenemos un BuilderUser
-if (!currentUser || currentUser.role !== UserRole.Builder) {
-  return Astro.redirect('/builders/login')
-}
-
-const builderUsername = currentUser.username
+const builderUsername = builderUser?.username ?? pendingBuilder?.username ?? ''
 
 // Obtener información de créditos usando service
 let builderCredits = {
@@ -40,21 +29,23 @@ let creditHistory: Array<{
   readonly performed_by: number | null
 }> = []
 
-try {
-  const credits = await creditBalanceTracker.getBalance(builderUsername)
+if (builderUser) {
+  try {
+    const credits = await creditBalanceTracker.getBalance(builderUsername)
 
-  if (credits) {
-    builderCredits = {
-      pending: credits.pending_amount,
-      claimed: credits.available_amount,
-      consumed: credits.total_consumed,
-      builder_id: credits.builder_id,
+    if (credits) {
+      builderCredits = {
+        pending: credits.pending_amount,
+        claimed: credits.available_amount,
+        consumed: credits.total_consumed,
+        builder_id: credits.builder_id,
+      }
+
+      creditHistory = await creditsService.getCreditHistory(credits.builder_id)
     }
-
-    creditHistory = await creditsService.getCreditHistory(credits.builder_id)
+  } catch (_error) {
+    // Non-critical: page renders with default zero credits as fallback
   }
-} catch (_error) {
-	// Non-critical: page renders with default zero credits as fallback
 }
 
 // Calcular estadísticas

@@ -2,10 +2,7 @@ import type { APIRoute } from 'astro'
 import { withAdminSession } from '@/lib/session-helpers'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { usersRepository } from '@/lib/repositories/users-repository'
-import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { creditsService } from '@/lib/credits-service'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
-import { UserRole } from '@/lib/roles'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
 import {
@@ -21,22 +18,11 @@ interface TicketCreateRequest {
   readonly credits?: number
 }
 
-// GET: List tickets
+// GET: List tickets (admin sees all)
 export const GET: APIRoute = async context => {
-  return withAdminSession(context, async session => {
+  return withAdminSession(context, async () => {
     try {
-      let tickets
-
-      if (session.role === UserRole.Admin) {
-        // Admin can see all tickets
-        tickets = await ticketsRepository.getAllWithCreators()
-      } else {
-        // Builder only sees their tickets
-        tickets = await ticketsRepository.getUserTicketsWithCreator(
-          session.userId
-        )
-      }
-
+      const tickets = await ticketsRepository.getAllWithCreators()
       return apiSuccess({ tickets })
     } catch (error) {
       return apiError(API_MESSAGES.ERRORS.INTERNAL_ERROR, 500)
@@ -109,47 +95,12 @@ export const POST: APIRoute = async context => {
         return apiError(API_MESSAGES.ERRORS.USER_NOT_FOUND, 404)
       }
 
-      const username = userData.username
-
-      // Verify available credits for builders
-      if (session.role === UserRole.Builder) {
-        const userCredits = await creditBalanceTracker.getBalance(username)
-
-        if (!userCredits || userCredits.available_amount < credits) {
-          return apiError(
-            `Créditos insuficientes. Necesitas ${credits} créditos, pero solo tienes ${userCredits?.available_amount || 0} disponibles.`,
-            403,
-            {
-              required_credits: credits,
-              available_credits: userCredits?.available_amount || 0,
-            }
-          )
-        }
-      }
-
       // Validation: Code already exists
       if (await ticketCodeExists(cleanCode)) {
         return apiError(API_MESSAGES.ERRORS.TICKET_CODE_EXISTS, 400)
       }
 
-      // Consume credits (only for builders)
-      if (session.role === UserRole.Builder) {
-        try {
-          await creditsService.deductCreditsForTicket(
-            session.userId,
-            credits,
-            cleanCode
-          )
-        } catch (error) {
-          return apiError(
-            API_MESSAGES.ERRORS.CREDITS_DEDUCTION_ERROR,
-            500,
-            error instanceof Error ? error.message : 'Unknown error'
-          )
-        }
-      }
-
-      // Create ticket in database (using correct fields from new schema)
+      // Create ticket in database
       const ticketResult = await db.execute({
         sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
 					VALUES (?, ?, ?, ?, ?) RETURNING id`,
@@ -161,9 +112,6 @@ export const POST: APIRoute = async context => {
       // Audit log
       await createTicketAudit(cleanCode, session.userId)
 
-      // Get final balance
-      const finalUserCredits = await creditBalanceTracker.getBalance(username)
-
       return apiSuccess({
         message: API_MESSAGES.SUCCESS.TICKET_CREATED,
         ticket: {
@@ -171,10 +119,6 @@ export const POST: APIRoute = async context => {
           code: cleanCode,
           description: validDescription,
           original_credits: credits,
-        },
-        credits_info: {
-          credits_deducted: credits,
-          new_credits: finalUserCredits?.available_amount || 0,
         },
       }, 201)
     } catch (error) {

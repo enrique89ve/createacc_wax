@@ -1,10 +1,11 @@
 import type { APIContext } from 'astro'
 import { CreationSessionManager } from '@/lib/session-manager'
-import type { AdminSession } from '@/types/auth'
+import type { AdminSession, BuilderSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getSession } from 'auth-astro/server'
-import { parseRole } from '@/lib/roles'
+import { parseRole, UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
+import { db } from '@/lib/database'
 
 export interface RetrievedSessions {
   admin: import('@/types/auth').AdminSession | null
@@ -25,11 +26,11 @@ export async function getAdminSession(
       return null
     }
 
-    // Validate role - DO NOT degrade to builder if invalid
+    // Validate role — must be Admin for admin session
     const role = parseRole(session.user.role)
-    if (!role) {
-      logger.error('Invalid role in session, rejecting:', session.user.role)
-      return null // REJECT session with invalid role
+    if (role !== UserRole.Admin) {
+      logger.error('Non-admin role in admin session, rejecting:', session.user.role)
+      return null
     }
 
     // Convert Auth.js session to AdminSession format
@@ -162,4 +163,111 @@ export async function ensureCreation(context: APIContext) {
     return null
   }
   return context.locals.creation
+}
+
+// ===== BUILDER SESSION HELPERS =====
+
+/**
+ * Helper to get the builder session from Auth.js
+ * Validates role === Builder and checks is_active via DB query.
+ * Returns BuilderSession or null.
+ */
+export async function getBuilderSession(
+	request: Request
+): Promise<BuilderSession | null> {
+	try {
+		const session = await getSession(request)
+
+		if (!session?.user?.id || !session?.user?.username) {
+			return null
+		}
+
+		// Reject unregistered users (id=0 from temporary Keychain auth)
+		const userId = parseInt(session.user.id)
+		if (!userId || userId < 1) {
+			return null
+		}
+
+		const role = parseRole(session.user.role)
+		if (role !== UserRole.Builder) {
+			return null
+		}
+
+		// Verify builder is active in DB
+		const result = await db.execute({
+			sql: 'SELECT id, is_active FROM Users WHERE username = ? AND role = ?',
+			args: [session.user.username, UserRole.Builder],
+		})
+
+		if (result.rows.length === 0) {
+			return null
+		}
+
+		const isActive = Boolean(result.rows[0].is_active)
+		if (!isActive) {
+			logger.warn(`Inactive builder attempted access: ${session.user.username}`)
+			return null
+		}
+
+		// Use the real DB id, not the JWT id (which could be 0 for unregistered users)
+		const dbId = Number(result.rows[0].id)
+
+		return {
+			userId: dbId,
+			username: session.user.username,
+			role,
+			loginTime: session.user.loginTime,
+		}
+	} catch (error) {
+		return null
+	}
+}
+
+/**
+ * Specific helper for REST APIs that require builder session.
+ * Returns 401 Unauthorized instead of redirecting.
+ * Checks locals.builderUser first, falls back to getBuilderSession().
+ */
+export async function withBuilderApiSession<T>(
+	context: APIContext,
+	handler: (session: BuilderSession) => T | Promise<T>
+): Promise<T | Response> {
+	if (context.locals.builderUser) {
+		return handler(context.locals.builderUser)
+	}
+
+	const session = await getBuilderSession(context.request)
+
+	if (!session) {
+		return new Response(
+			JSON.stringify({ error: 'Unauthorized: Session required' }),
+			{
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			}
+		)
+	}
+
+	context.locals.builderUser = session
+	return handler(session)
+}
+
+/**
+ * Requires builder session for page frontmatter.
+ * Returns BuilderSession or redirect Response.
+ */
+export async function requireBuilder(
+	context: APIContext
+): Promise<BuilderSession | Response> {
+	if (context.locals.builderUser) {
+		return context.locals.builderUser
+	}
+
+	const session = await getBuilderSession(context.request)
+	if (!session) {
+		return context.redirect(ROUTES.BUILDERS_LOGIN)
+	}
+
+	context.locals.builderUser = session
+	return session
 }

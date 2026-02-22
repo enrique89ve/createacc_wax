@@ -12,7 +12,7 @@ import {
 import type { APIContext } from 'astro'
 import type { AdminSession, BuilderSession } from '@/types/auth'
 import type { AuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
-import { parseRole } from '@/lib/roles'
+import { parseRole, UserRole } from '@/lib/roles'
 import { getBooleanEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
 
@@ -28,8 +28,8 @@ function mapGuardResultToAdmin(guardResult: AuthenticatedUser): AdminSession {
 	}
 
 	const role = parseRole(guardResult.role)
-	if (!role) {
-		throw new Error(`Invalid role: ${guardResult.role}`)
+	if (role !== UserRole.Admin) {
+		throw new Error(`Invalid role for admin: ${guardResult.role}`)
 	}
 
 	return {
@@ -53,8 +53,8 @@ function mapGuardResultToBuilder(guardResult: AuthenticatedUser): BuilderSession
 	}
 
 	const role = parseRole(guardResult.role)
-	if (!role) {
-		throw new Error(`Invalid role: ${guardResult.role}`)
+	if (role !== UserRole.Builder) {
+		throw new Error(`Invalid role for builder: ${guardResult.role}`)
 	}
 
 	return {
@@ -110,6 +110,11 @@ async function protectManagementRoutes(
 /**
  * Protects routes under /builders/ using auth guards.
  * Stores authenticated builder in locals.builderUser.
+ *
+ * Two outcomes:
+ * 1. Not authenticated → redirect to login
+ * 2. Authenticated and registered → set locals.builderUser, proceed
+ * 3. Authenticated but not registered (id=0) → set locals.pendingBuilder, show empty panel
  */
 async function protectBuildersRoutes(
 	context: APIContext
@@ -140,9 +145,14 @@ async function protectBuildersRoutes(
 			context.locals.builderUser = mapGuardResultToBuilder(authResult.user)
 		}
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown mapping error'
-		logger.warn(`[middleware] Builder guard mapping error: ${errorMessage}`)
-		return context.redirect(ROUTES.BUILDERS_LOGIN)
+		const message = error instanceof Error ? error.message : ''
+		// Only treat as pending builder for the specific id=0 case
+		if (message.includes('Invalid user ID') && authResult.user?.username) {
+			context.locals.pendingBuilder = { username: authResult.user.username }
+		} else {
+			logger.warn(`[middleware] Builder mapping error: ${message}`)
+			return context.redirect(ROUTES.BUILDERS_LOGIN)
+		}
 	}
 
 	return null
