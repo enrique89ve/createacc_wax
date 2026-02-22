@@ -1,23 +1,11 @@
 import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
-import { TIMING_FLOOR_MS, CHALLENGE_TTL_MS } from '@/consts/pow'
+import { TIMING_FLOOR_MS } from '@/consts/pow'
+import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
 import type { PreSolvedBundle } from './types'
-
-/** Discard pre-solved PoW after 4min (challenge TTL is 5min on server). */
-const POW_MAX_AGE_MS = CHALLENGE_TTL_MS - 60_000
 
 interface ResolvedPow {
 	readonly pow: PowSolution
 	readonly timingTokenId: string
-}
-
-/**
- * Wait until a timing token has matured (server requires >=TIMING_FLOOR_MS).
- */
-async function ensureTokenMatured(fetchedAt: number): Promise<void> {
-	const elapsed = Date.now() - fetchedAt
-	if (elapsed < TIMING_FLOOR_MS) {
-		await new Promise(resolve => setTimeout(resolve, TIMING_FLOOR_MS - elapsed))
-	}
 }
 
 /**
@@ -35,7 +23,7 @@ export async function resolvePow(
 		if (!bundle.timingTokenId) {
 			throw new Error('Timing token missing from pre-solved bundle')
 		}
-		await ensureTokenMatured(bundle.tokenFetchedAt)
+		await ensureTimingMatured(bundle.tokenFetchedAt, TIMING_FLOOR_MS, 0)
 		return { pow: bundle.pow, timingTokenId: bundle.timingTokenId }
 	}
 
@@ -57,7 +45,7 @@ export async function resolvePow(
 		throw new Error('Failed to obtain timing token')
 	}
 
-	await ensureTokenMatured(tokenFetchedAt)
+	await ensureTimingMatured(tokenFetchedAt, TIMING_FLOOR_MS, 0)
 	return { pow, timingTokenId }
 }
 

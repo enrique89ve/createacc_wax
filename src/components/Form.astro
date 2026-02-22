@@ -153,712 +153,249 @@ const { ticket = '' } = Astro.props as Props
 </section>
 
 <script>
-	import { validateAccountName } from '@/utils/validate-username'
-	import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
-	import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
-	import { createHiveChain, HealthChecker } from '@hiveio/wax'
 	import { notify } from '@/utils/toast'
-	import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
-	import { TIMING_THRESHOLDS } from '@/consts/pow'
+	import { fetchTimingToken } from '@/utils/pow-solver'
+	import { cleanTicket } from '@/utils/validate-ticket'
 	import { navigate } from 'astro:transitions/client'
-	import { prewarmWaxFoundation } from '@/lib/wax-foundation'
 
-	let debounceTimer: ReturnType<typeof setTimeout>
-
-	let isUsernameValid = false
-	let isTicketValid = false
-	let isSubmitting = false
-
-	// Pre-solved PoW for faster form submit
-	let preSolvedPow: Promise<PowSolution | null> | null = null
-	let preSolvedPowAt = 0
-
-	/** Discard pre-solved PoW after 4 min (challenge TTL is 5 min on server). */
-	const POW_PRESOLVED_MAX_AGE_MS = 4 * 60 * 1_000
-
-	// Timing tokens (fetched on page load, one per protected action)
-	let ticketTimingToken: string | undefined
-	let sessionTimingToken: string | undefined
-
-	// Timestamps tracking when each timing token was fetched
-	let ticketTimingTokenFetchedAt = 0
-	let sessionTimingTokenFetchedAt = 0
-
-	/**
-	 * Wait until a timing token has matured (elapsed >= thresholdMs).
-	 * Adds 100ms margin to account for clock skew and network jitter.
-	 */
-	async function ensureTimingMatured(fetchedAt: number, thresholdMs: number): Promise<void> {
-		if (fetchedAt <= 0) return
-		const elapsed = Date.now() - fetchedAt
-		const required = thresholdMs + 100
-		if (elapsed < required) {
-			await new Promise(resolve => setTimeout(resolve, required - elapsed))
-		}
-	}
-
-	/**
-	 * Ensure the ticket timing token is available. If missing (fetch failed at
-	 * page load or after a consumed retry), refetch inline so the request
-	 * doesn't send undefined and get a guaranteed 400.
-	 */
-	async function ensureTicketTimingToken(): Promise<string> {
-		if (ticketTimingToken) return ticketTimingToken
-		const id = await fetchTimingToken()
-		ticketTimingToken = id
-		ticketTimingTokenFetchedAt = Date.now()
-		return id
-	}
-
-	/**
-	 * Ensure the session timing token is available. Same logic as ticket variant.
-	 */
-	async function ensureSessionTimingToken(): Promise<string> {
-		if (sessionTimingToken) return sessionTimingToken
-		const id = await fetchTimingToken()
-		sessionTimingToken = id
-		sessionTimingTokenFetchedAt = Date.now()
-		return id
-	}
-
-	// --- Cached DOM elements ---
-
-	interface FormElements {
-		readonly form: HTMLFormElement
-		readonly usernameInput: HTMLInputElement
-		readonly usernameStatusIcon: HTMLElement
-		readonly loadingIcon: HTMLElement
-		readonly successIcon: HTMLElement
-		readonly errorIcon: HTMLElement
-		readonly usernameError: HTMLElement
-		readonly ticketInput: HTMLInputElement
-		readonly ticketApplyBtn: HTMLButtonElement
-		readonly ticketInputContainer: HTMLElement
-		readonly ticketChip: HTMLElement
-		readonly ticketChipCode: HTMLElement
-		readonly ticketRemoveBtn: HTMLButtonElement
-		readonly ticketError: HTMLElement
-		readonly submitButton: HTMLButtonElement
-	}
+	import { type FormElements, queryFormElements, type FormState, createInitialState } from '@/lib/form/types'
+	import { getHiveChain, disposeHiveChain } from '@/lib/form/hive-chain-client'
+	import { setUsernameFieldState } from '@/lib/form/username-ui'
+	import { validateUsername } from '@/lib/form/username-validation'
+	import {
+		applyTicket, removeTicket as removeTicketDom,
+		handleTicketInputChange,
+	} from '@/lib/form/ticket-handlers'
+	import { syncSubmitButton } from '@/lib/form/submit-button'
+	import { resolveSubmitDependencies, createSession } from '@/lib/form/form-submit'
 
 	let elements: FormElements | null = null
+	let state: FormState = createInitialState()
+	let debounceTimer: ReturnType<typeof setTimeout>
 
-	function queryFormElements(): FormElements | null {
-		const form = document.querySelector<HTMLFormElement>('#registro-form')
-		const usernameInput = document.querySelector<HTMLInputElement>('#username')
-		const usernameStatusIcon = document.querySelector<HTMLElement>('#username-status-icon')
-		const loadingIcon = document.querySelector<HTMLElement>('#loading-icon')
-		const successIcon = document.querySelector<HTMLElement>('#success-icon')
-		const errorIcon = document.querySelector<HTMLElement>('#error-icon')
-		const usernameError = document.querySelector<HTMLElement>('#username-error')
-		const ticketInput = document.querySelector<HTMLInputElement>('#ticket')
-		const ticketApplyBtn = document.querySelector<HTMLButtonElement>('#ticket-apply-btn')
-		const ticketInputContainer = document.querySelector<HTMLElement>('#ticket-input-container')
-		const ticketChip = document.querySelector<HTMLElement>('#ticket-chip')
-		const ticketChipCode = document.querySelector<HTMLElement>('#ticket-chip-code')
-		const ticketRemoveBtn = document.querySelector<HTMLButtonElement>('#ticket-remove-btn')
-		const ticketError = document.querySelector<HTMLElement>('#ticket-error')
-		const submitButton = document.querySelector<HTMLButtonElement>('#form-siguiente')
-
-		if (
-			!form || !usernameInput || !usernameStatusIcon || !loadingIcon ||
-			!successIcon || !errorIcon || !usernameError || !ticketInput ||
-			!ticketApplyBtn || !ticketInputContainer || !ticketChip ||
-			!ticketChipCode || !ticketRemoveBtn || !ticketError || !submitButton
-		) {
-			return null
-		}
-
-		return {
-			form, usernameInput, usernameStatusIcon, loadingIcon,
-			successIcon, errorIcon, usernameError, ticketInput,
-			ticketApplyBtn, ticketInputContainer, ticketChip,
-			ticketChipCode, ticketRemoveBtn, ticketError, submitButton,
+	function ensureTimingToken(
+		tokenKey: 'ticketTimingToken' | 'sessionTimingToken',
+		fetchedAtKey: 'ticketTimingTokenFetchedAt' | 'sessionTimingTokenFetchedAt',
+	): () => Promise<string> {
+		return async () => {
+			if (state[tokenKey]) return state[tokenKey]
+			const id = await fetchTimingToken()
+			state[tokenKey] = id
+			state[fetchedAtKey] = Date.now()
+			return id
 		}
 	}
 
-	// --- Username field state ---
-
-	function setUsernameState(
-		state: 'neutral' | 'loading' | 'error' | 'success',
-		message?: string
-	) {
-		if (!elements) return
-
-		elements.loadingIcon.classList.add('hidden')
-		elements.successIcon.classList.add('hidden')
-		elements.errorIcon.classList.add('hidden')
-
-		elements.usernameInput.classList.remove(
-			'border-red-500', 'border-green-500', 'border-blue-500'
-		)
-
-		switch (state) {
-			case 'neutral':
-				elements.usernameStatusIcon.classList.add('hidden')
-				elements.usernameError.classList.add('hidden')
-				elements.usernameInput.classList.add('border-border')
-				break
-			case 'loading':
-				elements.loadingIcon.classList.remove('hidden')
-				elements.usernameStatusIcon.classList.remove('hidden')
-				elements.usernameInput.classList.add('border-blue-500')
-				break
-			case 'error':
-				elements.errorIcon.classList.remove('hidden')
-				elements.usernameStatusIcon.classList.remove('hidden')
-				elements.usernameInput.classList.add('border-red-500')
-				if (message) {
-					elements.usernameError.textContent = message
-					elements.usernameError.classList.remove('hidden')
-				}
-				break
-			case 'success':
-				elements.successIcon.classList.remove('hidden')
-				elements.usernameStatusIcon.classList.remove('hidden')
-				elements.usernameError.classList.add('hidden')
-				elements.usernameInput.classList.add('border-green-500')
-				break
-		}
-	}
-
-	function resetUsernameState() {
-		setUsernameState('neutral')
-		isUsernameValid = false
-		updateSubmitButton()
-	}
-
-	function showLoadingState() {
-		setUsernameState('loading')
-		isUsernameValid = false
-		updateSubmitButton()
-	}
-
-	function showErrorState(errorMessage: string) {
-		setUsernameState('error', errorMessage)
-		isUsernameValid = false
-		updateSubmitButton()
-	}
-
-	function showSuccessState() {
-		setUsernameState('success')
-		isUsernameValid = true
-		updateSubmitButton()
-	}
-
-	// --- Hive chain helper (cache + fallback inteligente) ---
-	type HiveChain = Awaited<ReturnType<typeof createHiveChain>>
-	const HIVE_HEALTH_ENDPOINTS: readonly string[] = [
-		'https://techcoderx.com',
-		'https://api.openhive.network',
-		'https://rpc.mahdiyari.info',
-	] as const
-
-	const sleep = (ms: number): Promise<void> =>
-		new Promise(r => setTimeout(r, ms))
-
-	let cachedChain: HiveChain | null = null
-	let creatingChainPromise: Promise<HiveChain | null> | null = null
-
-	async function tryCreateChain(endpoint?: string): Promise<HiveChain | null> {
-		try {
-			return endpoint
-				? await createHiveChain({ apiEndpoint: endpoint })
-				: await createHiveChain()
-		} catch {
-			return null
-		}
-	}
-
-	async function tryHealthCheckerEndpoint(): Promise<HiveChain | null> {
-		const healthChecker = new HealthChecker([...HIVE_HEALTH_ENDPOINTS], 4000)
-		try {
-			const temp = await tryCreateChain(HIVE_HEALTH_ENDPOINTS[0])
-			if (temp) {
-				healthChecker.register(
-					temp.api.database_api.get_dynamic_global_properties,
-					{},
-					(data): true | string => (data?.id === 0 ? true : 'invalid dgp')
-				)
-			}
-
-			await sleep(1200)
-			const best = healthChecker
-				.list()
-				.filter(e => e.up)
-				.sort((a, b) => b.score - a.score)[0]
-
-			if (best) return await tryCreateChain(best.endpointUrl)
-			return null
-		} finally {
-			healthChecker.unregisterAll(true)
-		}
-	}
-
-	async function tryEndpointsSequentially(): Promise<HiveChain | null> {
-		for (const ep of HIVE_HEALTH_ENDPOINTS) {
-			const chain = await tryCreateChain(ep)
-			if (chain) return chain
-		}
-		return null
-	}
-
-	async function createHiveChainWithFallback(): Promise<HiveChain | null> {
-		return (await tryCreateChain())
-			?? (await tryHealthCheckerEndpoint())
-			?? (await tryEndpointsSequentially())
-	}
-
-	async function getHiveChain(): Promise<HiveChain | null> {
-		if (cachedChain) return cachedChain
-		if (creatingChainPromise) return creatingChainPromise
-		creatingChainPromise = (async () => {
-			const chain = await createHiveChainWithFallback()
-			if (chain) cachedChain = chain
-			creatingChainPromise = null
-			return chain
-		})()
-		return creatingChainPromise
-	}
-
-	function disposeHiveChain(): void {
-		if (cachedChain) {
-			try {
-				cachedChain.delete()
-			} catch {
-				// Non-critical: chain may already be deleted or in invalid state
-			}
-			cachedChain = null
-		}
-	}
-
-	// --- Ticket ---
-
-	function showTicketError(message: string) {
-		if (!elements) return
-		elements.ticketInput.classList.add('border-red-500')
-		elements.ticketError.textContent = message
-		elements.ticketError.classList.remove('hidden')
-		isTicketValid = false
-		updateSubmitButton()
-	}
-
-	function setTicketLoadingState(ticket: string) {
-		if (!elements) return
-		const message = ticket
-			? 'Validando ticket...'
-			: 'Obteniendo ticket...'
-		elements.ticketInput.disabled = true
-		elements.ticketApplyBtn.disabled = true
-		elements.ticketApplyBtn.textContent = message
-	}
-
-	async function solvePowOrShowError(ticket: string): Promise<Awaited<ReturnType<typeof obtainPowSolution>> | null> {
-		const errorMsg = ticket
-			? 'Error de verificación. Inténtalo de nuevo.'
-			: 'Error obteniendo ticket. Inténtalo de nuevo.'
-		try {
-			return await obtainPowSolution()
-		} catch {
-			showTicketError(errorMsg)
-			resetTicketInput()
-			return null
-		}
-	}
-
-	function showTicketApplied(ticket: string) {
-		if (!elements) return
-		elements.ticketChipCode.textContent = ticket
-		elements.ticketInputContainer.classList.add('hidden')
-		elements.ticketChip.classList.remove('hidden')
-		elements.ticketError.classList.add('hidden')
-		isTicketValid = true
-		updateSubmitButton()
-	}
-
-	function resetTicketInput() {
-		if (!elements) return
-		elements.ticketInput.disabled = false
-		elements.ticketApplyBtn.textContent = 'Aplicar'
-		elements.ticketApplyBtn.disabled = false
-	}
-
-	async function applyTicket() {
-		if (!elements) return
-
-		const ticket = cleanTicket(elements.ticketInput.value)
-		const localError = validateTicket(ticket)
-		if (localError) {
-			showTicketError(localError)
-			return
-		}
-
-		setTicketLoadingState(ticket)
-
-		let resolvedToken: string
-		try {
-			resolvedToken = await ensureTicketTimingToken()
-		} catch {
-			showTicketError('Error de verificación. Inténtalo de nuevo.')
-			resetTicketInput()
-			return
-		}
-
-		const pow = await solvePowOrShowError(ticket)
-		if (!pow) return
-
-		await ensureTimingMatured(ticketTimingTokenFetchedAt, TIMING_THRESHOLDS.ticket)
-
-		elements.ticketApplyBtn.textContent = '...'
-
-		try {
-			const response = await fetch('/api/validate/ticket', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ticket, pow, timingTokenId: resolvedToken }),
-			})
-			const result = await response.json()
-			if (response.ok && result.valid) {
-				showTicketApplied(ticket)
-				return
-			}
-			showTicketError(result.error || 'Ticket inválido')
-			elements.ticketInput.disabled = false
-		} catch {
-			showTicketError('Error validando ticket. Inténtalo de nuevo.')
-			elements.ticketInput.disabled = false
-		}
-
-		// Clear consumed token, then refetch for retry
-		ticketTimingToken = undefined
-		ticketTimingTokenFetchedAt = 0
+	function refetchTimingToken(
+		tokenKey: 'ticketTimingToken' | 'sessionTimingToken',
+		fetchedAtKey: 'ticketTimingTokenFetchedAt' | 'sessionTimingTokenFetchedAt',
+	): void {
+		state[tokenKey] = undefined
+		state[fetchedAtKey] = 0
 		fetchTimingToken()
 			.then(id => {
-				ticketTimingToken = id
-				ticketTimingTokenFetchedAt = Date.now()
+				state[tokenKey] = id
+				state[fetchedAtKey] = Date.now()
 			})
-			.catch(() => { /* token stays undefined; server rejects clearly on next attempt */ })
-
-		resetTicketInput()
+			.catch(() => {})
 	}
 
-	function removeTicket() {
-		if (!elements) return
-
-		elements.ticketChip.classList.add('hidden')
-		elements.ticketInputContainer.classList.remove('hidden')
-		elements.ticketInput.value = ''
-		elements.ticketInput.disabled = false
-		elements.ticketApplyBtn.disabled = true
-		elements.ticketError.classList.add('hidden')
-		elements.ticketInput.classList.remove('border-red-500')
-		isTicketValid = false
-		updateSubmitButton()
-		elements.ticketInput.focus()
+	function sync(): void {
+		if (elements) syncSubmitButton(elements, state)
 	}
 
-	function updateSubmitButton() {
-		if (!elements) return
-
-		if (isUsernameValid && isTicketValid) {
-			elements.submitButton.disabled = false
-			elements.submitButton.classList.remove('opacity-50', 'cursor-not-allowed')
-			elements.submitButton.classList.add('cursor-pointer')
-
-			// Pre-warm WAX WASM for the details page (user likely to navigate soon)
-			prewarmWaxFoundation()
-
-			// Pre-solve PoW in background (user likely to submit soon)
-			if (!preSolvedPow) {
-				preSolvedPowAt = Date.now()
-				preSolvedPow = obtainPowSolution().catch((): PowSolution | null => {
-					preSolvedPow = null
-					return null
-				})
-			}
-		} else {
-			elements.submitButton.disabled = true
-			elements.submitButton.classList.add('opacity-50', 'cursor-not-allowed')
-			elements.submitButton.classList.remove('cursor-pointer')
-		}
-	}
-
-	// --- Username validation ---
-
-	async function checkSuspiciousUsername(username: string): Promise<boolean> {
-		try {
-			const response = await fetch('/api/validate/suspicious', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username }),
-			})
-			const result = await response.json()
-			return result.isSuspicious === true
-		} catch {
-			return false
-		}
-	}
-
-	async function checkSimilarUsername(username: string): Promise<boolean> {
-		try {
-			const response = await fetch('/api/validate/similarity', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username }),
-			})
-			const result = await response.json()
-			return result.isSimilar === true
-		} catch {
-			return false
-		}
-	}
-
-	async function validateUsername(username: string) {
-		if (!username.trim()) {
-			resetUsernameState()
-			return
-		}
-
-		showLoadingState()
-
-		try {
-			const formatError = validateAccountName(username)
-			if (formatError) {
-				showErrorState(formatError)
-				return
-			}
-
-			const [isSuspicious, isSimilar] = await Promise.all([
-				checkSuspiciousUsername(username),
-				checkSimilarUsername(username),
-			])
-			if (isSuspicious) {
-				showErrorState('Este username no está permitido')
-				return
-			}
-			if (isSimilar) {
-				showErrorState('Username muy similar a una cuenta reciente')
-				return
-			}
-
-			const chain = await getHiveChain()
-			if (!chain) {
-				showErrorState('Error conectando a la red Hive')
-				return
-			}
-
-			const chainResult = await validateHiveAccountExists({
-				chain,
-				accountName: username,
-			})
-
-			if (chainResult.status === 'error') {
-				showErrorState('Error conectando a la red Hive')
-				return
-			}
-
-			if (chainResult.status === 'found') {
-				showErrorState('Este username ya está en uso')
-				return
-			}
-
-			showSuccessState()
-		} catch {
-			showErrorState('Error al validar username')
-		}
-	}
-
-	function handleUsernameInput() {
+	async function handleUsernameInput(): Promise<void> {
 		if (!elements) return
 		const username = elements.usernameInput.value.toLowerCase().trim()
 		clearTimeout(debounceTimer)
-		debounceTimer = setTimeout(() => {
-			validateUsername(username)
+		debounceTimer = setTimeout(async () => {
+			if (!elements) return
+
+			const result = await validateUsername(username, getHiveChain)
+
+			if (!elements) return
+
+			switch (result.status) {
+				case 'empty':
+					setUsernameFieldState(elements, 'neutral')
+					state.isUsernameValid = false
+					break
+				case 'format_error':
+					setUsernameFieldState(elements, 'error', result.message)
+					state.isUsernameValid = false
+					break
+				case 'suspicious':
+					setUsernameFieldState(elements, 'error', 'Este username no está permitido')
+					state.isUsernameValid = false
+					break
+				case 'similar':
+					setUsernameFieldState(elements, 'error', 'Username muy similar a una cuenta reciente')
+					state.isUsernameValid = false
+					break
+				case 'chain_error':
+					setUsernameFieldState(elements, 'error', 'Error conectando a la red Hive')
+					state.isUsernameValid = false
+					break
+				case 'taken':
+					setUsernameFieldState(elements, 'error', 'Este username ya está en uso')
+					state.isUsernameValid = false
+					break
+				case 'available':
+					setUsernameFieldState(elements, 'success')
+					state.isUsernameValid = true
+					break
+			}
+			sync()
 		}, 300)
+
+		setUsernameFieldState(elements, 'loading')
+		state.isUsernameValid = false
+		sync()
 	}
 
-	function handleTicketInput() {
+	function handleTicketInput(): void {
+		if (!elements) return
+		const shouldEnable = handleTicketInputChange(elements)
+		elements.ticketApplyBtn.disabled = !shouldEnable
+	}
+
+	async function handleApplyTicket(): Promise<void> {
 		if (!elements) return
 
-		const cleaned = cleanTicket(elements.ticketInput.value)
+		const result = await applyTicket({
+			elements,
+			ensureTicketTimingToken: ensureTimingToken('ticketTimingToken', 'ticketTimingTokenFetchedAt'),
+			getTicketTimingTokenFetchedAt: () => state.ticketTimingTokenFetchedAt,
+			onTicketValid: () => {
+				state.isTicketValid = true
+				sync()
+			},
+			onTicketInvalid: () => {
+				state.isTicketValid = false
+				sync()
+			},
+		})
 
-		if (cleaned !== elements.ticketInput.value) {
-			const pos = elements.ticketInput.selectionStart || 0
-			elements.ticketInput.value = cleaned
-			const newPos = Math.min(pos, cleaned.length)
-			elements.ticketInput.setSelectionRange(newPos, newPos)
-		}
-
-		elements.ticketError.classList.add('hidden')
-		elements.ticketInput.classList.remove('border-red-500')
-
-		if (!cleaned) {
-			elements.ticketApplyBtn.disabled = true
-			return
-		}
-
-		const localError = validateTicket(cleaned)
-		elements.ticketApplyBtn.disabled = localError !== null
+		// Token is consumed on the server regardless of success/failure — always refetch
+		// so it's ready if the user removes and re-applies the ticket
+		refetchTimingToken('ticketTimingToken', 'ticketTimingTokenFetchedAt')
 	}
 
-	// --- Form submit ---
+	function handleRemoveTicket(): void {
+		if (!elements) return
+		removeTicketDom(elements)
+		state.isTicketValid = false
+		sync()
+	}
 
-	function setSubmitLoadingState(text: string) {
+	function setSubmitLoadingState(text: string): void {
 		if (!elements) return
 		elements.submitButton.disabled = true
 		elements.submitButton.textContent = text
 	}
 
-	async function solvePowForSubmit(): Promise<Awaited<ReturnType<typeof obtainPowSolution>> | null> {
-		try {
-			return await obtainPowSolution()
-		} catch {
-			notify('error', 'Error de verificación. Inténtalo de nuevo.')
-			return null
-		}
-	}
-
-	async function createSession(
-		username: string,
-		ticket: string,
-		pow: Awaited<ReturnType<typeof obtainPowSolution>>,
-		timingTokenId: string
-	): Promise<boolean> {
-		const response = await fetch('/api/create/session', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username, ticket, pow, timingTokenId }),
-		})
-		const result = await response.json()
-		if (!response.ok || !result.success) {
-			throw new Error(result.error || 'Error al crear la sesión')
-		}
-		return true
-	}
-
-	function showSubmitError(originalText: string | null) {
+	function showSubmitError(originalText: string | null): void {
 		if (!elements) return
 		notify('error', 'Error al crear la sesión. Inténtalo de nuevo.')
 		elements.submitButton.textContent = 'Error - Inténtalo de nuevo'
 		elements.submitButton.classList.add('bg-red-600', 'hover:bg-red-700')
-		setTimeout(() => {
-			restoreSubmitButton(originalText)
-		}, 3000)
+		setTimeout(() => restoreSubmitButton(originalText), 3000)
 	}
 
-	function restoreSubmitButton(originalText: string | null) {
+	function restoreSubmitButton(originalText: string | null): void {
 		if (!elements) return
 		elements.submitButton.disabled = false
 		elements.submitButton.textContent = originalText
 		elements.submitButton.classList.remove('bg-red-600', 'hover:bg-red-700')
 	}
 
-	async function handleFormSubmit(event: Event) {
+	async function handleFormSubmit(event: Event): Promise<void> {
 		event.preventDefault()
-		if (isSubmitting || !isUsernameValid || !isTicketValid || !elements) return
-		isSubmitting = true
+		if (state.isSubmitting || !state.isUsernameValid || !state.isTicketValid || !elements) return
+		state.isSubmitting = true
 
 		const username = elements.usernameInput.value.toLowerCase().trim()
 		const ticket = elements.ticketChipCode.textContent?.trim() || elements.ticketInput.value.trim()
 		if (!username || username.length < 3) {
-			isSubmitting = false
+			state.isSubmitting = false
 			return
 		}
 
 		const originalText = elements.submitButton.textContent
 		setSubmitLoadingState('Verificando...')
 
-		const isPowFresh = preSolvedPow && (Date.now() - preSolvedPowAt) < POW_PRESOLVED_MAX_AGE_MS
-		const pow = isPowFresh
-			? await preSolvedPow
-			: await solvePowForSubmit()
-		preSolvedPow = null
-		if (!pow) {
-			isSubmitting = false
+		const resolved = await resolveSubmitDependencies({
+			state,
+			ensureSessionTimingToken: ensureTimingToken('sessionTimingToken', 'sessionTimingTokenFetchedAt'),
+		})
+
+		if (resolved.status === 'pow_error') {
+			state.isSubmitting = false
+			notify('error', 'Error de verificación. Inténtalo de nuevo.')
 			restoreSubmitButton(originalText)
 			return
 		}
-
-		setSubmitLoadingState('Creando sesión...')
-
-		let resolvedSessionToken: string
-		try {
-			resolvedSessionToken = await ensureSessionTimingToken()
-		} catch {
-			isSubmitting = false
+		if (resolved.status === 'timing_error') {
+			state.isSubmitting = false
 			notify('error', 'Error de verificación. Inténtalo de nuevo.')
 			restoreSubmitButton(originalText)
 			return
 		}
 
-		await ensureTimingMatured(sessionTimingTokenFetchedAt, TIMING_THRESHOLDS.session)
-
-		try {
-			await createSession(username, ticket, pow, resolvedSessionToken)
+		const result = await createSession(username, ticket, resolved.pow, resolved.timingTokenId)
+		if (result.success) {
 			disposeHiveChain()
 			navigate(`/details/${username}`)
-		} catch {
-			isSubmitting = false
+		} else {
+			state.isSubmitting = false
 			showSubmitError(originalText)
-			// Clear consumed token, then refetch for retry
-			sessionTimingToken = undefined
-			sessionTimingTokenFetchedAt = 0
-			fetchTimingToken()
-				.then(id => {
-					sessionTimingToken = id
-					sessionTimingTokenFetchedAt = Date.now()
-				})
-				.catch(() => { /* token stays undefined; server rejects clearly on next attempt */ })
+			refetchTimingToken('sessionTimingToken', 'sessionTimingTokenFetchedAt')
 		}
 	}
 
-	// --- Init ---
-
-	function initForm() {
+	function initForm(): void {
 		elements = queryFormElements()
 		if (!elements) return
 
 		if (elements.form.dataset.initialized) return
 		elements.form.dataset.initialized = 'true'
 
-		isUsernameValid = false
-		isTicketValid = false
-		isSubmitting = false
-		updateSubmitButton()
+		state = createInitialState()
+		sync()
 
 		Promise.all([
 			fetchTimingToken().then(id => {
-				ticketTimingTokenFetchedAt = Date.now()
+				state.ticketTimingTokenFetchedAt = Date.now()
 				return id
 			}).catch(() => undefined),
 			fetchTimingToken().then(id => {
-				sessionTimingTokenFetchedAt = Date.now()
+				state.sessionTimingTokenFetchedAt = Date.now()
 				return id
 			}).catch(() => undefined),
 		]).then(([t1, t2]) => {
-			ticketTimingToken = t1
-			sessionTimingToken = t2
+			state.ticketTimingToken = t1
+			state.sessionTimingToken = t2
 		})
 
 		elements.usernameInput.addEventListener('input', handleUsernameInput)
 		elements.ticketInput.addEventListener('input', handleTicketInput)
 		elements.form.addEventListener('submit', handleFormSubmit)
 
-		elements.ticketApplyBtn.addEventListener('click', applyTicket)
+		elements.ticketApplyBtn.addEventListener('click', handleApplyTicket)
 		elements.ticketInput.addEventListener('keydown', e => {
 			if (e.key === 'Enter') {
 				e.preventDefault()
-				if (!elements?.ticketApplyBtn.disabled) applyTicket()
+				if (!elements?.ticketApplyBtn.disabled) handleApplyTicket()
 			}
 		})
 
-		elements.ticketRemoveBtn.addEventListener('click', removeTicket)
+		elements.ticketRemoveBtn.addEventListener('click', handleRemoveTicket)
 
 		if (elements.ticketInput.value) {
 			const cleanedValue = cleanTicket(elements.ticketInput.value.trim())
 			if (cleanedValue) {
 				elements.ticketInput.value = cleanedValue
-				applyTicket()
+				handleApplyTicket()
 			}
 		}
 	}
