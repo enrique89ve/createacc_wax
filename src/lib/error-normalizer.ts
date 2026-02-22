@@ -7,6 +7,7 @@
 
 import { processErrorSync, type ErrorContext } from './error-chain'
 import type { APIContext } from 'astro'
+import { logger } from './logger'
 
 /**
  * Modern wrapper that returns ProcessedError directly
@@ -58,11 +59,11 @@ declare const global: typeof globalThis & {
 if (!global.__ERROR_HOOKS_INSTALLED__) {
   global.__ERROR_HOOKS_INSTALLED__ = true
 
-  const log = (_tag: string, value: unknown) => {
-    if (value instanceof Error) return
-    // Register the raw value for investigation
-  }
+  process.on('uncaughtException', (value) => {
+    logger.error('[uncaughtException]', value)
+  })
 
-  process.on('uncaughtException', value => log('uncaught', value))
-  process.on('unhandledRejection', value => log('rejection', value))
+  process.on('unhandledRejection', (value) => {
+    logger.error('[unhandledRejection]', value)
+  })
 }
