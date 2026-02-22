@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro'
 import { ensureCreation } from '@/lib/session-helpers'
-import { CreationSessionManager } from '@/lib/session-manager'
+import { CreationSessionManager } from '@/lib/session-cookies'
 import { HTTP_STATUS, API_MESSAGES } from '@/consts/constants'
 import type { PublicKeysPayload } from '@/types/keys'
 import { apiSuccess, apiError } from '@/utils/errorResponse'

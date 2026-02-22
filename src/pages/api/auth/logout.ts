@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro'
 import { ROUTES, HTTP_STATUS } from '@/consts/constants'
 // Logger removed
-import { CreationSessionManager } from '@/lib/session-manager'
+import { CreationSessionManager } from '@/lib/session-cookies'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 async function signOutViaAuth(

@@ -239,3 +239,31 @@ export function verifySignedValue(signedValue: string): string | null {
 		return null
 	}
 }
+
+/**
+ * Type-safe session manager for the public account creation flow.
+ * Wraps the low-level cookie functions into an OOP interface
+ * for convenient use in API routes and middleware.
+ */
+export class CreationSessionManager {
+	constructor(
+		private readonly cookies: AstroCookies,
+		private readonly request?: Request
+	) {}
+
+	get(): CreationSession | null {
+		return getCreationCookie(this.cookies)
+	}
+
+	set(data: CreationSession): void {
+		setCreationCookie(this.cookies, data, this.request)
+	}
+
+	update(partial: Partial<CreationSession>): void {
+		updateCreationCookie(this.cookies, partial, this.request)
+	}
+
+	clear(): void {
+		clearCreationCookie(this.cookies)
+	}
+}

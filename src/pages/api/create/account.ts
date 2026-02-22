@@ -433,7 +433,6 @@ function scheduleRcDelegation(username: string): void {
 	if (processedUsers.has(username)) return
 
 	processedUsers.add(username)
-	scheduleUserCleanup(username)
 
 	setTimeout(async () => {
 		for (let attempt = 0; attempt <= RC_DELEGATION_CONFIG.MAX_RETRIES; attempt++) {
@@ -443,6 +442,7 @@ function scheduleRcDelegation(username: string): void {
 					maxRc: RC_DELEGATION_AMOUNT,
 				})
 				logger.info(`[rc-delegation] Successfully delegated RC to ${username}`)
+				scheduleUserCleanup(username)
 				return
 			} catch (error) {
 				const errMsg = error instanceof Error ? error.message : 'Unknown error'
@@ -451,6 +451,7 @@ function scheduleRcDelegation(username: string): void {
 					await new Promise(r => setTimeout(r, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
 				} else {
 					logger.error(`[rc-delegation] All attempts failed for ${username}: ${errMsg}`)
+					processedUsers.delete(username)
 				}
 			}
 		}

@@ -1,5 +1,5 @@
 import type { APIContext } from 'astro'
-import { CreationSessionManager } from '@/lib/session-manager'
+import { CreationSessionManager } from '@/lib/session-cookies'
 import type { AdminSession, BuilderSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getSession } from 'auth-astro/server'
