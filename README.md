@@ -1,228 +1,150 @@
-## HolaHive
+# HolaHive
 
-Aplicacion web segura para la creacion de cuentas gratuitas en la blockchain Hive. Construida con Astro 7.2 y TailwindCSS v4, enfocada en privacidad y seguridad — las llaves privadas de Hive nunca son leidas ni almacenadas por el servidor, toda la generacion de llaves ocurre en el navegador del usuario.
+Free Hive accounts. Keys never leave the browser.
 
-### Stack
+Built with Astro 7, Better Auth, and `@hiveio/wax`. Private keys are generated client-side. The server never reads or stores them.
 
-- **Framework**: Astro 7.2 con TypeScript (strict mode)
-- **Styling**: TailwindCSS v4 via Vite plugin
-- **Database**: SQLite con @libsql/client (local o Turso Cloud)
-- **Auth**: bcryptjs (admin) + Hive Keychain (builders) + Better Auth (libsql)
-- **Blockchain**: @hiveio/wax 2.0.2 + @hiveio/beekeeper 1.28.7-rc0
-- **Adapter**: @astrojs/node (standalone)
-- **Package Manager**: pnpm
+---
+
+## Roadmap
+
+Five phases. Ship, learn, finish.
+
+| | Phase | What we do | Done when |
+|---|---|---|---|
+| **1** | **Build** | Stand up the core. Create accounts. Keep keys local. Auth that holds. | The product works end to end. |
+| **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition. | New users finish without a guide. |
+| **3** | **Prove** | Lock v1. Test with the Hive community. | Community can create accounts without us in the loop. |
+| **4** | **Attract** | Turn the site into a growth surface, not a form. | The page itself pulls people in. |
+| **5** | **Ship** | A finished product. Trusted, reliable, ready to scale. | We would hand this to a stranger. |
+
+We are in **phase 1**.
+
+---
+
+## Stack
+
+Astro 7.2 · TypeScript · Tailwind v4 · libsql · Better Auth · Hive Keychain · wax 2.0.2 · Beekeeper · Node standalone · pnpm
 
 ---
 
 ## Setup
 
-### 1. Instalar dependencias
-
 ```bash
 pnpm install
-```
-
-### 2. Configurar variables de entorno
-
-```bash
 cp .env.example .env.local
 ```
 
-El mismo `.env.local` funciona para desarrollo y produccion. Variables requeridas:
+Required in `.env.local` (dev and prod):
 
 ```bash
-# Hive blockchain
-HIVE_CREATOR_ACCOUNT=your-creator-account
-HIVE_DELEGATOR_ACCOUNT=your-delegator-account
-HIVE_CREATOR_ACTIVE_KEY=5JNHfZY.....
-HIVE_DELEGATOR_POSTING_KEY=5JNHfZY.....
+HIVE_CREATOR_ACCOUNT=
+HIVE_DELEGATOR_ACCOUNT=
+HIVE_CREATOR_ACTIVE_KEY=
+HIVE_DELEGATOR_POSTING_KEY=
 
-# Seguridad
-AUTH_SECRET=your-random-secret-min-32-chars
-SESSION_SECRET=generate-with-openssl-rand-base64-64
-BEEKEEPER_WALLET_PASSWORD=your-secure-wallet-password
+AUTH_SECRET=           # ≥ 32 chars
+SESSION_SECRET=        # openssl rand -base64 64
+BEEKEEPER_WALLET_PASSWORD=
 
-# Entorno
-MAINNET=false   # false = testnet, TRUE = mainnet con failover
+MAINNET=false          # false = testnet, TRUE = mainnet
 ```
 
-#### Variables opcionales (Database)
-
-Por defecto usa SQLite local (`file:holahive.db`). Para Turso Cloud:
+Optional Turso:
 
 ```bash
 DATABASE_URL=libsql://your-database-org.turso.io
-TURSO_AUTH_TOKEN=eyJhbGciOi...
+TURSO_AUTH_TOKEN=
 ```
 
-Para embedded replica (local + cloud sync):
+Default DB is local SQLite (`file:holahive.db`).
 
 ```bash
-DATABASE_URL=file:replica.db
-TURSO_AUTH_TOKEN=eyJhbGciOi...
-TURSO_SYNC_URL=libsql://your-database-org.turso.io
-```
-
-### 3. Inicializar base de datos y crear admin
-
-```bash
-# Inicializar schema (tablas, triggers, indices)
 pnpm db:init
-
-# Crear cuenta admin (interactivo)
-pnpm admin:create
-
-# O automatizado (CI/CD, Docker)
-ADMIN_USERNAME=admin ADMIN_PASSWORD=SecurePass123! pnpm admin:create
+pnpm admin:create      # or ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create
+pnpm dev               # runs db:init, then astro dev
 ```
 
-La base de datos solo permite **1 admin** (enforced por trigger SQL). El password se hashea con bcrypt (10 rounds) y se almacena en la tabla `Users`.
-
-### 4. Iniciar desarrollo
-
-```bash
-pnpm dev    # Ejecuta db:init automaticamente + astro dev
-```
+One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 
 ---
 
-## Comandos
+## Commands
 
-### Desarrollo
-
-| Comando | Descripcion |
-|---------|-------------|
-| `pnpm dev` | Servidor de desarrollo (auto-ejecuta db:init) |
-| `pnpm build` | Build de produccion |
-| `pnpm preview` | Preview del build de produccion |
-
-### Base de datos
-
-| Comando | Descripcion |
-|---------|-------------|
-| `pnpm db:init` | Inicializar schema (tablas, triggers, indices) |
-| `pnpm db:reset` | Eliminar DB y recrear schema |
-| `pnpm db:seed` | Poblar DB con datos de prueba |
-| `pnpm db:quickstart` | Reset + seed en un solo paso |
-
-### Admin
-
-| Comando | Descripcion |
-|---------|-------------|
-| `pnpm admin:create` | Crear cuenta admin (interactivo o via env vars) |
-| `pnpm admin:reset` | Cambiar password del admin existente |
-| `pnpm admin:check` | Ver estado actual del admin |
-| `pnpm admin:setup` | Mostrar ayuda de admin management |
+| Command | |
+|---|---|
+| `pnpm dev` | Dev server |
+| `pnpm build` | Production build |
+| `pnpm preview` | Preview production build |
+| `pnpm db:init` | Schema |
+| `pnpm db:reset` | Drop DB, recreate schema |
+| `pnpm db:seed` | Test data |
+| `pnpm db:quickstart` | Reset + seed |
+| `pnpm admin:create` | Create admin |
+| `pnpm admin:reset` | Rotate admin password |
+| `pnpm admin:check` | Admin status |
 
 ---
 
-## Flujo de autenticacion
+## Auth
 
-### Admin (password)
+**Admin** — password. `POST /api/auth/management-login` → bcrypt → Better Auth session cookie.
 
-```
-pnpm admin:create
-    -> bcrypt.hash(password, 10)
-    -> INSERT INTO Users (role='admin')
-    -> Trigger: prevent_multiple_admins (max 1 admin)
-    -> Trigger: enforce_admin_password_constraint (admin DEBE tener password)
-
-Login: POST /api/auth/management-login
-    -> Rate limit check
-    -> bcrypt.compare(password, hash)
-    -> JWT firmado con AUTH_SECRET
-    -> Cookie: authjs.session-token
-```
-
-### Builder (Hive Keychain)
-
-```
-GET /api/auth/challenge
-    -> Genera nonce criptografico (TTL: 2 min, uso unico)
-
-Login via Keychain:
-    -> Firma mensaje con nonce del servidor
-    -> Server: consumeNonce() (one-time use)
-    -> Server: WAX verifica firma criptografica
-    -> Server: Verifica publicKey en posting authorities
-    -> JWT firmado con AUTH_SECRET
-    -> Cookie: authjs.session-token
-```
+**Builder** — Hive Keychain. `GET /api/auth/challenge` issues a one-time nonce (2 min). Client signs. Server verifies with wax, binds the session to the user. Mutations never trust a raw user id from the client.
 
 ---
 
-## Estructura del proyecto
+## Layout
 
 ```
 src/
-  components/    Componentes Astro UI
-  consts/        Constantes centralizadas (SEO, validation, config)
-  data/          Datos estaticos (suspicious accounts)
-  layouts/       Layouts reutilizables (Base, Layout, Builders, Management)
-  lib/           Servicios core (blockchain, database, auth, sessions)
-  pages/         Paginas y API routes
-  sections/      Secciones de paginas
-  styles/        Estilos globales
-  types/         Definiciones TypeScript
-  utils/         Utilidades y helpers
-scripts/         Scripts de inicializacion y admin
+  components/    UI
+  consts/        Brand, SEO, config
+  layouts/       Base, public, builders, management
+  lib/           Chain, db, auth, sessions
+  pages/         Pages + API
+scripts/         DB + admin
 ```
 
-### Layouts
-
-| Layout | Uso | SEO |
-|--------|-----|-----|
-| `Base.astro` | Fundacion HTML + meta tags | Configurable |
-| `Layout.astro` | Paginas publicas con navbar | Indexable |
-| `BuildersLayout.astro` | Area `/builders/*` con auth | noindex |
-| `ManagementLayout.astro` | Area `/management/*` con RBAC | noindex + enhanced security |
+| Layout | |
+|---|---|
+| `Base.astro` | HTML + meta |
+| `Layout.astro` | Public, indexable |
+| `BuildersLayout.astro` | `/builders/*`, noindex |
+| `ManagementLayout.astro` | `/management/*`, noindex |
 
 ---
 
-## Seguridad
+## Security
 
-- Llaves privadas nunca se envian ni almacenan en el servidor
-- Generacion de llaves 100% client-side (Web Crypto API)
-- bcrypt con salt para passwords de admin
-- HMAC-SHA256 para cookies de sesion de creacion
-- Sesiones Better Auth (cookie + tablas `user`/`session` en libsql) firmadas con AUTH_SECRET
-- Nonces criptograficos de uso unico para Keychain auth
-- Rate limiting por IP/fingerprint + username
-- Validacion dual (client + server) para usernames
-- RBAC: admin y builder con permisos diferenciados
-- Triggers SQL: max 1 admin, roles inmutables, integridad de password
-- CSP headers configurados en middleware
+- Keys generated in the browser. Never sent. Never stored.
+- Admin passwords: bcrypt.
+- Creation cookies: HMAC-SHA256.
+- Sessions: Better Auth (`user` / `session` in libsql), `AUTH_SECRET`.
+- Keychain: one-time nonces.
+- Rate limits on IP, fingerprint, username.
+- Validate on client and server.
+- RBAC: admin vs builder.
+- SQL triggers: one admin, immutable roles.
+- CSP in middleware.
 
 ---
 
-## Rebranding (para forks)
+## Fork / rebrand
 
-Toda la identidad de marca esta centralizada en `src/consts/branding.ts`. Para hacer un rebrand completo:
-
-### 1. Editar `src/consts/branding.ts`
+Identity lives in `src/consts/branding.ts`.
 
 ```ts
 export const BRAND = {
-  NAME: 'TuMarca',
-  TAGLINE: 'Tu descripcion...',
-  URL: 'https://tu-dominio.com',
-  LOGO_ALT: 'TuMarca',
-  APP_ID: 'TuMarca/1.0.0',        // ⚠️ inmutable una vez en blockchain
-  CLAIM_APP_ID: 'tuMarcaCreateAcc', // ⚠️ inmutable una vez en blockchain
+  NAME: 'YourBrand',
+  TAGLINE: '…',
+  URL: 'https://your-domain.com',
+  LOGO_ALT: 'YourBrand',
+  APP_ID: 'YourBrand/1.0.0',        // frozen once on-chain
+  CLAIM_APP_ID: 'yourBrandCreateAcc', // frozen once on-chain
 } as const
 ```
 
-### 2. Reemplazar assets visuales
+Replace `public/favicon.svg`, `public/og.jpg`, logos in `src/assets/`. Colors: `@theme` in `src/styles/global.css`.
 
-- `public/favicon.svg` - Favicon del sitio
-- `public/og.jpg` - Imagen de preview para redes sociales
-- Logos en `src/assets/` (si existen)
-
-### 3. Colores (opcional)
-
-Editar el bloque `@theme {}` en `src/styles/global.css` para cambiar la paleta de colores.
-
-### Importante
-
-- `APP_ID` y `CLAIM_APP_ID` se escriben en la blockchain de Hive. Cambiarlos despues de haber creado cuentas o reclamado creditos rompe la verificacion de operaciones anteriores.
-- `BEEKEEPER_CONFIG.SESSION_SALT` en `src/consts/constants.ts` invalida sesiones existentes si se cambia.
+Do not change `APP_ID` or `CLAIM_APP_ID` after accounts or claims have gone on-chain. Changing `BEEKEEPER_CONFIG.SESSION_SALT` kills existing wallet sessions.
