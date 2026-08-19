@@ -3,73 +3,49 @@ import { defineMiddleware, sequence } from 'astro:middleware'
 import '@/lib/error-normalizer'
 // Side-effect: starts auto-reconciler interval (idempotent — safe to import from multiple sites)
 import '@/lib/auto-reconciler'
-import { ROUTES } from '@/consts/constants'
+import { HIVE_CHAIN_CONFIG, ROUTES } from '@/consts/constants'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import {
-	requireAdminAuth,
-	requireBuildersAuth,
+	resolveAdminAuth,
+	resolveBuilderAuth,
+	type AdminUser,
+	type BuilderUser,
 } from '@/lib/admin/auth/helpers/auth-guards'
 import type { APIContext } from 'astro'
 import type { AdminSession, BuilderSession } from '@/types/auth'
-import type { AuthenticatedUser } from '@/lib/admin/auth/helpers/auth-guards'
 import { parseRole, UserRole } from '@/lib/roles'
 import { getBooleanEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { signUserId } from '@/lib/user-id-token'
 
-/**
- * Maps an AuthenticatedUser from the guard to AdminSession for locals.
- * Rejects temporary users (ID 0) and invalid roles.
- */
-function mapGuardResultToAdmin(guardResult: AuthenticatedUser): AdminSession {
-	const userId = guardResult.id
-
-	if (!userId || userId === 0) {
-		throw new Error('Invalid user ID: temporary users cannot access management')
-	}
-
-	const role = parseRole(guardResult.role)
-	if (role !== UserRole.Admin) {
-		throw new Error(`Invalid role for admin: ${guardResult.role}`)
-	}
+function toAdminSession(user: AdminUser): AdminSession | null {
+	const role = parseRole(user.role)
+	if (role !== UserRole.Admin || !user.id || !user.isActive) return null
 
 	return {
-		userId,
-		username: guardResult.username || '',
+		userId: user.id,
+		userHash: signUserId(user.id),
+		username: user.username || '',
 		role,
-		loginTime: typeof guardResult.loginTime === 'number'
-			? guardResult.loginTime
-			: Date.now(),
+		loginTime:
+			typeof user.loginTime === 'number' ? user.loginTime : Date.now(),
 	}
 }
 
-/**
- * Maps an AuthenticatedUser from the guard to BuilderSession for locals.
- */
-function mapGuardResultToBuilder(guardResult: AuthenticatedUser): BuilderSession {
-	const userId = guardResult.id
-
-	if (!userId || userId === 0) {
-		throw new Error('Invalid user ID: temporary users cannot access builders')
-	}
-
-	const role = parseRole(guardResult.role)
-	if (role !== UserRole.Builder) {
-		throw new Error(`Invalid role for builder: ${guardResult.role}`)
-	}
+function toBuilderSession(user: BuilderUser): BuilderSession | null {
+	const role = parseRole(user.role)
+	if (role !== UserRole.Builder || !user.id || !user.isActive) return null
 
 	return {
-		userId,
-		username: guardResult.username || '',
+		userId: user.id,
+		userHash: signUserId(user.id),
+		username: user.username || '',
 		role,
-		loginTime: typeof guardResult.loginTime === 'number'
-			? guardResult.loginTime
-			: Date.now(),
+		loginTime:
+			typeof user.loginTime === 'number' ? user.loginTime : Date.now(),
 	}
 }
 
-/**
- * Protects routes under /management/ using auth guards
- */
 async function protectManagementRoutes(
 	context: APIContext
 ): Promise<Response | null> {
@@ -79,42 +55,34 @@ async function protectManagementRoutes(
 		return null
 	}
 
-	// Login page: redirect to console if already authenticated
+	const authResult = await resolveAdminAuth(context.request)
+
 	if (pathname === ROUTES.LOGIN) {
-		const authResult = await requireAdminAuth(context.request)
-		if (authResult.isAuthenticated) {
+		if (authResult.kind === 'active') {
 			return context.redirect(ROUTES.CONSOLE)
 		}
 		return null
 	}
 
-	const authResult = await requireAdminAuth(context.request)
-
-	if (!authResult.isAuthenticated) {
-		return context.redirect(authResult.redirectTo || ROUTES.LOGIN)
+	if (authResult.kind !== 'active') {
+		return context.redirect(authResult.redirectTo)
 	}
 
-	try {
-		if (authResult.user) {
-			context.locals.adminUser = mapGuardResultToAdmin(authResult.user)
-		}
-	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown mapping error'
-		logger.warn(`[middleware] Guard mapping error: ${errorMessage}`)
+	const session = toAdminSession(authResult.user)
+	if (!session) {
+		logger.warn('[middleware] Admin session mapping rejected')
 		return context.redirect(ROUTES.LOGIN)
 	}
 
+	context.locals.adminUser = session
 	return null
 }
 
 /**
- * Protects routes under /builders/ using auth guards.
- * Stores authenticated builder in locals.builderUser.
- *
- * Two outcomes:
- * 1. Not authenticated → redirect to login
- * 2. Authenticated and registered → set locals.builderUser, proceed
- * 3. Authenticated but not registered (id=0) → set locals.pendingBuilder, show empty panel
+ * Protects /builders/.
+ * anonymous → login
+ * pending (Keychain ok, not an active builder) → empty panel
+ * active → locals.builderUser
  */
 async function protectBuildersRoutes(
 	context: APIContext
@@ -125,42 +93,37 @@ async function protectBuildersRoutes(
 		return null
 	}
 
-	// Login page: redirect to dashboard if already authenticated
+	const authResult = await resolveBuilderAuth(context.request)
+
 	if (pathname === ROUTES.BUILDERS_LOGIN) {
-		const authResult = await requireBuildersAuth(context.request)
-		if (authResult.isAuthenticated) {
+		if (authResult.kind === 'active') {
 			return context.redirect(ROUTES.BUILDERS_DASHBOARD)
+		}
+		if (authResult.kind === 'pending') {
+			return context.redirect(`${ROUTES.BUILDERS_DASHBOARD}?pending=1`)
 		}
 		return null
 	}
 
-	const authResult = await requireBuildersAuth(context.request)
-
-	if (!authResult.isAuthenticated) {
-		return context.redirect(authResult.redirectTo || ROUTES.BUILDERS_LOGIN)
+	if (authResult.kind === 'anonymous') {
+		return context.redirect(authResult.redirectTo)
 	}
 
-	try {
-		if (authResult.user) {
-			context.locals.builderUser = mapGuardResultToBuilder(authResult.user)
-		}
-	} catch (error) {
-		const message = error instanceof Error ? error.message : ''
-		// Only treat as pending builder for the specific id=0 case
-		if (message.includes('Invalid user ID') && authResult.user?.username) {
-			context.locals.pendingBuilder = { username: authResult.user.username }
-		} else {
-			logger.warn(`[middleware] Builder mapping error: ${message}`)
-			return context.redirect(ROUTES.BUILDERS_LOGIN)
-		}
+	if (authResult.kind === 'pending') {
+		context.locals.pendingBuilder = { username: authResult.username }
+		return null
 	}
 
+	const session = toBuilderSession(authResult.user)
+	if (!session) {
+		logger.warn('[middleware] Builder session mapping rejected')
+		return context.redirect(ROUTES.BUILDERS_LOGIN)
+	}
+
+	context.locals.builderUser = session
 	return null
 }
 
-/**
- * Loads the creation session into locals for all pages
- */
 async function loadCreationSession(context: APIContext): Promise<void> {
 	try {
 		if (context.locals.creation !== undefined) return
@@ -175,22 +138,15 @@ async function loadCreationSession(context: APIContext): Promise<void> {
 	}
 }
 
-/**
- * Build CSP connect-src: include testnet API only in development.
- * 'unsafe-inline' is required by Astro (no experimental CSP with ClientRouter).
- */
-function buildConnectSrc(): string {
-	const sources = [
-		"'self'",
-		'https://api.hive.blog',
-		'https://api.openhive.network',
-		'https://techcoderx.com',
-		'https://rpc.mahdiyari.info',
+function hiveConnectSources(): string[] {
+	const sources: string[] = [
+		HIVE_CHAIN_CONFIG.MAINNET_DEFAULT,
+		...HIVE_CHAIN_CONFIG.MAINNET_BACKUPS,
 	]
 	if (!getBooleanEnv('MAINNET')) {
-		sources.push('https://api.fake.openhive.network')
+		sources.push(HIVE_CHAIN_CONFIG.TESTNET_API)
 	}
-	return `connect-src ${sources.join(' ')}`
+	return sources
 }
 
 /**
@@ -202,24 +158,29 @@ function buildConnectSrc(): string {
  * Mitigated by: never reflecting user input via innerHTML (textContent only),
  * strict input validation, and frame-ancestors 'none'.
  */
-const SECURITY_HEADERS: Record<string, string> = {
-	'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
-	'X-Content-Type-Options': 'nosniff',
-	'X-Frame-Options': 'DENY',
-	'Referrer-Policy': 'strict-origin-when-cross-origin',
-	'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-	'Content-Security-Policy': [
-		"default-src 'self'",
-		"script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: https:",
-		"font-src 'self' data:",
-		buildConnectSrc(),
-		"frame-ancestors 'none'",
-		"base-uri 'self'",
-		"form-action 'self'",
-	].join('; '),
+function buildSecurityHeaders(): Record<string, string> {
+	const connectSrc = ["'self'", ...hiveConnectSources()].join(' ')
+	return {
+		'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+		'X-Content-Type-Options': 'nosniff',
+		'X-Frame-Options': 'DENY',
+		'Referrer-Policy': 'strict-origin-when-cross-origin',
+		'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+		'Content-Security-Policy': [
+			"default-src 'self'",
+			"script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+			"style-src 'self' 'unsafe-inline'",
+			"img-src 'self' data: https:",
+			"font-src 'self' data:",
+			`connect-src ${connectSrc}`,
+			"frame-ancestors 'none'",
+			"base-uri 'self'",
+			"form-action 'self'",
+		].join('; '),
+	}
 }
+
+const SECURITY_HEADERS = buildSecurityHeaders()
 
 function applySecurityHeaders(response: Response): Response {
 	for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
@@ -227,8 +188,6 @@ function applySecurityHeaders(response: Response): Response {
 	}
 	return response
 }
-
-// --- Composable middleware functions ---
 
 const securityHeadersMiddleware = defineMiddleware(async (context, next) => {
 	if (context.isPrerendered) return next()
@@ -245,6 +204,9 @@ const managementAuthMiddleware = defineMiddleware(async (context, next) => {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 		logger.warn(`[middleware] Management auth error: ${errorMessage}`)
+		if (context.url.pathname.startsWith(ROUTES.MANAGEMENT)) {
+			return applySecurityHeaders(context.redirect(ROUTES.LOGIN))
+		}
 	}
 
 	return next()
@@ -259,6 +221,9 @@ const buildersAuthMiddleware = defineMiddleware(async (context, next) => {
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 		logger.warn(`[middleware] Builders auth error: ${errorMessage}`)
+		if (context.url.pathname.startsWith(ROUTES.BUILDERS_PREFIX)) {
+			return applySecurityHeaders(context.redirect(ROUTES.BUILDERS_LOGIN))
+		}
 	}
 
 	return next()

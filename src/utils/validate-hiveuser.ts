@@ -7,8 +7,9 @@ interface ValidateAccountParams {
 }
 
 /**
- * Check if a Hive account exists. Returns a discriminated result so callers
- * can distinguish "not found" from "RPC error" (avoids false positives).
+ * Existence check on Hive (database_api.find_accounts).
+ * Not a format check — use checkHiveAccountFormat() / validateAccountName() for characters.
+ * Distinguishes "not found" from "RPC error" (avoids false positives).
  *
  * Used client-side in Form.astro. For server-side code, prefer safeCheckAccountOnChain.
  */

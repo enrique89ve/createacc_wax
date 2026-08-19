@@ -32,6 +32,7 @@ const translations = I18nManager.getTranslations()
       >
         <div class="flex items-center gap-3">
           <div
+            id="icon-txt-default"
             class="bg-primary/10 text-primary flex h-10 w-10 items-center justify-center rounded-lg"
           >
             <svg
@@ -46,11 +47,19 @@ const translations = I18nManager.getTranslations()
                 clip-rule="evenodd"></path>
             </svg>
           </div>
+          <div
+            id="icon-txt-done"
+            class="hidden h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+              <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
           <div>
             <h3 class="text-foreground font-medium">
               {translations.downloadModal.formats.txt.title}
             </h3>
-            <p class="text-muted-foreground text-sm">
+            <p id="desc-txt" class="text-muted-foreground text-sm">
               {translations.downloadModal.formats.txt.description}
             </p>
           </div>
@@ -64,6 +73,7 @@ const translations = I18nManager.getTranslations()
       >
         <div class="flex items-center gap-3">
           <div
+            id="icon-pdf-default"
             class="flex h-10 w-10 items-center justify-center rounded-lg bg-red-500/10 text-red-500"
           >
             <svg
@@ -78,11 +88,19 @@ const translations = I18nManager.getTranslations()
                 clip-rule="evenodd"></path>
             </svg>
           </div>
+          <div
+            id="icon-pdf-done"
+            class="hidden h-10 w-10 items-center justify-center rounded-lg bg-green-500/10 text-green-500"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5">
+              <path fill-rule="evenodd" d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z" clip-rule="evenodd"></path>
+            </svg>
+          </div>
           <div>
             <h3 class="text-foreground font-medium">
               {translations.downloadModal.formats.pdf.title}
             </h3>
-            <p class="text-muted-foreground text-sm">
+            <p id="desc-pdf" class="text-muted-foreground text-sm">
               {translations.downloadModal.formats.pdf.description}
             </p>
           </div>

@@ -38,7 +38,7 @@ export interface TicketCreationResult {
  * Filters for ticket search
  */
 export interface TicketFilters {
-  readonly createdBy?: number
+  readonly createdBy?: string
   readonly isActive?: boolean
   readonly hasBeenUsed?: boolean
 }
@@ -206,7 +206,7 @@ export class TicketsRepository {
   /**
    * Get all tickets created by a user (admin or builder)
    */
-  async findByCreator(userId: number): Promise<DatabaseTicketRow[]> {
+  async findByCreator(userId: string): Promise<DatabaseTicketRow[]> {
     try {
       const result = await db.execute({
         sql: `
@@ -253,7 +253,7 @@ export class TicketsRepository {
   async findWithFilters(filters: TicketFilters): Promise<DatabaseTicketRow[]> {
     try {
       const conditions: string[] = []
-      const args: (number | boolean)[] = []
+      const args: (string | number | boolean)[] = []
 
       if (filters.createdBy !== undefined) {
         conditions.push('created_by = ?')
@@ -302,7 +302,7 @@ export class TicketsRepository {
 						u.username as creator_username,
 						u.role as creator_role
 					FROM Tickets t
-					LEFT JOIN Users u ON t.created_by = u.id
+					LEFT JOIN "user" u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 				`,
         args: [],
@@ -318,7 +318,7 @@ export class TicketsRepository {
    * Get tickets for a user with creator information
    */
   async getUserTicketsWithCreator(
-    userId: number
+    userId: string
   ): Promise<TicketWithCreator[]> {
     try {
       const result = await db.execute({
@@ -328,7 +328,7 @@ export class TicketsRepository {
 						u.username as creator_username,
 						u.role as creator_role
 					FROM Tickets t
-					LEFT JOIN Users u ON t.created_by = u.id
+					LEFT JOIN "user" u ON t.created_by = u.id
 					WHERE t.created_by = ?
 					ORDER BY t.created_at DESC
 				`,
@@ -345,7 +345,7 @@ export class TicketsRepository {
    * Get tickets created by a specific builder (helper for builder views)
    */
   async getBuilderTicketsWithCreator(
-    builderId: number
+    builderId: string
   ): Promise<TicketWithCreator[]> {
     return this.getUserTicketsWithCreator(builderId)
   }
@@ -363,7 +363,7 @@ export class TicketsRepository {
 						u.username as creator_username,
 						u.role as creator_role
 					FROM Tickets t
-					LEFT JOIN Users u ON t.created_by = u.id
+					LEFT JOIN "user" u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
@@ -383,7 +383,7 @@ export class TicketsRepository {
    * @deprecated Not used in current codebase. Kept for compatibility.
    * Consider deleting in v2.0
    */
-  async getUserStats(userId: number): Promise<TicketStats> {
+  async getUserStats(userId: string): Promise<TicketStats> {
     try {
       const result = await db.execute({
         sql: `

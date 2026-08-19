@@ -33,8 +33,8 @@ export const GET: APIRoute = async context => {
 
 // Helper: Get user data (using unified repository)
 const getUserData = async (
-  userId: number
-): Promise<{ id: number; username: string } | null> => {
+  userId: string
+): Promise<{ id: string; username: string } | null> => {
   const user = await usersRepository.findById(userId)
   return user && user.is_active
     ? { id: user.id, username: user.username }
@@ -50,7 +50,7 @@ const ticketCodeExists = async (code: string): Promise<boolean> => {
 // Helper: Create ticket audit log
 const createTicketAudit = async (
   ticketCode: string,
-  userId: number
+  userId: string
 ): Promise<void> => {
   await db.execute({
     sql: `INSERT INTO TicketAudit (ticket, action, performed_by)

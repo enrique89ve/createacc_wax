@@ -1,24 +1,25 @@
 /**
  * Custom management login endpoint
- * Manually creates Auth.js session to avoid redirect loops
+ * Validates admin password then creates a Better Auth session.
  *
  * Security features:
  * - Rate limiting to prevent brute-force attacks
- * - Auth.js compatible JWT tokens
  */
 
 import type { APIRoute } from 'astro'
 import { logger } from '@/lib/logger'
 import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
-import { encode } from '@auth/core/jwt'
 import { HTTP_STATUS } from '@/consts/constants'
+import {
+	appendSessionCookie,
+	createAppAuthSession,
+} from '@/lib/auth-session'
 import { UserRole } from '@/lib/roles'
 import {
   checkLoginRateLimit,
   recordLoginAttempt,
 } from '@/lib/rate-limiter-server'
-import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
 import { resolveRateLimitSource } from '@/lib/client-ip'
 
 interface ManagementLoginBody {
@@ -196,10 +197,16 @@ export const POST: APIRoute = async (context) => {
       )
     }
 
-    // Get secret
-    const secret = process.env.AUTH_SECRET
-    if (!secret) {
-      logger.error('AUTH_SECRET is missing')
+    const created = await createAppAuthSession({
+      username: user.username,
+      role: user.role,
+      authMethod: 'password',
+      userId: user.id,
+      isActive: true,
+    })
+
+    if (!created) {
+      logger.error('Failed to create Better Auth session')
       return new Response(
         JSON.stringify({
           success: false,
@@ -209,32 +216,6 @@ export const POST: APIRoute = async (context) => {
       )
     }
 
-    // Determine cookie name and options
-    const isSecure = shouldUseSecureCookie(request)
-    const cookieName = isSecure
-      ? '__Secure-authjs.session-token'
-      : 'authjs.session-token'
-
-    // Create token payload (must match what jwtCallback expects)
-    const token = {
-      sub: user.id,
-      userId: user.id,
-      username: user.username,
-      role: user.role,
-      auth_method: user.auth_method,
-      loginTime: user.loginTime,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, // 24 hours
-      jti: crypto.randomUUID(),
-    }
-
-    // Sign token
-    const encodedToken = await encode({
-      token,
-      secret,
-      salt: cookieName,
-    })
-
     await persistLoginAttempt(
       request,
       source.sourceKey,
@@ -242,20 +223,10 @@ export const POST: APIRoute = async (context) => {
       true
     )
 
-    // Create Set-Cookie header
-    const cookieOptions = [
-      `${cookieName}=${encodedToken}`,
-      `Path=/`,
-      `HttpOnly`,
-      `SameSite=Strict`,
-      `Max-Age=${24 * 60 * 60}`,
-    ]
-
-    if (isSecure) {
-      cookieOptions.push('Secure')
-    }
-
-    const cookieHeader = cookieOptions.join('; ')
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+    })
+    appendSessionCookie(headers, created.token)
 
     return new Response(
       JSON.stringify({
@@ -267,10 +238,7 @@ export const POST: APIRoute = async (context) => {
       }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': cookieHeader,
-        },
+        headers,
       }
     )
   } catch (error) {

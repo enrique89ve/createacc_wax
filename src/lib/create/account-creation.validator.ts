@@ -1,7 +1,8 @@
 import { type TPublicKey } from '@hiveio/wax'
-import { USERNAME_CONSTRAINTS, VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
+import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import type { ICreateAccountParams } from '@/lib/create/create-account'
 import { validateHiveKeySet } from '@/utils/key-validation'
+import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
 import {
 	type ValidationResult,
@@ -27,7 +28,8 @@ export interface ValidatedSession {
 /**
  * Valida los datos del request de creacion de cuenta (funcion pura).
  *
- * Valida: campos requeridos, formato de username, claves publicas validas.
+ * Valida: campos requeridos, formato de username (caracteres), claves publicas.
+ * No comprueba si la cuenta existe en Hive.
  */
 export function validateRequestData(
 	data: Record<string, unknown>
@@ -42,11 +44,7 @@ export function validateRequestData(
 		)
 	}
 
-	if (
-		typeof username !== 'string' ||
-		username.length < USERNAME_CONSTRAINTS.MIN_LENGTH ||
-		username.length > USERNAME_CONSTRAINTS.MAX_LENGTH
-	) {
+	if (typeof username !== 'string' || validateAccountName(username) !== null) {
 		return createValidationFailure(
 			VALIDATION_ERROR_MESSAGES.INVALID_USERNAME_FORMAT,
 			'username',

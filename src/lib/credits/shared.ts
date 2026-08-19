@@ -9,7 +9,7 @@ import { db } from '../database'
  * Ensure a credits row exists for a builder.
  * Creates one with zeroed values if missing.
  */
-export async function getOrCreateCreditRow(builderId: number): Promise<void> {
+export async function getOrCreateCreditRow(builderId: string): Promise<void> {
 	const existing = await db.execute({
 		sql: 'SELECT id FROM Credits WHERE builder_id = ?',
 		args: [builderId],
@@ -30,11 +30,11 @@ export async function getOrCreateCreditRow(builderId: number): Promise<void> {
  * Insert an entry into the CreditAudit table.
  */
 export async function insertCreditAudit(params: {
-	readonly builderId: number
+	readonly builderId: string
 	readonly operation: string
 	readonly amount: number
 	readonly reason: string
-	readonly performedBy?: number
+	readonly performedBy?: string
 }): Promise<void> {
 	await db.execute({
 		sql: `

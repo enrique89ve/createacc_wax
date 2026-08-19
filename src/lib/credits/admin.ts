@@ -5,7 +5,8 @@
  * assign credits, transfer between builders, direct adjustments.
  */
 
-import { db } from '../database'
+import { db, insertAppUser } from '../database'
+import { UserRole } from '@/lib/roles'
 import { creditBalanceTracker } from '../credit-balance-tracker'
 import { notifyPendingCredits } from '../notification-service'
 import { logger } from '@/lib/logger'
@@ -20,20 +21,21 @@ export async function assignCredits(
 	operation: AssignCreditsOperation
 ): Promise<BuilderCreditsInfo> {
 	let builderResult = await db.execute({
-		sql: "SELECT id FROM Users WHERE role = 'builder' AND username = ?",
+		sql: `SELECT id FROM "user" WHERE role = 'builder' AND username = ?`,
 		args: [operation.hive_username],
 	})
 
-	let builderId: number
+	let builderId: string
 
 	if (builderResult.rows.length === 0) {
-		const createResult = await db.execute({
-			sql: 'INSERT INTO Users (username, role, is_active, password_hash) VALUES (?, ?, ?, ?)',
-			args: [operation.hive_username, 'builder', true, null],
+		builderId = await insertAppUser({
+			username: operation.hive_username,
+			role: UserRole.Builder,
+			authMethod: 'keychain',
+			isActive: true,
 		})
-		builderId = Number(createResult.lastInsertRowid)
 	} else {
-		builderId = (builderResult.rows[0] as unknown as UserIdRow).id
+		builderId = String((builderResult.rows[0] as unknown as UserIdRow).id)
 	}
 
 	await getOrCreateCreditRow(builderId)
@@ -84,8 +86,8 @@ export async function assignCredits(
  * Atomic transaction to prevent race conditions.
  */
 export async function transferCredits(
-	fromBuilderId: number,
-	toBuilderId: number,
+	fromBuilderId: string,
+	toBuilderId: string,
 	amount: number
 ): Promise<void> {
 	if (fromBuilderId === toBuilderId) {
@@ -97,7 +99,7 @@ export async function transferCredits(
 	}
 
 	const toBuilderResult = await db.execute({
-		sql: "SELECT id FROM Users WHERE role = 'builder' AND id = ?",
+		sql: `SELECT id FROM "user" WHERE role = 'builder' AND id = ?`,
 		args: [toBuilderId],
 	})
 
@@ -159,11 +161,11 @@ export async function transferCredits(
  * Only for use by administrators in case of corrections.
  */
 export async function adjustCredits(params: {
-	readonly builder_id: number
+	readonly builder_id: string
 	readonly pending_amount?: number
 	readonly available_amount?: number
 	readonly reason: string
-	readonly performed_by_admin: number
+	readonly performed_by_admin: string
 }): Promise<BuilderCreditsInfo> {
 	const {
 		builder_id: builderId,

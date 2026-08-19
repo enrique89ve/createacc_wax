@@ -81,7 +81,7 @@ export const POST: APIRoute = async (context) => {
 			const [verificationResult, builderResult] = await Promise.all([
 				verifyClaimTransaction(transactionId, hash, session.username),
 				db.execute({
-					sql: 'SELECT id FROM Users WHERE id = ? AND is_active = TRUE',
+					sql: 'SELECT id FROM "user" WHERE id = ? AND is_active = TRUE',
 					args: [session.userId],
 				}),
 			])

@@ -7,10 +7,11 @@ import type {
   HiveSignature,
 } from '@/types/hive-signature'
 import { logger } from '@/lib/logger'
+import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 
 /** Partial row from SELECT id, username, role, is_active, last_claim_at, created_at, updated_at */
 interface BuilderRow {
-  readonly id: number
+  readonly id: string
   readonly username: string
   readonly role: string
   readonly is_active: boolean | number
@@ -52,7 +53,7 @@ export async function verifyKeychainAuth(
 
     // Validate that it is not an admin trying to use Keychain
     const adminCheck = await db.execute({
-      sql: 'SELECT username FROM Users WHERE username = ? AND role = ?',
+      sql: 'SELECT username FROM "user" WHERE username = ? AND role = ?',
       args: [username as string, 'admin'],
     })
 
@@ -132,44 +133,47 @@ export async function verifyKeychainAuth(
       }
     }
 
-    // Find builder in the database
+    // Find builder in the database (include inactive so we can reject bans)
     // SECURITY: Explicit columns - DO NOT include password_hash
     const builderResult = await db.execute({
-      sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ? AND role = ? AND is_active = TRUE',
+      sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user" WHERE username = ? AND role = ?',
       args: [username as string, 'builder'],
     })
 
-    let user: NewUser
-
     if (builderResult.rows.length === 0) {
-      // Builder does not exist in DB - allow access but with 0 credits
-      // Create temporary user object (not saved in DB)
-      user = {
-        id: 0, // Temporary ID
-        username: username,
-        hive_account: username,
-        auth_method: 'keychain',
-        password_hash: null,
-        credits: 0, // 0 credits until admin assigns
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as NewUser
-    } else {
-      // Builder exists in DB
-      const builder = builderResult.rows[0] as unknown as BuilderRow
-
-      // Map builder to user format for session compatibility
-      user = {
-        id: builder.id,
-        username: builder.username,
-        hive_account: builder.username,
-        auth_method: 'keychain',
-        password_hash: null,
-        credits: 0, // Credits are obtained from the Credits table
-        created_at: builder.created_at,
-        updated_at: builder.updated_at,
-      } as NewUser
+      return {
+        success: true,
+        user: {
+          id: '',
+          username: username,
+          hive_account: username,
+          auth_method: 'keychain',
+          password_hash: null,
+          credits: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as NewUser,
+      }
     }
+
+    const builder = builderResult.rows[0] as unknown as BuilderRow
+    if (!sqliteToBoolean(builder.is_active)) {
+      return {
+        success: false,
+        error: 'Tu cuenta de builder está inactiva',
+      }
+    }
+
+    const user: NewUser = {
+      id: builder.id,
+      username: builder.username,
+      hive_account: builder.username,
+      auth_method: 'keychain',
+      password_hash: null,
+      credits: 0,
+      created_at: builder.created_at,
+      updated_at: builder.updated_at,
+    } as NewUser
 
     return {
       success: true,

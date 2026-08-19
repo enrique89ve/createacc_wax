@@ -476,7 +476,7 @@ export async function completeAccountCreationInDB(
       // 1. Get ticket creator info
       const ticketInfo = await db.execute({
         sql: `SELECT created_by,
-              (SELECT username FROM Users WHERE id = created_by) as creator_username
+              (SELECT username FROM "user" WHERE id = created_by) as creator_username
               FROM Tickets WHERE code = ?`,
         args: [cleanTicketCode],
       })
@@ -485,7 +485,7 @@ export async function completeAccountCreationInDB(
         ? ticketInfo.rows[0].creator_username as string | null
         : null
       const createdBy = ticketInfo.rows.length > 0
-        ? ticketInfo.rows[0].created_by as number | null
+        ? (ticketInfo.rows[0].created_by as string | null)
         : null
 
       // 2. Save account record

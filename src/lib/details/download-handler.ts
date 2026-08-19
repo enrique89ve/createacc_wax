@@ -3,10 +3,9 @@ import {
 	type KeysData,
 	type DownloadFormat,
 } from '@/utils/key-download-manager'
-import { I18nManager } from '@/utils/i18n'
 import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
 import type { HiveKeyRole } from '@/types/keys'
-import type { PreSolvedBundle, ExtendedWindow } from './types'
+import type { PreSolvedBundle } from './types'
 
 export interface DownloadDependencies {
 	readonly username: string
@@ -17,13 +16,12 @@ export interface DownloadDependencies {
 	}
 	readonly keysetId: string
 	readonly recoverSession: () => Promise<boolean>
-	readonly extWindow: Window & ExtendedWindow
 }
 
 export async function downloadAndNotify(
 	deps: DownloadDependencies,
 	format: DownloadFormat,
-): Promise<boolean> {
+): Promise<void> {
 	const privateKeys = deps.allKeys.getAllPrivateKeys()
 	const publicKeys = deps.allKeys.getAllPublicKeys()
 
@@ -40,17 +38,6 @@ export async function downloadAndNotify(
 
 	// Notify server about downloaded keys (best-effort)
 	await notifyServerKeysDownloaded(publicKeys, deps.recoverSession)
-
-	if (deps.extWindow.showToast) {
-		deps.extWindow.showToast(
-			'success',
-			I18nManager.t('messages.keysDownloaded', {
-				format: format.toUpperCase(),
-			})
-		)
-	}
-
-	return true
 }
 
 async function notifyServerKeysDownloaded(

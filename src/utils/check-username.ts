@@ -1,11 +1,17 @@
 import { getWaxFoundation } from '@/lib/wax-foundation'
 
-export type HiveAccountCheckResult =
+export type HiveAccountFormatCheckResult =
 	| { valid: true }
 	| { valid: false; reason: 'invalid_format' }
 	| { valid: false; reason: 'infrastructure_error'; error: string }
 
-export async function checkHiveAccount(account: string): Promise<HiveAccountCheckResult> {
+/**
+ * Protocol-level username format check (characters, length, segments).
+ * Does not query Hive for existence — use safeCheckAccountOnChain() for that.
+ */
+export async function checkHiveAccountFormat(
+	account: string
+): Promise<HiveAccountFormatCheckResult> {
 	try {
 		const hive = await getWaxFoundation()
 		return hive.isValidAccountName(account) === true

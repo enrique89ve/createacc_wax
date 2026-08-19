@@ -17,7 +17,7 @@ import { db } from './database'
  * Builder credit balance with validation
  */
 export interface CreditBalance {
-  readonly builder_id: number
+  readonly builder_id: string
   readonly hive_username: string
   readonly pending_amount: number
   readonly available_amount: number
@@ -50,7 +50,7 @@ export interface CreditBalanceBreakdown extends CreditBalance {
  * Consistency check result
  */
 export interface ConsistencyCheck {
-  readonly builder_id: number
+  readonly builder_id: string
   readonly is_consistent: boolean
   /** Critical inconsistencies that block operations (e.g., incorrect available_amount) */
   readonly critical_issues: string[]
@@ -80,7 +80,7 @@ class CreditBalanceTracker {
 						COALESCE(c.available_amount, 0) as available_amount,
 						COALESCE(c.total_assigned, 0) as total_assigned,
 						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Users u
+					FROM "user" u
 					LEFT JOIN Credits c ON u.id = c.builder_id
 					WHERE u.role = 'builder' AND ${where}
 				`,
@@ -92,7 +92,7 @@ class CreditBalanceTracker {
       }
 
       const row = result.rows[0] as Record<string, unknown>
-      const builderId = Number(row.builder_id)
+      const builderId = String(row.builder_id)
 
       // Verify consistency
       const consistency = await this.checkConsistency(builderId)
@@ -123,7 +123,7 @@ class CreditBalanceTracker {
   /**
    * Get balance by builder_id
    */
-  async getBalanceById(builder_id: number): Promise<CreditBalance | null> {
+  async getBalanceById(builder_id: string): Promise<CreditBalance | null> {
     return this.queryBuilderCredits('u.id = ?', [builder_id])
   }
 
@@ -172,7 +172,7 @@ class CreditBalanceTracker {
    * - Positive: assign_credits, claim_credits, claim_via_blockchain, delete_ticket_refund, admin_adjustment (when adding)
    * - Negative: create_ticket, consume_credits, admin_adjustment (when subtracting)
    */
-  private async calculateBreakdown(builder_id: number) {
+  private async calculateBreakdown(builder_id: string) {
     const result = await db.execute({
       sql: `
 				SELECT
@@ -205,7 +205,7 @@ class CreditBalanceTracker {
    * NOTE: Only available_amount is CRITICAL and blocks operations.
    * total_assigned may differ due to historical data and is only informational.
    */
-  async checkConsistency(builder_id: number): Promise<ConsistencyCheck> {
+  async checkConsistency(builder_id: string): Promise<ConsistencyCheck> {
     const critical_issues: string[] = []
     const warning_issues: string[] = []
 
@@ -273,7 +273,7 @@ class CreditBalanceTracker {
    */
   async detectDuplicateAssignments(seconds: number = 5): Promise<
     Array<{
-      builder_id: number
+      builder_id: string
       timestamp: string
       count: number
       total_amount: number
@@ -297,7 +297,7 @@ class CreditBalanceTracker {
     })
 
     return result.rows.map((row: Record<string, unknown>) => ({
-      builder_id: Number(row.builder_id),
+      builder_id: String(row.builder_id),
       timestamp: String(row.timestamp),
       count: Number(row.count),
       total_amount: Number(row.total_amount),
@@ -345,7 +345,7 @@ class CreditBalanceTracker {
    * Validate that a credit operation is safe before executing it
    */
   async validateOperation(
-    builder_id: number,
+    builder_id: string,
     operation: 'assign' | 'claim' | 'deduct' | 'refund',
     amount: number
   ): Promise<{ valid: boolean; reason?: string }> {
@@ -407,7 +407,7 @@ class CreditBalanceTracker {
     const checks: ConsistencyCheck[] = []
 
     for (const row of buildersResult.rows) {
-      const builderId = Number((row as Record<string, unknown>).builder_id)
+      const builderId = String((row as Record<string, unknown>).builder_id)
       const check = await this.checkConsistency(builderId)
 
       if (!check.is_consistent) {

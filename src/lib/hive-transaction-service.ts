@@ -1,6 +1,6 @@
-import { hiveChain, isMainnet } from '@/lib/hiveservice'
+import { hiveChain, invalidateHiveChain, isMainnet } from '@/lib/hiveservice'
 import { BeekeeperService, type IWalletSession } from '@/lib/create/beekeeper-service'
-import type { ITransactionBase } from '@hiveio/wax'
+import type { IOnlineTransaction } from '@hiveio/wax'
 import { getEnvString } from '@/lib/env'
 import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
@@ -13,7 +13,7 @@ export interface IHiveTransactionConfig {
   readonly retryDelayMs?: number
 }
 
-export type OperationBuilder = (tx: ITransactionBase, account: string) => void
+export type OperationBuilder = (tx: IOnlineTransaction, account: string) => void
 
 interface RetryConfig {
   readonly maxRetries: number
@@ -66,8 +66,6 @@ export class HiveTransactionService {
         const signature = wallet.signDigest(publicKey, tx.sigDigest)
         tx.addSignature(signature)
 
-        tx.toApi()
-
         if (isMainnet()) {
           await chain.broadcast(tx)
         }
@@ -95,6 +93,8 @@ export class HiveTransactionService {
         if (!isRetryable || attempt === this.retryConfig.maxRetries) {
           throw error
         }
+
+        invalidateHiveChain()
 
         // Exponential delay for the next attempt
         const delay = this.retryConfig.retryDelayMs * Math.pow(2, attempt)

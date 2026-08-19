@@ -2,10 +2,41 @@ import type { APIContext } from 'astro'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import type { AdminSession, BuilderSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
-import { getSession } from 'auth-astro/server'
 import { parseRole, UserRole } from '@/lib/roles'
+import { getAppAuthSession } from '@/lib/auth-session'
 import { logger } from '@/lib/logger'
 import { db } from '@/lib/database'
+import { signUserId, userIdTokenMatchesSession } from '@/lib/user-id-token'
+
+const CLIENT_USER_REF_QUERY_KEYS = [
+	'userId',
+	'user_id',
+	'builderId',
+	'userHash',
+] as const
+
+function unboundUserRefResponse(): Response {
+	return new Response(
+		JSON.stringify({ error: 'Forbidden: invalid user reference' }),
+		{
+			status: 403,
+			headers: { 'Content-Type': 'application/json' },
+		}
+	)
+}
+
+function requestHasUnboundUserRef(
+	request: Request,
+	sessionUserId: string
+): boolean {
+	const url = new URL(request.url)
+	for (const key of CLIENT_USER_REF_QUERY_KEYS) {
+		const value = url.searchParams.get(key)
+		if (!value) continue
+		if (!userIdTokenMatchesSession(value, sessionUserId)) return true
+	}
+	return false
+}
 
 export interface RetrievedSessions {
   admin: import('@/types/auth').AdminSession | null
@@ -13,32 +44,30 @@ export interface RetrievedSessions {
 }
 
 /**
- * Helper to get the administrator session from Auth.js
- * Converts the Auth.js session to the format expected by the pages
+ * Helper to get the administrator session from Better Auth.
  */
 export async function getAdminSession(
   request: Request
 ): Promise<AdminSession | null> {
   try {
-    const session = await getSession(request)
+    const session = await getAppAuthSession(request.headers)
 
-    if (!session?.user?.id) {
+    if (!session) {
       return null
     }
 
-    // Validate role — must be Admin for admin session
-    const role = parseRole(session.user.role)
+    const role = parseRole(session.role)
     if (role !== UserRole.Admin) {
-      logger.error('Non-admin role in admin session, rejecting:', session.user.role)
+      logger.error('Non-admin role in admin session, rejecting:', session.role)
       return null
     }
 
-    // Convert Auth.js session to AdminSession format
     return {
-      userId: parseInt(session.user.id),
-      username: session.user.username || '',
+      userId: session.userId,
+      userHash: signUserId(session.userId),
+      username: session.username,
       role,
-      loginTime: session.user.loginTime,
+      loginTime: session.loginTime,
     }
   } catch (error) {
     return null
@@ -132,7 +161,7 @@ export async function withAdminApiSession<T>(
     return handler(context.locals.adminUser)
   }
 
-  // Try to get session from Auth.js
+  // Try to get session from Better Auth
   const session = await getAdminSession(context.request)
 
   if (!session) {
@@ -168,7 +197,7 @@ export async function ensureCreation(context: APIContext) {
 // ===== BUILDER SESSION HELPERS =====
 
 /**
- * Helper to get the builder session from Auth.js
+ * Helper to get the builder session from Better Auth.
  * Validates role === Builder and checks is_active via DB query.
  * Returns BuilderSession or null.
  */
@@ -176,27 +205,25 @@ export async function getBuilderSession(
 	request: Request
 ): Promise<BuilderSession | null> {
 	try {
-		const session = await getSession(request)
+		const session = await getAppAuthSession(request.headers)
 
-		if (!session?.user?.id || !session?.user?.username) {
+		if (!session?.username) {
 			return null
 		}
 
-		// Reject unregistered users (id=0 from temporary Keychain auth)
-		const userId = parseInt(session.user.id)
-		if (!userId || userId < 1) {
+		if (!session.userId || !session.isActive) {
 			return null
 		}
 
-		const role = parseRole(session.user.role)
+		const role = parseRole(session.role)
 		if (role !== UserRole.Builder) {
 			return null
 		}
 
 		// Verify builder is active in DB
 		const result = await db.execute({
-			sql: 'SELECT id, is_active FROM Users WHERE username = ? AND role = ?',
-			args: [session.user.username, UserRole.Builder],
+			sql: 'SELECT id, is_active FROM "user" WHERE username = ? AND role = ?',
+			args: [session.username, UserRole.Builder],
 		})
 
 		if (result.rows.length === 0) {
@@ -205,18 +232,18 @@ export async function getBuilderSession(
 
 		const isActive = Boolean(result.rows[0].is_active)
 		if (!isActive) {
-			logger.warn(`Inactive builder attempted access: ${session.user.username}`)
+			logger.warn(`Inactive builder attempted access: ${session.username}`)
 			return null
 		}
 
-		// Use the real DB id, not the JWT id (which could be 0 for unregistered users)
-		const dbId = Number(result.rows[0].id)
+		const dbId = String(result.rows[0].id)
 
 		return {
 			userId: dbId,
-			username: session.user.username,
+			userHash: signUserId(dbId),
+			username: session.username,
 			role,
-			loginTime: session.user.loginTime,
+			loginTime: session.loginTime,
 		}
 	} catch (error) {
 		return null
@@ -232,11 +259,8 @@ export async function withBuilderApiSession<T>(
 	context: APIContext,
 	handler: (session: BuilderSession) => T | Promise<T>
 ): Promise<T | Response> {
-	if (context.locals.builderUser) {
-		return handler(context.locals.builderUser)
-	}
-
-	const session = await getBuilderSession(context.request)
+	const session =
+		context.locals.builderUser ?? (await getBuilderSession(context.request))
 
 	if (!session) {
 		return new Response(
@@ -246,6 +270,10 @@ export async function withBuilderApiSession<T>(
 				headers: { 'Content-Type': 'application/json' },
 			}
 		)
+	}
+
+	if (requestHasUnboundUserRef(context.request, session.userId)) {
+		return unboundUserRefResponse()
 	}
 
 	context.locals.builderUser = session

@@ -10,7 +10,7 @@
  * - Avoids SQL code duplication across pages
  */
 
-import { db } from '@/lib/database'
+import { db, insertAppUser } from '@/lib/database'
 import {
   parseUserRow,
   compactMap,
@@ -19,12 +19,13 @@ import {
   type UpdateUserData,
 } from '@/types/database'
 import { sqliteToBoolean } from '@/utils/sqlite-helpers'
+import { UserRole } from '@/lib/roles'
 
 /**
  * Builder with ticket and credit statistics
  */
 export interface BuilderWithStats {
-  readonly id: number
+  readonly id: string
   readonly hive_username: string
   readonly is_active: boolean
   readonly last_claim_at: string | null
@@ -46,24 +47,17 @@ export class UsersRepository {
     role,
     is_active,
   }: CreateUserData): Promise<DatabaseUserRow> {
-    const result = await db.execute({
-      sql: `
-				INSERT INTO Users (username, password_hash, role, is_active)
-				VALUES (?, ?, ?, ?)
-				RETURNING *
-			`,
-      args: [username, password_hash ?? null, role, is_active ?? true],
+    const id = await insertAppUser({
+      username,
+      role,
+      authMethod: role === UserRole.Admin ? 'password' : 'keychain',
+      passwordHash: password_hash ?? null,
+      isActive: is_active ?? true,
     })
-
-    if (result.rows.length === 0) {
+    const createdUser = await this.getById(id)
+    if (!createdUser) {
       throw new Error('Failed to create user')
     }
-
-    const createdUser = parseUserRow(result.rows[0])
-    if (!createdUser) {
-      throw new Error('Failed to parse created user row')
-    }
-
     return createdUser
   }
 
@@ -71,10 +65,10 @@ export class UsersRepository {
    * Get user by ID
    * SECURITY: Explicit columns - DO NOT include password_hash
    */
-  async getById(id: number): Promise<DatabaseUserRow | null> {
+  async getById(id: string): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE id = ?',
+        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user" WHERE id = ?',
         args: [id],
       })
 
@@ -95,7 +89,7 @@ export class UsersRepository {
   async getByUsername(username: string): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users WHERE username = ?',
+        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user" WHERE username = ?',
         args: [username],
       })
 
@@ -113,7 +107,7 @@ export class UsersRepository {
    * Update user
    */
   async update(
-    id: number,
+    id: string,
     data: UpdateUserData
   ): Promise<DatabaseUserRow | null> {
     try {
@@ -144,7 +138,7 @@ export class UsersRepository {
 
       const result = await db.execute({
         sql: `
-					UPDATE Users
+					UPDATE "user"
 					SET ${updates.join(', ')}
 					WHERE id = ?
 					RETURNING *
@@ -172,7 +166,7 @@ export class UsersRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users
+					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user"
 					WHERE role = 'admin'
 					ORDER BY created_at DESC
 				`,
@@ -193,7 +187,7 @@ export class UsersRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM Users
+					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user"
 					WHERE role = 'builder'
 					ORDER BY created_at DESC
 				`,
@@ -230,7 +224,7 @@ export class UsersRepository {
 						COUNT(DISTINCT t.id) as tickets_created,
 						COALESCE(MAX(c.available_amount), 0) as available_credits,
 						COALESCE(MAX(c.pending_amount), 0) as pending_credits
-					FROM Users u
+					FROM "user" u
 					LEFT JOIN Tickets t ON t.created_by = u.id
 					LEFT JOIN Credits c ON c.builder_id = u.id
 					WHERE u.role = 'builder'
@@ -241,7 +235,7 @@ export class UsersRepository {
       })
 
       return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
+        id: String(row.id),
         hive_username: String(row.hive_username),
         is_active: sqliteToBoolean(row.is_active),
         last_claim_at: row.last_claim_at as string | null,
@@ -261,7 +255,7 @@ export class UsersRepository {
   async countByRole(role: 'admin' | 'builder'): Promise<number> {
     try {
       const result = await db.execute({
-        sql: 'SELECT COUNT(*) as total FROM Users WHERE role = ?',
+        sql: 'SELECT COUNT(*) as total FROM "user" WHERE role = ?',
         args: [role],
       })
 
@@ -277,7 +271,7 @@ export class UsersRepository {
   async countAll(): Promise<number> {
     try {
       const result = await db.execute({
-        sql: 'SELECT COUNT(*) as total FROM Users',
+        sql: 'SELECT COUNT(*) as total FROM "user"',
         args: [],
       })
 
@@ -320,7 +314,7 @@ export class UsersRepository {
       const result = await db.execute({
         sql: `
 					SELECT 1
-					FROM Users
+					FROM "user"
 					WHERE role = 'builder' AND LOWER(username) = ?
 					LIMIT 1
 				`,
@@ -336,7 +330,7 @@ export class UsersRepository {
   /**
    * Alias for compatibility with existing code
    */
-  async findById(id: number): Promise<DatabaseUserRow | null> {
+  async findById(id: string): Promise<DatabaseUserRow | null> {
     return this.getById(id)
   }
 
@@ -367,7 +361,7 @@ export class UsersRepository {
    * - CreditAudit: complete credit history
    * - TicketAudit: complete ticket history
    */
-  async deleteBuilderWithReferences(builderId: number): Promise<void> {
+  async deleteBuilderWithReferences(builderId: string): Promise<void> {
     await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
     try {
@@ -403,7 +397,7 @@ export class UsersRepository {
 
       // 4. Mark user as inactive (Soft Delete)
       await db.execute({
-        sql: `UPDATE Users 
+        sql: `UPDATE "user" 
               SET is_active = 0, 
                   updated_at = CURRENT_TIMESTAMP 
               WHERE id = ? AND role = 'builder'`,
@@ -420,9 +414,9 @@ export class UsersRepository {
   /**
    * Reactivate a previously deactivated builder
    */
-  async reactivateBuilder(builderId: number): Promise<void> {
+  async reactivateBuilder(builderId: string): Promise<void> {
     await db.execute({
-      sql: `UPDATE Users 
+      sql: `UPDATE "user" 
             SET is_active = 1, 
                 updated_at = CURRENT_TIMESTAMP 
             WHERE id = ? AND role = 'builder'`,
@@ -450,7 +444,7 @@ export class UsersRepository {
    * Uses subquery to resolve username, avoiding a sequential getById() call.
    * Uses the ticket_by field from Accounts to show accounts even if the ticket was deleted.
    */
-  async getAccountsByUser(builderId: number): Promise<AccountWithTicketInfo[]> {
+  async getAccountsByUser(builderId: string): Promise<AccountWithTicketInfo[]> {
     try {
       const result = await db.execute({
         sql: `SELECT
@@ -465,7 +459,7 @@ export class UsersRepository {
 					t.credits as ticket_remaining_credits
 				FROM Accounts a
 				LEFT JOIN Tickets t ON a.ticket = t.code
-				WHERE a.ticket_by = (SELECT username FROM Users WHERE id = ? LIMIT 1)
+				WHERE a.ticket_by = (SELECT username FROM "user" WHERE id = ? LIMIT 1)
 				ORDER BY a.creation_date DESC`,
         args: [builderId],
       })
@@ -495,7 +489,7 @@ export class UsersRepository {
       const result = await db.execute({
         sql: `SELECT
 					(SELECT COUNT(*) FROM Accounts
-					 WHERE ticket_by = (SELECT username FROM Users WHERE id = ? LIMIT 1)
+					 WHERE ticket_by = (SELECT username FROM "user" WHERE id = ? LIMIT 1)
 					) as total_accounts,
 					(SELECT COUNT(*) FROM Tickets
 					 WHERE created_by = ? AND is_active = 1

@@ -16,7 +16,7 @@ export interface AuthResult {
 
 /** Partial row from SELECT id, username, password_hash, role, created_at, updated_at */
 interface AdminUserRow {
-  readonly id: number
+  readonly id: string
   readonly username: string
   readonly password_hash: string | null
   readonly role: string
@@ -34,7 +34,7 @@ async function getUserByUsername(
   try {
     // Enforce role='admin' to ensure only admins can use password authentication
     const result = await db.execute({
-      sql: `SELECT id, username, password_hash, role, created_at, updated_at FROM Users WHERE LOWER(username) = LOWER(?) AND role = 'admin' AND is_active = TRUE LIMIT 1`,
+      sql: `SELECT id, username, password_hash, role, created_at, updated_at FROM "user" WHERE LOWER(username) = LOWER(?) AND role = 'admin' AND is_active = 1 LIMIT 1`,
       args: [username],
     })
 

@@ -6,6 +6,7 @@ import {
   type BuilderWithStats,
 } from '@/lib/repositories/users-repository'
 import { UserRole } from '@/lib/roles'
+import { signUserId } from '@/lib/user-id-token'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -154,7 +155,7 @@ try {
                           <button
                             class="text-destructive hover:text-destructive/80 text-sm font-medium"
                             data-action="ban-builder"
-                            data-builder-id={builder.id}
+                            data-builder-id={signUserId(builder.id)}
                             data-username={builder.hive_username}
                             title="Banear builder"
                           >
@@ -165,7 +166,7 @@ try {
                         <button
                           class="text-sm font-medium text-green-600 hover:text-green-500"
                           data-action="reactivate-builder"
-                          data-builder-id={builder.id}
+                          data-builder-id={signUserId(builder.id)}
                           data-username={builder.hive_username}
                           title="Reactivar builder"
                         >

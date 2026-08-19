@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { db } from '../src/lib/database'
+import { db, insertAppUser } from '../src/lib/database'
+import { UserRole } from '../src/lib/roles'
 import readline from 'readline'
 
 const rl = readline.createInterface({
@@ -15,7 +16,7 @@ function question(query: string): Promise<string> {
 
 async function checkAdminExists(): Promise<boolean> {
 	try {
-		const result = await db.execute("SELECT COUNT(*) as count FROM Users WHERE role = 'admin'")
+		const result = await db.execute(`SELECT COUNT(*) as count FROM "user" WHERE role = 'admin'`)
 		const row = result.rows[0]
 		return row && (row.count as number) > 0
 	} catch {
@@ -27,10 +28,12 @@ async function createAdmin(username: string, password: string) {
 	try {
 		const passwordHash = await bcrypt.hash(password, 10)
 
-		await db.execute({
-			sql: `INSERT INTO Users (username, password_hash, role, is_active)
-				  VALUES (?, ?, 'admin', TRUE)`,
-			args: [username, passwordHash],
+		await insertAppUser({
+			username,
+			role: UserRole.Admin,
+			authMethod: 'password',
+			passwordHash,
+			isActive: true,
 		})
 
 		console.log(`✅ Admin account created successfully!`)
@@ -57,7 +60,7 @@ async function resetAdminPassword(password: string) {
 		const passwordHash = await bcrypt.hash(password, 10)
 
 		await db.execute({
-			sql: `UPDATE Users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE role = 'admin'`,
+			sql: `UPDATE "user" SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE role = 'admin'`,
 			args: [passwordHash],
 		})
 
@@ -70,7 +73,7 @@ async function resetAdminPassword(password: string) {
 
 async function getAdminInfo() {
 	try {
-		const result = await db.execute("SELECT username, is_active FROM Users WHERE role = 'admin'")
+		const result = await db.execute(`SELECT username, is_active FROM "user" WHERE role = 'admin'`)
 		if (result.rows.length > 0) {
 			const admin = result.rows[0]
 			console.log('👤 Current Admin Account:')

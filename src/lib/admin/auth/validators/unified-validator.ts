@@ -205,7 +205,7 @@ const keychainStrategy: AuthenticationStrategy<KeychainCredentials> = {
     return {
       success: true,
       user: {
-        id: keychainResult.user.id?.toString() || credentials.username,
+        id: keychainResult.user.id || '',
         username: keychainResult.user.username || credentials.username,
         role: UserRole.Builder,
         auth_method: 'keychain',

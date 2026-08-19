@@ -1,197 +1,148 @@
 /**
  * Authentication guards and utilities for route protection
- * Provides type-safe helpers for different auth areas
  *
- * New architecture:
- * - Admin: traditional username/password (Users table with role='admin')
- * - Builder: authentication via Keychain (Users table with role='builder')
+ * Admin: username/password (Users table with role='admin')
+ * Builder: Keychain (Users table with role='builder')
+ *
+ * Builder access is a discriminated state: anonymous | pending | active.
+ * Pending = valid Keychain proof but not an active registered builder.
  */
 
-import { getSession } from 'auth-astro/server'
 import type { APIContext } from 'astro'
-import type { Session } from '@auth/core/types'
 import { ROUTES } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
+import {
+	getAppAuthSession,
+	type AppAuthSession,
+} from '@/lib/auth-session'
 
 export interface AdminUser {
-  readonly id: number
-  readonly username: string
-  readonly role: typeof UserRole.Admin
-  readonly auth_method: 'password'
-  readonly loginTime: number
+	readonly id: string
+	readonly username: string
+	readonly role: typeof UserRole.Admin
+	readonly auth_method: 'password'
+	readonly isActive: boolean
+	readonly loginTime: number
 }
 
 export interface BuilderUser {
-  readonly id: number
-  readonly username: string
-  readonly role: typeof UserRole.Builder
-  readonly auth_method: 'keychain'
-  readonly loginTime: number
+	readonly id: string
+	readonly username: string
+	readonly role: typeof UserRole.Builder
+	readonly auth_method: 'keychain'
+	readonly isActive: boolean
+	readonly loginTime: number
 }
 
 export type AuthenticatedUser = AdminUser | BuilderUser
 
-export interface AuthGuardResult {
-  readonly isAuthenticated: boolean
-  readonly user?: AuthenticatedUser
-  readonly redirectTo?: string
+export type AdminAuthResult =
+	| { readonly kind: 'anonymous'; readonly redirectTo: string }
+	| { readonly kind: 'active'; readonly user: AdminUser }
+
+export type BuilderAuthResult =
+	| { readonly kind: 'anonymous'; readonly redirectTo: string }
+	| { readonly kind: 'pending'; readonly username: string }
+	| { readonly kind: 'active'; readonly user: BuilderUser }
+
+function toAdminUser(session: AppAuthSession): AdminUser {
+	return {
+		id: session.userId,
+		username: session.username,
+		role: UserRole.Admin,
+		auth_method: 'password',
+		isActive: session.isActive,
+		loginTime: session.loginTime,
+	}
 }
 
-type AuthArea = 'admin' | 'builders'
-
-/**
- * Unified session validation for all auth areas
- * Eliminates code duplication between guards
- */
-async function validateSession(
-  request: Request,
-  area: AuthArea
-): Promise<AuthGuardResult> {
-  const session = await getSession(request)
-
-  // Area-specific validation
-  const validationResult =
-    area === 'admin'
-      ? validateAdminSession(session)
-      : validateBuildersSession(session)
-
-  if (!validationResult.isValid) {
-    return {
-      isAuthenticated: false,
-      redirectTo: validationResult.redirectTo,
-    }
-  }
-
-  const { user } = session!
-
-  // Return typed user based on area
-  if (area === 'admin') {
-    return {
-      isAuthenticated: true,
-      user: {
-        id: Number(user.id),
-        username: user.username,
-        role: UserRole.Admin,
-        auth_method: 'password' as const,
-        loginTime: user.loginTime || Date.now(),
-      },
-    }
-  } else {
-    return {
-      isAuthenticated: true,
-      user: {
-        id: Number(user.id),
-        username: user.username,
-        role: UserRole.Builder,
-        auth_method: 'keychain' as const,
-        loginTime: user.loginTime || Date.now(),
-      } satisfies BuilderUser,
-    }
-  }
+function toBuilderUser(session: AppAuthSession): BuilderUser {
+	return {
+		id: session.userId,
+		username: session.username,
+		role: UserRole.Builder,
+		auth_method: 'keychain',
+		isActive: session.isActive,
+		loginTime: session.loginTime,
+	}
 }
 
-/**
- * Validates admin session requirements
- */
-function validateAdminSession(session: Session | null): {
-  isValid: boolean
-  redirectTo?: string
-} {
-  if (!session?.user?.id) {
-    return { isValid: false, redirectTo: ROUTES.LOGIN }
-  }
+export async function resolveAdminAuth(
+	request: Request
+): Promise<AdminAuthResult> {
+	const session = await getAppAuthSession(request.headers)
 
-  // Admin must have role === UserRole.Admin
-  if (session.user.role !== UserRole.Admin) {
-    return { isValid: false, redirectTo: ROUTES.LOGIN }
-  }
+	if (!session || session.role !== UserRole.Admin || !session.isActive) {
+		return { kind: 'anonymous', redirectTo: ROUTES.LOGIN }
+	}
 
-  return { isValid: true }
+	return { kind: 'active', user: toAdminUser(session) }
 }
 
-/**
- * Validates builders session requirements
- */
-function validateBuildersSession(session: Session | null): {
-  isValid: boolean
-  redirectTo?: string
-} {
-  if (!session?.user?.id) {
-    return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
-  }
+export async function resolveBuilderAuth(
+	request: Request
+): Promise<BuilderAuthResult> {
+	const session = await getAppAuthSession(request.headers)
 
-  // Builder must have role === UserRole.Builder
-  if (session.user.role !== UserRole.Builder) {
-    return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
-  }
+	if (!session || session.role !== UserRole.Builder || !session.username) {
+		return { kind: 'anonymous', redirectTo: ROUTES.BUILDERS_LOGIN }
+	}
 
-  // For builders authenticated via Keychain, hive_username must never be missing
-  if (!session.user.username) {
-    return { isValid: false, redirectTo: ROUTES.BUILDERS_LOGIN }
-  }
+	if (!session.userId || !session.isActive) {
+		return { kind: 'pending', username: session.username }
+	}
 
-  return { isValid: true }
+	return { kind: 'active', user: toBuilderUser(session) }
 }
 
-/**
- * Guard for admin area - requires admin authentication
- */
+/** @deprecated Use resolveAdminAuth — kept as a thin alias for callers. */
 export async function requireAdminAuth(
-  request: Request
-): Promise<AuthGuardResult> {
-  return validateSession(request, 'admin')
+	request: Request
+): Promise<AdminAuthResult> {
+	return resolveAdminAuth(request)
 }
 
-/**
- * Guard for builders area - requires builder authentication via Keychain
- */
+/** @deprecated Use resolveBuilderAuth — kept as a thin alias for callers. */
 export async function requireBuildersAuth(
-  request: Request
-): Promise<AuthGuardResult> {
-  return validateSession(request, 'builders')
+	request: Request
+): Promise<BuilderAuthResult> {
+	return resolveBuilderAuth(request)
 }
 
-/**
- * Helper for Astro pages - automatically handles redirects
- */
 export async function getAuthenticatedUser(
-  context: Pick<APIContext, 'request' | 'redirect'>,
-  area: 'admin' | 'builders' = 'admin'
+	context: Pick<APIContext, 'request' | 'redirect'>,
+	area: 'admin' | 'builders' = 'admin'
 ) {
-  const guard = area === 'admin' ? requireAdminAuth : requireBuildersAuth
-  const result = await guard(context.request)
+	if (area === 'admin') {
+		const result = await resolveAdminAuth(context.request)
+		if (result.kind !== 'active') {
+			return context.redirect(result.redirectTo)
+		}
+		return result.user
+	}
 
-  if (!result.isAuthenticated && result.redirectTo) {
-    return context.redirect(result.redirectTo)
-  }
-
-  return result.user
+	const result = await resolveBuilderAuth(context.request)
+	if (result.kind === 'anonymous') {
+		return context.redirect(result.redirectTo)
+	}
+	if (result.kind === 'pending') {
+		return context.redirect(ROUTES.BUILDERS_DASHBOARD)
+	}
+	return result.user
 }
 
-/**
- * Check if user is admin
- */
 export function isAdmin(user: AuthenticatedUser): boolean {
-  return user.role === UserRole.Admin
+	return user.role === UserRole.Admin
 }
 
-/**
- * Check if user is builder
- */
 export function isBuilder(user: AuthenticatedUser): boolean {
-  return user.role === UserRole.Builder
+	return user.role === UserRole.Builder
 }
 
-/**
- * Type guard for AdminUser
- */
 export function isAdminUser(user: AuthenticatedUser): user is AdminUser {
-  return user.role === UserRole.Admin
+	return user.role === UserRole.Admin
 }
 
-/**
- * Type guard for BuilderUser
- */
 export function isBuilderUser(user: AuthenticatedUser): user is BuilderUser {
-  return user.role === UserRole.Builder
+	return user.role === UserRole.Builder
 }

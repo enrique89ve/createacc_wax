@@ -6,6 +6,10 @@ const SESSION_COOKIES_TO_CLEAR = [
 	'__Secure-authjs.session-token',
 	'authjs.csrf-token',
 	'__Host-authjs.csrf-token',
+	'better-auth.session_token',
+	'__Secure-better-auth.session_token',
+	'better-auth.session_data',
+	'__Secure-better-auth.session_data',
 	CREATION_SESSION_CONFIG.COOKIE_NAME,
 ] as const
 

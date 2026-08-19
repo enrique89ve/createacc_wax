@@ -221,7 +221,7 @@ document.addEventListener('click', async e => {
       ) {
         try {
           const response = await fetch(
-            `/api/management/users?id=${builderId}`,
+            `/api/management/users?id=${encodeURIComponent(builderId)}`,
             {
               method: 'DELETE',
             }
@@ -253,7 +253,7 @@ document.addEventListener('click', async e => {
       ) {
         try {
           const response = await fetch(
-            `/api/management/users/${builderId}/reactivate`,
+            `/api/management/users/${encodeURIComponent(builderId)}/reactivate`,
             {
               method: 'POST',
             }

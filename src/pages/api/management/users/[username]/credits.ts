@@ -53,7 +53,7 @@ export const PATCH: APIRoute = async context => {
 
       // Verify that the builder exists
       const builderResult = await db.execute({
-        sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
+        sql: `SELECT id FROM "user" WHERE username = ? AND role = ?`,
         args: [username.toLowerCase(), UserRole.Builder],
       })
 
@@ -143,7 +143,7 @@ export const PUT: APIRoute = async context => {
 
       // Get builder ID
       const builderResult = await db.execute({
-        sql: `SELECT id FROM Users WHERE username = ? AND role = ?`,
+        sql: `SELECT id FROM "user" WHERE username = ? AND role = ?`,
         args: [username.toLowerCase(), UserRole.Builder],
       })
 
@@ -151,7 +151,7 @@ export const PUT: APIRoute = async context => {
         return apiError('Builder no encontrado', 404)
       }
 
-      const builderId = Number(builderResult.rows[0]?.id)
+      const builderId = String(builderResult.rows[0]?.id)
 
       // Use the credits service to make the adjustment
       const updatedCredits = await creditsService.adjustCredits({

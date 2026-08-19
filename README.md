@@ -1,14 +1,14 @@
 ## HolaHive
 
-Aplicacion web segura para la creacion de cuentas gratuitas en la blockchain Hive. Construida con Astro 5.13+ y TailwindCSS v4, enfocada en privacidad y seguridad — las llaves privadas de Hive nunca son leidas ni almacenadas por el servidor, toda la generacion de llaves ocurre en el navegador del usuario.
+Aplicacion web segura para la creacion de cuentas gratuitas en la blockchain Hive. Construida con Astro 7.2 y TailwindCSS v4, enfocada en privacidad y seguridad — las llaves privadas de Hive nunca son leidas ni almacenadas por el servidor, toda la generacion de llaves ocurre en el navegador del usuario.
 
 ### Stack
 
-- **Framework**: Astro 5.13+ con TypeScript (strict mode)
+- **Framework**: Astro 7.2 con TypeScript (strict mode)
 - **Styling**: TailwindCSS v4 via Vite plugin
 - **Database**: SQLite con @libsql/client (local o Turso Cloud)
-- **Auth**: bcryptjs (admin) + Hive Keychain (builders) + Auth.js JWT
-- **Blockchain**: @hiveio/wax + @hiveio/beekeeper
+- **Auth**: bcryptjs (admin) + Hive Keychain (builders) + Better Auth (libsql)
+- **Blockchain**: @hiveio/wax 2.0.2 + @hiveio/beekeeper 1.28.7-rc0
 - **Adapter**: @astrojs/node (standalone)
 - **Package Manager**: pnpm
 
@@ -185,7 +185,7 @@ scripts/         Scripts de inicializacion y admin
 - Generacion de llaves 100% client-side (Web Crypto API)
 - bcrypt con salt para passwords de admin
 - HMAC-SHA256 para cookies de sesion de creacion
-- JWT firmados con AUTH_SECRET para sesiones Auth.js
+- Sesiones Better Auth (cookie + tablas `user`/`session` en libsql) firmadas con AUTH_SECRET
 - Nonces criptograficos de uso unico para Keychain auth
 - Rate limiting por IP/fingerprint + username
 - Validacion dual (client + server) para usernames

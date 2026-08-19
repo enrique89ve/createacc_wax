@@ -435,7 +435,7 @@ function testGetAccountsByUserSubquery(): void {
 
 	// Should use subquery
 	assert(
-		content.includes('SELECT username FROM Users WHERE id = ? LIMIT 1'),
+		content.includes('SELECT username FROM "user" WHERE id = ? LIMIT 1'),
 		'Uses subquery to resolve username'
 	)
 }

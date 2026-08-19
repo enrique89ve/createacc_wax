@@ -29,7 +29,7 @@ export const POST: APIRoute = async (context) => {
 		try {
 			// Belt-and-suspenders: verify builder is active in DB for credit operations
 			const builderResult = await db.execute({
-				sql: 'SELECT id FROM Users WHERE id = ? AND is_active = TRUE',
+				sql: 'SELECT id FROM "user" WHERE id = ? AND is_active = TRUE',
 				args: [session.userId],
 			})
 

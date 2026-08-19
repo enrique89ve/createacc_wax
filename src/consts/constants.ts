@@ -55,6 +55,22 @@ export const ERROR_CONFIG = {
   ENABLE_DETAILED_LOGGING: import.meta.env?.DEV ?? false,
 }
 
+export const HIVE_CHAIN_CONFIG = {
+	MAINNET_DEFAULT: 'https://api.hive.blog',
+	MAINNET_BACKUPS: [
+		'https://api.openhive.network',
+		'https://techcoderx.com',
+		'https://rpc.mahdiyari.info',
+	],
+	TESTNET_API: 'https://api.fake.openhive.network',
+	TESTNET_CHAIN_ID:
+		'4200000000000000000000000000000000000000000000000000000000000000',
+	API_TIMEOUT_MS: 5000,
+	HEALTH_CHECK_TIMEOUT_MS: 5000,
+	HEALTH_EVALUATION_DELAY_MS: 1500,
+	POOL_TTL_MS: 60_000,
+} as const
+
 // Wax-specific error patterns
 export const WAX_ERROR_PATTERNS = {
   RETRYABLE_PATTERNS: [

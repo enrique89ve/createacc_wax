@@ -18,14 +18,16 @@ export interface CreationSession {
 // ===== MANAGEMENT SESSION TYPES =====
 
 export interface AdminSession {
-	readonly userId: number
+	readonly userId: string
+	readonly userHash: string
 	readonly username: string
 	readonly role: typeof UserRole.Admin
 	readonly loginTime: number
 }
 
 export interface BuilderSession {
-	readonly userId: number
+	readonly userId: string
+	readonly userHash: string
 	readonly username: string
 	readonly role: typeof UserRole.Builder
 	readonly loginTime: number

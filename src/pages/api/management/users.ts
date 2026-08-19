@@ -10,6 +10,7 @@ import { CREDITS_LIMITS } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
+import { parseClientUserRef, signUserId } from '@/lib/user-id-token'
 
 // GET: List builder users
 export const GET: APIRoute = async context => {
@@ -30,7 +31,7 @@ export const GET: APIRoute = async context => {
       const builders = await usersRepository.getAllBuilders()
 
       const users = builders.map(builder => ({
-        id: builder.id,
+        id: signUserId(builder.id),
         username: builder.hive_username,
         role: UserRole.Builder,
         is_active: builder.is_active,
@@ -116,7 +117,7 @@ export const POST: APIRoute = async context => {
       return apiSuccess({
         message: 'Builder creado exitosamente con 100 créditos pendientes',
         user: {
-          id: builderId,
+          id: signUserId(builderId),
           hive_username: cleanUsername,
           role: UserRole.Builder,
           initial_credits: 100,
@@ -155,28 +156,19 @@ export const DELETE: APIRoute = async context => {
       }
 
       const url = new URL(context.request.url)
-      const userId = url.searchParams.get('id')
-      const parsedId = Number(userId)
+      const userId = parseClientUserRef(url.searchParams.get('id'))
 
-      // Strict validation: must be a positive integer and within safe range
-      if (
-        !userId ||
-        !Number.isInteger(parsedId) ||
-        parsedId <= 0 ||
-        parsedId > Number.MAX_SAFE_INTEGER
-      ) {
+      if (!userId) {
         return apiError('ID de usuario inválido', 400)
       }
 
-      // Verify that the builder exists using the unified repository
-      const user = await usersRepository.findById(parsedId)
+      const user = await usersRepository.findById(userId)
 
       if (!user || user.role !== UserRole.Builder) {
         return apiError('Builder no encontrado', 404)
       }
 
-      // Delete builder and cleanup dependencies
-      await usersRepository.deleteBuilderWithReferences(parsedId)
+      await usersRepository.deleteBuilderWithReferences(userId)
 
       return apiSuccess({
         message: 'Usuario eliminado exitosamente',

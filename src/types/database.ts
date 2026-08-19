@@ -29,7 +29,7 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
  * password_hash: Required for admins, null for builders (use Keychain)
  */
 export interface DatabaseUserRow {
-  readonly id: number
+  readonly id: string
   readonly username: string
   readonly password_hash: string | null
   readonly role: UserRole
@@ -48,7 +48,7 @@ export interface DatabaseUserRow {
  */
 export interface DatabaseCreditRow {
   readonly id: number
-  readonly builder_id: number
+  readonly builder_id: string
   readonly pending_amount: number
   readonly available_amount: number
   readonly total_assigned: number
@@ -68,7 +68,7 @@ export interface DatabaseTicketRow {
   readonly credits: number
   readonly is_active: boolean // VIRTUAL: credits > 0
   readonly has_been_used: boolean // VIRTUAL: original_credits > credits
-  readonly created_by: number | null
+  readonly created_by: string | null
   readonly created_at: string
   readonly updated_at: string
 }
@@ -92,7 +92,7 @@ export interface DatabaseTicketAuditRow {
   readonly id: number
   readonly ticket: string
   readonly action: AuditAction
-  readonly performed_by: number | null
+  readonly performed_by: string | null
   readonly timestamp: string
 }
 
@@ -101,11 +101,11 @@ export interface DatabaseTicketAuditRow {
  */
 export interface DatabaseCreditAuditRow {
   readonly id: number
-  readonly builder_id: number
+  readonly builder_id: string
   readonly operation: string
   readonly amount: number
   readonly reason: string | null
-  readonly performed_by: number | null
+  readonly performed_by: string | null
   readonly timestamp: string
 }
 
@@ -129,7 +129,7 @@ export interface DatabaseLoginAttemptRow {
  */
 export interface DatabaseNotificationRow {
   readonly id: number
-  readonly user_id: number
+  readonly user_id: string
   readonly type: NotificationType
   readonly title: string
   readonly message: string
@@ -185,7 +185,7 @@ export interface UpdateUserData {
  * Data required to create/update credits
  */
 export interface CreateCreditData {
-  readonly builder_id: number
+  readonly builder_id: string
   readonly pending_amount?: number
   readonly available_amount?: number
   readonly total_assigned?: number
@@ -210,7 +210,7 @@ export interface CreateTicketData {
   readonly description?: string | null
   readonly original_credits: number
   readonly credits: number
-  readonly created_by?: number | null
+  readonly created_by?: string | null
 }
 
 /**
@@ -237,18 +237,18 @@ export interface CreateAccountData {
 export interface CreateTicketAuditData {
   readonly ticket: string
   readonly action: AuditAction
-  readonly performed_by?: number | null
+  readonly performed_by?: string | null
 }
 
 /**
  * Data required to create credit audit entry
  */
 export interface CreateCreditAuditData {
-  readonly builder_id: number
+  readonly builder_id: string
   readonly operation: string
   readonly amount: number
   readonly reason?: string | null
-  readonly performed_by?: number | null
+  readonly performed_by?: string | null
 }
 
 /**
@@ -268,7 +268,7 @@ export interface CreateLoginAttemptData {
  * Data required to create notification entry
  */
 export interface CreateNotificationData {
-  readonly user_id: number
+  readonly user_id: string
   readonly type: NotificationType
   readonly title: string
   readonly message: string
@@ -325,7 +325,7 @@ export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
     typeof r.is_active === 'boolean' || r.is_active === 0 || r.is_active === 1
 
   return (
-    typeof r.id === 'number' &&
+    typeof r.id === 'string' &&
     typeof r.username === 'string' &&
     (r.password_hash === undefined ||
       r.password_hash === null ||
@@ -349,7 +349,7 @@ export function isDatabaseCreditRow(row: unknown): row is DatabaseCreditRow {
 
   return (
     typeof r.id === 'number' &&
-    typeof r.builder_id === 'number' &&
+    typeof r.builder_id === 'string' &&
     typeof r.pending_amount === 'number' &&
     typeof r.available_amount === 'number' &&
     typeof r.total_assigned === 'number' &&
@@ -384,7 +384,7 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
     typeof r.credits === 'number' &&
     typeof isActiveBool === 'boolean' &&
     typeof hasBeenUsedBool === 'boolean' &&
-    (r.created_by === null || typeof r.created_by === 'number') &&
+    (r.created_by === null || typeof r.created_by === 'string') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -507,7 +507,7 @@ export function isDatabaseNotificationRow(
 
   return (
     typeof r.id === 'number' &&
-    typeof r.user_id === 'number' &&
+    typeof r.user_id === 'string' &&
     isNotificationType(r.type) &&
     typeof r.title === 'string' &&
     typeof r.message === 'string' &&

@@ -4,8 +4,9 @@
  * Utilities to verify custom JSON transactions on the Hive blockchain
  */
 
-import { createHiveChain, type TWaxRestExtended } from '@hiveio/wax'
+import { type TWaxRestExtended } from '@hiveio/wax'
 import { BRAND } from '@/consts/branding'
+import { hiveChain } from '@/lib/hiveservice'
 
 interface ITransactionByIdRequest {
   transactionId: string
@@ -69,8 +70,7 @@ export async function verifyClaimTransaction(
   expectedUsername: string
 ): Promise<ClaimVerificationResult> {
   try {
-    // Create Hive chain instance
-    const chain = await createHiveChain()
+    const chain = await hiveChain()
 
     // Extend REST API to include hafah-api
     const extended: TWaxRestExtended<TExtendedRestApi> = chain.extendRest({

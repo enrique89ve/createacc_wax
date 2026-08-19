@@ -155,38 +155,21 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 
         notify('info', 'Verificando credenciales en servidor...')
 
-        // 2. Obtener CSRF token para Auth.js
-        const csrfResponse = await fetch('/api/auth/csrf')
-        const { csrfToken } = await csrfResponse.json()
-
-        // 🔍 DEBUG - Log locally instead of sending to server
-
-        // 3. Login usando Auth.js callback endpoint para credentials
-        // fetch sigue redirects automáticamente (default redirect: 'follow').
-        // Auth.js redirige a callbackUrl en éxito, o a ?error=... en fallo.
-        // Verificamos response.url para distinguir éxito de fallo.
-        const response = await fetch('/api/auth/callback/builders-keychain', {
+        const response = await fetch('/api/auth/keychain/verify', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
           },
-          body: new URLSearchParams({
+          body: JSON.stringify({
             username: keychainResult.username || '',
             message: keychainResult.message || '',
             publicKey: keychainResult.publicKey || '',
             signature: keychainResult.signature || '',
             timestamp: keychainResult.timestamp?.toString() || '',
-            csrfToken,
-            callbackUrl: '/builders/tickets',
           }),
         })
 
-        // Después de seguir redirects, response.url contiene la URL final.
-        // Auth.js en fallo redirige a una URL con ?error=CredentialsSignin
-        const finalUrl = new URL(response.url, window.location.origin)
-        const hasAuthError = finalUrl.searchParams.has('error')
-
-        if (response.ok && !hasAuthError) {
+        if (response.ok) {
           notify('success', '¡Login exitoso! Redirigiendo...')
           setTimeout(() => {
             window.location.href = '/builders/tickets'
@@ -194,13 +177,12 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           return
         }
 
-        // Login falló — extraer mensaje de error
-        const authError = finalUrl.searchParams.get('error')
         let errorMessage = 'Error en autenticación'
-        if (authError === 'CredentialsSignin') {
-          errorMessage = 'Credenciales inválidas o usuario no autorizado'
-        } else if (authError) {
-          errorMessage = `Error de autenticación: ${authError}`
+        try {
+          const payload = (await response.json()) as { message?: string }
+          if (payload.message) errorMessage = payload.message
+        } catch {
+          // Keep default message
         }
 
         notify('error', errorMessage)

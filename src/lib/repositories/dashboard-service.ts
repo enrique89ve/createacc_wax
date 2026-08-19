@@ -62,7 +62,7 @@ export interface SystemActivitySummary {
  * Builder statistics with all their information
  */
 export interface BuilderFullStats {
-	readonly builder_id: number
+	readonly builder_id: string
 	readonly hive_username: string
 	readonly is_active: boolean
 	readonly total_tickets: number
@@ -86,7 +86,7 @@ export class DashboardService {
 			const result = await db.execute({
 				sql: `
 					SELECT
-						(SELECT COUNT(*) FROM Users WHERE role = 'builder' AND is_active = TRUE) as total_builders,
+						(SELECT COUNT(*) FROM "user" WHERE role = 'builder' AND is_active = TRUE) as total_builders,
 						(SELECT COUNT(*) FROM Tickets) as total_tickets,
 						(SELECT COUNT(*) FROM Tickets WHERE has_been_used = TRUE) as used_tickets,
 						(SELECT COUNT(*) FROM Accounts) as total_accounts,
@@ -126,7 +126,7 @@ export class DashboardService {
 						u.username as created_by_username,
 						u.role as creator_type
 					FROM Tickets t
-					LEFT JOIN Users u ON t.created_by = u.id
+					LEFT JOIN "user" u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
@@ -202,7 +202,7 @@ export class DashboardService {
 	/**
 	 * Get complete builder statistics (tickets + accounts + credits)
 	 */
-	async getBuilderFullStats(builderId: number): Promise<BuilderFullStats | null> {
+	async getBuilderFullStats(builderId: string): Promise<BuilderFullStats | null> {
 		try {
 			const result = await db.execute({
 				sql: `
@@ -217,7 +217,7 @@ export class DashboardService {
 						COALESCE(c.available_amount, 0) as available_credits,
 						COALESCE(c.total_assigned, 0) as total_assigned,
 						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Users u
+					FROM "user" u
 					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
 					LEFT JOIN Credits c ON u.id = c.builder_id
@@ -234,7 +234,7 @@ export class DashboardService {
 			const row = result.rows[0] as Record<string, unknown>
 
 			return {
-				builder_id: Number(row.builder_id),
+				builder_id: String(row.builder_id),
 				hive_username: String(row.hive_username),
 				is_active: sqliteToBoolean(row.is_active),
 				total_tickets: Number(row.total_tickets || 0),
@@ -268,7 +268,7 @@ export class DashboardService {
 						COALESCE(c.available_amount, 0) as available_credits,
 						COALESCE(c.total_assigned, 0) as total_assigned,
 						COALESCE(c.total_consumed, 0) as total_consumed
-					FROM Users u
+					FROM "user" u
 					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
 					LEFT JOIN Credits c ON u.id = c.builder_id
@@ -280,7 +280,7 @@ export class DashboardService {
 			})
 
 			return result.rows.map((row: Record<string, unknown>) => ({
-				builder_id: Number(row.builder_id),
+				builder_id: String(row.builder_id),
 				hive_username: String(row.hive_username),
 				is_active: sqliteToBoolean(row.is_active),
 				total_tickets: Number(row.total_tickets || 0),
@@ -367,7 +367,7 @@ export class DashboardService {
 						u.username as hive_username,
 						COUNT(DISTINCT a.id) as total_accounts,
 						COUNT(DISTINCT t.id) as total_tickets
-					FROM Users u
+					FROM "user" u
 					LEFT JOIN Tickets t ON u.id = t.created_by
 					LEFT JOIN Accounts a ON t.code = a.ticket
 					WHERE u.role = 'builder'

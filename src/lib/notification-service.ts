@@ -14,7 +14,7 @@ import { parseNotificationRow as parseRow } from '@/types/database'
 /**
  * Get unread notification count for a user
  */
-export async function getUnreadCount(userId: number): Promise<number> {
+export async function getUnreadCount(userId: string): Promise<number> {
 	try {
 		const result = await db.execute({
 			sql: `
@@ -37,7 +37,7 @@ export async function getUnreadCount(userId: number): Promise<number> {
  * Get all notifications for a user (unread first, then read)
  */
 export async function getNotifications(
-	userId: number,
+	userId: string,
 	limit: number = 10
 ): Promise<DatabaseNotificationRow[]> {
 	try {
@@ -63,7 +63,7 @@ export async function getNotifications(
  * Get only unread notifications for a user
  */
 export async function getUnreadNotifications(
-	userId: number
+	userId: string
 ): Promise<DatabaseNotificationRow[]> {
 	try {
 		const result = await db.execute({
@@ -116,7 +116,7 @@ export async function createNotification(
  */
 export async function markAsRead(
 	notificationId: number,
-	userId: number
+	userId: string
 ): Promise<boolean> {
 	try {
 		const result = await db.execute({
@@ -138,7 +138,7 @@ export async function markAsRead(
 /**
  * Mark all notifications as read for a user
  */
-export async function markAllAsRead(userId: number): Promise<boolean> {
+export async function markAllAsRead(userId: string): Promise<boolean> {
 	try {
 		await db.execute({
 			sql: `
@@ -160,7 +160,7 @@ export async function markAllAsRead(userId: number): Promise<boolean> {
  * Create notification for pending credits
  */
 export async function notifyPendingCredits(
-	userId: number,
+	userId: string,
 	amount: number
 ): Promise<boolean> {
 	return createNotification({
@@ -176,7 +176,7 @@ export async function notifyPendingCredits(
  * Create notification for credit assignment
  */
 export async function notifyCreditAssigned(
-	userId: number,
+	userId: string,
 	amount: number,
 	assignedBy?: string
 ): Promise<boolean> {
@@ -197,7 +197,7 @@ export async function notifyCreditAssigned(
  * Mark all un-viewed notifications as viewed for a user
  * This is called when the user opens the notification modal
  */
-export async function markAsViewed(userId: number): Promise<boolean> {
+export async function markAsViewed(userId: string): Promise<boolean> {
 	try {
 		await db.execute({
 			sql: `

@@ -19,18 +19,18 @@
     "admin:check": "tsx scripts/admin-setup.ts check"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.5",
-    "@astrojs/node": "^9.5.3",
-    "@auth/core": "^0.37.4",
+    "@astrojs/check": "^0.9.10",
+    "@astrojs/node": "^11.1.3",
     "@fontsource-variable/sora": "^5.2.6",
-    "@hiveio/beekeeper": "^1.28.4",
-    "@hiveio/wax": "1.28.4-rc0",
+    "@hiveio/beekeeper": "1.28.7-rc0",
+    "@hiveio/wax": "2.0.2",
     "@libsql/client": "^0.15.12",
+    "@libsql/kysely-libsql": "0.4.1",
     "@tailwindcss/vite": "^4.1.12",
     "@types/bcryptjs": "^3.0.0",
-    "astro": "^5.16.0",
-    "auth-astro": "^4.2.0",
+    "astro": "^7.2.3",
     "bcryptjs": "^3.0.2",
+    "better-auth": "1.7.1",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.9.2"
   },
@@ -43,5 +43,6 @@
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-tailwindcss": "^0.6.14",
     "tsx": "^4.20.4"
-  }
+  },
+  "packageManager": "pnpm@11.22.0"
 }

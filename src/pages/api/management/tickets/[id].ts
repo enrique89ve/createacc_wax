@@ -12,7 +12,7 @@ import { requireValidOrigin } from '@/utils/csrf-protection'
 
 // Types
 interface CreatorInfo {
-  readonly userId: number
+  readonly userId: string
   readonly username: string
   readonly role: UserRole
 }
@@ -26,7 +26,7 @@ const getTicketCreator = async (
   }
 
   const result = await db.execute({
-    sql: 'SELECT id, username, role FROM Users WHERE id = ?',
+    sql: 'SELECT id, username, role FROM "user" WHERE id = ?',
     args: [ticket.created_by],
   })
 
@@ -34,7 +34,7 @@ const getTicketCreator = async (
 
   const user = result.rows[0]
   return {
-    userId: user.id as number,
+    userId: String(user.id),
     username: user.username as string,
     role: user.role as UserRole,
   }
@@ -43,8 +43,8 @@ const getTicketCreator = async (
 // Helper: Verificar permisos de eliminación
 const canDeleteTicket = (
   sessionRole: string,
-  sessionUserId: number,
-  creatorUserId: number
+  sessionUserId: string,
+  creatorUserId: string
 ): boolean => {
   return sessionRole === UserRole.Admin || sessionUserId === creatorUserId
 }
@@ -52,7 +52,7 @@ const canDeleteTicket = (
 // Helper: Crear auditor�a de eliminaci�n
 const createDeletionAudit = async (
   ticketCode: string,
-  sessionUserId: number
+  sessionUserId: string
 ): Promise<void> => {
   await db.execute({
     sql: `INSERT INTO TicketAudit (ticket, action, performed_by)

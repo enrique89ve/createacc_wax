@@ -4,14 +4,14 @@
 
 /** Partial row from SELECT id */
 export interface UserIdRow {
-	readonly id: number
+	readonly id: string
 }
 
 /**
  * Complete credits information for a builder
  */
 export interface BuilderCreditsInfo {
-	builder_id: number
+	builder_id: string
 	hive_username: string
 	pending_amount: number
 	available_amount: number
@@ -26,5 +26,5 @@ export interface AssignCreditsOperation {
 	hive_username: string
 	amount: number
 	source: string
-	assigned_by_admin: number
+	assigned_by_admin: string
 }

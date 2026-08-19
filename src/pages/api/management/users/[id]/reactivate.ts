@@ -8,6 +8,7 @@ import {
 } from '@/lib/admin/permissions-management'
 import { UserRole } from '@/lib/roles'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
+import { parseClientUserRef } from '@/lib/user-id-token'
 
 /**
  * POST: Reactivate a previously banned builder
@@ -26,15 +27,12 @@ export const POST: APIRoute = async context => {
         return unauthorizedResponse()
       }
 
-      const { id } = context.params
+      const builderId = parseClientUserRef(context.params.id)
 
-      if (!id || isNaN(Number(id))) {
+      if (!builderId) {
         return apiError('ID de builder inválido', 400)
       }
 
-      const builderId = Number(id)
-
-      // Verify that the builder exists and is inactive
       const builder = await usersRepository.getById(builderId)
 
       if (!builder) {

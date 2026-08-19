@@ -12,7 +12,7 @@ import { insertCreditAudit } from './shared'
  * Claim credits (pending → available).
  * Atomic operation to prevent race conditions.
  */
-export async function claimCredits(builderId: number, amount: number): Promise<void> {
+export async function claimCredits(builderId: string, amount: number): Promise<void> {
 	const result = await db.execute({
 		sql: `
 			UPDATE Credits
@@ -42,7 +42,7 @@ export async function claimCredits(builderId: number, amount: number): Promise<v
  * Atomic: only succeeds if available_amount >= amount.
  */
 export async function deductCreditsForTicket(
-	builderId: number,
+	builderId: string,
 	amount: number,
 	ticketCode: string
 ): Promise<void> {
@@ -74,7 +74,7 @@ export async function deductCreditsForTicket(
  * The credits were already deducted when the ticket was created.
  */
 export async function markCreditsAsConsumed(
-	builderId: number,
+	builderId: string,
 	amount: number,
 	accountUsername: string
 ): Promise<void> {
@@ -101,7 +101,7 @@ export async function markCreditsAsConsumed(
  * Refund credits when a ticket is deleted.
  */
 export async function refundCreditsFromTicket(
-	builderId: number,
+	builderId: string,
 	amount: number,
 	ticketCode: string
 ): Promise<void> {

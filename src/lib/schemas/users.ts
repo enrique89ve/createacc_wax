@@ -10,7 +10,7 @@ import type { AuthMethod } from '@/types/auth'
  * Maps both Admins and Builders to a common interface
  */
 export interface NewUser {
-  id: number
+  id: string
   username: string | null
   hive_account: string | null
   auth_method: AuthMethod

@@ -40,7 +40,7 @@ export interface CreditAuditLog extends DatabaseCreditAuditRow {
 export interface TicketAuditFilters {
 	readonly ticket?: string
 	readonly action?: 'create' | 'update' | 'delete'
-	readonly performedBy?: number
+	readonly performedBy?: string
 	readonly dateFrom?: string
 	readonly dateTo?: string
 }
@@ -49,9 +49,9 @@ export interface TicketAuditFilters {
  * Filters for credit logs search
  */
 export interface CreditAuditFilters {
-	readonly builderId?: number
+	readonly builderId?: string
 	readonly operation?: string
-	readonly performedBy?: number
+	readonly performedBy?: string
 	readonly dateFrom?: string
 	readonly dateTo?: string
 }
@@ -74,7 +74,7 @@ export class AuditRepository {
 					u.username as performed_by_username,
 					u.role as performed_by_role
 				FROM TicketAudit ta
-				LEFT JOIN Users u ON ta.performed_by = u.id
+				LEFT JOIN "user" u ON ta.performed_by = u.id
 				ORDER BY ta.timestamp DESC
 				${limitClause}
 			`
@@ -85,7 +85,7 @@ export class AuditRepository {
 				id: Number(row.id),
 				ticket: String(row.ticket),
 				action: row.action as 'create' | 'update' | 'delete',
-				performed_by: row.performed_by ? Number(row.performed_by) : null,
+				performed_by: row.performed_by ? String(row.performed_by) : null,
 				timestamp: String(row.timestamp),
 				performed_by_username: row.performed_by_username
 					? String(row.performed_by_username)
@@ -147,7 +147,7 @@ export class AuditRepository {
 					u.username as performed_by_username,
 					u.role as performed_by_role
 				FROM TicketAudit ta
-				LEFT JOIN Users u ON ta.performed_by = u.id
+				LEFT JOIN "user" u ON ta.performed_by = u.id
 				${whereClause}
 				ORDER BY ta.timestamp DESC
 				${limitClause}
@@ -159,7 +159,7 @@ export class AuditRepository {
 				id: Number(row.id),
 				ticket: String(row.ticket),
 				action: row.action as 'create' | 'update' | 'delete',
-				performed_by: row.performed_by ? Number(row.performed_by) : null,
+				performed_by: row.performed_by ? String(row.performed_by) : null,
 				timestamp: String(row.timestamp),
 				performed_by_username: row.performed_by_username
 					? String(row.performed_by_username)
@@ -183,7 +183,7 @@ export class AuditRepository {
 	/**
 	 * Get logs for a specific user
 	 */
-	async getLogsByUser(userId: number): Promise<TicketAuditLog[]> {
+	async getLogsByUser(userId: string): Promise<TicketAuditLog[]> {
 		return this.getTicketLogsWithFilters({ performedBy: userId })
 	}
 
@@ -205,8 +205,8 @@ export class AuditRepository {
 					u.username as performed_by_username,
 					u.role as performed_by_role
 				FROM CreditAudit ca
-				LEFT JOIN Users b ON ca.builder_id = b.id
-				LEFT JOIN Users u ON ca.performed_by = u.id
+				LEFT JOIN "user" b ON ca.builder_id = b.id
+				LEFT JOIN "user" u ON ca.performed_by = u.id
 				ORDER BY ca.timestamp DESC
 				${limitClause}
 			`
@@ -215,11 +215,11 @@ export class AuditRepository {
 
 			return result.rows.map((row: Record<string, unknown>) => ({
 				id: Number(row.id),
-				builder_id: Number(row.builder_id),
+				builder_id: String(row.builder_id),
 				operation: String(row.operation),
 				amount: Number(row.amount),
 				reason: row.reason ? String(row.reason) : null,
-				performed_by: row.performed_by ? Number(row.performed_by) : null,
+				performed_by: row.performed_by ? String(row.performed_by) : null,
 				timestamp: String(row.timestamp),
 				builder_username: String(row.builder_username),
 				performed_by_username: row.performed_by_username
@@ -283,8 +283,8 @@ export class AuditRepository {
 					u.username as performed_by_username,
 					u.role as performed_by_role
 				FROM CreditAudit ca
-				LEFT JOIN Users b ON ca.builder_id = b.id
-				LEFT JOIN Users u ON ca.performed_by = u.id
+				LEFT JOIN "user" b ON ca.builder_id = b.id
+				LEFT JOIN "user" u ON ca.performed_by = u.id
 				${whereClause}
 				ORDER BY ca.timestamp DESC
 				${limitClause}
@@ -294,11 +294,11 @@ export class AuditRepository {
 
 			return result.rows.map((row: Record<string, unknown>) => ({
 				id: Number(row.id),
-				builder_id: Number(row.builder_id),
+				builder_id: String(row.builder_id),
 				operation: String(row.operation),
 				amount: Number(row.amount),
 				reason: row.reason ? String(row.reason) : null,
-				performed_by: row.performed_by ? Number(row.performed_by) : null,
+				performed_by: row.performed_by ? String(row.performed_by) : null,
 				timestamp: String(row.timestamp),
 				builder_username: String(row.builder_username),
 				performed_by_username: row.performed_by_username
@@ -316,7 +316,7 @@ export class AuditRepository {
 	/**
 	 * Get credit logs for a specific builder
 	 */
-	async getCreditLogsByBuilder(builderId: number): Promise<CreditAuditLog[]> {
+	async getCreditLogsByBuilder(builderId: string): Promise<CreditAuditLog[]> {
 		return this.getCreditLogsWithFilters({ builderId })
 	}
 

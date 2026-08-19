@@ -28,7 +28,7 @@ import {
 	type ValidatedAccountRequest,
 	type ValidatedSession,
 } from '@/lib/create/account-creation.validator'
-import { checkHiveAccount } from '@/utils/check-username'
+import { checkHiveAccountFormat } from '@/utils/check-username'
 import { safeCheckAccountOnChain } from '@/utils/validate-hiveuser'
 import { hiveChain } from '@/lib/hiveservice'
 import { ensureCreation } from '@/lib/session-helpers'
@@ -218,10 +218,10 @@ async function validateRequest(body: Record<string, unknown>): Promise<Response 
 	const validatedData = requestValidation.data
 	const { username } = validatedData
 
-	const accountCheck = await checkHiveAccount(username)
+	const accountCheck = await checkHiveAccountFormat(username)
 	if (!accountCheck.valid) {
 		if (accountCheck.reason === 'infrastructure_error') {
-			logger.error(`[account-creation] Hive validation infrastructure error: ${accountCheck.error}`)
+			logger.error(`[account-creation] Hive format validation infrastructure error: ${accountCheck.error}`)
 			return failureResponse(
 				VALIDATION_ERROR_MESSAGES.INTERNAL_ERROR,
 				accountCheck.error,

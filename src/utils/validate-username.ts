@@ -1,6 +1,7 @@
 /**
- * Account name validation.
+ * Username format messages for the UI (characters, length, segments).
  * Returns null if the name is valid; otherwise a descriptive message.
+ * Protocol boolean: checkHiveAccountFormat(). Existence on Hive: safeCheckAccountOnChain().
  */
 
 // Length constants

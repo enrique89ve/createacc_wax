@@ -45,10 +45,9 @@ export type DownloadFormat = 'txt' | 'pdf'
 export class KeyDownloadManager {
   private static generateFilename(
     username: string,
-    keysetId: string,
     format: DownloadFormat
   ): string {
-    return `hive-keys-${username}-${keysetId}.${format}`
+    return `hive_${username}.${format}`
   }
 
   private static generateTxtContent(data: KeysData): string {
@@ -133,9 +132,9 @@ ${t.keys.footer}
 
     y += 10
 
-    // Master seed
+    // Master Key
     doc.setFontSize(14)
-    doc.text('Master Password (Seed)', margin, y)
+    doc.text('Master Key', margin, y)
     y += 8
     doc.setFontSize(12)
     doc.text(content.seed.master, margin, y)
@@ -145,10 +144,9 @@ ${t.keys.footer}
     doc.setFontSize(16)
     doc.text('Roles', margin, y)
     y += 8
-    doc.setFontSize(12)
     Object.entries(content.descriptions).forEach(([role, desc]) => {
-      const title =
-        role.toUpperCase() + (role === 'master' ? ' Password:' : ' Key:')
+      doc.setFontSize(12)
+      const title = `${role.toUpperCase()} Key:`
       doc.text(title, margin, y)
       y += 6
       const lines = doc.splitTextToSize(desc, maxLineWidth)
@@ -231,7 +229,7 @@ ${t.keys.footer}
     data: KeysData,
     format: DownloadFormat
   ): Promise<void> {
-    const filename = this.generateFilename(data.username, data.keysetId, format)
+    const filename = this.generateFilename(data.username, format)
 
     if (format === 'txt') {
       const content = this.generateTxtContent(data)

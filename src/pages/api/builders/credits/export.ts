@@ -59,7 +59,7 @@ export const GET: APIRoute = async (context) => {
 						u.role as creator_role
 					FROM Tickets t
 					LEFT JOIN TicketAudit ta ON t.code = ta.ticket
-					LEFT JOIN Users u ON t.created_by = u.id
+					LEFT JOIN "user" u ON t.created_by = u.id
 					WHERE t.created_by = ?
 					ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
 					LIMIT ?

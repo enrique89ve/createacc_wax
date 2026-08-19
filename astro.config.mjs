@@ -6,11 +6,12 @@ import tailwindcss from '@tailwindcss/vite'
 
 import node from '@astrojs/node'
 
-import auth from 'auth-astro'
-
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
+  session: false,
+  // Keep HTML-aware spaces (Astro 7 default is JSX-style strip)
+  compressHTML: true,
 
   security: {
     checkOrigin: true,
@@ -32,6 +33,4 @@ export default defineConfig({
   },
 
   adapter: node({ mode: 'standalone' }),
-
-  integrations: [auth()],
 })

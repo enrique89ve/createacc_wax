@@ -46,7 +46,7 @@ export async function delegateResourceCredits(
   return await service.executeTransaction((tx, delegatorAccount) => {
     const rcOperation = new ResourceCreditsOperation()
     rcOperation
-      .delegate(delegatorAccount, params.maxRc.toString(), params.delegatee)
+      .delegate(delegatorAccount, params.maxRc, params.delegatee)
       .authorize(delegatorAccount)
     tx.pushOperation(rcOperation)
   })

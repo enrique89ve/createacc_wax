@@ -1,11 +1,18 @@
 ---
+import { isMainnet } from '@/lib/hiveservice'
+
 interface Props {
 	readonly ticket?: string
 }
 const { ticket = '' } = Astro.props as Props
+const hiveNetwork = isMainnet() ? 'mainnet' : 'testnet'
 ---
 
-<section id="formulario" class="mx-auto px-6 py-2">
+<section
+	id="formulario"
+	data-hive-network={hiveNetwork}
+	class="mx-auto px-6 py-2"
+>
 	<div class="mx-auto w-full max-w-lg">
 		<!-- Card -->
 		<div
