@@ -7,6 +7,7 @@
  */
 
 import { ENV_KEYS } from '@/consts/constants'
+import { assertBroadcastConfig } from '@/lib/hive-execution-mode'
 
 type EnvName = Extract<keyof ImportMetaEnv, string>
 
@@ -95,4 +96,6 @@ export function validateEnvironment(): void {
 	if (authSecret.length < 32) {
 		throw new Error('AUTH_SECRET must be at least 32 characters for Better Auth')
 	}
+
+	assertBroadcastConfig()
 }

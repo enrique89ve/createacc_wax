@@ -1,42 +1,18 @@
-import { isMainnet } from '@/lib/hiveservice'
+function requestUsesHttps(request: Request): boolean {
+	const xfProto = request.headers.get('x-forwarded-proto') || ''
+	const viaHttpsHeader = xfProto.split(',')[0]?.trim().toLowerCase() === 'https'
+	const forwarded = request.headers.get('forwarded') || ''
+	const viaForwarded = /proto=https/i.test(forwarded)
+	const url = new URL(request.url)
+	const viaUrl = url.protocol === 'https:'
+	return viaHttpsHeader || viaForwarded || viaUrl
+}
 
 /**
- * Determine if cookies should use Secure flag based on environment and request
- *
- * Security rules:
- * - Production (MAINNET=TRUE): Always use Secure (HTTPS only)
- * - Development: Use Secure only if request is over HTTPS
- *
- * This prevents "Secure cookie on HTTP" errors in local development
- * while enforcing HTTPS in production.
- *
- * @param request - Optional request object for HTTPS detection
- * @returns true if cookie should use Secure flag
+ * Cookie Secure flag depends on HTTPS (including reverse-proxy headers).
+ * It does not depend on Hive execution mode.
  */
 export function shouldUseSecureCookie(request?: Request): boolean {
-	const mainnet = isMainnet()
-
-	// Production: always use Secure
-	if (mainnet) return true
-
-	// Development: check if request is over HTTPS
-	if (request) {
-		// Check x-forwarded-proto header (common in reverse proxies)
-		const xfProto = request.headers.get('x-forwarded-proto') || ''
-		const viaHttpsHeader =
-			xfProto.split(',')[0]?.trim().toLowerCase() === 'https'
-
-		// Check forwarded header (RFC 7239)
-		const forwarded = request.headers.get('forwarded') || ''
-		const viaForwarded = /proto=https/i.test(forwarded)
-
-		// Check URL protocol directly
-		const url = new URL(request.url)
-		const viaUrl = url.protocol === 'https:'
-
-		return viaHttpsHeader || viaForwarded || viaUrl
-	}
-
-	// No request context: default to false for dev safety
+	if (request) return requestUsesHttps(request)
 	return false
 }

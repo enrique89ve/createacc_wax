@@ -47,7 +47,8 @@ AUTH_SECRET=           # ≥ 32 chars
 SESSION_SECRET=        # openssl rand -base64 64
 BEEKEEPER_WALLET_PASSWORD=
 
-MAINNET=false          # false = testnet, TRUE = mainnet
+HIVE_TX_MODE=simulate
+# HIVE_BROADCAST_CONFIRM=HIVE_MAINNET   # required only for live broadcast
 ```
 
 Optional Turso:
@@ -83,6 +84,17 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 | `pnpm admin:create` | Create admin |
 | `pnpm admin:reset` | Rotate admin password |
 | `pnpm admin:check` | Admin status |
+
+## Validaciones internas
+
+No hay GitHub Actions. Las comprobaciones se corren en local:
+
+| Command | |
+|---|---|
+| `pnpm test` | Unit tests (`HIVE_TX_MODE=simulate`) |
+| `pnpm check` | Types + lint |
+| `pnpm wax:self-test` | WAX/mainnet diagnostics without broadcast |
+| `pnpm test:simulation` | Integration simulation against the local DB |
 
 ---
 

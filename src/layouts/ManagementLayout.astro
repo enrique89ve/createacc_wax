@@ -6,6 +6,7 @@
  */
 import Base from './Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
+import RuntimeStatusBadge from '@/components/ui/RuntimeStatusBadge.astro'
 import { TITLE_SUFFIXES } from '@/consts/seo'
 import { BRAND } from '@/consts/branding'
 import { UserRole } from '@/lib/roles'
@@ -77,6 +78,7 @@ const navItems = [
             >
               {session.role === UserRole.Admin ? 'Admin' : 'Builder'}
             </span>
+            <RuntimeStatusBadge />
           </div>
           <div class="flex items-center gap-4">
             <span class="text-muted-foreground text-sm">

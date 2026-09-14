@@ -1,147 +1,229 @@
-import { hiveChain, invalidateHiveChain, isMainnet } from '@/lib/hiveservice'
+import { hiveChain, invalidateHiveChain } from '@/lib/hiveservice'
 import { BeekeeperService, type IWalletSession } from '@/lib/create/beekeeper-service'
-import type { IOnlineTransaction } from '@hiveio/wax'
+import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
 import { getEnvString } from '@/lib/env'
 import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
+import { broadcastHiveTransaction } from '@/lib/hive-broadcaster'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import type { HiveTransactionResult } from '@/types/hive-transaction'
 
 export interface IHiveTransactionConfig {
-  readonly account: string
-  readonly privateKey: string
-  readonly walletName: string
-  readonly maxRetries?: number
-  readonly retryDelayMs?: number
+	readonly account: string
+	readonly privateKey: string
+	readonly walletName: string
+	readonly maxRetries?: number
+	readonly retryDelayMs?: number
 }
 
 export type OperationBuilder = (tx: IOnlineTransaction, account: string) => void
 
+export interface ExecuteTransactionOptions {
+	readonly skipOnChainVerification?: boolean
+}
+
+export interface HiveTransactionRuntime {
+	readonly getChain?: () => Promise<IHiveChainInterface>
+	readonly broadcast?: typeof broadcastHiveTransaction
+}
+
 interface RetryConfig {
-  readonly maxRetries: number
-  readonly retryDelayMs: number
+	readonly maxRetries: number
+	readonly retryDelayMs: number
+}
+
+function isAuthorityAccepted(status: { entryAccepted: boolean }): boolean {
+	return status.entryAccepted === true
+}
+
+async function validateAndVerifyOnChain(
+	tx: IOnlineTransaction,
+	skipOnChainVerification: boolean
+): Promise<{ validated: boolean; onChainVerified: boolean }> {
+	tx.validate()
+	if (skipOnChainVerification) {
+		return { validated: true, onChainVerified: false }
+	}
+	await tx.performOnChainVerification()
+	return { validated: true, onChainVerified: true }
+}
+
+async function signOnlineTransaction(
+	tx: IOnlineTransaction,
+	walletSession: IWalletSession
+): Promise<string[]> {
+	const { wallet, publicKey } = walletSession
+	const signature = wallet.signDigest(publicKey, tx.sigDigest)
+	tx.addSignature(signature)
+	if (!tx.isSigned()) {
+		throw new Error('Transaction was not signed')
+	}
+	return [...tx.signatureKeys]
+}
+
+async function verifyTransactionAuthority(tx: IOnlineTransaction): Promise<boolean> {
+	const trace = await tx.generateAuthorityVerificationTrace()
+	return isAuthorityAccepted(trace.verificationStatus)
 }
 
 export class HiveTransactionService {
-  private readonly retryConfig: RetryConfig
+	private readonly retryConfig: RetryConfig
 
-  constructor(private readonly config: IHiveTransactionConfig) {
-    this.retryConfig = {
-      maxRetries: config.maxRetries ?? ERROR_CONFIG.MAX_RETRY_ATTEMPTS,
-      retryDelayMs: config.retryDelayMs ?? ERROR_CONFIG.RETRY_DELAY_MS,
-    }
-  }
+	constructor(
+		private readonly config: IHiveTransactionConfig,
+		private readonly runtime: HiveTransactionRuntime = {}
+	) {
+		this.retryConfig = {
+			maxRetries: config.maxRetries ?? ERROR_CONFIG.MAX_RETRY_ATTEMPTS,
+			retryDelayMs: config.retryDelayMs ?? ERROR_CONFIG.RETRY_DELAY_MS,
+		}
+	}
 
-  static create(config: IHiveTransactionConfig): HiveTransactionService {
-    return new HiveTransactionService(config)
-  }
+	static create(
+		config: IHiveTransactionConfig,
+		runtime?: HiveTransactionRuntime
+	): HiveTransactionService {
+		return new HiveTransactionService(config, runtime)
+	}
 
-  /**
-   * Sleep helper for delays in retry logic
-   */
-  private async sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms))
-  }
+	private async sleep(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms))
+	}
 
-  async executeTransaction(
-    operationBuilder: OperationBuilder
-  ): Promise<{ id: string }> {
-    const beekeeperService = BeekeeperService.create({
-      privateKey: this.config.privateKey,
-      walletName: this.config.walletName,
-    })
+	private async resolveChain(): Promise<IHiveChainInterface> {
+		if (this.runtime.getChain) return this.runtime.getChain()
+		return hiveChain()
+	}
 
-    let walletSession: IWalletSession | undefined
+	private async dispatchBroadcast(
+		chain: IHiveChainInterface,
+		tx: IOnlineTransaction
+	): Promise<boolean> {
+		const broadcast = this.runtime.broadcast ?? broadcastHiveTransaction
+		const outcome = await broadcast(chain, tx)
+		return outcome.broadcasted
+	}
 
-    try {
-      walletSession = await beekeeperService.createWalletSession()
-      const { wallet, publicKey } = walletSession
+	private async runPipeline(
+		operationBuilder: OperationBuilder,
+		walletSession: IWalletSession,
+		options: ExecuteTransactionOptions
+	): Promise<HiveTransactionResult> {
+		const chain = await this.resolveChain()
+		const tx = await chain.createTransaction()
+		operationBuilder(tx, this.config.account)
 
-      return await this.executeWithRetry(async () => {
-        const chain = await hiveChain()
-        const tx = await chain.createTransaction()
+		const skipOnChain = options.skipOnChainVerification === true
+		const waxChecks = await validateAndVerifyOnChain(tx, skipOnChain)
+		const requiredAuthorities = tx.requiredAuthorities
+		const signaturePublicKeys = await signOnlineTransaction(tx, walletSession)
+		const authorityVerified = await verifyTransactionAuthority(tx)
+		if (!authorityVerified) {
+			throw new Error('Authority verification failed')
+		}
 
-        operationBuilder(tx, this.config.account)
+		const broadcasted = await this.dispatchBroadcast(chain, tx)
 
-        tx.validate()
+		return {
+			id: tx.id,
+			mode: getHiveExecutionMode(),
+			broadcasted,
+			wax: {
+				validated: waxChecks.validated,
+				onChainVerified: waxChecks.onChainVerified,
+				signed: true,
+				authorityVerified,
+			},
+			requiredAuthorities,
+			signaturePublicKeys,
+			endpoint: chain.endpointUrl,
+		}
+	}
 
-        const signature = wallet.signDigest(publicKey, tx.sigDigest)
-        tx.addSignature(signature)
+	async executeTransaction(
+		operationBuilder: OperationBuilder,
+		options: ExecuteTransactionOptions = {}
+	): Promise<HiveTransactionResult> {
+		const beekeeperService = BeekeeperService.create({
+			privateKey: this.config.privateKey,
+			walletName: this.config.walletName,
+		})
 
-        if (isMainnet()) {
-          await chain.broadcast(tx)
-        }
+		let walletSession: IWalletSession | undefined
 
-        return { id: tx.id }
-      })
-    } finally {
-      if (walletSession) {
-        await walletSession.cleanup()
-      }
-    }
-  }
+		try {
+			walletSession = await beekeeperService.createWalletSession()
+			return await this.executeWithRetry(() =>
+				this.runPipeline(operationBuilder, walletSession as IWalletSession, options)
+			)
+		} finally {
+			if (walletSession) {
+				await walletSession.cleanup()
+			}
+		}
+	}
 
-  /**
-   * Executes an operation with retry logic for network errors
-   */
-  private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
-      try {
-        return await operation()
-      } catch (error) {
-        // Use centralized utility to determine if it is retryable
-        const isRetryable = shouldRetryWaxError(error)
+	private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
+		for (let attempt = 0; attempt <= this.retryConfig.maxRetries; attempt++) {
+			try {
+				return await operation()
+			} catch (error) {
+				const isRetryable = shouldRetryWaxError(error)
 
-        if (!isRetryable || attempt === this.retryConfig.maxRetries) {
-          throw error
-        }
+				if (!isRetryable || attempt === this.retryConfig.maxRetries) {
+					throw error
+				}
 
-        invalidateHiveChain()
+				invalidateHiveChain()
+				const delay = this.retryConfig.retryDelayMs * Math.pow(2, attempt)
+				await this.sleep(delay)
+			}
+		}
 
-        // Exponential delay for the next attempt
-        const delay = this.retryConfig.retryDelayMs * Math.pow(2, attempt)
-        await this.sleep(delay)
-      }
-    }
-
-    throw new Error('Unexpected: retry loop exited without result')
-  }
+		throw new Error('Unexpected: retry loop exited without result')
+	}
 }
 
-// Supported roles for generic factory
 export type HiveServiceRole = 'creator' | 'delegator'
 
 interface EnvConfigMapEntry {
-  readonly accountVar: string
-  readonly keyVar: string
-  readonly walletName: string
+	readonly accountVar: string
+	readonly keyVar: string
+	readonly walletName: string
 }
 
-// Centralized map to avoid duplication of variable names
 const ENV_CONFIG_MAP: Record<HiveServiceRole, EnvConfigMapEntry> = {
-  creator: {
-    accountVar: ENV_KEYS.HIVE_CREATOR_ACCOUNT,
-    keyVar: ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
-    walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-creator`,
-  },
-  delegator: {
-    accountVar: ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
-    keyVar: ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
-    walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-delegator`,
-  },
+	creator: {
+		accountVar: ENV_KEYS.HIVE_CREATOR_ACCOUNT,
+		keyVar: ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
+		walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-creator`,
+	},
+	delegator: {
+		accountVar: ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
+		keyVar: ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
+		walletName: `${BEEKEEPER_CONFIG.WALLET_PREFIX}-delegator`,
+	},
 } as const
 
 export const createServiceFromEnv = (
-  role: HiveServiceRole
+	role: HiveServiceRole,
+	runtime?: HiveTransactionRuntime
 ): HiveTransactionService => {
-  const { accountVar, keyVar, walletName } = ENV_CONFIG_MAP[role]
-  return HiveTransactionService.create({
-    account: getEnvString(accountVar),
-    privateKey: getEnvString(keyVar),
-    walletName,
-  })
+	const { accountVar, keyVar, walletName } = ENV_CONFIG_MAP[role]
+	return HiveTransactionService.create(
+		{
+			account: getEnvString(accountVar),
+			privateKey: getEnvString(keyVar),
+			walletName,
+		},
+		runtime
+	)
 }
 
-// Legacy wrappers maintained for external compatibility
-export const createCreatorService = (): HiveTransactionService =>
-  createServiceFromEnv('creator')
-export const createDelegatorService = (): HiveTransactionService =>
-  createServiceFromEnv('delegator')
+export const createCreatorService = (
+	runtime?: HiveTransactionRuntime
+): HiveTransactionService => createServiceFromEnv('creator', runtime)
+
+export const createDelegatorService = (
+	runtime?: HiveTransactionRuntime
+): HiveTransactionService => createServiceFromEnv('delegator', runtime)

@@ -4,6 +4,16 @@ import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
 import {
+  BLOCKCHAIN_STATUS,
+  HIVE_TX_MODE_VALUES,
+  WAX_STATUS,
+} from '@/consts/hive-execution'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
+import {
+  waxPipelinePassed,
+  type HiveTransactionResult,
+} from '@/types/hive-transaction'
+import {
   ALL_ERROR_CODES,
   BLOCKCHAIN_ERROR_CODES,
   DATABASE_ERROR_CODES,
@@ -176,9 +186,15 @@ export async function saveCreatedAccount(
     const cleanTicket = ticket ? sanitizeTicketCode(ticket) : null
 
     await db.execute({
-      sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-      args: [cleanUsername, cleanTicket || 'N/A', ticketBy ?? null],
+      sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at, execution_mode, blockchain_status)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)`,
+      args: [
+        cleanUsername,
+        cleanTicket || 'N/A',
+        ticketBy ?? null,
+        HIVE_TX_MODE_VALUES.BROADCAST,
+        BLOCKCHAIN_STATUS.CONFIRMED,
+      ],
     })
 
     return true
@@ -444,10 +460,47 @@ export async function rollbackTicketReservation(
  * Ticket credit was already reserved by reserveTicketCredit().
  * This function saves the account record and marks builder credits as consumed.
  */
+function accountRowFromTransaction(
+  transactionResult?: HiveTransactionResult
+): {
+  executionMode: string
+  blockchainStatus: string
+  transactionId: string | null
+  waxStatus: string | null
+} {
+  if (!transactionResult) {
+    return {
+      executionMode: HIVE_TX_MODE_VALUES.BROADCAST,
+      blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
+      transactionId: null,
+      waxStatus: null,
+    }
+  }
+
+  const simulated = transactionResult.mode === HIVE_TX_MODE_VALUES.SIMULATE
+  return {
+    executionMode: transactionResult.mode,
+    blockchainStatus: simulated
+      ? BLOCKCHAIN_STATUS.SIMULATED
+      : transactionResult.broadcasted
+        ? BLOCKCHAIN_STATUS.CONFIRMED
+        : BLOCKCHAIN_STATUS.FAILED,
+    transactionId: transactionResult.id,
+    waxStatus: waxPipelinePassed(transactionResult.wax) || (
+      transactionResult.wax.validated &&
+      transactionResult.wax.signed &&
+      transactionResult.wax.authorityVerified
+    )
+      ? WAX_STATUS.PASSED
+      : WAX_STATUS.FAILED,
+  }
+}
+
 export async function completeAccountCreationInDB(
   username: string,
   ticketCode: string,
-  correlationId?: string
+  correlationId?: string,
+  transactionResult?: HiveTransactionResult
 ): Promise<DBOperationResult> {
   const cleanUsername = sanitizeUsername(username)
   if (!cleanUsername) {
@@ -488,12 +541,26 @@ export async function completeAccountCreationInDB(
         ? (ticketInfo.rows[0].created_by as string | null)
         : null
 
+      const accountMeta = accountRowFromTransaction(transactionResult)
+
       // 2. Save account record
       try {
         await db.execute({
-          sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-          args: [cleanUsername, cleanTicketCode, creatorUsername],
+          sql: `INSERT INTO Accounts (
+                  username, ticket, ticket_by, creation_date, registered_at,
+                  execution_mode, blockchain_status, transaction_id, correlation_id, wax_status
+                )
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`,
+          args: [
+            cleanUsername,
+            cleanTicketCode,
+            creatorUsername,
+            accountMeta.executionMode,
+            accountMeta.blockchainStatus,
+            accountMeta.transactionId,
+            correlationId ?? null,
+            accountMeta.waxStatus,
+          ],
         })
       } catch (accountError) {
         if (
@@ -561,6 +628,13 @@ export async function enqueueReconciliation(params: {
   errorMessage?: string
   transactionId?: string
 }): Promise<void> {
+  if (isSimulationMode()) {
+    logger.warn(
+      `[${params.correlationId}] Reconciliation skipped in simulate mode for ${params.username}`
+    )
+    return
+  }
+
   try {
     const cleanTicket = sanitizeTicketCode(params.ticketCode)
     const cleanUsername = sanitizeUsername(params.username)

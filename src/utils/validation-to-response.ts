@@ -12,6 +12,7 @@
 import type { ValidationFailure } from '@/utils/validation-result'
 import { createJsonResponse } from '@/utils/errorResponse'
 import { HTTP_STATUS } from '@/consts/constants'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { ALL_ERROR_CODES, DATABASE_ERROR_CODES, type UnifiedErrorCode } from '@/consts/unified-errors'
 
@@ -89,7 +90,13 @@ export function validationFailureToResponse(
       error: detailedMessage || error.message,
       ...(error.field && { field: error.field }),
       errorCode,
-      verifiedOnChain: false,
+      executionMode: getHiveExecutionMode(),
+      waxValidated: false,
+      onChainVerified: false,
+      signed: false,
+      authorityVerified: false,
+      broadcasted: false,
+      chainConfirmed: false,
       databaseUpdated: false,
     },
     httpStatus,

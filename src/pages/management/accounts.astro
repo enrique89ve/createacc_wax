@@ -3,6 +3,7 @@ import ManagementLayout from '@/layouts/ManagementLayout.astro'
 import { formatDateTime } from '@/utils/date-formatters'
 import { accountsRepository } from '@/lib/repositories/accounts-repository'
 import type { DatabaseAccountRow } from '@/types/database'
+import { toAccountStatusLabel } from '@/lib/account-status'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -16,6 +17,7 @@ const url = new URL(Astro.request.url)
 const ticketFilter = url.searchParams.get('ticket') || ''
 const userFilter = url.searchParams.get('user') || ''
 const sortOrder = url.searchParams.get('sort') || 'desc' // desc = más reciente primero
+const statusFilter = url.searchParams.get('status') || 'all'
 
 // Obtener todas las cuentas (sin JOINs - ticket_by ya está poblado)
 let accounts: DatabaseAccountRow[] = []
@@ -34,6 +36,12 @@ try {
     accounts = accounts.filter(acc =>
       acc.username.toLowerCase().includes(userFilter.toLowerCase())
     )
+  }
+
+  if (statusFilter === 'simulated') {
+    accounts = accounts.filter(acc => acc.blockchain_status === 'simulated')
+  } else if (statusFilter === 'live') {
+    accounts = accounts.filter(acc => acc.blockchain_status !== 'simulated')
   }
 
   // Aplicar ordenamiento
@@ -72,7 +80,7 @@ try {
       <!-- Filtros -->
       <div class="bg-card border-border mb-6 rounded-lg border p-6">
         <form method="GET" action="/management/accounts" class="space-y-4">
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
             <!-- Filtro por Ticket -->
             <div>
               <label
@@ -107,6 +115,24 @@ try {
                 placeholder="Nombre de usuario"
                 class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
               />
+            </div>
+
+            <div>
+              <label
+                for="status"
+                class="text-foreground mb-2 block text-sm font-medium"
+              >
+                Estado
+              </label>
+              <select
+                id="status"
+                name="status"
+                class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-1"
+              >
+                <option value="all" selected={statusFilter === 'all'}>All</option>
+                <option value="simulated" selected={statusFilter === 'simulated'}>Simulated</option>
+                <option value="live" selected={statusFilter === 'live'}>Live</option>
+              </select>
             </div>
 
             <!-- Ordenar por Fecha -->
@@ -197,6 +223,11 @@ try {
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
+                  Estado
+                </th>
+                <th
+                  class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
+                >
                   Ticket
                 </th>
                 <th
@@ -220,7 +251,7 @@ try {
               {
                 accounts.length === 0 ? (
                   <tr>
-                    <td colspan="6" class="px-6 py-8 text-center">
+                    <td colspan="7" class="px-6 py-8 text-center">
                       <p class="text-muted-foreground text-sm">
                         No se encontraron cuentas
                       </p>
@@ -254,6 +285,24 @@ try {
                             />
                           </svg>
                         </a>
+                      </td>
+                      <td class="whitespace-nowrap px-6 py-4 text-sm">
+                        {
+                          (() => {
+                            const label = toAccountStatusLabel(account.blockchain_status)
+                            const badgeClass =
+                              label === 'SIMULATED'
+                                ? 'bg-amber-500/15 text-amber-200'
+                                : label === 'FAILED'
+                                  ? 'bg-red-500/15 text-red-200'
+                                  : 'bg-emerald-500/15 text-emerald-200'
+                            return (
+                              <span class:list={['rounded-full px-2 py-0.5 text-xs font-medium', badgeClass]}>
+                                {label}
+                              </span>
+                            )
+                          })()
+                        }
                       </td>
                       <td class="text-foreground whitespace-nowrap px-6 py-4 font-mono text-sm">
                         <a

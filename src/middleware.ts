@@ -14,8 +14,8 @@ import {
 import type { APIContext } from 'astro'
 import type { AdminSession, BuilderSession } from '@/types/auth'
 import { parseRole, UserRole } from '@/lib/roles'
-import { getBooleanEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { assertBroadcastConfig } from '@/lib/hive-execution-mode'
 import { signUserId } from '@/lib/user-id-token'
 
 function toAdminSession(user: AdminUser): AdminSession | null {
@@ -139,15 +139,13 @@ async function loadCreationSession(context: APIContext): Promise<void> {
 }
 
 function hiveConnectSources(): string[] {
-	const sources: string[] = [
+	return [
 		HIVE_CHAIN_CONFIG.MAINNET_DEFAULT,
 		...HIVE_CHAIN_CONFIG.MAINNET_BACKUPS,
 	]
-	if (!getBooleanEnv('MAINNET')) {
-		sources.push(HIVE_CHAIN_CONFIG.TESTNET_API)
-	}
-	return sources
 }
+
+assertBroadcastConfig()
 
 /**
  * Security headers applied to all responses.

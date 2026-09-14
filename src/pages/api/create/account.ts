@@ -2,7 +2,22 @@ import type { APIContext, APIRoute } from 'astro'
 import type { CreationSession } from '@/types/auth'
 import { logger } from '@/lib/logger'
 import { createAccount } from '@/lib/create/create-account'
-import { delegateResourceCredits } from '@/lib/create/delegate-rc'
+import { delegateResourceCredits, simulateRcDelegation } from '@/lib/create/delegate-rc'
+import {
+	HivePreflightError,
+	runAccountCreationPreflight,
+} from '@/lib/hive-preflight'
+import {
+	getHiveExecutionMode,
+	isBroadcastEnabled,
+	isSimulationMode,
+	BroadcastDisabledError,
+} from '@/lib/hive-execution-mode'
+import {
+	isSimulationSuccess,
+	type HiveTransactionResult,
+} from '@/types/hive-transaction'
+import type { HiveExecutionMode } from '@/consts/hive-execution'
 import {
 	RC_DELEGATION_AMOUNT,
 	RC_DELEGATION_CONFIG,
@@ -29,8 +44,6 @@ import {
 	type ValidatedSession,
 } from '@/lib/create/account-creation.validator'
 import { checkHiveAccountFormat } from '@/utils/check-username'
-import { safeCheckAccountOnChain } from '@/utils/validate-hiveuser'
-import { hiveChain } from '@/lib/hiveservice'
 import { ensureCreation } from '@/lib/session-helpers'
 import { isValidationSuccess } from '@/utils/validation-result'
 import { validationFailureToResponse } from '@/utils/validation-to-response'
@@ -44,16 +57,17 @@ import { setCreationCookie } from '@/lib/session-cookies'
 // Side-effect: auto-reconciler (also imported from middleware.ts; ES module imports are idempotent)
 import '@/lib/auto-reconciler'
 
-/**
- * Discriminated responses (stable contract):
- * success:true => includes verifiedOnChain, databaseUpdated, isIdempotent; no error/errorCode.
- * success:false => includes error + errorCode and reached state flags.
- */
 export type AccountCreationSuccessResponse = {
 	readonly success: true
 	readonly message: string
 	readonly transactionId?: string
-	readonly verifiedOnChain: boolean
+	readonly executionMode: HiveExecutionMode
+	readonly waxValidated: boolean
+	readonly onChainVerified: boolean
+	readonly signed: boolean
+	readonly authorityVerified: boolean
+	readonly broadcasted: boolean
+	readonly chainConfirmed: boolean
 	readonly databaseUpdated: boolean
 	readonly isIdempotent: boolean
 	readonly correlationId?: string
@@ -67,7 +81,13 @@ export type AccountCreationFailureResponse = {
 	readonly errorCode: ErrorCode
 	readonly details?: string
 	readonly transactionId?: string
-	readonly verifiedOnChain: boolean
+	readonly executionMode?: HiveExecutionMode
+	readonly waxValidated?: boolean
+	readonly onChainVerified?: boolean
+	readonly signed?: boolean
+	readonly authorityVerified?: boolean
+	readonly broadcasted?: boolean
+	readonly chainConfirmed?: boolean
 	readonly databaseUpdated: boolean
 	readonly requiresReconciliation?: boolean
 	readonly correlationId?: string
@@ -156,7 +176,13 @@ function failureResponse(
 			message,
 			error,
 			errorCode,
-			verifiedOnChain: false,
+			executionMode: getHiveExecutionMode(),
+			waxValidated: false,
+			onChainVerified: false,
+			signed: false,
+			authorityVerified: false,
+			broadcasted: false,
+			chainConfirmed: false,
 			databaseUpdated: false,
 			...extras,
 		},
@@ -165,21 +191,45 @@ function failureResponse(
 	)
 }
 
+function waxFlagsFromResult(tx: HiveTransactionResult) {
+	return {
+		executionMode: tx.mode,
+		waxValidated: tx.wax.validated,
+		onChainVerified: tx.wax.onChainVerified,
+		signed: tx.wax.signed,
+		authorityVerified: tx.wax.authorityVerified,
+		broadcasted: tx.broadcasted,
+		chainConfirmed: tx.broadcasted,
+	}
+}
+
 function successResponse(
 	message: string,
+	tx: HiveTransactionResult,
 	extras?: Partial<AccountCreationSuccessResponse>
 ): Response {
 	return createJsonResponse(
 		{
 			success: true,
 			message,
-			verifiedOnChain: true,
+			...waxFlagsFromResult(tx),
 			databaseUpdated: true,
 			isIdempotent: false,
 			...extras,
 		},
 		HTTP_STATUS.OK,
 		{ noCache: true }
+	)
+}
+
+function logCreationOutcome(
+	correlationId: string,
+	username: string,
+	tx: HiveTransactionResult,
+	databaseUpdated: boolean
+): void {
+	logger.info(
+		`[${correlationId}] mode=${tx.mode} username=${username} wax=${tx.wax.validated ? 'passed' : 'failed'} authority=${tx.wax.authorityVerified ? 'passed' : 'failed'} broadcast=${tx.broadcasted} db=${databaseUpdated ? 'completed' : 'pending'}`
 	)
 }
 
@@ -266,7 +316,13 @@ async function checkSessionAndIdempotency(
 			{
 				success: true,
 				message: `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_CREATED_SESSION}`,
-				verifiedOnChain: true,
+				executionMode: getHiveExecutionMode(),
+				waxValidated: true,
+				onChainVerified: !isSimulationMode(),
+				signed: true,
+				authorityVerified: true,
+				broadcasted: !isSimulationMode(),
+				chainConfirmed: !isSimulationMode(),
 				databaseUpdated: true,
 				isIdempotent: true,
 			},
@@ -281,7 +337,13 @@ async function checkSessionAndIdempotency(
 			{
 				success: true,
 				message: `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
-				verifiedOnChain: true,
+				executionMode: getHiveExecutionMode(),
+				waxValidated: true,
+				onChainVerified: !isSimulationMode(),
+				signed: true,
+				authorityVerified: true,
+				broadcasted: !isSimulationMode(),
+				chainConfirmed: !isSimulationMode(),
 				databaseUpdated: true,
 				isIdempotent: true,
 			},
@@ -293,29 +355,33 @@ async function checkSessionAndIdempotency(
 	return creationSession
 }
 
-async function verifyNotOnChain(username: string): Promise<Response | void> {
-	const chain = await hiveChain()
-	const chainResult = await safeCheckAccountOnChain({
-		chain,
-		accountName: username,
-	})
-
-	if (chainResult.status === 'error') {
-		logger.error(`[account-creation] Chain pre-check failed for ${username}: ${chainResult.message}`)
+async function runCreationPreflight(
+	params: ReturnType<typeof toCreateAccountParams>
+): Promise<Response | void> {
+	try {
+		await runAccountCreationPreflight(params)
+	} catch (error) {
+		if (error instanceof HivePreflightError) {
+			const isConflict = error.result.checks.username.status === 'fail' &&
+				error.result.checks.username.message.includes('already exists')
+			const noClaims = error.result.checks.claimedAccounts.status === 'fail'
+			return failureResponse(
+				error.message,
+				error.message,
+				ERROR_CODES.INTERNAL_ERROR,
+				isConflict
+					? HTTP_STATUS.CONFLICT
+					: noClaims
+						? HTTP_STATUS.SERVICE_UNAVAILABLE
+						: HTTP_STATUS.BAD_REQUEST
+			)
+		}
+		const message = error instanceof Error ? error.message : 'Preflight failed'
 		return failureResponse(
 			'Unable to verify account availability',
-			'Hive network temporarily unavailable',
+			message,
 			ERROR_CODES.INTERNAL_ERROR,
 			HTTP_STATUS.INTERNAL_SERVER_ERROR
-		)
-	}
-
-	if (chainResult.status === 'found') {
-		return failureResponse(
-			VALIDATION_ERROR_MESSAGES.ACCOUNT_EXISTS_ON_CHAIN,
-			VALIDATION_ERROR_MESSAGES.ACCOUNT_EXISTS_ON_CHAIN,
-			ERROR_CODES.INTERNAL_ERROR,
-			HTTP_STATUS.CONFLICT
 		)
 	}
 }
@@ -346,16 +412,77 @@ async function reserveTicket(
 	}
 }
 
+async function rollbackAfterFailure(
+	ticketCode: string,
+	correlationId: string,
+	username: string,
+	reason: 'ambiguous_chain_error' | 'db_completion_failed',
+	errorCategory?: string,
+	errorMessage?: string,
+	transactionId?: string
+): Promise<boolean> {
+	const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+	if (rollbackResult.success) return true
+
+	if (isSimulationMode()) {
+		logger.error(
+			`[${correlationId}] Rollback failed in simulate mode: ${rollbackResult.error}`
+		)
+		return false
+	}
+
+	await enqueueReconciliation({
+		correlationId,
+		username,
+		ticketCode,
+		reason,
+		errorCategory,
+		errorMessage: `rollback_failed: ${rollbackResult.error}${errorMessage ? ` / ${errorMessage}` : ''}`,
+		transactionId,
+	})
+	return false
+}
+
 async function createAccountOnChain(
 	params: ReturnType<typeof toCreateAccountParams>,
 	ticketCode: string,
 	correlationId: string,
 	username: string
-): Promise<Response | { id: string }> {
+): Promise<Response | HiveTransactionResult> {
 	try {
 		return await createAccount(params)
 	} catch (chainError) {
+		if (chainError instanceof BroadcastDisabledError) {
+			await rollbackAfterFailure(
+				ticketCode,
+				correlationId,
+				username,
+				'ambiguous_chain_error',
+				'config',
+				chainError.message
+			)
+			return failureResponse(
+				'Broadcast is disabled',
+				chainError.message,
+				ERROR_CODES.INTERNAL_ERROR,
+				HTTP_STATUS.SERVICE_UNAVAILABLE,
+				{ correlationId }
+			)
+		}
+
 		const errorInfo = analyzeWaxError(chainError)
+
+		if (isSimulationMode()) {
+			await rollbackAfterFailure(
+				ticketCode,
+				correlationId,
+				username,
+				'ambiguous_chain_error',
+				errorInfo.category,
+				errorInfo.message
+			)
+			throw chainError
+		}
 
 		if (errorInfo.code === AppErrorCode.ACCOUNT_ALREADY_EXISTS) {
 			logger.warn(
@@ -437,18 +564,20 @@ function scheduleRcDelegation(username: string): void {
 	setTimeout(async () => {
 		for (let attempt = 0; attempt <= RC_DELEGATION_CONFIG.MAX_RETRIES; attempt++) {
 			try {
-				await delegateResourceCredits({
+				const result = await delegateResourceCredits({
 					delegatee: username,
 					maxRc: RC_DELEGATION_AMOUNT,
 				})
-				logger.info(`[rc-delegation] Successfully delegated RC to ${username}`)
+				logger.info(
+					`[rc-delegation] Delegated RC to ${username} broadcast=${result.broadcasted} tx=${result.id}`
+				)
 				scheduleUserCleanup(username)
 				return
 			} catch (error) {
 				const errMsg = error instanceof Error ? error.message : 'Unknown error'
 				if (attempt < RC_DELEGATION_CONFIG.MAX_RETRIES) {
 					logger.warn(`[rc-delegation] Attempt ${attempt + 1} failed for ${username}: ${errMsg}. Retrying...`)
-					await new Promise(r => setTimeout(r, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
+					await new Promise(resolve => setTimeout(resolve, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
 				} else {
 					logger.error(`[rc-delegation] All attempts failed for ${username}: ${errMsg}`)
 					processedUsers.delete(username)
@@ -458,24 +587,45 @@ function scheduleRcDelegation(username: string): void {
 	}, RC_DELEGATION_CONFIG.DELAY_MS)
 }
 
+function queueRcDelegation(username: string): void {
+	if (isBroadcastEnabled()) {
+		scheduleRcDelegation(username)
+		return
+	}
+	simulateRcDelegation(username, RC_DELEGATION_AMOUNT).catch((error) => {
+		const errMsg = error instanceof Error ? error.message : 'Unknown error'
+		logger.warn(`[rc-delegation] Unexpected simulation error for ${username}: ${errMsg}`)
+	})
+}
+
 async function completeInDatabase(
 	username: string,
 	ticketCode: string,
 	correlationId: string,
-	transactionId: string
+	tx: HiveTransactionResult
 ): Promise<Response | void> {
-	const dbResult = await completeAccountCreationInDB(username, ticketCode, correlationId)
-	if (!dbResult.success) {
-		const criticalError = `[${correlationId}] WARNING: Account ${username} created on-chain (tx: ${transactionId}) but DB completion failed: ${dbResult.error}. Ticket was already reserved.`
-		logger.error(criticalError)
-		await enqueueReconciliation({
+	const dbResult = await completeAccountCreationInDB(
+		username,
+		ticketCode,
+		correlationId,
+		tx
+	)
+	if (dbResult.success) return
+
+	logger.error(
+		`[${correlationId}] WARNING: Account ${username} pipeline finished (tx: ${tx.id}) but DB completion failed: ${dbResult.error}. Ticket was already reserved.`
+	)
+
+	if (isSimulationMode()) {
+		await rollbackAfterFailure(
+			ticketCode,
 			correlationId,
 			username,
-			ticketCode,
-			reason: 'db_completion_failed',
-			errorMessage: dbResult.error,
-			transactionId,
-		})
+			'db_completion_failed',
+			undefined,
+			dbResult.error,
+			tx.id
+		)
 		return failureResponse(
 			VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
 			VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
@@ -483,13 +633,35 @@ async function completeInDatabase(
 			HTTP_STATUS.INTERNAL_SERVER_ERROR,
 			{
 				details: dbResult.error,
-				transactionId,
-				verifiedOnChain: true,
-				requiresReconciliation: true,
+				transactionId: tx.id,
+				...waxFlagsFromResult(tx),
+				requiresReconciliation: false,
 				correlationId,
 			}
 		)
 	}
+
+	await enqueueReconciliation({
+		correlationId,
+		username,
+		ticketCode,
+		reason: 'db_completion_failed',
+		errorMessage: dbResult.error,
+		transactionId: tx.id,
+	})
+	return failureResponse(
+		VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
+		VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
+		dbResult.errorCode || ERROR_CODES.INTERNAL_ERROR,
+		HTTP_STATUS.INTERNAL_SERVER_ERROR,
+		{
+			details: dbResult.error,
+			transactionId: tx.id,
+			...waxFlagsFromResult(tx),
+			requiresReconciliation: true,
+			correlationId,
+		}
+	)
 }
 
 function finalizeSession(context: APIContext, session: ValidatedSession): void {
@@ -541,10 +713,10 @@ export const POST: APIRoute = async (context) => {
 		const sessionResult = await checkSessionAndIdempotency(creationSession, requestResult.username)
 		if (sessionResult instanceof Response) return sessionResult
 
-		const chainCheck = await verifyNotOnChain(requestResult.username)
-		if (chainCheck instanceof Response) return chainCheck
-
 		const params = toCreateAccountParams(requestResult)
+		const preflightResult = await runCreationPreflight(params)
+		if (preflightResult instanceof Response) return preflightResult
+
 		const correlationId = `${requestResult.username}-${Date.now().toString(36)}`
 
 		if (!acquireCreationLock(requestResult.username)) {
@@ -563,15 +735,33 @@ export const POST: APIRoute = async (context) => {
 			const txResult = await createAccountOnChain(params, sessionResult.ticket, correlationId, requestResult.username)
 			if (txResult instanceof Response) return txResult
 
-			scheduleRcDelegation(requestResult.username)
+			if (isSimulationMode() && !isSimulationSuccess(txResult)) {
+				await rollbackAfterFailure(
+					sessionResult.ticket,
+					correlationId,
+					requestResult.username,
+					'ambiguous_chain_error'
+				)
+				return failureResponse(
+					'Simulation did not pass WAX verification',
+					'Simulation failed',
+					ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+					HTTP_STATUS.INTERNAL_SERVER_ERROR,
+					{ transactionId: txResult.id, ...waxFlagsFromResult(txResult), correlationId }
+				)
+			}
 
-			const dbResult = await completeInDatabase(requestResult.username, sessionResult.ticket, correlationId, txResult.id)
+			queueRcDelegation(requestResult.username)
+
+			const dbResult = await completeInDatabase(requestResult.username, sessionResult.ticket, correlationId, txResult)
 			if (dbResult instanceof Response) return dbResult
 
 			finalizeSession(context, sessionResult)
+			logCreationOutcome(correlationId, requestResult.username, txResult, true)
 
 			return successResponse(
 				`Account ${requestResult.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+				txResult,
 				{ transactionId: txResult.id, correlationId }
 			)
 		} finally {

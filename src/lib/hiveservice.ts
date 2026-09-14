@@ -1,8 +1,6 @@
 import type { IHiveChainInterface } from '@hiveio/wax'
 import { HIVE_CHAIN_CONFIG } from '@/consts/constants'
-import { createFreshChain, isMainnet } from '@/lib/hive-chain-factory'
-
-export { isMainnet } from '@/lib/hive-chain-factory'
+import { createFreshChain } from '@/lib/hive-chain-factory'
 
 /**
  * Chain pool with TTL.

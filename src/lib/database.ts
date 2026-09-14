@@ -132,7 +132,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
 		ticket TEXT NOT NULL,
 		ticket_by TEXT,
-		registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		execution_mode TEXT NOT NULL DEFAULT 'broadcast',
+		blockchain_status TEXT NOT NULL DEFAULT 'confirmed',
+		transaction_id TEXT,
+		correlation_id TEXT,
+		wax_status TEXT
 	)`,
 
 	`CREATE TABLE IF NOT EXISTS TicketAudit (
@@ -301,11 +306,59 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		END`,
 ]
 
+const ACCOUNT_COLUMN_MIGRATIONS: readonly { name: string; sql: string }[] = [
+	{
+		name: 'execution_mode',
+		sql: `ALTER TABLE Accounts ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'broadcast'`,
+	},
+	{
+		name: 'blockchain_status',
+		sql: `ALTER TABLE Accounts ADD COLUMN blockchain_status TEXT NOT NULL DEFAULT 'confirmed'`,
+	},
+	{
+		name: 'transaction_id',
+		sql: `ALTER TABLE Accounts ADD COLUMN transaction_id TEXT`,
+	},
+	{
+		name: 'correlation_id',
+		sql: `ALTER TABLE Accounts ADD COLUMN correlation_id TEXT`,
+	},
+	{
+		name: 'wax_status',
+		sql: `ALTER TABLE Accounts ADD COLUMN wax_status TEXT`,
+	},
+]
+
+async function tableColumnNames(table: string): Promise<Set<string>> {
+	const result = await db.execute(`PRAGMA table_info(${table})`)
+	const names = new Set<string>()
+	for (const row of result.rows) {
+		const name = (row as { name?: unknown }).name
+		if (typeof name === 'string') names.add(name)
+	}
+	return names
+}
+
+async function migrateAccountsSchema(): Promise<void> {
+	const existing = await tableColumnNames('Accounts')
+	for (const column of ACCOUNT_COLUMN_MIGRATIONS) {
+		if (existing.has(column.name)) continue
+		try {
+			await db.execute(column.sql)
+		} catch (error) {
+			const message = error instanceof Error ? error.message : ''
+			if (/duplicate column/i.test(message)) continue
+			throw error
+		}
+	}
+}
+
 export async function initializeDatabase(): Promise<boolean> {
 	try {
 		for (const sql of SCHEMA_STATEMENTS) {
 			await db.execute(sql)
 		}
+		await migrateAccountsSchema()
 		return true
 	} catch (error) {
 		logger.error('Database initialization error:', error)

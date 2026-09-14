@@ -6,7 +6,8 @@ interface ImportMetaEnv {
 	readonly HIVE_DELEGATOR_ACCOUNT: string
 	readonly HIVE_CREATOR_ACTIVE_KEY: string
 	readonly HIVE_DELEGATOR_POSTING_KEY: string
-	readonly MAINNET: string // "TRUE" | "FALSE" as string
+	readonly HIVE_TX_MODE: string
+	readonly HIVE_BROADCAST_CONFIRM: string
 	readonly SESSION_SECRET: string // For HMAC-SHA256 cookie signing
 	readonly BEEKEEPER_WALLET_PASSWORD: string
 	readonly AUTH_SECRET: string

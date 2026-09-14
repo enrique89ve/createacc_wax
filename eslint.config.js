@@ -1,5 +1,5 @@
 import neostandard from "neostandard";
-import astroParser from "astro-eslint-parser";
+import * as astroParser from "astro-eslint-parser";
 import eslintPluginAstro from "eslint-plugin-astro";
 
 export default [
@@ -47,6 +47,6 @@ export default [
 
   // Ignores
   {
-    ignores: ["dist/**/*", ".astro/**/*", "node_modules/**/*", "eslint-rules/**/*"],
+    ignores: ["dist/**/*", ".astro/**/*", "node_modules/**/*", "eslint-rules/**/*", "scripts/**/*", "src/**/*.test.ts", "vitest.config.ts"],
   },
 ];

@@ -7,7 +7,6 @@ import {
 } from '@hiveio/wax'
 import { BRAND } from '@/consts/branding'
 import { HIVE_CHAIN_CONFIG } from '@/consts/constants'
-import { getBooleanEnv } from '@/lib/env'
 import { shouldTriggerWaxFailover } from '@/lib/wax-error-utils'
 
 export type HiveChain = IHiveChainInterface
@@ -15,35 +14,19 @@ export type HiveChain = IHiveChainInterface
 const sleep = (ms: number): Promise<void> =>
 	new Promise(resolve => setTimeout(resolve, ms))
 
-export const isMainnet = (): boolean => getBooleanEnv('MAINNET')
-
-export type HiveNetworkMode = 'mainnet' | 'testnet'
-
-function shouldUseMainnet(mode?: HiveNetworkMode): boolean {
-	if (mode === 'mainnet') return true
-	if (mode === 'testnet') return false
-	return isMainnet()
-}
-
-function sharedChainOptions(apiEndpoint: string, chainId?: string) {
+function sharedChainOptions(apiEndpoint: string) {
 	return {
 		apiEndpoint,
 		apiTimeout: HIVE_CHAIN_CONFIG.API_TIMEOUT_MS,
 		waxApiCaller: BRAND.APP_ID,
-		...(chainId ? { chainId } : {}),
 	}
 }
 
-async function createChainAt(
-	apiEndpoint: string,
-	chainId?: string
-): Promise<IHiveChainInterface> {
-	return await createHiveChain(sharedChainOptions(apiEndpoint, chainId))
+async function createChainAt(apiEndpoint: string): Promise<IHiveChainInterface> {
+	return await createHiveChain(sharedChainOptions(apiEndpoint))
 }
 
-async function findBestBackup(
-	backups: readonly string[]
-): Promise<string> {
+async function findBestBackup(backups: readonly string[]): Promise<string> {
 	const firstBackup = backups[0]
 	if (!firstBackup) {
 		throw new Error('No backup endpoints configured')
@@ -102,19 +85,9 @@ async function tryBackupsSequentially(
 }
 
 /**
- * Creates a Hive chain with hybrid failover.
- * Tries the default API first, then HealthChecker, then sequential backups.
+ * Creates a Hive chain always pointed at mainnet, with hybrid failover.
  */
-export async function createFreshChain(
-	mode?: HiveNetworkMode
-): Promise<IHiveChainInterface> {
-	if (!shouldUseMainnet(mode)) {
-		return await createChainAt(
-			HIVE_CHAIN_CONFIG.TESTNET_API,
-			HIVE_CHAIN_CONFIG.TESTNET_CHAIN_ID
-		)
-	}
-
+export async function createFreshChain(): Promise<IHiveChainInterface> {
 	try {
 		return await createChainAt(HIVE_CHAIN_CONFIG.MAINNET_DEFAULT)
 	} catch (error) {

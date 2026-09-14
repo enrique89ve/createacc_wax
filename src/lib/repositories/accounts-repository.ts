@@ -12,6 +12,9 @@
  */
 
 import { db } from '@/lib/database'
+
+const ACCOUNT_COLUMNS =
+	'id, username, creation_date, ticket, ticket_by, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status'
 // Logger removed
 import {
   parseAccountRow,
@@ -80,7 +83,7 @@ export class AccountsRepository {
   async findById(id: number): Promise<DatabaseAccountRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts WHERE id = ?',
+        sql: `SELECT ${ACCOUNT_COLUMNS} FROM Accounts WHERE id = ?`,
         args: [id],
       })
 
@@ -100,7 +103,7 @@ export class AccountsRepository {
   async findByUsername(username: string): Promise<DatabaseAccountRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts WHERE username = ?',
+        sql: `SELECT ${ACCOUNT_COLUMNS} FROM Accounts WHERE username = ?`,
         args: [username],
       })
 
@@ -153,7 +156,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE ticket = ?
 					ORDER BY creation_date DESC
 				`,
@@ -176,7 +179,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE DATE(creation_date) BETWEEN DATE(?) AND DATE(?)
 					ORDER BY creation_date DESC
 				`,
@@ -196,7 +199,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					ORDER BY creation_date DESC
 				`,
         args: [],
@@ -215,7 +218,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					ORDER BY creation_date DESC
 					LIMIT ?
 				`,
@@ -235,7 +238,7 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE username LIKE ?
 					ORDER BY creation_date DESC
 				`,
@@ -290,7 +293,7 @@ export class AccountsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT id, username, creation_date, ticket, ticket_by, registered_at FROM Accounts
+				SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 				${whereClause}
 				ORDER BY creation_date DESC
 			`

@@ -20,6 +20,7 @@ import {
 } from '@/types/database'
 import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 import { UserRole } from '@/lib/roles'
+import { toAccountStatusLabel } from '@/lib/account-status'
 
 /**
  * Builder with ticket and credit statistics
@@ -454,6 +455,7 @@ export class UsersRepository {
 					a.creation_date,
 					a.registered_at,
 					a.ticket_by,
+					a.blockchain_status,
 					t.description as ticket_description,
 					t.original_credits as ticket_original_credits,
 					t.credits as ticket_remaining_credits
@@ -473,6 +475,8 @@ export class UsersRepository {
         ticket_description: (row.ticket_description as string) || null,
         ticket_original_credits: Number(row.ticket_original_credits || 0),
         ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
+        blockchain_status: String(row.blockchain_status || 'confirmed'),
+        status_label: toAccountStatusLabel(String(row.blockchain_status || 'confirmed')),
       }))
     } catch (error) {
       return []
@@ -547,6 +551,8 @@ export interface AccountWithTicketInfo {
   readonly ticket_description: string | null
   readonly ticket_original_credits: number
   readonly ticket_remaining_credits: number
+  readonly blockchain_status: string
+  readonly status_label: string
 }
 
 /**

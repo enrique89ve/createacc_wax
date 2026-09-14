@@ -1,16 +1,14 @@
 ---
-import { isMainnet } from '@/lib/hiveservice'
+import RuntimeStatusBadge from '@/components/ui/RuntimeStatusBadge.astro'
 
 interface Props {
 	readonly ticket?: string
 }
 const { ticket = '' } = Astro.props as Props
-const hiveNetwork = isMainnet() ? 'mainnet' : 'testnet'
 ---
 
 <section
 	id="formulario"
-	data-hive-network={hiveNetwork}
 	class="mx-auto px-6 py-2"
 >
 	<div class="mx-auto w-full max-w-lg">
@@ -25,6 +23,7 @@ const hiveNetwork = isMainnet() ? 'mainnet' : 'testnet'
 					Crea tu cuenta de Hive
 				</h1>
 				<p class="text-sm text-amber-50">Únete a la Web3</p>
+				<RuntimeStatusBadge />
 			</div>
 
 			<form id="registro-form" class="space-y-6">

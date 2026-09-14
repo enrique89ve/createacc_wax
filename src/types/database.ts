@@ -83,6 +83,11 @@ export interface DatabaseAccountRow {
   readonly ticket: string
   readonly ticket_by: string | null
   readonly registered_at: string
+  readonly execution_mode: string
+  readonly blockchain_status: string
+  readonly transaction_id: string | null
+  readonly correlation_id: string | null
+  readonly wax_status: string | null
 }
 
 /**
@@ -403,7 +408,12 @@ export function isDatabaseAccountRow(row: unknown): row is DatabaseAccountRow {
     typeof r.creation_date === 'string' &&
     typeof r.ticket === 'string' &&
     (r.ticket_by === null || typeof r.ticket_by === 'string') &&
-    typeof r.registered_at === 'string'
+    typeof r.registered_at === 'string' &&
+    (r.execution_mode === undefined || typeof r.execution_mode === 'string') &&
+    (r.blockchain_status === undefined || typeof r.blockchain_status === 'string') &&
+    (r.transaction_id === undefined || r.transaction_id === null || typeof r.transaction_id === 'string') &&
+    (r.correlation_id === undefined || r.correlation_id === null || typeof r.correlation_id === 'string') &&
+    (r.wax_status === undefined || r.wax_status === null || typeof r.wax_status === 'string')
   )
 }
 
@@ -478,8 +488,18 @@ export function parseTicketRow(raw: unknown): DatabaseTicketRow | null {
  * Safely converts libsql row to typed account row
  */
 export function parseAccountRow(raw: unknown): DatabaseAccountRow | null {
-  if (!isDatabaseAccountRow(raw)) return null
-  return raw
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  const converted = {
+    ...r,
+    execution_mode: typeof r.execution_mode === 'string' ? r.execution_mode : 'broadcast',
+    blockchain_status: typeof r.blockchain_status === 'string' ? r.blockchain_status : 'confirmed',
+    transaction_id: typeof r.transaction_id === 'string' ? r.transaction_id : null,
+    correlation_id: typeof r.correlation_id === 'string' ? r.correlation_id : null,
+    wax_status: typeof r.wax_status === 'string' ? r.wax_status : null,
+  }
+  if (!isDatabaseAccountRow(converted)) return null
+  return converted
 }
 
 /**
