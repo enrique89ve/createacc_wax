@@ -8,6 +8,22 @@ export interface HiveBroadcastOutcome {
 	readonly broadcasted: boolean
 }
 
+export type HiveBroadcaster = (
+	chain: IHiveChainInterface,
+	tx: IOnlineTransaction
+) => Promise<HiveBroadcastOutcome>
+
+/**
+ * Diagnostics / self-test only. Never calls chain.broadcast(),
+ * regardless of HIVE_TX_MODE.
+ */
+export async function noopHiveBroadcast(
+	_chain: IHiveChainInterface,
+	_tx: IOnlineTransaction
+): Promise<HiveBroadcastOutcome> {
+	return { broadcasted: false }
+}
+
 /**
  * Single authorized entry point for Hive broadcasts.
  * Simulation never calls chain.broadcast().

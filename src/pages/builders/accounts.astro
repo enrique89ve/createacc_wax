@@ -39,7 +39,11 @@ const accountColumns = [
     type: 'badge' as const,
     width: 'w-1/6',
     badgeVariant: (value: unknown) =>
-      value === 'SIMULATED' ? 'warning' : value === 'FAILED' ? 'danger' : 'success',
+      value === 'SIMULATED' || value === 'BROADCASTED'
+        ? 'warning'
+        : value === 'FAILED'
+          ? 'danger'
+          : 'success',
   },
   {
     key: 'ticket',

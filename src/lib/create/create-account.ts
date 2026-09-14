@@ -1,5 +1,8 @@
 import type { create_claimed_account as CreateClaimedAccount, IOnlineTransaction } from '@hiveio/wax'
-import { createCreatorService } from '@/lib/hive-transaction-service'
+import {
+	createCreatorService,
+	type HiveTransactionRuntime,
+} from '@/lib/hive-transaction-service'
 import { BRAND } from '@/consts/branding'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
 
@@ -56,9 +59,10 @@ export function pushCreateClaimedAccount(
 }
 
 export async function createAccount(
-	params: ICreateAccountParams
+	params: ICreateAccountParams,
+	runtime?: HiveTransactionRuntime
 ): Promise<HiveTransactionResult> {
-	const service = createCreatorService()
+	const service = createCreatorService(runtime)
 
 	return await service.executeTransaction((tx, creatorAccount) => {
 		pushCreateClaimedAccount(tx, params, creatorAccount)

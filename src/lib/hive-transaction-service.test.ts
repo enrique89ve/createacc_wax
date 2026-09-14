@@ -66,5 +66,33 @@ describe('HiveTransactionService broadcast spy', () => {
 		expect(broadcast).not.toHaveBeenCalled()
 		expect(result.wax.signed).toBe(true)
 		expect(result.wax.authorityVerified).toBe(true)
+		expect(result.wax.onChainVerified).toBe(true)
+	})
+
+	it('injected noop never broadcasts even when env is live', async () => {
+		process.env.HIVE_TX_MODE = 'broadcast'
+		process.env.HIVE_BROADCAST_CONFIRM = 'HIVE_MAINNET'
+		const broadcast = vi.fn().mockResolvedValue(undefined)
+		const tx = createTxMock()
+		const chain = {
+			createTransaction: async () => tx,
+			endpointUrl: 'https://api.hive.blog',
+			broadcast,
+		} as unknown as IHiveChainInterface
+
+		const service = HiveTransactionService.create(
+			{ account: 'creator', privateKey: '5secret', walletName: 'test' },
+			{
+				getChain: async () => chain,
+				broadcast: async () => ({ broadcasted: false }),
+			}
+		)
+
+		const result = await service.executeTransaction((built) => {
+			built.validate()
+		})
+
+		expect(result.broadcasted).toBe(false)
+		expect(broadcast).not.toHaveBeenCalled()
 	})
 })

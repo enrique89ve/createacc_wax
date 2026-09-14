@@ -9,6 +9,8 @@ import {
 import type { HiveExecutionMode } from '@/consts/hive-execution'
 import { HiveKeys } from '@/lib/create/get-keys'
 import { createAccount } from '@/lib/create/create-account'
+import { noopHiveBroadcast } from '@/lib/hive-broadcaster'
+import type { HiveTransactionRuntime } from '@/lib/hive-transaction-service'
 
 export interface WaxDiagnostics {
 	readonly waxVersion: string
@@ -27,10 +29,12 @@ export interface WaxDiagnostics {
 		readonly onChainVerified: boolean
 		readonly signed: boolean
 		readonly authorityVerified: boolean
+		readonly broadcasted: boolean
 	}
 	readonly broadcast: {
 		readonly mode: HiveExecutionMode
 		readonly allowed: boolean
+		readonly injectedNoop: boolean
 	}
 }
 
@@ -39,7 +43,13 @@ function randomSimUsername(): string {
 	return `hhsim${suffix}`
 }
 
-export async function collectWaxDiagnostics(): Promise<WaxDiagnostics> {
+const SELF_TEST_RUNTIME: HiveTransactionRuntime = {
+	broadcast: noopHiveBroadcast,
+}
+
+export async function collectWaxDiagnostics(
+	runtime: HiveTransactionRuntime = SELF_TEST_RUNTIME
+): Promise<WaxDiagnostics> {
 	const creator = getRequiredEnvString(ENV_KEYS.HIVE_CREATOR_ACCOUNT)
 	const chain = await hiveChain()
 	const accounts = await chain.api.database_api.find_accounts({
@@ -59,7 +69,7 @@ export async function collectWaxDiagnostics(): Promise<WaxDiagnostics> {
 
 	const username = randomSimUsername()
 	const keys = await HiveKeys.generate(username)
-	const tx = await createAccount(keys.toCreateAccountParams(username))
+	const tx = await createAccount(keys.toCreateAccountParams(username), runtime)
 
 	return {
 		waxVersion: '2.0.2',
@@ -80,10 +90,12 @@ export async function collectWaxDiagnostics(): Promise<WaxDiagnostics> {
 			onChainVerified: tx.wax.onChainVerified,
 			signed: tx.wax.signed,
 			authorityVerified: tx.wax.authorityVerified,
+			broadcasted: tx.broadcasted,
 		},
 		broadcast: {
 			mode: getHiveExecutionMode(),
 			allowed: isBroadcastEnabled(),
+			injectedNoop: runtime.broadcast === noopHiveBroadcast,
 		},
 	}
 }

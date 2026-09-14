@@ -14,10 +14,19 @@ import {
 	BroadcastDisabledError,
 } from '@/lib/hive-execution-mode'
 import {
+	BLOCKCHAIN_STATUS,
+	type HiveExecutionMode,
+} from '@/consts/hive-execution'
+import {
+	creationFlagsFromPersistedAccount,
+	type PersistedAccountCreation,
+} from '@/lib/account-status'
+import { hiveChain } from '@/lib/hiveservice'
+import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
+import {
 	isSimulationSuccess,
 	type HiveTransactionResult,
 } from '@/types/hive-transaction'
-import type { HiveExecutionMode } from '@/consts/hive-execution'
 import {
 	RC_DELEGATION_AMOUNT,
 	RC_DELEGATION_CONFIG,
@@ -31,7 +40,8 @@ import {
 	rollbackTicketReservation,
 	obfuscateTicket,
 	ERROR_CODES,
-	accountExistsInDB,
+	getAccountCreationState,
+	updateAccountBlockchainStatus,
 	enqueueReconciliation,
 } from '@/utils/db-ticket-validator'
 type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
@@ -191,7 +201,7 @@ function failureResponse(
 	)
 }
 
-function waxFlagsFromResult(tx: HiveTransactionResult) {
+function waxFlagsFromResult(tx: HiveTransactionResult, chainConfirmed = false) {
 	return {
 		executionMode: tx.mode,
 		waxValidated: tx.wax.validated,
@@ -199,8 +209,46 @@ function waxFlagsFromResult(tx: HiveTransactionResult) {
 		signed: tx.wax.signed,
 		authorityVerified: tx.wax.authorityVerified,
 		broadcasted: tx.broadcasted,
-		chainConfirmed: tx.broadcasted,
+		chainConfirmed,
 	}
+}
+
+function idempotentSuccessResponse(
+	message: string,
+	account: PersistedAccountCreation | null
+): Response {
+	if (!account) {
+		return createJsonResponse(
+			{
+				success: true,
+				message,
+				executionMode: getHiveExecutionMode(),
+				waxValidated: false,
+				onChainVerified: false,
+				signed: false,
+				authorityVerified: false,
+				broadcasted: false,
+				chainConfirmed: false,
+				databaseUpdated: false,
+				isIdempotent: true,
+			},
+			HTTP_STATUS.OK,
+			{ noCache: true }
+		)
+	}
+
+	return createJsonResponse(
+		{
+			success: true,
+			message,
+			...creationFlagsFromPersistedAccount(account),
+			transactionId: account.transactionId ?? undefined,
+			databaseUpdated: true,
+			isIdempotent: true,
+		},
+		HTTP_STATUS.OK,
+		{ noCache: true }
+	)
 }
 
 function successResponse(
@@ -311,44 +359,19 @@ async function checkSessionAndIdempotency(
 
 	const creationSession = sessionValidation.data
 
+	const existingAccount = await getAccountCreationState(username)
+
 	if (creationSession.accountCreated) {
-		return createJsonResponse(
-			{
-				success: true,
-				message: `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_CREATED_SESSION}`,
-				executionMode: getHiveExecutionMode(),
-				waxValidated: true,
-				onChainVerified: !isSimulationMode(),
-				signed: true,
-				authorityVerified: true,
-				broadcasted: !isSimulationMode(),
-				chainConfirmed: !isSimulationMode(),
-				databaseUpdated: true,
-				isIdempotent: true,
-			},
-			HTTP_STATUS.OK,
-			{ noCache: true }
+		return idempotentSuccessResponse(
+			`Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_CREATED_SESSION}`,
+			existingAccount
 		)
 	}
 
-	const accountAlreadyExists = await accountExistsInDB(username)
-	if (accountAlreadyExists) {
-		return createJsonResponse(
-			{
-				success: true,
-				message: `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
-				executionMode: getHiveExecutionMode(),
-				waxValidated: true,
-				onChainVerified: !isSimulationMode(),
-				signed: true,
-				authorityVerified: true,
-				broadcasted: !isSimulationMode(),
-				chainConfirmed: !isSimulationMode(),
-				databaseUpdated: true,
-				isIdempotent: true,
-			},
-			HTTP_STATUS.OK,
-			{ noCache: true }
+	if (existingAccount) {
+		return idempotentSuccessResponse(
+			`Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
+			existingAccount
 		)
 	}
 
@@ -672,6 +695,34 @@ function finalizeSession(context: APIContext, session: ValidatedSession): void {
 	)
 }
 
+async function confirmAccountOnHive(
+	username: string,
+	correlationId: string
+): Promise<boolean> {
+	const chain = await hiveChain()
+	const lookup = await validateHiveAccountExistsWithPolling({
+		chain,
+		accountName: username,
+	})
+	if (lookup.status !== 'found') {
+		logger.warn(
+			`[${correlationId}] Account ${username} broadcasted but not confirmed on Hive (${lookup.status})`
+		)
+		return false
+	}
+
+	const updated = await updateAccountBlockchainStatus(
+		username,
+		BLOCKCHAIN_STATUS.CONFIRMED
+	)
+	if (!updated) {
+		logger.error(
+			`[${correlationId}] Hive confirmed ${username} but DB status update failed`
+		)
+	}
+	return true
+}
+
 // --- POST handler ---
 
 export const POST: APIRoute = async (context) => {
@@ -756,13 +807,21 @@ export const POST: APIRoute = async (context) => {
 			const dbResult = await completeInDatabase(requestResult.username, sessionResult.ticket, correlationId, txResult)
 			if (dbResult instanceof Response) return dbResult
 
+			let chainConfirmed = false
+			if (txResult.broadcasted && !isSimulationMode()) {
+				chainConfirmed = await confirmAccountOnHive(
+					requestResult.username,
+					correlationId
+				)
+			}
+
 			finalizeSession(context, sessionResult)
 			logCreationOutcome(correlationId, requestResult.username, txResult, true)
 
 			return successResponse(
 				`Account ${requestResult.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
 				txResult,
-				{ transactionId: txResult.id, correlationId }
+				{ transactionId: txResult.id, correlationId, chainConfirmed }
 			)
 		} finally {
 			releaseCreationLock(requestResult.username)

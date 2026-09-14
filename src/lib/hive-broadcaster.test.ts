@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { broadcastHiveTransaction } from '@/lib/hive-broadcaster'
+import { broadcastHiveTransaction, noopHiveBroadcast } from '@/lib/hive-broadcaster'
 import { BroadcastDisabledError } from '@/lib/hive-execution-mode'
 import { HIVE_BROADCAST_CONFIRM_VALUE } from '@/consts/hive-execution'
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
@@ -38,6 +38,15 @@ describe('hive broadcaster', () => {
 		await expect(
 			broadcastHiveTransaction(chain, {} as IOnlineTransaction)
 		).rejects.toBeInstanceOf(BroadcastDisabledError)
+		expect(chain.broadcast).not.toHaveBeenCalled()
+	})
+
+	it('noop never calls chain.broadcast even when live is enabled', async () => {
+		process.env.HIVE_TX_MODE = 'broadcast'
+		process.env.HIVE_BROADCAST_CONFIRM = HIVE_BROADCAST_CONFIRM_VALUE
+		const chain = mockChain()
+		const result = await noopHiveBroadcast(chain, {} as IOnlineTransaction)
+		expect(result.broadcasted).toBe(false)
 		expect(chain.broadcast).not.toHaveBeenCalled()
 	})
 

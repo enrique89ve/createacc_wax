@@ -7,6 +7,7 @@ import {
 } from '@/utils/db-ticket-validator'
 import { HiveKeys } from '@/lib/create/get-keys'
 import { createAccount } from '@/lib/create/create-account'
+import { noopHiveBroadcast } from '@/lib/hive-broadcaster'
 import { isSimulationSuccess } from '@/types/hive-transaction'
 
 const TICKET = 'INTSIMTICKET01'
@@ -44,24 +45,36 @@ async function main(): Promise<void> {
 	const reserved = await reserveTicketCredit(TICKET, `corr-${username}`)
 	if (!reserved.success) throw new Error(reserved.error)
 
-	const tx = await createAccount(keys.toCreateAccountParams(username))
+	const tx = await createAccount(keys.toCreateAccountParams(username), {
+		broadcast: noopHiveBroadcast,
+	})
 	if (!isSimulationSuccess(tx)) {
-		throw new Error('Simulation did not pass')
+		throw new Error('Simulation did not pass WAX checks')
 	}
 	if (tx.broadcasted) throw new Error('Broadcast occurred during simulation')
+	if (!tx.wax.onChainVerified) throw new Error('on-chain verification did not pass')
 
 	const dbResult = await completeAccountCreationInDB(username, TICKET, `corr-${username}`, tx)
 	if (!dbResult.success) throw new Error(dbResult.error)
 
 	const after = await db.execute({ sql: `SELECT credits FROM Tickets WHERE code = ?`, args: [TICKET] })
+	const creditsAfter = Number(after.rows[0]?.credits)
 	const account = await db.execute({
 		sql: `SELECT execution_mode, blockchain_status FROM Accounts WHERE username = ?`,
 		args: [username],
 	})
 	const pending = await getPendingReconciliations()
+	const mode = String(account.rows[0]?.execution_mode)
+	const status = String(account.rows[0]?.blockchain_status)
 
-	console.log(`ticket before=${creditsBefore} after=${after.rows[0]?.credits}`)
-	console.log(`account mode=${account.rows[0]?.execution_mode} status=${account.rows[0]?.blockchain_status}`)
+	if (creditsBefore !== 3) throw new Error(`Expected ticket credits 3 before, got ${creditsBefore}`)
+	if (creditsAfter !== 2) throw new Error(`Expected ticket credits 2 after, got ${creditsAfter}`)
+	if (mode !== 'simulate') throw new Error(`Expected execution_mode=simulate, got ${mode}`)
+	if (status !== 'simulated') throw new Error(`Expected blockchain_status=simulated, got ${status}`)
+	if (pending.length !== 0) throw new Error(`Expected 0 reconciliations, got ${pending.length}`)
+
+	console.log(`ticket before=${creditsBefore} after=${creditsAfter}`)
+	console.log(`account mode=${mode} status=${status}`)
 	console.log(`reconciliation=${pending.length}`)
 	console.log('INTEGRATION SIMULATION PASSED')
 }

@@ -7,7 +7,13 @@ import {
   BLOCKCHAIN_STATUS,
   HIVE_TX_MODE_VALUES,
   WAX_STATUS,
+  type BlockchainStatus,
 } from '@/consts/hive-execution'
+import {
+  parseBlockchainStatus,
+  parseExecutionMode,
+  type PersistedAccountCreation,
+} from '@/lib/account-status'
 import { isSimulationMode } from '@/lib/hive-execution-mode'
 import {
   waxPipelinePassed,
@@ -22,7 +28,6 @@ import {
 } from '@/consts/unified-errors'
 import {
   RECONCILIATION_STATUS,
-  type ReconciliationStatus,
   type ActionableReconciliationStatus,
 } from '@/consts/constants'
 
@@ -208,18 +213,53 @@ export async function saveCreatedAccount(
  * Verifies if an account already exists in the database (idempotency)
  */
 export async function accountExistsInDB(username: string): Promise<boolean> {
+  const existing = await getAccountCreationState(username)
+  return existing !== null
+}
+
+export async function getAccountCreationState(
+  username: string
+): Promise<PersistedAccountCreation | null> {
+  try {
+    const cleanUsername = sanitizeUsername(username)
+    if (!cleanUsername) return null
+
+    const result = await db.execute({
+      sql: `SELECT username, execution_mode, blockchain_status, transaction_id, wax_status
+            FROM Accounts WHERE username = ?`,
+      args: [cleanUsername],
+    })
+
+    if (result.rows.length === 0) return null
+    const row = result.rows[0]
+    return {
+      username: String(row.username),
+      executionMode: parseExecutionMode(row.execution_mode),
+      blockchainStatus: parseBlockchainStatus(row.blockchain_status),
+      transactionId: typeof row.transaction_id === 'string' ? row.transaction_id : null,
+      waxStatus: typeof row.wax_status === 'string' ? row.wax_status : null,
+    }
+  } catch (error) {
+    logger.error('[getAccountCreationState] Failed to load account:', error)
+    return null
+  }
+}
+
+export async function updateAccountBlockchainStatus(
+  username: string,
+  status: BlockchainStatus
+): Promise<boolean> {
   try {
     const cleanUsername = sanitizeUsername(username)
     if (!cleanUsername) return false
 
     const result = await db.execute({
-      sql: `SELECT username FROM Accounts WHERE username = ?`,
-      args: [cleanUsername],
+      sql: `UPDATE Accounts SET blockchain_status = ? WHERE username = ? RETURNING username`,
+      args: [status, cleanUsername],
     })
-
     return result.rows.length > 0
   } catch (error) {
-    logger.error('[accountExistsInDB] Failed to check account existence:', error)
+    logger.error('[updateAccountBlockchainStatus] Failed to update status:', error)
     return false
   }
 }
@@ -460,6 +500,18 @@ export async function rollbackTicketReservation(
  * Ticket credit was already reserved by reserveTicketCredit().
  * This function saves the account record and marks builder credits as consumed.
  */
+export function blockchainStatusFromTransaction(
+  transactionResult: HiveTransactionResult
+): BlockchainStatus {
+  if (transactionResult.mode === HIVE_TX_MODE_VALUES.SIMULATE) {
+    return BLOCKCHAIN_STATUS.SIMULATED
+  }
+  if (transactionResult.broadcasted) {
+    return BLOCKCHAIN_STATUS.BROADCASTED
+  }
+  return BLOCKCHAIN_STATUS.FAILED
+}
+
 function accountRowFromTransaction(
   transactionResult?: HiveTransactionResult
 ): {
@@ -477,20 +529,11 @@ function accountRowFromTransaction(
     }
   }
 
-  const simulated = transactionResult.mode === HIVE_TX_MODE_VALUES.SIMULATE
   return {
     executionMode: transactionResult.mode,
-    blockchainStatus: simulated
-      ? BLOCKCHAIN_STATUS.SIMULATED
-      : transactionResult.broadcasted
-        ? BLOCKCHAIN_STATUS.CONFIRMED
-        : BLOCKCHAIN_STATUS.FAILED,
+    blockchainStatus: blockchainStatusFromTransaction(transactionResult),
     transactionId: transactionResult.id,
-    waxStatus: waxPipelinePassed(transactionResult.wax) || (
-      transactionResult.wax.validated &&
-      transactionResult.wax.signed &&
-      transactionResult.wax.authorityVerified
-    )
+    waxStatus: waxPipelinePassed(transactionResult.wax)
       ? WAX_STATUS.PASSED
       : WAX_STATUS.FAILED,
   }

@@ -1,6 +1,5 @@
 import './test-setup-env.ts'
 import { collectWaxDiagnostics } from '@/lib/wax-diagnostics'
-import { getHiveExecutionMode, isBroadcastEnabled } from '@/lib/hive-execution-mode'
 
 function line(label: string, ok: boolean, extra = ''): void {
 	const status = ok ? 'PASS' : 'FAIL'
@@ -17,8 +16,8 @@ async function main(): Promise<void> {
 	const creatorOk = diagnostics.creator.exists
 	const claimedOk = diagnostics.creator.claimedAccounts > 0
 	const rcOk = diagnostics.creator.rcPercent === undefined || diagnostics.creator.rcPercent > 0
-	const simulate = getHiveExecutionMode() === 'simulate'
-	const broadcastAllowed = isBroadcastEnabled()
+	const noopInjected = diagnostics.broadcast.injectedNoop
+	const notBroadcasted = tx.broadcasted === false
 
 	line('WAX', true, diagnostics.waxVersion)
 	line('Hive Mainnet', diagnostics.hive.connected, diagnostics.hive.endpoint)
@@ -34,9 +33,10 @@ async function main(): Promise<void> {
 	line('Beekeeper', tx.signed)
 	line('signature', tx.signed)
 	line('authority', tx.authorityVerified)
+	line('broadcast suppressed', notBroadcasted && noopInjected)
 	console.log('')
-	console.log(`Execution mode         ${simulate ? 'SIMULATE' : 'BROADCAST'}`)
-	console.log(`Broadcast allowed      ${broadcastAllowed ? 'YES' : 'NO'}`)
+	console.log(`Env execution mode     ${diagnostics.broadcast.mode.toUpperCase()}`)
+	console.log('Self-test broadcast    NO-OP (injected)')
 	console.log('')
 	console.log('────────────────────────────────')
 
@@ -46,9 +46,11 @@ async function main(): Promise<void> {
 		claimedOk &&
 		tx.created &&
 		tx.validated &&
+		tx.onChainVerified &&
 		tx.signed &&
 		tx.authorityVerified &&
-		!broadcastAllowed
+		notBroadcasted &&
+		noopInjected
 
 	if (!passed) {
 		console.log('WAX SIMULATION FAILED')

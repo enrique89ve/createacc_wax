@@ -9,7 +9,10 @@ import { AppError, AppErrorCode } from '@/consts/errors'
 import { getRequiredEnvString } from '@/lib/env'
 import { ENV_KEYS } from '@/consts/constants'
 import { isSimulationMode } from '@/lib/hive-execution-mode'
-import type { HiveTransactionResult } from '@/types/hive-transaction'
+import {
+	isRcSimulationSuccess,
+	type HiveTransactionResult,
+} from '@/types/hive-transaction'
 import { logger } from '@/lib/logger'
 
 export interface IDelegateRCParams {
@@ -80,6 +83,12 @@ export async function simulateRcDelegation(
 			delegatee: username,
 			maxRc,
 		})
+		if (!isRcSimulationSuccess(result)) {
+			logger.warn(
+				`[rc-delegation] Simulated RC builder for ${username} did not pass RC simulation predicate`
+			)
+			return null
+		}
 		logger.info(
 			`[rc-delegation] Simulated RC builder for ${username} wax=${result.wax.validated ? 'passed' : 'failed'} signed=${result.wax.signed} broadcast=${result.broadcasted}`
 		)

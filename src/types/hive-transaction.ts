@@ -17,20 +17,31 @@ export interface HiveTransactionResult {
 	readonly endpoint?: string
 }
 
-export function isSimulationSuccess(result: HiveTransactionResult): boolean {
-	return (
-		result.broadcasted === false &&
-		result.wax.validated &&
-		result.wax.signed &&
-		result.wax.authorityVerified
-	)
-}
-
 export function waxPipelinePassed(wax: HiveWaxPipelineStatus): boolean {
 	return (
 		wax.validated &&
 		wax.onChainVerified &&
 		wax.signed &&
 		wax.authorityVerified
+	)
+}
+
+/**
+ * Account-creation simulation: all four WAX checks, never broadcast.
+ */
+export function isSimulationSuccess(result: HiveTransactionResult): boolean {
+	return result.broadcasted === false && waxPipelinePassed(result.wax)
+}
+
+/**
+ * RC simulation skips performOnChainVerification because the
+ * delegatee does not exist on Hive yet.
+ */
+export function isRcSimulationSuccess(result: HiveTransactionResult): boolean {
+	return (
+		result.broadcasted === false &&
+		result.wax.validated &&
+		result.wax.signed &&
+		result.wax.authorityVerified
 	)
 }

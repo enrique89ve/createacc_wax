@@ -1,13 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { initializeDatabase, db } from '@/lib/database'
 import {
+	blockchainStatusFromTransaction,
 	completeAccountCreationInDB,
 	enqueueReconciliation,
+	getAccountCreationState,
 	getPendingReconciliations,
 	reserveTicketCredit,
 	rollbackTicketReservation,
 } from '@/utils/db-ticket-validator'
-import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
+import { BLOCKCHAIN_STATUS, HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
 
 const TICKET = 'SIMTESTTICKET01'
@@ -87,6 +89,34 @@ describe('simulation DB completion', () => {
 			args: [TICKET],
 		})
 		expect(Number(ticket.rows[0]?.credits)).toBe(2)
+	})
+
+	it('broadcasted tx is stored as broadcasted, not confirmed', async () => {
+		const liveTx: HiveTransactionResult = {
+			...simulatedTx('tx-live-1'),
+			mode: HIVE_TX_MODE_VALUES.BROADCAST,
+			broadcasted: true,
+		}
+		expect(blockchainStatusFromTransaction(liveTx)).toBe(BLOCKCHAIN_STATUS.BROADCASTED)
+
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const reserved = await reserveTicketCredit(TICKET, 'corr-live')
+		expect(reserved.success).toBe(true)
+		const username = `liveuser${Date.now().toString(36)}`
+		const completed = await completeAccountCreationInDB(
+			username,
+			TICKET,
+			'corr-live',
+			liveTx
+		)
+		expect(completed.success).toBe(true)
+		const persisted = await getAccountCreationState(username)
+		expect(persisted?.executionMode).toBe(HIVE_TX_MODE_VALUES.BROADCAST)
+		expect(persisted?.blockchainStatus).toBe(BLOCKCHAIN_STATUS.BROADCASTED)
+		expect(persisted?.transactionId).toBe('tx-live-1')
 	})
 
 	it('T07 concurrent reservation consumes one credit', async () => {
