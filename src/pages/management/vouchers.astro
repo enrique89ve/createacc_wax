@@ -40,7 +40,7 @@ try {
     }
   }
 } catch (_error) {
-	// Non-critical: page renders with empty ticket list as fallback
+  // Non-critical: page renders with empty ticket list as fallback
 }
 ---
 
@@ -71,7 +71,7 @@ try {
 
   {/* Quota Warning for Builders */}
   {
-    session.role === UserRole.Builder && !canCreateTickets && (
+    false && (
       <div class="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-4">
         <div class="flex">
           <div class="text-yellow-400">⚠️</div>
@@ -206,7 +206,7 @@ try {
                     {!ticket.has_been_used &&
                       (session.role === UserRole.Admin ||
                         (session.role === UserRole.Builder &&
-                          ticket.created_by === session.userId)) && (
+                          ticket.creator_username === session.userId)) && (
                         <button
                           class="text-destructive hover:text-destructive/80 text-sm font-medium"
                           data-action="delete-ticket"
@@ -254,7 +254,9 @@ try {
         stroke-width="2"
         d="M5 13l4 4L19 7"></path>
     </svg>
-    <p class="text-sm font-medium text-green-800">Link copiado al portapapeles</p>
+    <p class="text-sm font-medium text-green-800">
+      Link copiado al portapapeles
+    </p>
   </div>
 </div>
 

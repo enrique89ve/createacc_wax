@@ -1,247 +1,187 @@
-/**
- * Admin credit management operations.
- *
- * Operations restricted to administrators:
- * assign credits, transfer between builders, direct adjustments.
- */
-
-import { db, insertAppUser } from '../database'
-import { UserRole } from '@/lib/roles'
-import { creditBalanceTracker } from '../credit-balance-tracker'
+import { db } from '../database'
 import { notifyPendingCredits } from '../notification-service'
 import { logger } from '@/lib/logger'
-import { getOrCreateCreditRow, insertCreditAudit } from './shared'
-import type { BuilderCreditsInfo, AssignCreditsOperation, UserIdRow } from './types'
+import { insertCreditAudit, selectCreditRow } from './shared'
+import {
+  ZERO_BALANCE,
+  type AssignCreditsOperation,
+  type CreditBalance,
+} from './types'
 
-/**
- * Assign credits to a builder (admin → builder).
- * Creates the builder automatically if not found in the database.
- */
 export async function assignCredits(
-	operation: AssignCreditsOperation
-): Promise<BuilderCreditsInfo> {
-	let builderResult = await db.execute({
-		sql: `SELECT id FROM "user" WHERE role = 'builder' AND username = ?`,
-		args: [operation.hive_username],
-	})
-
-	let builderId: string
-
-	if (builderResult.rows.length === 0) {
-		builderId = await insertAppUser({
-			username: operation.hive_username,
-			role: UserRole.Builder,
-			authMethod: 'keychain',
-			isActive: true,
-		})
-	} else {
-		builderId = String((builderResult.rows[0] as unknown as UserIdRow).id)
-	}
-
-	await getOrCreateCreditRow(builderId)
-
-	await db.execute({
-		sql: `
-			UPDATE Credits
-			SET
-				pending_amount = pending_amount + ?,
-				total_assigned = total_assigned + ?,
+  operation: AssignCreditsOperation
+): Promise<CreditBalance> {
+  await db.execute({
+    sql: `
+			INSERT INTO Credits (
+				hive_username, pending_amount, available_amount, total_assigned, total_consumed
+			) VALUES (?, ?, 0, ?, 0)
+			ON CONFLICT(hive_username) DO UPDATE SET
+				pending_amount = pending_amount + excluded.pending_amount,
+				total_assigned = total_assigned + excluded.total_assigned,
 				updated_at = CURRENT_TIMESTAMP
-			WHERE builder_id = ?
 		`,
-		args: [operation.amount, operation.amount, builderId],
-	})
+    args: [operation.hive_username, operation.amount, operation.amount],
+  })
 
-	await insertCreditAudit({
-		builderId,
-		operation: 'assign_credits',
-		amount: operation.amount,
-		reason: `assigned: ${operation.source}`,
-		performedBy: operation.assigned_by_admin,
-	})
+  await insertCreditAudit({
+    hiveUsername: operation.hive_username,
+    operation: 'assign_credits',
+    amount: operation.amount,
+    reason: `assigned: ${operation.source}`,
+    performedBy: operation.assigned_by_admin,
+  })
 
-	try {
-		await notifyPendingCredits(builderId, operation.amount)
-	} catch (notificationError) {
-		logger.error('Failed to create notification:', notificationError)
-	}
+  try {
+    await notifyPendingCredits(operation.hive_username, operation.amount)
+  } catch (notificationError) {
+    logger.error('Failed to create notification:', notificationError)
+  }
 
-	const credits = await creditBalanceTracker.getBalanceById(builderId)
-	if (!credits) {
-		throw new Error('Failed to retrieve updated credits')
-	}
+  const credits = await selectCreditRow(operation.hive_username)
+  if (!credits) {
+    throw new Error('Failed to retrieve updated credits')
+  }
 
-	return {
-		builder_id: credits.builder_id,
-		hive_username: credits.hive_username,
-		pending_amount: credits.pending_amount,
-		available_amount: credits.available_amount,
-		total_assigned: credits.total_assigned,
-		total_consumed: credits.total_consumed,
-	}
+  return {
+    hive_username: operation.hive_username,
+    ...credits,
+  }
 }
 
-/**
- * Transfer credits between builders.
- * Atomic transaction to prevent race conditions.
- */
 export async function transferCredits(
-	fromBuilderId: string,
-	toBuilderId: string,
-	amount: number
+  fromUsername: string,
+  toUsername: string,
+  amount: number
 ): Promise<void> {
-	if (fromBuilderId === toBuilderId) {
-		throw new Error('Cannot transfer credits to self')
-	}
+  if (fromUsername === toUsername) {
+    throw new Error('Cannot transfer credits to self')
+  }
 
-	if (amount <= 0) {
-		throw new Error('The amount must be greater than 0')
-	}
+  if (amount <= 0) {
+    throw new Error('The amount must be greater than 0')
+  }
 
-	const toBuilderResult = await db.execute({
-		sql: `SELECT id FROM "user" WHERE role = 'builder' AND id = ?`,
-		args: [toBuilderId],
-	})
+  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
-	if (toBuilderResult.rows.length === 0) {
-		throw new Error('Destination builder not found')
-	}
-
-	await getOrCreateCreditRow(fromBuilderId)
-	await getOrCreateCreditRow(toBuilderId)
-
-	await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-
-	try {
-		const deductResult = await db.execute({
-			sql: `
+  try {
+    const deductResult = await db.execute({
+      sql: `
 				UPDATE Credits
 				SET available_amount = available_amount - ?, updated_at = CURRENT_TIMESTAMP
-				WHERE builder_id = ? AND available_amount >= ?
+				WHERE hive_username = ? AND available_amount >= ?
 			`,
-			args: [amount, fromBuilderId, amount],
-		})
+      args: [amount, fromUsername, amount],
+    })
 
-		if (deductResult.rowsAffected === 0) {
-			throw new Error('Insufficient available credits for transfer')
-		}
+    if (deductResult.rowsAffected === 0) {
+      throw new Error('Insufficient available credits for transfer')
+    }
 
-		await db.execute({
-			sql: `
-				UPDATE Credits
-				SET available_amount = available_amount + ?, updated_at = CURRENT_TIMESTAMP
-				WHERE builder_id = ?
+    await db.execute({
+      sql: `
+				INSERT INTO Credits (
+					hive_username, pending_amount, available_amount, total_assigned, total_consumed
+				) VALUES (?, 0, ?, 0, 0)
+				ON CONFLICT(hive_username) DO UPDATE SET
+					available_amount = available_amount + excluded.available_amount,
+					updated_at = CURRENT_TIMESTAMP
 			`,
-			args: [amount, toBuilderId],
-		})
+      args: [toUsername, amount],
+    })
 
-		await insertCreditAudit({
-			builderId: fromBuilderId,
-			operation: 'transfer_out',
-			amount: -amount,
-			reason: `transferred to builder ${toBuilderId}`,
-		})
+    await insertCreditAudit({
+      hiveUsername: fromUsername,
+      operation: 'transfer_out',
+      amount: -amount,
+      reason: `transferred to ${toUsername}`,
+    })
 
-		await insertCreditAudit({
-			builderId: toBuilderId,
-			operation: 'transfer_in',
-			amount,
-			reason: `received from builder ${fromBuilderId}`,
-		})
+    await insertCreditAudit({
+      hiveUsername: toUsername,
+      operation: 'transfer_in',
+      amount,
+      reason: `received from ${fromUsername}`,
+    })
 
-		await db.execute({ sql: 'COMMIT', args: [] })
-	} catch (error) {
-		await db.execute({ sql: 'ROLLBACK', args: [] })
-		throw error
-	}
+    await db.execute({ sql: 'COMMIT', args: [] })
+  } catch (error) {
+    await db.execute({ sql: 'ROLLBACK', args: [] })
+    throw error
+  }
 }
 
-/**
- * Direct credit adjustment by admin (set absolute values).
- * Only for use by administrators in case of corrections.
- */
 export async function adjustCredits(params: {
-	readonly builder_id: string
-	readonly pending_amount?: number
-	readonly available_amount?: number
-	readonly reason: string
-	readonly performed_by_admin: string
-}): Promise<BuilderCreditsInfo> {
-	const {
-		builder_id: builderId,
-		pending_amount: pendingAmount,
-		available_amount: availableAmount,
-		reason,
-		performed_by_admin: performedByAdmin,
-	} = params
+  readonly hive_username: string
+  readonly pending_amount?: number
+  readonly available_amount?: number
+  readonly reason: string
+  readonly performed_by_admin: string
+}): Promise<CreditBalance> {
+  const current = await selectCreditRow(params.hive_username)
+  if (!current) {
+    return ZERO_BALANCE(params.hive_username)
+  }
 
-	const currentCredits = await creditBalanceTracker.getBalanceById(builderId)
-	if (!currentCredits) {
-		throw new Error('Builder not found')
-	}
+  const pendingDiff =
+    params.pending_amount !== undefined
+      ? params.pending_amount - current.pending_amount
+      : 0
+  const availableDiff =
+    params.available_amount !== undefined
+      ? params.available_amount - current.available_amount
+      : 0
 
-	const pendingDiff =
-		pendingAmount !== undefined
-			? pendingAmount - currentCredits.pending_amount
-			: 0
-	const availableDiff =
-		availableAmount !== undefined
-			? availableAmount - currentCredits.available_amount
-			: 0
+  if (pendingDiff === 0 && availableDiff === 0) {
+    return {
+      hive_username: params.hive_username,
+      ...current,
+    }
+  }
 
-	if (pendingDiff === 0 && availableDiff === 0) {
-		return currentCredits
-	}
+  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
 
-	await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+  try {
+    const updates: string[] = []
+    const args: (number | string)[] = []
 
-	try {
-		const updates: string[] = []
-		const args: (number | string)[] = []
+    if (params.pending_amount !== undefined) {
+      updates.push('pending_amount = ?')
+      args.push(params.pending_amount)
+    }
+    if (params.available_amount !== undefined) {
+      updates.push('available_amount = ?')
+      args.push(params.available_amount)
+    }
+    updates.push('updated_at = CURRENT_TIMESTAMP')
+    args.push(params.hive_username)
 
-		if (pendingAmount !== undefined) {
-			updates.push('pending_amount = ?')
-			args.push(pendingAmount)
-		}
-		if (availableAmount !== undefined) {
-			updates.push('available_amount = ?')
-			args.push(availableAmount)
-		}
-		updates.push('updated_at = CURRENT_TIMESTAMP')
-		args.push(builderId)
+    await db.execute({
+      sql: `UPDATE Credits SET ${updates.join(', ')} WHERE hive_username = ?`,
+      args,
+    })
 
-		await db.execute({
-			sql: `UPDATE Credits SET ${updates.join(', ')} WHERE builder_id = ?`,
-			args,
-		})
+    await insertCreditAudit({
+      hiveUsername: params.hive_username,
+      operation: 'admin_adjustment',
+      amount: availableDiff,
+      reason: `Admin adjustment: ${params.reason}`,
+      performedBy: params.performed_by_admin,
+    })
 
-		const auditReason = `Admin adjustment: ${reason} | pending: ${currentCredits.pending_amount} → ${pendingAmount ?? currentCredits.pending_amount} | available: ${currentCredits.available_amount} → ${availableAmount ?? currentCredits.available_amount}`
+    await db.execute({ sql: 'COMMIT', args: [] })
+  } catch (error) {
+    await db.execute({ sql: 'ROLLBACK', args: [] })
+    throw error
+  }
 
-		await insertCreditAudit({
-			builderId,
-			operation: 'admin_adjustment',
-			amount: availableDiff,
-			reason: auditReason,
-			performedBy: performedByAdmin,
-		})
+  const updated = await selectCreditRow(params.hive_username)
+  if (!updated) {
+    throw new Error('Error obtaining updated credits')
+  }
 
-		await db.execute({ sql: 'COMMIT', args: [] })
-	} catch (error) {
-		await db.execute({ sql: 'ROLLBACK', args: [] })
-		throw error
-	}
-
-	const updatedCredits = await creditBalanceTracker.getBalanceById(builderId)
-	if (!updatedCredits) {
-		throw new Error('Error obtaining updated credits')
-	}
-
-	return {
-		builder_id: updatedCredits.builder_id,
-		hive_username: updatedCredits.hive_username,
-		pending_amount: updatedCredits.pending_amount,
-		available_amount: updatedCredits.available_amount,
-		total_assigned: updatedCredits.total_assigned,
-		total_consumed: updatedCredits.total_consumed,
-	}
+  return {
+    hive_username: params.hive_username,
+    ...updated,
+  }
 }

@@ -6,14 +6,17 @@ import BuildersTable from '@/components/ui/BuildersTable.astro'
 import { usersRepository } from '@/lib/repositories/users-repository'
 
 const builderUser = Astro.locals.builderUser
-const pendingBuilder = Astro.locals.pendingBuilder
-if (!builderUser && !pendingBuilder) return Astro.redirect('/builders/login')
+if (!builderUser) return Astro.redirect('/builders/login')
 
 let accounts: Awaited<ReturnType<typeof usersRepository.getAccountsByUser>> = []
-let stats = { totalAccounts: 0, totalActiveTickets: 0, totalCreditsRemaining: 0 }
+let stats = {
+  totalAccounts: 0,
+  totalActiveTickets: 0,
+  totalCreditsRemaining: 0,
+}
 
 if (builderUser) {
-  const builderId = builderUser.userId
+  const builderId = builderUser.username
   const [fetchedAccounts, fetchedStats] = await Promise.all([
     usersRepository.getAccountsByUser(builderId),
     usersRepository.getBuildersStats(builderId),
@@ -61,7 +64,9 @@ const accountColumns = [
 ---
 
 <BuildersLayout title="Cuentas Creadas - Builders" currentPage="accounts">
-  <div class="mx-auto max-w-7xl space-y-4 sm:space-y-6 px-3 sm:px-4 py-4 sm:py-6 lg:px-8">
+  <div
+    class="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
+  >
     <PageHeader
       title="Cuentas Creadas"
       description="Historial completo de todas las cuentas Hive que has creado."

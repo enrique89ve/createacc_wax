@@ -29,9 +29,7 @@ const cancelBtn = document.getElementById(
 const submitBtn = document.getElementById(
   'submit-btn'
 ) as HTMLButtonElement | null
-const copyToast = document.getElementById(
-  'copy-toast'
-) as HTMLDivElement | null
+const copyToast = document.getElementById('copy-toast') as HTMLDivElement | null
 
 // Event Listeners for Main "Create Ticket" Button
 if (createTicketBtn && createModal) {
@@ -128,7 +126,9 @@ if (createForm) {
       window.location.reload()
     } catch (error: unknown) {
       console.error('Error:', error)
-      showError(error instanceof Error ? error.message : 'Ocurrió un error inesperado')
+      showError(
+        error instanceof Error ? error.message : 'Ocurrió un error inesperado'
+      )
     } finally {
       submitBtn.disabled = false
       submitBtn.textContent = 'Crear'

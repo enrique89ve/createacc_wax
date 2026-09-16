@@ -1,30 +1,22 @@
-/**
- * Shared types for the credits system.
- */
-
-/** Partial row from SELECT id */
-export interface UserIdRow {
-	readonly id: string
+export interface CreditBalance {
+  readonly hive_username: string
+  readonly pending_amount: number
+  readonly available_amount: number
+  readonly total_assigned: number
+  readonly total_consumed: number
 }
 
-/**
- * Complete credits information for a builder
- */
-export interface BuilderCreditsInfo {
-	builder_id: string
-	hive_username: string
-	pending_amount: number
-	available_amount: number
-	total_assigned: number
-	total_consumed: number
-}
-
-/**
- * Operation to assign credits
- */
 export interface AssignCreditsOperation {
-	hive_username: string
-	amount: number
-	source: string
-	assigned_by_admin: string
+  readonly hive_username: string
+  readonly amount: number
+  readonly source: string
+  readonly assigned_by_admin: string
 }
+
+export const ZERO_BALANCE = (hiveUsername: string): CreditBalance => ({
+  hive_username: hiveUsername,
+  pending_amount: 0,
+  available_amount: 0,
+  total_assigned: 0,
+  total_consumed: 0,
+})

@@ -11,10 +11,7 @@ import { logger } from '@/lib/logger'
 import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import { HTTP_STATUS } from '@/consts/constants'
-import {
-	appendSessionCookie,
-	createAppAuthSession,
-} from '@/lib/auth-session'
+import { appendSessionCookie, createAppAuthSession } from '@/lib/auth-session'
 import { UserRole } from '@/lib/roles'
 import {
   checkLoginRateLimit,
@@ -59,7 +56,7 @@ async function persistLoginAttempt(
   }
 }
 
-export const POST: APIRoute = async (context) => {
+export const POST: APIRoute = async context => {
   const { request } = context
   try {
     const source = resolveRateLimitSource(context)

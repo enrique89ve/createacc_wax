@@ -10,7 +10,7 @@
  * - Avoids SQL code duplication across pages
  */
 
-import { db, insertAppUser } from '@/lib/database'
+import { db, insertAdminUser } from '@/lib/database'
 import {
   parseUserRow,
   compactMap,
@@ -46,14 +46,14 @@ export class UsersRepository {
     username,
     password_hash,
     role,
-    is_active,
+    is_active: _isActive,
   }: CreateUserData): Promise<DatabaseUserRow> {
-    const id = await insertAppUser({
+    if (role !== UserRole.Admin || !password_hash) {
+      throw new Error('Only admin users can be persisted')
+    }
+    const id = await insertAdminUser({
       username,
-      role,
-      authMethod: role === UserRole.Admin ? 'password' : 'keychain',
-      passwordHash: password_hash ?? null,
-      isActive: is_active ?? true,
+      passwordHash: password_hash,
     })
     const createdUser = await this.getById(id)
     if (!createdUser) {
@@ -217,20 +217,18 @@ export class UsersRepository {
       const result = await db.execute({
         sql: `
 					SELECT
-						u.id,
-						u.username as hive_username,
-						u.is_active,
-						u.last_claim_at,
-						u.created_at,
+						c.hive_username as id,
+						c.hive_username,
+						1 as is_active,
+						NULL as last_claim_at,
+						c.created_at,
 						COUNT(DISTINCT t.id) as tickets_created,
-						COALESCE(MAX(c.available_amount), 0) as available_credits,
-						COALESCE(MAX(c.pending_amount), 0) as pending_credits
-					FROM "user" u
-					LEFT JOIN Tickets t ON t.created_by = u.id
-					LEFT JOIN Credits c ON c.builder_id = u.id
-					WHERE u.role = 'builder'
-					GROUP BY u.id, u.username, u.is_active, u.last_claim_at, u.created_at
-					ORDER BY u.created_at DESC
+						c.available_amount as available_credits,
+						c.pending_amount as pending_credits
+					FROM Credits c
+					LEFT JOIN Tickets t ON t.creator_username = c.hive_username
+					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount
+					ORDER BY c.created_at DESC
 				`,
         args: [],
       })
@@ -369,7 +367,7 @@ export class UsersRepository {
       // 1. Deactivate all tickets from builder (set credits to 0)
       // is_active is VIRTUAL column (credits > 0), cannot be written directly
       await db.execute({
-        sql: 'UPDATE Tickets SET credits = 0, updated_at = CURRENT_TIMESTAMP WHERE created_by = ?',
+        sql: 'UPDATE Tickets SET credits = 0, updated_at = CURRENT_TIMESTAMP WHERE creator_username = ?',
         args: [builderId],
       })
 
@@ -379,14 +377,14 @@ export class UsersRepository {
               SET pending_amount = 0, 
                   available_amount = 0,
                   updated_at = CURRENT_TIMESTAMP 
-              WHERE builder_id = ?`,
+              WHERE hive_username = ?`,
         args: [builderId],
       })
 
       // 3. Record in audit that the builder was deactivated
       await db.execute({
         sql: `INSERT INTO CreditAudit (
-                builder_id, operation, amount, reason, timestamp
+                hive_username, operation, amount, reason, timestamp
               ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
         args: [
           builderId,
@@ -427,7 +425,7 @@ export class UsersRepository {
     // Record in audit
     await db.execute({
       sql: `INSERT INTO CreditAudit (
-              builder_id, operation, amount, reason, timestamp
+              hive_username, operation, amount, reason, timestamp
             ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       args: [
         builderId,
@@ -443,7 +441,7 @@ export class UsersRepository {
   /**
    * Get accounts created by a specific builder (by ID)
    * Uses subquery to resolve username, avoiding a sequential getById() call.
-   * Uses the ticket_by field from Accounts to show accounts even if the ticket was deleted.
+   * Uses the builder_username field from Accounts to show accounts even if the ticket was deleted.
    */
   async getAccountsByUser(builderId: string): Promise<AccountWithTicketInfo[]> {
     try {
@@ -454,14 +452,14 @@ export class UsersRepository {
 					a.ticket,
 					a.creation_date,
 					a.registered_at,
-					a.ticket_by,
+					a.builder_username,
 					a.blockchain_status,
 					t.description as ticket_description,
 					t.original_credits as ticket_original_credits,
 					t.credits as ticket_remaining_credits
 				FROM Accounts a
 				LEFT JOIN Tickets t ON a.ticket = t.code
-				WHERE a.ticket_by = (SELECT username FROM "user" WHERE id = ? LIMIT 1)
+				WHERE a.builder_username = ?
 				ORDER BY a.creation_date DESC`,
         args: [builderId],
       })
@@ -486,23 +484,23 @@ export class UsersRepository {
   /**
    * Get statistics of a specific builder (by ID)
    * Single query with subqueries — avoids 4 sequential round-trips.
-   * Uses ticket_by to count accounts even if tickets were deleted.
+   * Uses builder_username to count accounts even if tickets were deleted.
    */
-  async getBuildersStats(builderId: number): Promise<BuildersStats> {
+  async getBuildersStats(builderId: string): Promise<BuildersStats> {
     try {
       const result = await db.execute({
         sql: `SELECT
 					(SELECT COUNT(*) FROM Accounts
-					 WHERE ticket_by = (SELECT username FROM "user" WHERE id = ? LIMIT 1)
+					 WHERE builder_username = ?
 					) as total_accounts,
 					(SELECT COUNT(*) FROM Tickets
-					 WHERE created_by = ? AND is_active = 1
+					 WHERE creator_username = ? AND is_active = 1
 					) as active_tickets,
 					(SELECT COALESCE(SUM(original_credits), 0) FROM Tickets
-					 WHERE created_by = ? AND is_active = 1
+					 WHERE creator_username = ? AND is_active = 1
 					) as total_original,
 					(SELECT COALESCE(SUM(credits), 0) FROM Tickets
-					 WHERE created_by = ? AND is_active = 1
+					 WHERE creator_username = ? AND is_active = 1
 					) as total_remaining`,
         args: [builderId, builderId, builderId, builderId],
       })

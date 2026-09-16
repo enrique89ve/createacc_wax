@@ -3,49 +3,41 @@ import { UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
 import { hiveAuthEmail } from '@/lib/auth-user'
 import {
-	BLOCKCHAIN_STATUS,
-	HIVE_TX_MODE_VALUES,
-	RC_STATUS,
+  BLOCKCHAIN_STATUS,
+  HIVE_TX_MODE_VALUES,
+  RC_STATUS,
 } from '@/consts/hive-execution'
 
 export const db = createClient({
-	url: process.env.DATABASE_URL || 'file:holahive.db',
-	authToken: process.env.TURSO_AUTH_TOKEN,
-	syncUrl: process.env.TURSO_SYNC_URL,
+  url: process.env.DATABASE_URL || 'file:holahive.db',
+  authToken: process.env.TURSO_AUTH_TOKEN,
+  syncUrl: process.env.TURSO_SYNC_URL,
 })
 
 export function createUserId(): string {
-	return crypto.randomUUID()
+  return crypto.randomUUID()
 }
 
-export function withUserEmail(username: string): string {
-	return hiveAuthEmail(username)
-}
-
-export async function insertAppUser(params: {
-	readonly username: string
-	readonly role: UserRole
-	readonly authMethod: 'password' | 'keychain'
-	readonly passwordHash?: string | null
-	readonly isActive?: boolean
+export async function insertAdminUser(params: {
+  readonly username: string
+  readonly passwordHash: string
 }): Promise<string> {
-	const id = createUserId()
-	await db.execute({
-		sql: `INSERT INTO "user" (
+  const id = createUserId()
+  await db.execute({
+    sql: `INSERT INTO "user" (
 			id, name, email, email_verified, username, role, auth_method, is_active, password_hash
-		) VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`,
-		args: [
-			id,
-			params.username,
-			hiveAuthEmail(params.username),
-			params.username,
-			params.role,
-			params.authMethod,
-			params.isActive === false ? 0 : 1,
-			params.passwordHash ?? null,
-		],
-	})
-	return id
+		) VALUES (?, ?, ?, 1, ?, ?, ?, 1, ?)`,
+    args: [
+      id,
+      params.username,
+      hiveAuthEmail(params.username),
+      params.username,
+      UserRole.Admin,
+      'password',
+      params.passwordHash,
+    ],
+  })
+  return id
 }
 
 /**
@@ -53,19 +45,20 @@ export async function insertAppUser(params: {
  * Do not nest: SQLite does not support concurrent transactions on one connection.
  */
 export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
-	await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-	try {
-		const result = await fn()
-		await db.execute({ sql: 'COMMIT', args: [] })
-		return result
-	} catch (error) {
-		await db.execute({ sql: 'ROLLBACK', args: [] })
-		throw error
-	}
+  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+  try {
+    const result = await fn()
+    await db.execute({ sql: 'COMMIT', args: [] })
+    return result
+  } catch (error) {
+    await db.execute({ sql: 'ROLLBACK', args: [] })
+    throw error
+  }
 }
 
 const SCHEMA_STATEMENTS: readonly string[] = [
-	`CREATE TABLE IF NOT EXISTS "user" (
+  // AUTH ADMIN
+  `CREATE TABLE IF NOT EXISTS "user" (
 		id TEXT PRIMARY KEY NOT NULL,
 		name TEXT NOT NULL,
 		email TEXT NOT NULL UNIQUE,
@@ -74,14 +67,13 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		username TEXT NOT NULL UNIQUE,
-		role TEXT NOT NULL CHECK (role IN ('${UserRole.Admin}', '${UserRole.Builder}')),
-		auth_method TEXT NOT NULL CHECK (auth_method IN ('password', 'keychain')),
+		role TEXT NOT NULL CHECK (role = '${UserRole.Admin}'),
+		auth_method TEXT NOT NULL CHECK (auth_method = 'password'),
 		is_active INTEGER NOT NULL DEFAULT 1,
-		password_hash TEXT,
-		last_claim_at DATETIME
+		password_hash TEXT NOT NULL
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS session (
+  `CREATE TABLE IF NOT EXISTS session (
 		id TEXT PRIMARY KEY NOT NULL,
 		expires_at DATETIME NOT NULL,
 		token TEXT NOT NULL UNIQUE,
@@ -92,7 +84,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		user_id TEXT NOT NULL REFERENCES "user" (id) ON DELETE CASCADE
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS account (
+  `CREATE TABLE IF NOT EXISTS account (
 		id TEXT PRIMARY KEY NOT NULL,
 		account_id TEXT NOT NULL,
 		provider_id TEXT NOT NULL,
@@ -108,7 +100,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		updated_at DATETIME NOT NULL
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS verification (
+  `CREATE TABLE IF NOT EXISTS verification (
 		id TEXT PRIMARY KEY NOT NULL,
 		identifier TEXT NOT NULL,
 		value TEXT NOT NULL,
@@ -117,7 +109,16 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		updated_at DATETIME NOT NULL
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS Tickets (
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_single_admin ON "user"(role) WHERE role = '${UserRole.Admin}'`,
+
+  // AUTH BUILDER
+  `CREATE TABLE IF NOT EXISTS BuilderAuthChallenges (
+		nonce_hash TEXT PRIMARY KEY NOT NULL,
+		expires_at INTEGER NOT NULL
+	)`,
+
+  // BUSINESS
+  `CREATE TABLE IF NOT EXISTS Tickets (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		code TEXT UNIQUE NOT NULL,
 		description TEXT,
@@ -125,18 +126,17 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		credits INTEGER DEFAULT 1,
 		is_active BOOLEAN GENERATED ALWAYS AS (credits > 0) VIRTUAL,
 		has_been_used BOOLEAN GENERATED ALWAYS AS (original_credits > credits) VIRTUAL,
-		created_by TEXT,
+		creator_username TEXT NOT NULL,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (created_by) REFERENCES "user" (id)
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS Accounts (
+  `CREATE TABLE IF NOT EXISTS Accounts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
 		creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
 		ticket TEXT NOT NULL,
-		ticket_by TEXT,
+		builder_username TEXT NOT NULL,
 		registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		execution_mode TEXT NOT NULL CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
 		blockchain_status TEXT NOT NULL CHECK (blockchain_status IN ('${BLOCKCHAIN_STATUS.SIMULATED}', '${BLOCKCHAIN_STATUS.BROADCASTED}', '${BLOCKCHAIN_STATUS.CONFIRMED}', '${BLOCKCHAIN_STATUS.FAILED}')),
@@ -147,40 +147,35 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		rc_status TEXT NOT NULL CHECK (rc_status IN ('${RC_STATUS.PENDING}', '${RC_STATUS.PROCESSING}', '${RC_STATUS.UNCERTAIN}', '${RC_STATUS.DELEGATED}'))
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS TicketAudit (
+  `CREATE TABLE IF NOT EXISTS TicketAudit (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		ticket TEXT NOT NULL,
 		action TEXT NOT NULL CHECK (action IN ('create', 'update', 'delete')),
 		performed_by TEXT,
-		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (performed_by) REFERENCES "user" (id)
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS Credits (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		builder_id TEXT NOT NULL UNIQUE,
-		pending_amount INTEGER DEFAULT 0 CHECK (pending_amount >= 0),
-		available_amount INTEGER DEFAULT 0 CHECK (available_amount >= 0),
-		total_assigned INTEGER DEFAULT 0 CHECK (total_assigned >= 0),
-		total_consumed INTEGER DEFAULT 0 CHECK (total_consumed >= 0),
+  `CREATE TABLE IF NOT EXISTS Credits (
+		hive_username TEXT PRIMARY KEY NOT NULL,
+		pending_amount INTEGER NOT NULL DEFAULT 0 CHECK (pending_amount >= 0),
+		available_amount INTEGER NOT NULL DEFAULT 0 CHECK (available_amount >= 0),
+		total_assigned INTEGER NOT NULL DEFAULT 0 CHECK (total_assigned >= 0),
+		total_consumed INTEGER NOT NULL DEFAULT 0 CHECK (total_consumed >= 0),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (builder_id) REFERENCES "user" (id)
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS CreditAudit (
+  `CREATE TABLE IF NOT EXISTS CreditAudit (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		builder_id TEXT NOT NULL,
+		hive_username TEXT NOT NULL,
 		operation TEXT NOT NULL,
 		amount INTEGER NOT NULL,
 		reason TEXT,
 		performed_by TEXT,
-		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (builder_id) REFERENCES "user" (id),
-		FOREIGN KEY (performed_by) REFERENCES "user" (id)
+		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS LoginAttempts (
+  `CREATE TABLE IF NOT EXISTS LoginAttempts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT NOT NULL,
 		role TEXT,
@@ -192,9 +187,9 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		attempted_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS Notifications (
+  `CREATE TABLE IF NOT EXISTS Notifications (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id TEXT NOT NULL,
+		hive_username TEXT NOT NULL,
 		type TEXT NOT NULL CHECK (type IN ('pending_credits', 'account_created', 'credit_assigned', 'system')),
 		title TEXT NOT NULL,
 		message TEXT NOT NULL,
@@ -202,11 +197,11 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		is_read BOOLEAN DEFAULT FALSE,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		read_at DATETIME,
-		viewed_at DATETIME,
-		FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
+		viewed_at DATETIME
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS CreationAttempts (
+  // BLOCKCHAIN RECOVERY
+  `CREATE TABLE IF NOT EXISTS CreationAttempts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		correlation_id TEXT NOT NULL UNIQUE,
 		username TEXT NOT NULL,
@@ -227,7 +222,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
 
-	`CREATE TABLE IF NOT EXISTS ReconciliationQueue (
+  `CREATE TABLE IF NOT EXISTS ReconciliationQueue (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		correlation_id TEXT NOT NULL,
 		username TEXT NOT NULL,
@@ -246,107 +241,35 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		processing_since DATETIME
 	)`,
 
-	`CREATE INDEX IF NOT EXISTS idx_user_username ON "user" (username)`,
-	`CREATE INDEX IF NOT EXISTS idx_user_role ON "user" (role)`,
-	`CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON LoginAttempts (username)`,
-	`CREATE INDEX IF NOT EXISTS idx_login_attempts_attempted_at ON LoginAttempts (attempted_at)`,
-	`CREATE INDEX IF NOT EXISTS idx_login_attempts_failed ON LoginAttempts (success, attempted_at) WHERE success = 0`,
-	`CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_failed ON LoginAttempts (ip_address, success, attempted_at) WHERE success = 0`,
-	`CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON Notifications (user_id, is_read, created_at DESC) WHERE is_read = FALSE`,
-	`CREATE INDEX IF NOT EXISTS idx_notifications_user_all ON Notifications (user_id, created_at DESC)`,
-	`CREATE INDEX IF NOT EXISTS idx_notifications_cleanup ON Notifications (user_id, is_read, viewed_at) WHERE viewed_at IS NOT NULL AND is_read = TRUE`,
-	`CREATE INDEX IF NOT EXISTS idx_reconciliation_pending ON ReconciliationQueue (resolved, created_at DESC) WHERE resolved = FALSE`,
-	`CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable ON ReconciliationQueue (status, created_at)`,
-	`CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket, username)`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
+  `CREATE INDEX IF NOT EXISTS idx_user_username ON "user" (username)`,
+  `CREATE INDEX IF NOT EXISTS idx_session_user ON session (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_builder_auth_challenges_expires ON BuilderAuthChallenges (expires_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_tickets_creator ON Tickets (creator_username)`,
+  `CREATE INDEX IF NOT EXISTS idx_accounts_builder_username ON Accounts (builder_username)`,
+  `CREATE INDEX IF NOT EXISTS idx_credit_audit_username ON CreditAudit (hive_username, timestamp DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON LoginAttempts (username)`,
+  `CREATE INDEX IF NOT EXISTS idx_login_attempts_attempted_at ON LoginAttempts (attempted_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_login_attempts_failed ON LoginAttempts (success, attempted_at) WHERE success = 0`,
+  `CREATE INDEX IF NOT EXISTS idx_login_attempts_ip_failed ON LoginAttempts (ip_address, success, attempted_at) WHERE success = 0`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_unread ON Notifications (hive_username, is_read, created_at DESC) WHERE is_read = FALSE`,
+  `CREATE INDEX IF NOT EXISTS idx_notifications_all ON Notifications (hive_username, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_reconciliation_pending ON ReconciliationQueue (resolved, created_at DESC) WHERE resolved = FALSE`,
+  `CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable ON ReconciliationQueue (status, created_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket, username)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
 		ON CreationAttempts (username) WHERE status IN ('reserved', 'prepared', 'broadcasting')`,
-	`CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,
-
-	`CREATE TRIGGER IF NOT EXISTS prevent_multiple_admins
-		BEFORE INSERT ON "user"
-		WHEN NEW.role = '${UserRole.Admin}' AND (SELECT COUNT(*) FROM "user" WHERE role = '${UserRole.Admin}') >= 1
-		BEGIN
-			SELECT RAISE(ABORT, 'Only one admin allowed');
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS enforce_admin_password_constraint
-		BEFORE INSERT ON "user"
-		FOR EACH ROW
-		WHEN (NEW.role = '${UserRole.Admin}' AND NEW.password_hash IS NULL)
-			OR (NEW.role = '${UserRole.Builder}' AND NEW.password_hash IS NOT NULL)
-		BEGIN
-			SELECT RAISE(ABORT, 'Admin must have password_hash, Builder must not');
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS prevent_role_change
-		BEFORE UPDATE OF role ON "user"
-		FOR EACH ROW
-		WHEN OLD.role != NEW.role
-		BEGIN
-			SELECT RAISE(ABORT, 'Cannot change user role after creation');
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS auto_reset_ticket_on_original_credits_update
-		AFTER UPDATE OF original_credits ON Tickets
-		FOR EACH ROW
-		WHEN NEW.original_credits != OLD.original_credits
-		BEGIN
-			UPDATE Tickets
-			SET credits = NEW.original_credits,
-				updated_at = CURRENT_TIMESTAMP
-			WHERE id = NEW.id;
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS notify_account_created
-		AFTER INSERT ON Accounts
-		FOR EACH ROW
-		BEGIN
-			INSERT INTO Notifications (user_id, type, title, message, metadata)
-			SELECT
-				t.created_by,
-				'account_created',
-				'Cuenta Creada',
-				'Se creó la cuenta @' || NEW.username || ' usando tu ticket',
-				json_object('account_username', NEW.username, 'ticket_code', NEW.ticket)
-			FROM Tickets t
-			WHERE t.code = NEW.ticket
-			AND t.created_by IS NOT NULL;
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS cleanup_old_read_notifications
-		AFTER UPDATE OF is_read ON Notifications
-		FOR EACH ROW
-		WHEN NEW.is_read = TRUE AND NEW.viewed_at IS NOT NULL
-		BEGIN
-			DELETE FROM Notifications
-			WHERE user_id = NEW.user_id
-				AND is_read = TRUE
-				AND viewed_at IS NOT NULL
-				AND datetime(viewed_at, '+24 hours') <= datetime('now');
-		END`,
-
-	`CREATE TRIGGER IF NOT EXISTS cleanup_on_new_notification
-		AFTER INSERT ON Notifications
-		FOR EACH ROW
-		BEGIN
-			DELETE FROM Notifications
-			WHERE user_id = NEW.user_id
-				AND is_read = TRUE
-				AND viewed_at IS NOT NULL
-				AND datetime(viewed_at, '+24 hours') <= datetime('now');
-		END`,
+  `CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,
 ]
 
 /** Apply current schema. Structural changes require `pnpm db:reset`. */
 export async function initializeDatabase(): Promise<boolean> {
-	try {
-		for (const sql of SCHEMA_STATEMENTS) {
-			await db.execute(sql)
-		}
-		return true
-	} catch (error) {
-		logger.error('Database initialization error:', error)
-		return false
-	}
+  try {
+    for (const sql of SCHEMA_STATEMENTS) {
+      await db.execute(sql)
+    }
+    return true
+  } catch (error) {
+    logger.error('Database initialization error:', error)
+    return false
+  }
 }

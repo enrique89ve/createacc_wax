@@ -21,13 +21,13 @@ interface CreatorInfo {
 const getTicketCreator = async (
   ticket: DatabaseTicketRow
 ): Promise<CreatorInfo | null> => {
-  if (!ticket.created_by) {
+  if (!ticket.creator_username) {
     return null
   }
 
   const result = await db.execute({
     sql: 'SELECT id, username, role FROM "user" WHERE id = ?',
-    args: [ticket.created_by],
+    args: [ticket.creator_username],
   })
 
   if (result.rows.length === 0) return null
@@ -86,7 +86,7 @@ export const DELETE: APIRoute = async context => {
 
       // Obtener ticket
       const ticketResult = await db.execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [Number(ticketId)],
       })
 
@@ -122,7 +122,7 @@ export const DELETE: APIRoute = async context => {
         )
         if (creatorCredits) {
           await creditsService.refundCreditsFromTicket(
-            creatorCredits.builder_id,
+            creatorCredits.hive_username,
             ticket.original_credits,
             ticket.code
           )

@@ -14,7 +14,7 @@
 import { db } from '@/lib/database'
 
 const ACCOUNT_COLUMNS =
-	'id, username, creation_date, ticket, ticket_by, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
+  'id, username, creation_date, ticket, builder_username, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
 // Logger removed
 import {
   parseAccountRow,
@@ -55,7 +55,7 @@ export class AccountsRepository {
       const result = await db.execute({
         sql: `
 					INSERT INTO Accounts (
-						username, ticket, ticket_by, creation_date, registered_at,
+						username, ticket, builder_username, creation_date, registered_at,
 						execution_mode, blockchain_status, transaction_id, correlation_id,
 						wax_status, rc_status, rc_delegated
 					)
@@ -65,7 +65,7 @@ export class AccountsRepository {
         args: [
           data.username,
           data.ticket,
-          data.ticket_by ?? null,
+          data.builder_username ?? '',
           new Date().toISOString(),
           data.execution_mode,
           data.blockchain_status,
@@ -300,7 +300,7 @@ export class AccountsRepository {
       // If filtering by builder, we need a JOIN with Tickets
       if (filters.builderId) {
         conditions.push(
-          'EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.created_by = ?)'
+          'EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.creator_username = ?)'
         )
         args.push(filters.builderId)
       }
@@ -400,7 +400,7 @@ export class AccountsRepository {
 					SELECT COUNT(*) as total
 					FROM Accounts a
 					JOIN Tickets t ON a.ticket = t.code
-					WHERE t.created_by = ?
+					WHERE t.creator_username = ?
 				`,
         args: [builderId],
       })

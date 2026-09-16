@@ -1,332 +1,373 @@
 ---
-import { getUnreadCount, getUnreadNotifications } from '@/lib/notification-service'
+import {
+  getUnreadCount,
+  getUnreadNotifications,
+} from '@/lib/notification-service'
 import { formatShortDateTime } from '@/utils/date-formatters'
 import type { NotificationType } from '@/types/database'
 
 interface Props {
-	userId: string
+  hiveUsername: string
 }
 
-const { userId } = Astro.props
+const { hiveUsername } = Astro.props
 
-const unreadCount = await getUnreadCount(userId)
-const unreadNotifications = await getUnreadNotifications(userId)
+const unreadCount = await getUnreadCount(hiveUsername)
+const unreadNotifications = await getUnreadNotifications(hiveUsername)
 
 const NOTIFICATION_ROUTES: Record<NotificationType, string> = {
-	account_created: '/builders/accounts',
-	pending_credits: '/builders/creditos',
-	credit_assigned: '/builders/creditos',
-	system: '/builders/tickets',
+  account_created: '/builders/accounts',
+  pending_credits: '/builders/creditos',
+  credit_assigned: '/builders/creditos',
+  system: '/builders/tickets',
 }
 
 const NOTIFICATION_ACTIONS: Record<NotificationType, string> = {
-	account_created: 'Ver cuentas',
-	pending_credits: 'Reclamar',
-	credit_assigned: 'Ver créditos',
-	system: 'Ver detalle',
+  account_created: 'Ver cuentas',
+  pending_credits: 'Reclamar',
+  credit_assigned: 'Ver créditos',
+  system: 'Ver detalle',
 }
 
 const NOTIFICATION_ICONS: Record<NotificationType, string> = {
-	pending_credits: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
-	account_created: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
-	credit_assigned: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
-	system: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+  pending_credits: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+  account_created: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+  credit_assigned: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
+  system: `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`,
 }
 
 const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
-	pending_credits: 'text-yellow-400',
-	account_created: 'text-success',
-	credit_assigned: 'text-primary',
-	system: 'text-muted-foreground',
+  pending_credits: 'text-yellow-400',
+  account_created: 'text-success',
+  credit_assigned: 'text-primary',
+  system: 'text-muted-foreground',
 }
 ---
 
 <div class="relative" id="notification-container">
-	<button
-		type="button"
-		id="notification-bell"
-		class="relative inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-		aria-label="Notificaciones"
-		aria-expanded="false"
-	>
-		<svg
-			xmlns="http://www.w3.org/2000/svg"
-			class="h-5 w-5"
-			fill="none"
-			viewBox="0 0 24 24"
-			stroke="currentColor"
-			stroke-width="2"
-		>
-			<path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-			></path>
-		</svg>
+  <button
+    type="button"
+    id="notification-bell"
+    class="text-muted-foreground hover:text-foreground hover:bg-accent relative inline-flex items-center justify-center rounded-md p-2 transition-colors"
+    aria-label="Notificaciones"
+    aria-expanded="false"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      class="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+      ></path>
+    </svg>
 
-		{unreadCount > 0 && (
-			<span
-				id="notification-badge"
-				data-count={unreadCount.toString()}
-				class="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white ring-2 ring-background"
-			>
-				{unreadCount > 9 ? '9+' : unreadCount}
-			</span>
-		)}
-	</button>
+    {
+      unreadCount > 0 && (
+        <span
+          id="notification-badge"
+          data-count={unreadCount.toString()}
+          class="bg-primary ring-background absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-white ring-2"
+        >
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )
+    }
+  </button>
 
-	<div
-		id="notification-dropdown"
-		class="absolute right-0 top-full mt-2 w-80 max-h-96 overflow-y-auto rounded-lg border border-border/40 bg-card shadow-lg z-50 hidden"
-	>
-		<div class="sticky top-0 bg-card border-b border-border/40 px-4 py-3 flex items-center justify-between z-10">
-			<h3 class="text-sm font-semibold text-foreground">Notificaciones</h3>
-			{unreadCount > 0 && (
-				<button
-					type="button"
-					id="mark-all-read-btn"
-					class="text-xs text-primary hover:underline"
-				>
-					Marcar todas como leídas
-				</button>
-			)}
-		</div>
+  <div
+    id="notification-dropdown"
+    class="border-border/40 bg-card absolute right-0 top-full z-50 mt-2 hidden max-h-96 w-80 overflow-y-auto rounded-lg border shadow-lg"
+  >
+    <div
+      class="bg-card border-border/40 sticky top-0 z-10 flex items-center justify-between border-b px-4 py-3"
+    >
+      <h3 class="text-foreground text-sm font-semibold">Notificaciones</h3>
+      {
+        unreadCount > 0 && (
+          <button
+            type="button"
+            id="mark-all-read-btn"
+            class="text-primary text-xs hover:underline"
+          >
+            Marcar todas como leídas
+          </button>
+        )
+      }
+    </div>
 
-		<div id="notification-list" class="divide-y divide-border/20">
-			{unreadNotifications.length === 0 ? (
-				<div class="px-4 py-8 text-center text-sm text-muted-foreground">
-					No tienes notificaciones nuevas
-				</div>
-			) : (
-				unreadNotifications.map((notification) => (
-					<a
-						href={NOTIFICATION_ROUTES[notification.type]}
-						class="notification-item group flex items-start gap-3 px-4 py-3 hover:bg-accent/50 transition-colors"
-						data-notification-id={notification.id}
-						data-notification-type={notification.type}
-					>
-						<div class={`flex-shrink-0 mt-0.5 ${NOTIFICATION_ICON_COLORS[notification.type]}`}>
-							<Fragment set:html={NOTIFICATION_ICONS[notification.type]} />
-						</div>
+    <div id="notification-list" class="divide-border/20 divide-y">
+      {
+        unreadNotifications.length === 0 ? (
+          <div class="text-muted-foreground px-4 py-8 text-center text-sm">
+            No tienes notificaciones nuevas
+          </div>
+        ) : (
+          unreadNotifications.map(notification => (
+            <a
+              href={NOTIFICATION_ROUTES[notification.type]}
+              class="notification-item hover:bg-accent/50 group flex items-start gap-3 px-4 py-3 transition-colors"
+              data-notification-id={notification.id}
+              data-notification-type={notification.type}
+            >
+              <div
+                class={`mt-0.5 flex-shrink-0 ${NOTIFICATION_ICON_COLORS[notification.type]}`}
+              >
+                <Fragment set:html={NOTIFICATION_ICONS[notification.type]} />
+              </div>
 
-						<div class="flex-1 min-w-0">
-							<p class="text-sm font-medium text-foreground leading-snug">
-								{notification.title}
-							</p>
-							<p class="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-								{notification.message}
-							</p>
-							<div class="flex items-center justify-between mt-1.5">
-								<span class="text-[11px] text-muted-foreground">
-									{formatShortDateTime(notification.created_at)}
-								</span>
-								<span class="text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-									{NOTIFICATION_ACTIONS[notification.type]} &rarr;
-								</span>
-							</div>
-						</div>
+              <div class="min-w-0 flex-1">
+                <p class="text-foreground text-sm font-medium leading-snug">
+                  {notification.title}
+                </p>
+                <p class="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
+                  {notification.message}
+                </p>
+                <div class="mt-1.5 flex items-center justify-between">
+                  <span class="text-muted-foreground text-[11px]">
+                    {formatShortDateTime(notification.created_at)}
+                  </span>
+                  <span class="text-primary text-[11px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                    {NOTIFICATION_ACTIONS[notification.type]} &rarr;
+                  </span>
+                </div>
+              </div>
 
-						<button
-							type="button"
-							class="mark-read-btn flex-shrink-0 mt-0.5 text-muted-foreground/50 hover:text-foreground transition-colors"
-							data-notification-id={notification.id}
-							aria-label="Descartar"
-						>
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								class="h-3.5 w-3.5"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-								stroke-width="2"
-							>
-								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-							</svg>
-						</button>
-					</a>
-				))
-			)}
-		</div>
-	</div>
+              <button
+                type="button"
+                class="mark-read-btn text-muted-foreground/50 hover:text-foreground mt-0.5 flex-shrink-0 transition-colors"
+                data-notification-id={notification.id}
+                aria-label="Descartar"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </a>
+          ))
+        )
+      }
+    </div>
+  </div>
 </div>
 
 <script>
-	import { navigate } from 'astro:transitions/client'
+  import { navigate } from 'astro:transitions/client'
 
-	const EMPTY_STATE_HTML = `
+  const EMPTY_STATE_HTML = `
 		<div class="px-4 py-8 text-center text-sm text-muted-foreground">
 			No tienes notificaciones nuevas
 		</div>
 	`
 
-	async function markNotificationAsRead(notificationId: string): Promise<boolean> {
-		const parsedId = parseInt(notificationId)
-		if (isNaN(parsedId)) return false
+  async function markNotificationAsRead(
+    notificationId: string
+  ): Promise<boolean> {
+    const parsedId = parseInt(notificationId)
+    if (isNaN(parsedId)) return false
 
-		try {
-			const response = await fetch('/api/notifications/mark-read', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ notificationId: parsedId }),
-			})
-			return response.ok
-		} catch (error) {
-			console.error('[NotificationBell] Error marking as read:', error)
-			return false
-		}
-	}
+    try {
+      const response = await fetch('/api/notifications/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: parsedId }),
+      })
+      return response.ok
+    } catch (error) {
+      console.error('[NotificationBell] Error marking as read:', error)
+      return false
+    }
+  }
 
-	async function markAllNotificationsAsRead(): Promise<boolean> {
-		try {
-			const response = await fetch('/api/notifications/mark-all-read', { method: 'POST' })
-			return response.ok
-		} catch (error) {
-			console.error('[NotificationBell] Error marking all as read:', error)
-			return false
-		}
-	}
+  async function markAllNotificationsAsRead(): Promise<boolean> {
+    try {
+      const response = await fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+      })
+      return response.ok
+    } catch (error) {
+      console.error('[NotificationBell] Error marking all as read:', error)
+      return false
+    }
+  }
 
-	function initNotificationBell(): void {
-		const bell = document.querySelector<HTMLButtonElement>('#notification-bell')
-		const dropdown = document.querySelector<HTMLDivElement>('#notification-dropdown')
-		const container = document.querySelector<HTMLDivElement>('#notification-container')
-		const notificationList = document.querySelector<HTMLDivElement>('#notification-list')
+  function initNotificationBell(): void {
+    const bell = document.querySelector<HTMLButtonElement>('#notification-bell')
+    const dropdown = document.querySelector<HTMLDivElement>(
+      '#notification-dropdown'
+    )
+    const container = document.querySelector<HTMLDivElement>(
+      '#notification-container'
+    )
+    const notificationList =
+      document.querySelector<HTMLDivElement>('#notification-list')
 
-		if (!bell || !dropdown || !container || !notificationList) return
-		const bellButton = bell
-		const dropdownMenu = dropdown
-		const notificationContainer = container
-		const notificationListElement = notificationList
+    if (!bell || !dropdown || !container || !notificationList) return
+    const bellButton = bell
+    const dropdownMenu = dropdown
+    const notificationContainer = container
+    const notificationListElement = notificationList
 
-		let isOpen = false
-		let hasMarkedAsViewed = false
+    let isOpen = false
+    let hasMarkedAsViewed = false
 
-		function updateBadgeCount(decrementBy: number): void {
-			const badge = document.querySelector<HTMLSpanElement>('#notification-badge')
-			if (!badge) return
+    function updateBadgeCount(decrementBy: number): void {
+      const badge = document.querySelector<HTMLSpanElement>(
+        '#notification-badge'
+      )
+      if (!badge) return
 
-			const currentCount = parseInt(badge.dataset.count || '0')
-			const newCount = currentCount - decrementBy
+      const currentCount = parseInt(badge.dataset.count || '0')
+      const newCount = currentCount - decrementBy
 
-			if (newCount <= 0) {
-				badge.remove()
-			} else {
-				badge.dataset.count = newCount.toString()
-				badge.textContent = newCount > 9 ? '9+' : newCount.toString()
-			}
-		}
+      if (newCount <= 0) {
+        badge.remove()
+      } else {
+        badge.dataset.count = newCount.toString()
+        badge.textContent = newCount > 9 ? '9+' : newCount.toString()
+      }
+    }
 
-		function showEmptyState(): void {
-			if (notificationListElement.children.length === 0) {
-				notificationListElement.innerHTML = EMPTY_STATE_HTML
-				document.querySelector<HTMLButtonElement>('#mark-all-read-btn')?.remove()
-			}
-		}
+    function showEmptyState(): void {
+      if (notificationListElement.children.length === 0) {
+        notificationListElement.innerHTML = EMPTY_STATE_HTML
+        document
+          .querySelector<HTMLButtonElement>('#mark-all-read-btn')
+          ?.remove()
+      }
+    }
 
-		function closeDropdown(): void {
-			isOpen = false
-			dropdownMenu.classList.add('hidden')
-			bellButton.setAttribute('aria-expanded', 'false')
-		}
+    function closeDropdown(): void {
+      isOpen = false
+      dropdownMenu.classList.add('hidden')
+      bellButton.setAttribute('aria-expanded', 'false')
+    }
 
-		function openDropdown(): void {
-			isOpen = true
-			dropdownMenu.classList.remove('hidden')
-			bellButton.setAttribute('aria-expanded', 'true')
-		}
+    function openDropdown(): void {
+      isOpen = true
+      dropdownMenu.classList.remove('hidden')
+      bellButton.setAttribute('aria-expanded', 'true')
+    }
 
-		async function markAsViewed(): Promise<void> {
-			if (hasMarkedAsViewed) return
-			hasMarkedAsViewed = true
-			try {
-				await fetch('/api/notifications/mark-viewed', { method: 'POST' })
-			} catch (error) {
-				console.error('[NotificationBell] Error marking as viewed:', error)
-			}
-		}
+    async function markAsViewed(): Promise<void> {
+      if (hasMarkedAsViewed) return
+      hasMarkedAsViewed = true
+      try {
+        await fetch('/api/notifications/mark-viewed', { method: 'POST' })
+      } catch (error) {
+        console.error('[NotificationBell] Error marking as viewed:', error)
+      }
+    }
 
-		// Bell toggle
-		bellButton.addEventListener('click', async (e) => {
-			e.stopPropagation()
-			if (isOpen) {
-				closeDropdown()
-			} else {
-				openDropdown()
-				await markAsViewed()
-			}
-		})
+    // Bell toggle
+    bellButton.addEventListener('click', async e => {
+      e.stopPropagation()
+      if (isOpen) {
+        closeDropdown()
+      } else {
+        openDropdown()
+        await markAsViewed()
+      }
+    })
 
-		// Close on outside click
-		const handleOutsideClick = (e: MouseEvent) => {
-			if (!notificationContainer.contains(e.target as Node)) closeDropdown()
-		}
-		document.addEventListener('click', handleOutsideClick)
+    // Close on outside click
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (!notificationContainer.contains(e.target as Node)) closeDropdown()
+    }
+    document.addEventListener('click', handleOutsideClick)
 
-		// Close on Escape
-		const handleEscapeKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape' && isOpen) {
-				closeDropdown()
-				bellButton.focus()
-			}
-		}
-		document.addEventListener('keydown', handleEscapeKey)
+    // Close on Escape
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        closeDropdown()
+        bellButton.focus()
+      }
+    }
+    document.addEventListener('keydown', handleEscapeKey)
 
-		// Dismiss button (X) - mark as read without navigating
-		document.querySelectorAll<HTMLButtonElement>('.mark-read-btn').forEach((btn) => {
-			btn.addEventListener('click', async (e) => {
-				e.preventDefault()
-				e.stopPropagation()
+    // Dismiss button (X) - mark as read without navigating
+    document
+      .querySelectorAll<HTMLButtonElement>('.mark-read-btn')
+      .forEach(btn => {
+        btn.addEventListener('click', async e => {
+          e.preventDefault()
+          e.stopPropagation()
 
-				const notificationId = btn.dataset.notificationId
-				if (!notificationId) return
+          const notificationId = btn.dataset.notificationId
+          if (!notificationId) return
 
-				const success = await markNotificationAsRead(notificationId)
-				if (success) {
-					btn.closest('.notification-item')?.remove()
-					updateBadgeCount(1)
-					showEmptyState()
-				}
-			})
-		})
+          const success = await markNotificationAsRead(notificationId)
+          if (success) {
+            btn.closest('.notification-item')?.remove()
+            updateBadgeCount(1)
+            showEmptyState()
+          }
+        })
+      })
 
-		// Clicking a notification: mark as read then navigate with Client Router
-		document.querySelectorAll<HTMLAnchorElement>('.notification-item').forEach((link) => {
-			link.addEventListener('click', async (e) => {
-				if ((e.target as HTMLElement).closest('.mark-read-btn')) return
+    // Clicking a notification: mark as read then navigate with Client Router
+    document
+      .querySelectorAll<HTMLAnchorElement>('.notification-item')
+      .forEach(link => {
+        link.addEventListener('click', async e => {
+          if ((e.target as HTMLElement).closest('.mark-read-btn')) return
 
-				e.preventDefault()
-				const notificationId = link.dataset.notificationId
-				const href = link.getAttribute('href')
+          e.preventDefault()
+          const notificationId = link.dataset.notificationId
+          const href = link.getAttribute('href')
 
-				if (notificationId) {
-					await markNotificationAsRead(notificationId)
-				}
+          if (notificationId) {
+            await markNotificationAsRead(notificationId)
+          }
 
-				if (href) {
-					navigate(href)
-				}
-			})
-		})
+          if (href) {
+            navigate(href)
+          }
+        })
+      })
 
-		// Mark all as read
-		const markAllReadBtn = document.querySelector<HTMLButtonElement>('#mark-all-read-btn')
-		markAllReadBtn?.addEventListener('click', async () => {
-			const success = await markAllNotificationsAsRead()
-			if (success) {
-				document.querySelectorAll('.notification-item').forEach(item => item.remove())
-				document.querySelector<HTMLSpanElement>('#notification-badge')?.remove()
-				notificationListElement.innerHTML = EMPTY_STATE_HTML
-				markAllReadBtn.remove()
-			}
-		})
+    // Mark all as read
+    const markAllReadBtn =
+      document.querySelector<HTMLButtonElement>('#mark-all-read-btn')
+    markAllReadBtn?.addEventListener('click', async () => {
+      const success = await markAllNotificationsAsRead()
+      if (success) {
+        document
+          .querySelectorAll('.notification-item')
+          .forEach(item => item.remove())
+        document.querySelector<HTMLSpanElement>('#notification-badge')?.remove()
+        notificationListElement.innerHTML = EMPTY_STATE_HTML
+        markAllReadBtn.remove()
+      }
+    })
 
-		// Cleanup on Client Router navigation
-		document.addEventListener('astro:before-preparation', () => {
-			document.removeEventListener('click', handleOutsideClick)
-			document.removeEventListener('keydown', handleEscapeKey)
-		}, { once: true })
-	}
+    // Cleanup on Client Router navigation
+    document.addEventListener(
+      'astro:before-preparation',
+      () => {
+        document.removeEventListener('click', handleOutsideClick)
+        document.removeEventListener('keydown', handleEscapeKey)
+      },
+      { once: true }
+    )
+  }
 
-	// Initialize on each page load (Client Router compatible)
-	document.addEventListener('astro:page-load', initNotificationBell)
+  // Initialize on each page load (Client Router compatible)
+  document.addEventListener('astro:page-load', initNotificationBell)
 </script>

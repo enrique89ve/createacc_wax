@@ -7,17 +7,16 @@ import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { creditsService } from '@/lib/credits-service'
 
 const builderUser = Astro.locals.builderUser
-const pendingBuilder = Astro.locals.pendingBuilder
-if (!builderUser && !pendingBuilder) return Astro.redirect('/builders/login')
+if (!builderUser) return Astro.redirect('/builders/login')
 
-const builderUsername = builderUser?.username ?? pendingBuilder?.username ?? ''
+const builderUsername = builderUser?.username ?? ''
 
 // Obtener información de créditos usando service
 let builderCredits = {
   pending: 0,
   claimed: 0,
   consumed: 0,
-  builder_id: null as number | null,
+  hive_username: '' as string,
 }
 
 let creditHistory: Array<{
@@ -26,7 +25,7 @@ let creditHistory: Array<{
   readonly amount: number
   readonly reason: string | null
   readonly timestamp: string
-  readonly performed_by: number | null
+  readonly performed_by: string | null
 }> = []
 
 if (builderUser) {
@@ -38,10 +37,12 @@ if (builderUser) {
         pending: credits.pending_amount,
         claimed: credits.available_amount,
         consumed: credits.total_consumed,
-        builder_id: credits.builder_id,
+        hive_username: credits.hive_username,
       }
 
-      creditHistory = await creditsService.getCreditHistory(credits.builder_id)
+      creditHistory = await creditsService.getCreditHistory(
+        credits.hive_username
+      )
     }
   } catch (_error) {
     // Non-critical: page renders with default zero credits as fallback

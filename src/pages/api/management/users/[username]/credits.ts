@@ -3,8 +3,9 @@ import { withAdminApiSession } from '@/lib/session-helpers'
 import { db } from '@/lib/database'
 import {
   assertCanPerform,
+  Permission,
   unauthorizedResponse,
-} from '@/lib/admin/permissions-management'
+} from '@/lib/auth/permissions'
 import { creditsService } from '@/lib/credits-service'
 import { UserRole } from '@/lib/roles'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
@@ -21,7 +22,7 @@ export const PATCH: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          'ASSIGN_CREDITS',
+          Permission.ASSIGN_CREDITS,
           'PATCH /api/management/users/[username]/credits'
         )
       } catch {
@@ -51,22 +52,11 @@ export const PATCH: APIRoute = async context => {
         return apiError('La cantidad máxima es 10000 créditos', 400)
       }
 
-      // Verify that the builder exists
-      const builderResult = await db.execute({
-        sql: `SELECT id FROM "user" WHERE username = ? AND role = ?`,
-        args: [username.toLowerCase(), UserRole.Builder],
-      })
-
-      if (builderResult.rows.length === 0) {
-        return apiError('Builder no encontrado', 404)
-      }
-
-      // Use creditsService to assign credits (maintains consistency)
       const updatedCredits = await creditsService.assignCredits({
         hive_username: username.toLowerCase(),
         amount,
         source: 'Panel admin - asignación manual',
-        assigned_by_admin: session.userId,
+        assigned_by_admin: session.username,
       })
 
       return apiSuccess({
@@ -94,7 +84,7 @@ export const PUT: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          'MANAGE_ALL_CREDITS',
+          Permission.ADMIN_ADJUSTMENTS,
           'PUT /api/management/users/[username]/credits'
         )
       } catch {
@@ -120,7 +110,10 @@ export const PUT: APIRoute = async context => {
 
       // Validate that at least one value is provided
       if (pending_amount === undefined && available_amount === undefined) {
-        return apiError('Debe proporcionar pending_amount o available_amount', 400)
+        return apiError(
+          'Debe proporcionar pending_amount o available_amount',
+          400
+        )
       }
 
       // Validate non-negative values
@@ -141,25 +134,12 @@ export const PUT: APIRoute = async context => {
         return apiError('El valor máximo permitido es 100000', 400)
       }
 
-      // Get builder ID
-      const builderResult = await db.execute({
-        sql: `SELECT id FROM "user" WHERE username = ? AND role = ?`,
-        args: [username.toLowerCase(), UserRole.Builder],
-      })
-
-      if (builderResult.rows.length === 0) {
-        return apiError('Builder no encontrado', 404)
-      }
-
-      const builderId = String(builderResult.rows[0]?.id)
-
-      // Use the credits service to make the adjustment
       const updatedCredits = await creditsService.adjustCredits({
-        builder_id: builderId,
+        hive_username: username.toLowerCase(),
         pending_amount,
         available_amount,
         reason: reason || 'Ajuste manual por admin',
-        performed_by_admin: session.userId,
+        performed_by_admin: session.username,
       })
 
       return apiSuccess({

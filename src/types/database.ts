@@ -48,7 +48,7 @@ export interface DatabaseUserRow {
  */
 export interface DatabaseCreditRow {
   readonly id: number
-  readonly builder_id: string
+  readonly hive_username: string
   readonly pending_amount: number
   readonly available_amount: number
   readonly total_assigned: number
@@ -68,7 +68,7 @@ export interface DatabaseTicketRow {
   readonly credits: number
   readonly is_active: boolean // VIRTUAL: credits > 0
   readonly has_been_used: boolean // VIRTUAL: original_credits > credits
-  readonly created_by: string | null
+  readonly creator_username: string
   readonly created_at: string
   readonly updated_at: string
 }
@@ -81,7 +81,7 @@ export interface DatabaseAccountRow {
   readonly username: string
   readonly creation_date: string
   readonly ticket: string
-  readonly ticket_by: string | null
+  readonly builder_username: string
   readonly registered_at: string
   readonly execution_mode: string
   readonly blockchain_status: string
@@ -108,7 +108,7 @@ export interface DatabaseTicketAuditRow {
  */
 export interface DatabaseCreditAuditRow {
   readonly id: number
-  readonly builder_id: string
+  readonly hive_username: string
   readonly operation: string
   readonly amount: number
   readonly reason: string | null
@@ -136,7 +136,7 @@ export interface DatabaseLoginAttemptRow {
  */
 export interface DatabaseNotificationRow {
   readonly id: number
-  readonly user_id: string
+  readonly hive_username: string
   readonly type: NotificationType
   readonly title: string
   readonly message: string
@@ -163,7 +163,6 @@ export interface UserWithCredits extends DatabaseUserRow {
  * Ticket with creator info (common join query)
  */
 export interface TicketWithCreator extends DatabaseTicketRow {
-  readonly creator_username: string | null
   readonly creator_role: UserRole | null
 }
 
@@ -192,7 +191,7 @@ export interface UpdateUserData {
  * Data required to create/update credits
  */
 export interface CreateCreditData {
-  readonly builder_id: string
+  readonly hive_username: string
   readonly pending_amount?: number
   readonly available_amount?: number
   readonly total_assigned?: number
@@ -217,7 +216,7 @@ export interface CreateTicketData {
   readonly description?: string | null
   readonly original_credits: number
   readonly credits: number
-  readonly created_by?: string | null
+  readonly creator_username: string
 }
 
 /**
@@ -235,7 +234,7 @@ export interface UpdateTicketData {
 export interface CreateAccountData {
   readonly username: string
   readonly ticket: string
-  readonly ticket_by?: string | null
+  readonly builder_username?: string
   readonly execution_mode: string
   readonly blockchain_status: string
   readonly rc_status: string
@@ -258,7 +257,7 @@ export interface CreateTicketAuditData {
  * Data required to create credit audit entry
  */
 export interface CreateCreditAuditData {
-  readonly builder_id: string
+  readonly hive_username: string
   readonly operation: string
   readonly amount: number
   readonly reason?: string | null
@@ -282,7 +281,7 @@ export interface CreateLoginAttemptData {
  * Data required to create notification entry
  */
 export interface CreateNotificationData {
-  readonly user_id: string
+  readonly hive_username: string
   readonly type: NotificationType
   readonly title: string
   readonly message: string
@@ -363,7 +362,7 @@ export function isDatabaseCreditRow(row: unknown): row is DatabaseCreditRow {
 
   return (
     typeof r.id === 'number' &&
-    typeof r.builder_id === 'string' &&
+    typeof r.hive_username === 'string' &&
     typeof r.pending_amount === 'number' &&
     typeof r.available_amount === 'number' &&
     typeof r.total_assigned === 'number' &&
@@ -398,7 +397,7 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
     typeof r.credits === 'number' &&
     typeof isActiveBool === 'boolean' &&
     typeof hasBeenUsedBool === 'boolean' &&
-    (r.created_by === null || typeof r.created_by === 'string') &&
+    typeof r.creator_username === 'string' &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -416,7 +415,7 @@ export function isDatabaseAccountRow(row: unknown): row is DatabaseAccountRow {
     typeof r.username === 'string' &&
     typeof r.creation_date === 'string' &&
     typeof r.ticket === 'string' &&
-    (r.ticket_by === null || typeof r.ticket_by === 'string') &&
+    typeof r.builder_username === 'string' &&
     typeof r.registered_at === 'string' &&
     typeof r.execution_mode === 'string' &&
     typeof r.blockchain_status === 'string' &&
@@ -504,9 +503,12 @@ export function parseAccountRow(raw: unknown): DatabaseAccountRow | null {
   const r = raw as Record<string, unknown>
   const converted = {
     ...r,
-    ticket_by: typeof r.ticket_by === 'string' ? r.ticket_by : null,
-    transaction_id: typeof r.transaction_id === 'string' ? r.transaction_id : null,
-    correlation_id: typeof r.correlation_id === 'string' ? r.correlation_id : null,
+    builder_username:
+      typeof r.builder_username === 'string' ? r.builder_username : '',
+    transaction_id:
+      typeof r.transaction_id === 'string' ? r.transaction_id : null,
+    correlation_id:
+      typeof r.correlation_id === 'string' ? r.correlation_id : null,
     wax_status: typeof r.wax_status === 'string' ? r.wax_status : null,
     rc_delegated: Number(r.rc_delegated),
   }
@@ -539,7 +541,7 @@ export function isDatabaseNotificationRow(
 
   return (
     typeof r.id === 'number' &&
-    typeof r.user_id === 'string' &&
+    typeof r.hive_username === 'string' &&
     isNotificationType(r.type) &&
     typeof r.title === 'string' &&
     typeof r.message === 'string' &&

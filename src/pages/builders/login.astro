@@ -9,13 +9,13 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
   <div class="flex min-h-screen items-center justify-center px-4 py-12">
     <div class="w-full max-w-md">
       <!-- Login Card -->
-      <div class="rounded-lg border border-border bg-card p-8">
+      <div class="border-border bg-card rounded-lg border p-8">
         <!-- Header -->
         <div class="mb-8 text-center">
-          <h1 class="mb-2 text-3xl font-bold tracking-tight text-foreground">
+          <h1 class="text-foreground mb-2 text-3xl font-bold tracking-tight">
             Builders Login
           </h1>
-          <p class="text-sm text-muted-foreground">
+          <p class="text-muted-foreground text-sm">
             Acceso exclusivo para moderadores y usuarios autorizados
           </p>
         </div>
@@ -25,7 +25,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           <div class="space-y-2">
             <label
               for="username"
-              class="block text-sm font-medium text-foreground"
+              class="text-foreground block text-sm font-medium"
             >
               Usuario de Hive
             </label>
@@ -37,7 +37,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
               autocapitalize="none"
               autocorrect="off"
               spellcheck="false"
-              class="w-full rounded-lg border border-border bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
               required
             />
           </div>
@@ -45,14 +45,14 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           <!-- Keychain error (only visible when not available) -->
           <div
             id="keychain-status"
-            class="hidden rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm"
+            class="border-border bg-muted/50 hidden rounded-lg border px-4 py-3 text-sm"
           >
           </div>
 
           <button
             type="submit"
             id="login-btn"
-            class="w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+            class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             disabled
           >
             Login con Keychain
@@ -61,7 +61,7 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
 
         <!-- Footer: Keychain status as subtle text -->
         <div class="mt-8 text-center">
-          <p id="keychain-footer" class="text-xs text-muted-foreground">
+          <p id="keychain-footer" class="text-muted-foreground text-xs">
             Verificando Keychain...
           </p>
         </div>

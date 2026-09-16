@@ -2,15 +2,12 @@ import type { APIRoute } from 'astro'
 import { withAdminApiSession } from '@/lib/session-helpers'
 import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditsService } from '@/lib/credits-service'
-import {
-  assertCanPerform,
-  unauthorizedResponse,
-} from '@/lib/admin/permissions-management'
+import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { CREDITS_LIMITS } from '@/consts/constants'
 import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
-import { parseClientUserRef, signUserId } from '@/lib/user-id-token'
+import { Permission } from '@/lib/auth/permissions'
 
 // GET: List builder users
 export const GET: APIRoute = async context => {
@@ -20,7 +17,7 @@ export const GET: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          'MANAGE_BUILDERS',
+          Permission.MANAGE_CREDITS,
           'GET /api/management/users'
         )
       } catch {
@@ -31,7 +28,7 @@ export const GET: APIRoute = async context => {
       const builders = await usersRepository.getAllBuilders()
 
       const users = builders.map(builder => ({
-        id: signUserId(builder.id),
+        id: builder.hive_username,
         username: builder.hive_username,
         role: UserRole.Builder,
         is_active: builder.is_active,
@@ -58,7 +55,7 @@ export const POST: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          'CREATE_BUILDER',
+          Permission.MANAGE_CREDITS,
           'POST /api/management/users'
         )
       } catch {
@@ -84,45 +81,33 @@ export const POST: APIRoute = async context => {
       let initialCredits = 100 // default value
       if (typeof amount === 'number' && amount > 0) {
         if (amount > CREDITS_LIMITS.MAX_ASSIGNMENT) {
-          return apiError(`El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`, 400)
+          return apiError(
+            `El máximo de créditos permitido es ${CREDITS_LIMITS.MAX_ASSIGNMENT}`,
+            400
+          )
         }
         initialCredits = amount
       }
 
-      // Verify that the builder does not exist using the unified repository
-      const exists =
-        await usersRepository.builderExistsByUsername(cleanUsername)
-
-      if (exists) {
-        return apiError('El builder ya existe', 400)
-      }
-
-      // Create builder using the unified repository
-      const newUser = await usersRepository.create({
-        username: cleanUsername,
-        role: UserRole.Builder,
-        is_active: true,
-      })
-
-      const builderId = newUser.id
-
-      // Assign initial credits using the creditsService
       await creditsService.assignCredits({
         hive_username: cleanUsername,
         amount: initialCredits,
-        source: 'Créditos iniciales al crear builder',
-        assigned_by_admin: session.userId,
+        source: 'Créditos iniciales',
+        assigned_by_admin: session.username,
       })
 
-      return apiSuccess({
-        message: 'Builder creado exitosamente con 100 créditos pendientes',
-        user: {
-          id: signUserId(builderId),
-          hive_username: cleanUsername,
-          role: UserRole.Builder,
-          initial_credits: 100,
+      return apiSuccess(
+        {
+          message: 'Créditos asignados al username Hive',
+          user: {
+            id: cleanUsername,
+            hive_username: cleanUsername,
+            role: UserRole.Builder,
+            initial_credits: initialCredits,
+          },
         },
-      }, 201)
+        201
+      )
     } catch (error) {
       if (
         error instanceof Error &&
@@ -148,7 +133,7 @@ export const DELETE: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          'DELETE_BUILDER',
+          Permission.MANAGE_CREDITS,
           'DELETE /api/management/users'
         )
       } catch {
@@ -156,7 +141,7 @@ export const DELETE: APIRoute = async context => {
       }
 
       const url = new URL(context.request.url)
-      const userId = parseClientUserRef(url.searchParams.get('id'))
+      const userId = url.searchParams.get('id')
 
       if (!userId) {
         return apiError('ID de usuario inválido', 400)

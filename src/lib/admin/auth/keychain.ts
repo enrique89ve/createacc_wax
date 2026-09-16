@@ -89,8 +89,8 @@ export async function verifyKeychainAuth(
     }
 
     // Validate server nonce (one-time use, prevents replay attacks)
-    const { consumeNonce } = await import('@/lib/nonce-store')
-    if (!consumeNonce(messageNonce)) {
+    const { consumeBuilderChallenge } = await import('@/lib/auth/builder-auth')
+    if (!(await consumeBuilderChallenge(messageNonce))) {
       return {
         success: false,
         error: 'Invalid, expired or already used nonce. Please try again.',

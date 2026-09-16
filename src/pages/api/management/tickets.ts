@@ -6,9 +6,9 @@ import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { API_MESSAGES } from '@/consts/api-messages'
 import { db } from '@/lib/database'
 import {
-	validateTicketName,
-	validateTicketCredits,
-	validateTicketDescription,
+  validateTicketName,
+  validateTicketCredits,
+  validateTicketDescription,
 } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
 // Types
@@ -29,7 +29,6 @@ export const GET: APIRoute = async context => {
     }
   })
 }
-
 
 // Helper: Get user data (using unified repository)
 const getUserData = async (
@@ -102,7 +101,7 @@ export const POST: APIRoute = async context => {
 
       // Create ticket in database
       const ticketResult = await db.execute({
-        sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
+        sql: `INSERT INTO Tickets (code, description, original_credits, credits, creator_username)
 					VALUES (?, ?, ?, ?, ?) RETURNING id`,
         args: [cleanCode, validDescription, credits, credits, session.userId],
       })
@@ -112,15 +111,18 @@ export const POST: APIRoute = async context => {
       // Audit log
       await createTicketAudit(cleanCode, session.userId)
 
-      return apiSuccess({
-        message: API_MESSAGES.SUCCESS.TICKET_CREATED,
-        ticket: {
-          id: ticketId,
-          code: cleanCode,
-          description: validDescription,
-          original_credits: credits,
+      return apiSuccess(
+        {
+          message: API_MESSAGES.SUCCESS.TICKET_CREATED,
+          ticket: {
+            id: ticketId,
+            code: cleanCode,
+            description: validDescription,
+            original_credits: credits,
+          },
         },
-      }, 201)
+        201
+      )
     } catch (error) {
       if (
         error instanceof Error &&

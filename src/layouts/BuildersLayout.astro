@@ -15,9 +15,8 @@ export interface Props {
 const { title, currentPage } = Astro.props
 
 const builderUser = Astro.locals.builderUser
-const pendingBuilder = Astro.locals.pendingBuilder
-const displayUsername = builderUser?.username ?? pendingBuilder?.username ?? ''
-const isAuthenticated = !!(builderUser || pendingBuilder)
+const displayUsername = builderUser?.username ?? ''
+const isAuthenticated = !!builderUser
 
 // Get user credits if authenticated and registered (pending builders default to 0)
 let userCredits: number | undefined = undefined
@@ -29,8 +28,6 @@ if (builderUser) {
 	} catch (error) {
 		userCredits = 0
 	}
-} else if (pendingBuilder) {
-	userCredits = 0
 }
 
 const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 0
@@ -75,7 +72,7 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
             </a>
 
             <!-- Notification Bell (only for registered builders) -->
-            {builderUser?.userId && <NotificationBell userId={builderUser.userId} />}
+            {builderUser?.username && <NotificationBell hiveUsername={builderUser.username} />}
 
             <!-- User Menu (without role and credits) -->
             <UserMenu username={displayUsername} />
@@ -119,7 +116,7 @@ const builderCreditsAttribute = typeof userCredits === 'number' ? userCredits : 
               </a>
 
               <!-- Notification Bell (only for registered builders) -->
-              {builderUser?.userId && <NotificationBell userId={builderUser.userId} />}
+              {builderUser?.username && <NotificationBell hiveUsername={builderUser.username} />}
 
               <!-- Logout Button (icon only) -->
               <button

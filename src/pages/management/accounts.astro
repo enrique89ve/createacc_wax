@@ -19,12 +19,12 @@ const userFilter = url.searchParams.get('user') || ''
 const sortOrder = url.searchParams.get('sort') || 'desc' // desc = más reciente primero
 const statusFilter = url.searchParams.get('status') || 'all'
 
-// Obtener todas las cuentas (sin JOINs - ticket_by ya está poblado)
+// Obtener todas las cuentas (sin JOINs - builder_username ya está poblado)
 let accounts: DatabaseAccountRow[] = []
 let error: string | null = null
 
 try {
-  // Obtener todas las cuentas (ticket_by ya incluye el username del creador)
+  // Obtener todas las cuentas (builder_username ya incluye el username del creador)
   accounts = await accountsRepository.getAll()
 
   // Aplicar filtros manualmente si es necesario
@@ -62,7 +62,6 @@ try {
   error = 'Error al cargar las cuentas'
   console.error('Error loading accounts:', loadError)
 }
-
 ---
 
 <ManagementLayout title="Cuentas Creadas" activeTab="accounts">
@@ -129,9 +128,16 @@ try {
                 name="status"
                 class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-1"
               >
-                <option value="all" selected={statusFilter === 'all'}>All</option>
-                <option value="simulated" selected={statusFilter === 'simulated'}>Simulated</option>
-                <option value="live" selected={statusFilter === 'live'}>Live</option>
+                <option value="all" selected={statusFilter === 'all'}
+                  >All</option
+                >
+                <option
+                  value="simulated"
+                  selected={statusFilter === 'simulated'}>Simulated</option
+                >
+                <option value="live" selected={statusFilter === 'live'}
+                  >Live</option
+                >
               </select>
             </div>
 
@@ -287,24 +293,29 @@ try {
                         </a>
                       </td>
                       <td class="whitespace-nowrap px-6 py-4 text-sm">
-                        {
-                          (() => {
-                            const label = toAccountStatusLabel(account.blockchain_status)
-                            const badgeClass =
-                              label === 'SIMULATED'
-                                ? 'bg-amber-500/15 text-amber-200'
-                                : label === 'BROADCASTED'
-                                  ? 'bg-sky-500/15 text-sky-200'
-                                  : label === 'FAILED'
-                                    ? 'bg-red-500/15 text-red-200'
-                                    : 'bg-emerald-500/15 text-emerald-200'
-                            return (
-                              <span class:list={['rounded-full px-2 py-0.5 text-xs font-medium', badgeClass]}>
-                                {label}
-                              </span>
-                            )
-                          })()
-                        }
+                        {(() => {
+                          const label = toAccountStatusLabel(
+                            account.blockchain_status
+                          )
+                          const badgeClass =
+                            label === 'SIMULATED'
+                              ? 'bg-amber-500/15 text-amber-200'
+                              : label === 'BROADCASTED'
+                                ? 'bg-sky-500/15 text-sky-200'
+                                : label === 'FAILED'
+                                  ? 'bg-red-500/15 text-red-200'
+                                  : 'bg-emerald-500/15 text-emerald-200'
+                          return (
+                            <span
+                              class:list={[
+                                'rounded-full px-2 py-0.5 text-xs font-medium',
+                                badgeClass,
+                              ]}
+                            >
+                              {label}
+                            </span>
+                          )
+                        })()}
                       </td>
                       <td class="text-foreground whitespace-nowrap px-6 py-4 font-mono text-sm">
                         <a
@@ -318,7 +329,7 @@ try {
                         {formatDateTime(account.creation_date)}
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                        {account.ticket_by || 'Sin asignar'}
+                        {account.builder_username || 'Sin asignar'}
                       </td>
                       <td class="whitespace-nowrap px-6 py-4 text-sm">
                         <a

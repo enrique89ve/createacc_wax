@@ -117,7 +117,7 @@ export async function validateTicketInDB(
     }
 
     const result = await db.execute({
-      sql: `SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE code = ?`,
+      sql: `SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
 
@@ -219,7 +219,8 @@ export async function getAccountCreationState(
       username: String(row.username),
       executionMode: parseExecutionMode(row.execution_mode),
       blockchainStatus: parseBlockchainStatus(row.blockchain_status),
-      transactionId: typeof row.transaction_id === 'string' ? row.transaction_id : null,
+      transactionId:
+        typeof row.transaction_id === 'string' ? row.transaction_id : null,
       waxStatus: typeof row.wax_status === 'string' ? row.wax_status : null,
     }
   } catch (error) {
@@ -242,7 +243,10 @@ export async function updateAccountBlockchainStatus(
     })
     return result.rows.length > 0
   } catch (error) {
-    logger.error('[updateAccountBlockchainStatus] Failed to update status:', error)
+    logger.error(
+      '[updateAccountBlockchainStatus] Failed to update status:',
+      error
+    )
     return false
   }
 }
@@ -426,7 +430,8 @@ export async function reserveTicketCredit(
       throw innerError
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
     return {
       success: false,
       error: `Ticket reservation failed: ${errorMessage}`,
@@ -460,9 +465,7 @@ export async function rollbackTicketReservation(
       const marked = await markAttemptRolledBack(correlationId)
       if (!marked) {
         await db.execute('ROLLBACK')
-        logger.warn(
-          `[${correlationId}] Rollback skipped: attempt is not open`
-        )
+        logger.warn(`[${correlationId}] Rollback skipped: attempt is not open`)
         return { success: true, correlationId }
       }
 
@@ -498,7 +501,8 @@ export async function rollbackTicketReservation(
       throw innerError
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
     logger.error(
       `[${correlationId}] CRITICAL: Ticket rollback failed: ${errorMessage}`
     )
@@ -528,9 +532,7 @@ export function blockchainStatusFromTransaction(
   return BLOCKCHAIN_STATUS.FAILED
 }
 
-function accountRowFromTransaction(
-  transactionResult: HiveTransactionResult
-): {
+function accountRowFromTransaction(transactionResult: HiveTransactionResult): {
   executionMode: string
   blockchainStatus: string
   transactionId: string | null
@@ -575,7 +577,10 @@ async function accountRowForCompletion(
 }> {
   const hiveMatched = options?.hiveMatched
   if (transactionResult) {
-    return withHiveMatchedStatus(accountRowFromTransaction(transactionResult), hiveMatched)
+    return withHiveMatchedStatus(
+      accountRowFromTransaction(transactionResult),
+      hiveMatched
+    )
   }
 
   if (!correlationId) {
@@ -653,18 +658,18 @@ export async function completeAccountCreationInDB(
     try {
       // 1. Get ticket creator info
       const ticketInfo = await db.execute({
-        sql: `SELECT created_by,
-              (SELECT username FROM "user" WHERE id = created_by) as creator_username
-              FROM Tickets WHERE code = ?`,
+        sql: `SELECT creator_username FROM Tickets WHERE code = ?`,
         args: [cleanTicketCode],
       })
 
-      const creatorUsername = ticketInfo.rows.length > 0
-        ? ticketInfo.rows[0].creator_username as string | null
-        : null
-      const createdBy = ticketInfo.rows.length > 0
-        ? (ticketInfo.rows[0].created_by as string | null)
-        : null
+      const creatorUsername =
+        ticketInfo.rows.length > 0
+          ? (ticketInfo.rows[0].creator_username as string | null)
+          : null
+      const createdBy =
+        ticketInfo.rows.length > 0
+          ? (ticketInfo.rows[0].creator_username as string | null)
+          : null
 
       const accountMeta = await accountRowForCompletion(
         transactionResult,
@@ -676,7 +681,7 @@ export async function completeAccountCreationInDB(
       try {
         await db.execute({
           sql: `INSERT INTO Accounts (
-                  username, ticket, ticket_by, creation_date, registered_at,
+                  username, ticket, builder_username, creation_date, registered_at,
                   execution_mode, blockchain_status, transaction_id, correlation_id, wax_status,
                   rc_status, rc_delegated
                 )
@@ -720,7 +725,8 @@ export async function completeAccountCreationInDB(
       throw innerError
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error'
 
     if (errorMessage === 'ACCOUNT_EXISTS') {
       return {
@@ -750,7 +756,10 @@ export async function completeAccountCreationInDB(
  */
 const RECONCILIATION_MAX_TEXT_LENGTH = 512
 
-function truncateText(value: string | undefined, maxLength = RECONCILIATION_MAX_TEXT_LENGTH): string | null {
+function truncateText(
+  value: string | undefined,
+  maxLength = RECONCILIATION_MAX_TEXT_LENGTH
+): string | null {
   if (!value) return null
   return value.slice(0, maxLength)
 }
@@ -825,7 +834,9 @@ export interface ReconciliationEntry {
 /**
  * Fetch all actionable reconciliation entries (pending or failed).
  */
-export async function getPendingReconciliations(): Promise<ReconciliationEntry[]> {
+export async function getPendingReconciliations(): Promise<
+  ReconciliationEntry[]
+> {
   const result = await db.execute({
     sql: `SELECT id, correlation_id, username, ticket_code, reason,
                   error_category, error_message, transaction_id, created_at,
@@ -833,10 +844,7 @@ export async function getPendingReconciliations(): Promise<ReconciliationEntry[]
            FROM ReconciliationQueue
            WHERE status IN (?, ?)
            ORDER BY created_at ASC`,
-    args: [
-      RECONCILIATION_STATUS.PENDING,
-      RECONCILIATION_STATUS.FAILED,
-    ],
+    args: [RECONCILIATION_STATUS.PENDING, RECONCILIATION_STATUS.FAILED],
   })
 
   return result.rows.map(row => ({
@@ -849,7 +857,9 @@ export async function getPendingReconciliations(): Promise<ReconciliationEntry[]
     errorMessage: row.error_message as string | null,
     transactionId: row.transaction_id as string | null,
     createdAt: row.created_at as string,
-    status: (row.status as ActionableReconciliationStatus) || RECONCILIATION_STATUS.PENDING,
+    status:
+      (row.status as ActionableReconciliationStatus) ||
+      RECONCILIATION_STATUS.PENDING,
     attemptCount: (row.attempt_count as number) || 0,
   }))
 }

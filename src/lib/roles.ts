@@ -10,8 +10,8 @@
  * Values match database values for compatibility
  */
 export enum UserRole {
-	Admin = 'admin',
-	Builder = 'builder',
+  Admin = 'admin',
+  Builder = 'builder',
 }
 
 /**
@@ -20,10 +20,10 @@ export enum UserRole {
  * @returns True if value is a valid UserRole
  */
 export function isValidRole(value: unknown): value is UserRole {
-	return (
-		typeof value === 'string' &&
-		Object.values(UserRole).includes(value as UserRole)
-	)
+  return (
+    typeof value === 'string' &&
+    Object.values(UserRole).includes(value as UserRole)
+  )
 }
 
 /**
@@ -34,13 +34,13 @@ export function isValidRole(value: unknown): value is UserRole {
  * @throws Error if value is not a valid UserRole
  */
 export function assertValidRole(
-	value: unknown,
-	context?: string
+  value: unknown,
+  context?: string
 ): asserts value is UserRole {
-	if (!isValidRole(value)) {
-		const ctx = context ? ` [${context}]` : ''
-		throw new Error(`Invalid role: ${String(value)}${ctx}`)
-	}
+  if (!isValidRole(value)) {
+    const ctx = context ? ` [${context}]` : ''
+    throw new Error(`Invalid role: ${String(value)}${ctx}`)
+  }
 }
 
 /**
@@ -50,41 +50,5 @@ export function assertValidRole(
  * @returns The UserRole if valid, null otherwise
  */
 export function parseRole(value: unknown): UserRole | null {
-	return isValidRole(value) ? value : null
-}
-
-/**
- * Role permissions mapping for future RBAC expansion
- * Defines what each role can do
- */
-export const RolePermissions = {
-	[UserRole.Admin]: [
-		'manage_builders',
-		'manage_all_tickets',
-		'view_system_stats',
-		'assign_credits',
-		'delete_any_ticket',
-		'view_all_tickets',
-	],
-	[UserRole.Builder]: [
-		'manage_own_tickets',
-		'view_own_credits',
-		'claim_credits',
-		'delete_own_ticket',
-		'view_own_tickets',
-	],
-} as const
-
-export type Permission =
-	(typeof RolePermissions)[UserRole][number]
-
-/**
- * Check if a role has a specific permission
- * @param role - The user role to check
- * @param permission - The permission to verify
- * @returns True if the role has the permission
- */
-export function hasPermission(role: UserRole, permission: Permission): boolean {
-	const permissions = RolePermissions[role] as readonly string[]
-	return permissions.includes(permission)
+  return isValidRole(value) ? value : null
 }

@@ -76,7 +76,7 @@ export class TicketsRepository {
       const result = await db.execute({
         sql: `
 					INSERT INTO Tickets (
-						code, description, original_credits, credits, created_by
+						code, description, original_credits, credits, creator_username
 					)
 					VALUES (?, ?, ?, ?, ?)
 					RETURNING id, code, description, original_credits, credits
@@ -86,7 +86,7 @@ export class TicketsRepository {
           data.description ?? null,
           data.original_credits,
           data.credits,
-          data.created_by ?? null,
+          data.creator_username ?? null,
         ],
       })
 
@@ -114,7 +114,7 @@ export class TicketsRepository {
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [id],
       })
 
@@ -134,7 +134,7 @@ export class TicketsRepository {
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets WHERE code = ?',
+        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?',
         args: [code],
       })
 
@@ -151,6 +151,45 @@ export class TicketsRepository {
   /**
    * Update a ticket
    */
+  async updateOwned(
+    id: number,
+    creatorUsername: string,
+    data: UpdateTicketData
+  ): Promise<boolean> {
+    const updates: string[] = []
+    const args: (string | number | null)[] = []
+
+    if (data.description !== undefined) {
+      updates.push('description = ?')
+      args.push(data.description ?? null)
+    }
+    if (data.original_credits !== undefined) {
+      updates.push('original_credits = ?')
+      args.push(data.original_credits)
+    }
+    if (data.credits !== undefined) {
+      updates.push('credits = ?')
+      args.push(data.credits)
+    }
+    if (updates.length === 0) return true
+
+    updates.push('updated_at = CURRENT_TIMESTAMP')
+    args.push(id, creatorUsername)
+    const result = await db.execute({
+      sql: `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ? AND creator_username = ?`,
+      args,
+    })
+    return result.rowsAffected === 1
+  }
+
+  async deleteOwned(id: number, creatorUsername: string): Promise<boolean> {
+    const result = await db.execute({
+      sql: 'DELETE FROM Tickets WHERE id = ? AND creator_username = ?',
+      args: [id, creatorUsername],
+    })
+    return result.rowsAffected === 1
+  }
+
   async update(id: number, data: UpdateTicketData): Promise<void> {
     try {
       // Build dynamic query with only present fields
@@ -210,8 +249,8 @@ export class TicketsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
-					WHERE created_by = ?
+					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
+					WHERE creator_username = ?
 					ORDER BY created_at DESC
 				`,
         args: [userId],
@@ -232,7 +271,7 @@ export class TicketsRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
+					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
 					WHERE is_active = TRUE
 					ORDER BY created_at DESC
 				`,
@@ -256,7 +295,7 @@ export class TicketsRepository {
       const args: (string | number | boolean)[] = []
 
       if (filters.createdBy !== undefined) {
-        conditions.push('created_by = ?')
+        conditions.push('creator_username = ?')
         args.push(filters.createdBy)
       }
 
@@ -274,7 +313,7 @@ export class TicketsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT id, code, description, original_credits, credits, is_active, has_been_used, created_by, created_at, updated_at FROM Tickets
+				SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
 				${whereClause}
 				ORDER BY created_at DESC
 			`
@@ -299,10 +338,9 @@ export class TicketsRepository {
         sql: `
 					SELECT
 						t.*,
-						u.username as creator_username,
-						u.role as creator_role
+						t.creator_username,
+						'builder' as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 				`,
         args: [],
@@ -325,11 +363,10 @@ export class TicketsRepository {
         sql: `
 					SELECT
 						t.*,
-						u.username as creator_username,
-						u.role as creator_role
+						t.creator_username,
+						'builder' as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON t.created_by = u.id
-					WHERE t.created_by = ?
+					WHERE t.creator_username = ?
 					ORDER BY t.created_at DESC
 				`,
         args: [userId],
@@ -360,10 +397,9 @@ export class TicketsRepository {
         sql: `
 					SELECT
 						t.*,
-						u.username as creator_username,
-						u.role as creator_role
+						t.creator_username,
+						'builder' as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON t.created_by = u.id
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
@@ -394,7 +430,7 @@ export class TicketsRepository {
 						SUM(original_credits) as total_credits_original,
 						SUM(credits) as total_credits_remaining
 					FROM Tickets
-					WHERE created_by = ?
+					WHERE creator_username = ?
 				`,
         args: [userId],
       })

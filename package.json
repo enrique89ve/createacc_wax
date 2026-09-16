@@ -16,6 +16,8 @@
     "admin:create": "tsx scripts/admin-setup.ts create",
     "admin:reset": "tsx scripts/admin-setup.ts reset",
     "admin:check": "tsx scripts/admin-setup.ts check",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "check": "astro check && tsc --noEmit && eslint .",
     "test": "vitest run",
     "verify": "pnpm check && pnpm test",

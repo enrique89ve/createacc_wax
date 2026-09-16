@@ -186,7 +186,10 @@ if (assignForm) {
       showSuccessModal(username, amount)
     } catch (error: unknown) {
       console.error('Error:', error)
-      displayError(assignError, error instanceof Error ? error.message : 'Ocurrió un error inesperado')
+      displayError(
+        assignError,
+        error instanceof Error ? error.message : 'Ocurrió un error inesperado'
+      )
     } finally {
       submitBtn.disabled = false
       submitBtn.textContent = 'Asignar Créditos'

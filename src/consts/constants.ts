@@ -23,15 +23,15 @@ export const ERROR_MESSAGES = {
 } as const
 
 export const ROUTES = {
-	LOGIN: '/management/access',
-	CONSOLE: '/management/console',
-	MANAGEMENT: '/management/',
-	API_LOGIN: '/api/auth/login',
-	API_LOGOUT: '/api/auth/logout',
-	BUILDERS_LOGIN: '/builders/login',
-	BUILDERS_PREFIX: '/builders/',
-	BUILDERS_DASHBOARD: '/builders/accounts',
-	DETAILS_PREFIX: '/details/',
+  LOGIN: '/management/access',
+  CONSOLE: '/management/console',
+  MANAGEMENT: '/management/',
+  API_LOGIN: '/api/auth/login',
+  API_LOGOUT: '/api/auth/logout',
+  BUILDERS_LOGIN: '/builders/login',
+  BUILDERS_PREFIX: '/builders/',
+  BUILDERS_DASHBOARD: '/builders/accounts',
+  DETAILS_PREFIX: '/details/',
 } as const
 
 // Re-export UserRole enum from centralized roles module
@@ -58,16 +58,16 @@ export const ERROR_CONFIG = {
 }
 
 export const HIVE_CHAIN_CONFIG = {
-	MAINNET_DEFAULT: 'https://api.hive.blog',
-	MAINNET_BACKUPS: [
-		'https://api.openhive.network',
-		'https://techcoderx.com',
-		'https://rpc.mahdiyari.info',
-	],
-	API_TIMEOUT_MS: 5000,
-	HEALTH_CHECK_TIMEOUT_MS: 5000,
-	HEALTH_EVALUATION_DELAY_MS: 1500,
-	POOL_TTL_MS: 60_000,
+  MAINNET_DEFAULT: 'https://api.hive.blog',
+  MAINNET_BACKUPS: [
+    'https://api.openhive.network',
+    'https://techcoderx.com',
+    'https://rpc.mahdiyari.info',
+  ],
+  API_TIMEOUT_MS: 5000,
+  HEALTH_CHECK_TIMEOUT_MS: 5000,
+  HEALTH_EVALUATION_DELAY_MS: 1500,
+  POOL_TTL_MS: 60_000,
 } as const
 
 // Wax-specific error patterns
@@ -94,6 +94,12 @@ export const WAX_ERROR_PATTERNS = {
 export const CREATION_SESSION_CONFIG = {
   COOKIE_NAME: 'hh_creation_session',
   MAX_AGE_SECONDS: 1800, // 30 minutes
+  SIGNATURE_ALGORITHM: 'sha256',
+} as const
+
+export const BUILDER_SESSION_CONFIG = {
+  COOKIE_NAME: 'hh_builder_session',
+  MAX_AGE_SECONDS: 24 * 60 * 60,
   SIGNATURE_ALGORITHM: 'sha256',
 } as const
 
@@ -161,10 +167,13 @@ export const RECONCILIATION_STATUS = {
   ABANDONED: 'abandoned',
 } as const
 
-export type ReconciliationStatus = (typeof RECONCILIATION_STATUS)[keyof typeof RECONCILIATION_STATUS]
+export type ReconciliationStatus =
+  (typeof RECONCILIATION_STATUS)[keyof typeof RECONCILIATION_STATUS]
 
 /** Statuses returned by getPendingReconciliations (the only ones eligible for claim). */
-export type ActionableReconciliationStatus = typeof RECONCILIATION_STATUS.PENDING | typeof RECONCILIATION_STATUS.FAILED
+export type ActionableReconciliationStatus =
+  | typeof RECONCILIATION_STATUS.PENDING
+  | typeof RECONCILIATION_STATUS.FAILED
 
 export const ENV_KEYS = {
   HIVE_CREATOR_ACCOUNT: 'HIVE_CREATOR_ACCOUNT',
@@ -263,6 +272,6 @@ export const BUILDERS_UI = {
 export const MAX_TICKET_CREDITS = 100 as const
 
 export const TICKET_LENGTH = {
-	MIN: 10,
-	MAX: 24,
+  MIN: 10,
+  MAX: 24,
 } as const

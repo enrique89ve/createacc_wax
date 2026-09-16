@@ -1,216 +1,200 @@
-/**
- * Notification Service - Manages user notifications
- * Handles creation, retrieval, and marking notifications as read
- */
-
 import { db } from './database'
 import { logger } from '@/lib/logger'
 import type {
-	CreateNotificationData,
-	DatabaseNotificationRow,
+  CreateNotificationData,
+  DatabaseNotificationRow,
 } from '@/types/database'
 import { parseNotificationRow as parseRow } from '@/types/database'
 
-/**
- * Get unread notification count for a user
- */
-export async function getUnreadCount(userId: string): Promise<number> {
-	try {
-		const result = await db.execute({
-			sql: `
+export async function getUnreadCount(hiveUsername: string): Promise<number> {
+  try {
+    const result = await db.execute({
+      sql: `
 				SELECT COUNT(*) as count
 				FROM Notifications
-				WHERE user_id = ? AND is_read = FALSE
+				WHERE hive_username = ? AND is_read = FALSE
 			`,
-			args: [userId],
-		})
+      args: [hiveUsername],
+    })
 
-		const row = result.rows[0] as unknown as { count: number }
-		return row?.count ?? 0
-	} catch (error) {
-		logger.error('Error getting unread notification count:', error)
-		return 0
-	}
+    const row = result.rows[0] as unknown as { count: number }
+    return row?.count ?? 0
+  } catch (error) {
+    logger.error('Error getting unread notification count:', error)
+    return 0
+  }
 }
 
-/**
- * Get all notifications for a user (unread first, then read)
- */
 export async function getNotifications(
-	userId: string,
-	limit: number = 10
+  hiveUsername: string,
+  limit = 10
 ): Promise<DatabaseNotificationRow[]> {
-	try {
-		const result = await db.execute({
-			sql: `
-				SELECT id, user_id, type, title, message, metadata, is_read, created_at, read_at, viewed_at
+  try {
+    const result = await db.execute({
+      sql: `
+				SELECT id, hive_username, type, title, message, metadata, is_read, created_at, read_at, viewed_at
 				FROM Notifications
-				WHERE user_id = ?
+				WHERE hive_username = ?
 				ORDER BY is_read ASC, created_at DESC
 				LIMIT ?
 			`,
-			args: [userId, limit],
-		})
+      args: [hiveUsername, limit],
+    })
 
-		return result.rows.map(parseRow).filter((n): n is DatabaseNotificationRow => n !== null)
-	} catch (error) {
-		logger.error('Error getting notifications:', error)
-		return []
-	}
+    return result.rows
+      .map(parseRow)
+      .filter((n): n is DatabaseNotificationRow => n !== null)
+  } catch (error) {
+    logger.error('Error getting notifications:', error)
+    return []
+  }
 }
 
-/**
- * Get only unread notifications for a user
- */
 export async function getUnreadNotifications(
-	userId: string
+  hiveUsername: string
 ): Promise<DatabaseNotificationRow[]> {
-	try {
-		const result = await db.execute({
-			sql: `
-				SELECT id, user_id, type, title, message, metadata, is_read, created_at, read_at, viewed_at
+  try {
+    const result = await db.execute({
+      sql: `
+				SELECT id, hive_username, type, title, message, metadata, is_read, created_at, read_at, viewed_at
 				FROM Notifications
-				WHERE user_id = ? AND is_read = FALSE
+				WHERE hive_username = ? AND is_read = FALSE
 				ORDER BY created_at DESC
 			`,
-			args: [userId],
-		})
+      args: [hiveUsername],
+    })
 
-		return result.rows.map(parseRow).filter((n): n is DatabaseNotificationRow => n !== null)
-	} catch (error) {
-		logger.error('Error getting unread notifications:', error)
-		return []
-	}
+    return result.rows
+      .map(parseRow)
+      .filter((n): n is DatabaseNotificationRow => n !== null)
+  } catch (error) {
+    logger.error('Error getting unread notifications:', error)
+    return []
+  }
 }
 
-/**
- * Create a new notification
- */
 export async function createNotification(
-	data: CreateNotificationData
+  data: CreateNotificationData
 ): Promise<boolean> {
-	try {
-		await db.execute({
-			sql: `
-				INSERT INTO Notifications (user_id, type, title, message, metadata)
+  try {
+    await db.execute({
+      sql: `
+				INSERT INTO Notifications (hive_username, type, title, message, metadata)
 				VALUES (?, ?, ?, ?, ?)
 			`,
-			args: [
-				data.user_id,
-				data.type,
-				data.title,
-				data.message,
-				data.metadata ?? null,
-			],
-		})
-
-		return true
-	} catch (error) {
-		logger.error('Error creating notification:', error)
-		return false
-	}
+      args: [
+        data.hive_username,
+        data.type,
+        data.title,
+        data.message,
+        data.metadata ?? null,
+      ],
+    })
+    return true
+  } catch (error) {
+    logger.error('Error creating notification:', error)
+    return false
+  }
 }
 
-/**
- * Mark a notification as read
- */
 export async function markAsRead(
-	notificationId: number,
-	userId: string
+  notificationId: number,
+  hiveUsername: string
 ): Promise<boolean> {
-	try {
-		const result = await db.execute({
-			sql: `
+  try {
+    const result = await db.execute({
+      sql: `
 				UPDATE Notifications
 				SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
-				WHERE id = ? AND user_id = ?
+				WHERE id = ? AND hive_username = ?
 			`,
-			args: [notificationId, userId],
-		})
-
-		return result.rowsAffected > 0
-	} catch (error) {
-		logger.error('Error marking notification as read:', error)
-		return false
-	}
+      args: [notificationId, hiveUsername],
+    })
+    return result.rowsAffected > 0
+  } catch (error) {
+    logger.error('Error marking notification as read:', error)
+    return false
+  }
 }
 
-/**
- * Mark all notifications as read for a user
- */
-export async function markAllAsRead(userId: string): Promise<boolean> {
-	try {
-		await db.execute({
-			sql: `
+export async function markAllAsRead(hiveUsername: string): Promise<boolean> {
+  try {
+    await db.execute({
+      sql: `
 				UPDATE Notifications
 				SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
-				WHERE user_id = ? AND is_read = FALSE
+				WHERE hive_username = ? AND is_read = FALSE
 			`,
-			args: [userId],
-		})
-
-		return true
-	} catch (error) {
-		logger.error('Error marking all notifications as read:', error)
-		return false
-	}
+      args: [hiveUsername],
+    })
+    return true
+  } catch (error) {
+    logger.error('Error marking all notifications as read:', error)
+    return false
+  }
 }
 
-/**
- * Create notification for pending credits
- */
 export async function notifyPendingCredits(
-	userId: string,
-	amount: number
+  hiveUsername: string,
+  amount: number
 ): Promise<boolean> {
-	return createNotification({
-		user_id: userId,
-		type: 'pending_credits',
-		title: 'Pending Credits',
-		message: `You have ${amount} ${amount === 1 ? 'credit' : 'credits'} to claim`,
-		metadata: JSON.stringify({ amount }),
-	})
+  return createNotification({
+    hive_username: hiveUsername,
+    type: 'pending_credits',
+    title: 'Pending Credits',
+    message: `You have ${amount} ${amount === 1 ? 'credit' : 'credits'} to claim`,
+    metadata: JSON.stringify({ amount }),
+  })
 }
 
-/**
- * Create notification for credit assignment
- */
 export async function notifyCreditAssigned(
-	userId: string,
-	amount: number,
-	assignedBy?: string
+  hiveUsername: string,
+  amount: number,
+  assignedBy?: string
 ): Promise<boolean> {
-	const message = assignedBy
-		? `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'} by ${assignedBy}`
-		: `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'}`
+  const message = assignedBy
+    ? `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'} by ${assignedBy}`
+    : `You have been assigned ${amount} ${amount === 1 ? 'credit' : 'credits'}`
 
-	return createNotification({
-		user_id: userId,
-		type: 'credit_assigned',
-		title: 'Assigned Credits',
-		message,
-		metadata: JSON.stringify({ amount, assignedBy }),
-	})
+  return createNotification({
+    hive_username: hiveUsername,
+    type: 'credit_assigned',
+    title: 'Assigned Credits',
+    message,
+    metadata: JSON.stringify({ amount, assignedBy }),
+  })
 }
 
-/**
- * Mark all un-viewed notifications as viewed for a user
- * This is called when the user opens the notification modal
- */
-export async function markAsViewed(userId: string): Promise<boolean> {
-	try {
-		await db.execute({
-			sql: `
+export async function notifyAccountCreated(
+  hiveUsername: string,
+  accountUsername: string,
+  ticketCode: string
+): Promise<boolean> {
+  return createNotification({
+    hive_username: hiveUsername,
+    type: 'account_created',
+    title: 'Cuenta Creada',
+    message: `Se creó la cuenta @${accountUsername} usando tu ticket`,
+    metadata: JSON.stringify({
+      account_username: accountUsername,
+      ticket_code: ticketCode,
+    }),
+  })
+}
+
+export async function markAsViewed(hiveUsername: string): Promise<boolean> {
+  try {
+    await db.execute({
+      sql: `
 				UPDATE Notifications
 				SET viewed_at = CURRENT_TIMESTAMP
-				WHERE user_id = ? AND viewed_at IS NULL
+				WHERE hive_username = ? AND viewed_at IS NULL
 			`,
-			args: [userId],
-		})
-
-		return true
-	} catch (error) {
-		logger.error('Error marking notifications as viewed:', error)
-		return false
-	}
+      args: [hiveUsername],
+    })
+    return true
+  } catch (error) {
+    logger.error('Error marking notifications as viewed:', error)
+    return false
+  }
 }
