@@ -9,8 +9,8 @@ import {
 	HiveBroadcastAttemptError,
 	type HiveBroadcaster,
 } from '@/lib/hive-broadcaster'
-import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
-import type { HiveTransactionResult } from '@/types/hive-transaction'
+import { BroadcastDisabledError, getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import type { HiveTransactionResult, HiveWaxPipelineStatus } from '@/types/hive-transaction'
 
 export interface IHiveTransactionConfig {
 	readonly account: string
@@ -22,8 +22,16 @@ export interface IHiveTransactionConfig {
 
 export type OperationBuilder = (tx: IOnlineTransaction, account: string) => void
 
+export interface PreparedTransactionSnapshot {
+	readonly id: string
+	readonly wax: HiveWaxPipelineStatus
+	readonly requiredAuthorities: unknown
+	readonly signaturePublicKeys: string[]
+}
+
 export interface ExecuteTransactionOptions {
 	readonly skipOnChainVerification?: boolean
+	readonly onPrepared?: (snapshot: PreparedTransactionSnapshot) => Promise<void>
 }
 
 export interface HiveTransactionRuntime {
@@ -104,13 +112,8 @@ export class HiveTransactionService {
 		tx: IOnlineTransaction
 	): Promise<boolean> {
 		const broadcast = this.runtime.broadcast ?? broadcastHiveTransaction
-		try {
-			const outcome = await broadcast(chain, tx)
-			return outcome.broadcasted
-		} catch (error) {
-			if (error instanceof HiveBroadcastAttemptError) throw error
-			throw new HiveBroadcastAttemptError(error)
-		}
+		const outcome = await broadcast(chain, tx)
+		return outcome.broadcasted
 	}
 
 	private async prepareSignedTransaction(
@@ -171,6 +174,14 @@ export class HiveTransactionService {
 					options
 				)
 			)
+			if (options.onPrepared) {
+				await options.onPrepared({
+					id: prepared.tx.id,
+					wax: prepared.wax,
+					requiredAuthorities: prepared.requiredAuthorities,
+					signaturePublicKeys: prepared.signaturePublicKeys,
+				})
+			}
 			const broadcasted = await this.dispatchBroadcast(prepared.chain, prepared.tx)
 			return {
 				id: prepared.tx.id,
@@ -194,6 +205,7 @@ export class HiveTransactionService {
 				return await operation()
 			} catch (error) {
 				if (error instanceof HiveBroadcastAttemptError) throw error
+				if (error instanceof BroadcastDisabledError) throw error
 				const isRetryable = shouldRetryWaxError(error)
 
 				if (!isRetryable || attempt === this.retryConfig.maxRetries) {

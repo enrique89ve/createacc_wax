@@ -20,6 +20,14 @@ import {
   type HiveTransactionResult,
 } from '@/types/hive-transaction'
 import {
+  getCreationAttempt,
+  insertReservedAttempt,
+  markAttemptCompleted,
+  markAttemptRolledBack,
+  waxStatusFromAttempt,
+  type CreationAttemptKeys,
+} from '@/lib/creation-attempts'
+import {
   ALL_ERROR_CODES,
   BLOCKCHAIN_ERROR_CODES,
   DATABASE_ERROR_CODES,
@@ -217,25 +225,11 @@ export async function accountExistsInDB(username: string): Promise<boolean> {
   return existing !== null
 }
 
-export async function ticketCreditAlreadyReserved(
-  ticketCode: string
-): Promise<boolean> {
-  try {
-    const cleanCode = sanitizeTicketCode(ticketCode)
-    if (!cleanCode) return false
-
-    const result = await db.execute({
-      sql: `SELECT original_credits, credits FROM Tickets WHERE code = ?`,
-      args: [cleanCode],
-    })
-    if (result.rows.length === 0) return false
-    const original = Number(result.rows[0].original_credits)
-    const remaining = Number(result.rows[0].credits)
-    return Number.isFinite(original) && Number.isFinite(remaining) && original > remaining
-  } catch (error) {
-    logger.error('[ticketCreditAlreadyReserved] Failed to read ticket:', error)
-    return false
-  }
+export interface ReserveTicketCreditInput {
+  readonly ticketCode: string
+  readonly correlationId: string
+  readonly username: string
+  readonly keys: CreationAttemptKeys
 }
 
 export async function getAccountCreationState(
@@ -388,14 +382,23 @@ export interface DBOperationResult {
  * If the on-chain creation fails afterwards, call rollbackTicketReservation().
  */
 export async function reserveTicketCredit(
-  ticketCode: string,
-  correlationId?: string
+  input: ReserveTicketCreditInput
 ): Promise<DBOperationResult> {
-  const cleanTicketCode = sanitizeTicketCode(ticketCode)
+  const correlationId = input.correlationId
+  const cleanTicketCode = sanitizeTicketCode(input.ticketCode)
+  const cleanUsername = sanitizeUsername(input.username)
   if (!cleanTicketCode) {
     return {
       success: false,
       error: 'Invalid ticket format',
+      errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+      correlationId,
+    }
+  }
+  if (!cleanUsername) {
+    return {
+      success: false,
+      error: 'Invalid username format',
       errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
       correlationId,
     }
@@ -441,6 +444,13 @@ export async function reserveTicketCredit(
         }
       }
 
+      await insertReservedAttempt({
+        correlationId,
+        username: cleanUsername,
+        ticket: cleanTicketCode,
+        keys: input.keys,
+      })
+
       await db.execute('COMMIT')
       return { success: true, correlationId }
     } catch (innerError) {
@@ -464,7 +474,7 @@ export async function reserveTicketCredit(
  */
 export async function rollbackTicketReservation(
   ticketCode: string,
-  correlationId?: string
+  correlationId: string
 ): Promise<DBOperationResult> {
   const cleanTicketCode = sanitizeTicketCode(ticketCode)
   if (!cleanTicketCode) {
@@ -477,31 +487,48 @@ export async function rollbackTicketReservation(
   }
 
   try {
-    const result = await db.execute({
-      sql: `UPDATE Tickets
-            SET credits = credits + 1,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE code = ?
-            RETURNING id`,
-      args: [cleanTicketCode],
-    })
-
-    if (result.rows.length === 0) {
-      logger.error(
-        `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
-      )
-      return {
-        success: false,
-        error: 'Ticket not found for rollback',
-        errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
-        correlationId,
+    await db.execute('BEGIN IMMEDIATE TRANSACTION')
+    try {
+      const marked = await markAttemptRolledBack(correlationId)
+      if (!marked) {
+        await db.execute('ROLLBACK')
+        logger.warn(
+          `[${correlationId}] Rollback skipped: attempt is not open`
+        )
+        return { success: true, correlationId }
       }
-    }
 
-    logger.warn(
-      `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back successfully`
-    )
-    return { success: true, correlationId }
+      const result = await db.execute({
+        sql: `UPDATE Tickets
+              SET credits = credits + 1,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE code = ?
+              RETURNING id`,
+        args: [cleanTicketCode],
+      })
+
+      if (result.rows.length === 0) {
+        await db.execute('ROLLBACK')
+        logger.error(
+          `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
+        )
+        return {
+          success: false,
+          error: 'Ticket not found for rollback',
+          errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
+          correlationId,
+        }
+      }
+
+      await db.execute('COMMIT')
+      logger.warn(
+        `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back for this attempt`
+      )
+      return { success: true, correlationId }
+    } catch (innerError) {
+      await db.execute('ROLLBACK')
+      throw innerError
+    }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     logger.error(
@@ -534,14 +561,35 @@ export function blockchainStatusFromTransaction(
 }
 
 function accountRowFromTransaction(
-  transactionResult?: HiveTransactionResult
+  transactionResult: HiveTransactionResult
 ): {
   executionMode: string
   blockchainStatus: string
   transactionId: string | null
   waxStatus: string | null
 } {
-  if (!transactionResult) {
+  return {
+    executionMode: transactionResult.mode,
+    blockchainStatus: blockchainStatusFromTransaction(transactionResult),
+    transactionId: transactionResult.id,
+    waxStatus: waxPipelinePassed(transactionResult.wax)
+      ? WAX_STATUS.PASSED
+      : WAX_STATUS.FAILED,
+  }
+}
+
+async function accountRowForCompletion(
+  transactionResult: HiveTransactionResult | undefined,
+  correlationId: string | undefined
+): Promise<{
+  executionMode: string
+  blockchainStatus: string
+  transactionId: string | null
+  waxStatus: string | null
+}> {
+  if (transactionResult) return accountRowFromTransaction(transactionResult)
+
+  if (!correlationId) {
     return {
       executionMode: HIVE_TX_MODE_VALUES.BROADCAST,
       blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
@@ -550,13 +598,27 @@ function accountRowFromTransaction(
     }
   }
 
+  const attempt = await getCreationAttempt(correlationId)
+  if (!attempt || !attempt.transactionId) {
+    return {
+      executionMode: attempt?.executionMode ?? HIVE_TX_MODE_VALUES.BROADCAST,
+      blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
+      transactionId: null,
+      waxStatus: null,
+    }
+  }
+
+  const reconstructed: HiveTransactionResult = {
+    id: attempt.transactionId,
+    mode: attempt.executionMode,
+    broadcasted: attempt.broadcasted,
+    wax: attempt.wax,
+    requiredAuthorities: {},
+    signaturePublicKeys: [],
+  }
   return {
-    executionMode: transactionResult.mode,
-    blockchainStatus: blockchainStatusFromTransaction(transactionResult),
-    transactionId: transactionResult.id,
-    waxStatus: waxPipelinePassed(transactionResult.wax)
-      ? WAX_STATUS.PASSED
-      : WAX_STATUS.FAILED,
+    ...accountRowFromTransaction(reconstructed),
+    waxStatus: waxStatusFromAttempt(attempt),
   }
 }
 
@@ -605,7 +667,7 @@ export async function completeAccountCreationInDB(
         ? (ticketInfo.rows[0].created_by as string | null)
         : null
 
-      const accountMeta = accountRowFromTransaction(transactionResult)
+      const accountMeta = await accountRowForCompletion(transactionResult, correlationId)
 
       // 2. Save account record
       try {
@@ -639,6 +701,10 @@ export async function completeAccountCreationInDB(
       // 3. Mark credits as consumed in the builder balance
       if (createdBy) {
         await creditsService.markCreditsAsConsumed(createdBy, 1, cleanUsername)
+      }
+
+      if (correlationId) {
+        await markAttemptCompleted(correlationId)
       }
 
       await db.execute('COMMIT')

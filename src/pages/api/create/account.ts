@@ -2,18 +2,22 @@ import type { APIContext, APIRoute } from 'astro'
 import type { CreationSession } from '@/types/auth'
 import { logger } from '@/lib/logger'
 import { createAccount } from '@/lib/create/create-account'
-import { delegateResourceCredits, simulateRcDelegation } from '@/lib/create/delegate-rc'
 import {
 	HivePreflightError,
 	runAccountCreationPreflight,
 } from '@/lib/hive-preflight'
 import {
 	getHiveExecutionMode,
-	isBroadcastEnabled,
 	isSimulationMode,
-	canDelegateResourceCredits,
 	BroadcastDisabledError,
 } from '@/lib/hive-execution-mode'
+import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
+import {
+	persistAttemptBroadcastOutcome,
+	persistAttemptPreparation,
+} from '@/lib/creation-attempts'
+import { recoverOwnedAccount } from '@/lib/recover-owned-account'
+import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
 	BLOCKCHAIN_STATUS,
 	type HiveExecutionMode,
@@ -29,8 +33,6 @@ import {
 	type HiveTransactionResult,
 } from '@/types/hive-transaction'
 import {
-	RC_DELEGATION_AMOUNT,
-	RC_DELEGATION_CONFIG,
 	HTTP_STATUS,
 } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
@@ -44,7 +46,6 @@ import {
 	getAccountCreationState,
 	updateAccountBlockchainStatus,
 	enqueueReconciliation,
-	ticketCreditAlreadyReserved,
 } from '@/utils/db-ticket-validator'
 type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 import { createJsonResponse } from '@/utils/errorResponse'
@@ -64,10 +65,7 @@ import { resolveClientIp } from '@/lib/client-ip'
 import { validatePowSolution, validateTimingToken, type PowSolution } from '@/lib/pow'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { analyzeWaxError } from '@/lib/wax-error-utils'
-import {
-	HiveBroadcastAttemptError,
-	unwrapBroadcastError,
-} from '@/lib/hive-broadcaster'
+import { unwrapBroadcastError } from '@/lib/hive-broadcaster'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
 // Side-effect: auto-reconciler (also imported from middleware.ts; ES module imports are idempotent)
@@ -115,14 +113,6 @@ export type AccountCreationResponse =
 	| AccountCreationFailureResponse
 
 /**
- * In-memory cache to prevent duplicate RC delegations to the same user.
- * @limitation Only works in single-server environments. In multi-server scenarios (horizontal scaling),
- * each instance has its own Set, so duplicate delegations can occur.
- * For multi-server, replace with Redis or a database flag.
- */
-const processedUsers = new Set<string>()
-
-/**
  * In-memory lock to prevent concurrent account creation for the same username.
  * Ensures only one request at a time can reserve credits and create an account.
  *
@@ -144,10 +134,13 @@ function releaseCreationLock(username: string): void {
 	creationsInProgress.delete(username)
 }
 
-function scheduleUserCleanup(username: string) {
-	setTimeout(() => {
-		processedUsers.delete(username)
-	}, RC_DELEGATION_CONFIG.CACHE_CLEANUP_MS)
+function keysFromRequest(request: ValidatedAccountRequest): CreationAttemptKeys {
+	return {
+		ownerPublicKey: request.ownerPublicKey,
+		activePublicKey: request.activePublicKey,
+		postingPublicKey: request.postingPublicKey,
+		memoPublicKey: request.memoPublicKey,
+	}
 }
 
 // --- Type guard ---
@@ -417,14 +410,21 @@ async function runCreationPreflight(
 
 async function reserveTicket(
 	ticketCode: string,
-	correlationId: string
+	correlationId: string,
+	username: string,
+	keys: CreationAttemptKeys
 ): Promise<Response | void> {
 	const obfuscatedTicket = obfuscateTicket(ticketCode)
 	logger.warn(
 		`[${correlationId}] Creating account with ticket ${obfuscatedTicket}`
 	)
 
-	const reservation = await reserveTicketCredit(ticketCode, correlationId)
+	const reservation = await reserveTicketCredit({
+		ticketCode,
+		correlationId,
+		username,
+		keys,
+	})
 	if (!reservation.success) {
 		const isRace = reservation.errorCode === ERROR_CODES.TICKET_RACE_CONDITION
 		const isNotFound = reservation.errorCode === ERROR_CODES.TICKET_NOT_FOUND
@@ -479,7 +479,14 @@ async function createAccountOnChain(
 	username: string
 ): Promise<Response | HiveTransactionResult> {
 	try {
-		return await createAccount(params)
+		const tx = await createAccount(params, undefined, async (snapshot) => {
+			const persisted = await persistAttemptPreparation(correlationId, snapshot)
+			if (!persisted) {
+				throw new Error('Failed to persist prepared transaction snapshot')
+			}
+		})
+		await persistAttemptBroadcastOutcome(correlationId, tx)
+		return tx
 	} catch (chainError) {
 		if (chainError instanceof BroadcastDisabledError) {
 			await rollbackAfterFailure(
@@ -514,38 +521,11 @@ async function createAccountOnChain(
 		}
 
 		if (errorInfo.code === AppErrorCode.ACCOUNT_ALREADY_EXISTS) {
-			const recovered = await transactionIfAccountOnHive(username, correlationId)
-			if (recovered) {
-				logger.info(
-					`[${correlationId}] Account ${username} already on Hive after create attempt. Recovering without rollback.`
-				)
-				return recovered
-			}
-			logger.warn(
-				`[${correlationId}] Account ${username} already exists on-chain after pre-check passed. Attempting rollback.`
-			)
-			const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
-			if (rollbackResult.success) {
-				logger.info(`[${correlationId}] Rollback successful after ACCOUNT_ALREADY_EXISTS.`)
-			} else {
-				logger.error(
-					`[${correlationId}] Rollback failed after ACCOUNT_ALREADY_EXISTS: ${rollbackResult.error}. Enqueueing reconciliation.`
-				)
-				await enqueueReconciliation({
-					correlationId,
-					username,
-					ticketCode,
-					reason: 'ambiguous_chain_error',
-					errorCategory: errorInfo.category,
-					errorMessage: `rollback_failed_after_account_exists: ${rollbackResult.error}`,
-				})
-			}
-			return failureResponse(
-				'Account creation result is uncertain',
-				'Account already exists on-chain after pre-check',
-				ERROR_CODES.CHAIN_VERIFICATION_FAILED,
-				HTTP_STATUS.CONFLICT,
-				{ requiresReconciliation: !rollbackResult.success, correlationId }
+			return handleAccountAlreadyExists(
+				params,
+				ticketCode,
+				correlationId,
+				username
 			)
 		}
 
@@ -592,60 +572,11 @@ async function createAccountOnChain(
 	}
 }
 
-function scheduleRcDelegation(username: string): void {
-	if (processedUsers.has(username)) return
-
-	processedUsers.add(username)
-
-	setTimeout(async () => {
-		for (let attempt = 0; attempt <= RC_DELEGATION_CONFIG.MAX_RETRIES; attempt++) {
-			try {
-				const result = await delegateResourceCredits({
-					delegatee: username,
-					maxRc: RC_DELEGATION_AMOUNT,
-				})
-				logger.info(
-					`[rc-delegation] Delegated RC to ${username} broadcast=${result.broadcasted} tx=${result.id}`
-				)
-				scheduleUserCleanup(username)
-				return
-			} catch (error) {
-				const errMsg = error instanceof Error ? error.message : 'Unknown error'
-				if (error instanceof HiveBroadcastAttemptError) {
-					logger.warn(
-						`[rc-delegation] Broadcast already attempted for ${username}: ${errMsg}. Not retrying.`
-					)
-					processedUsers.delete(username)
-					return
-				}
-				if (attempt < RC_DELEGATION_CONFIG.MAX_RETRIES) {
-					logger.warn(`[rc-delegation] Attempt ${attempt + 1} failed for ${username}: ${errMsg}. Retrying...`)
-					await new Promise(resolve => setTimeout(resolve, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
-				} else {
-					logger.error(`[rc-delegation] All attempts failed for ${username}: ${errMsg}`)
-					processedUsers.delete(username)
-				}
-			}
-		}
-	}, RC_DELEGATION_CONFIG.DELAY_MS)
-}
-
-function queueRcDelegation(username: string): void {
-	if (isBroadcastEnabled()) {
-		scheduleRcDelegation(username)
-		return
-	}
-	simulateRcDelegation(username, RC_DELEGATION_AMOUNT).catch((error) => {
-		const errMsg = error instanceof Error ? error.message : 'Unknown error'
-		logger.warn(`[rc-delegation] Unexpected simulation error for ${username}: ${errMsg}`)
-	})
-}
-
 async function completeInDatabase(
 	username: string,
 	ticketCode: string,
 	correlationId: string,
-	tx: HiveTransactionResult
+	tx?: HiveTransactionResult
 ): Promise<Response | void> {
 	const dbResult = await completeAccountCreationInDB(
 		username,
@@ -655,8 +586,9 @@ async function completeInDatabase(
 	)
 	if (dbResult.success) return
 
+	const transactionId = tx?.id
 	logger.error(
-		`[${correlationId}] WARNING: Account ${username} pipeline finished (tx: ${tx.id}) but DB completion failed: ${dbResult.error}. Ticket was already reserved.`
+		`[${correlationId}] WARNING: Account ${username} pipeline finished (tx: ${transactionId ?? 'none'}) but DB completion failed: ${dbResult.error}. Ticket was already reserved.`
 	)
 
 	if (isSimulationMode()) {
@@ -667,7 +599,7 @@ async function completeInDatabase(
 			'db_completion_failed',
 			undefined,
 			dbResult.error,
-			tx.id
+			transactionId
 		)
 		return failureResponse(
 			VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
@@ -676,8 +608,8 @@ async function completeInDatabase(
 			HTTP_STATUS.INTERNAL_SERVER_ERROR,
 			{
 				details: dbResult.error,
-				transactionId: tx.id,
-				...waxFlagsFromResult(tx),
+				transactionId,
+				...(tx ? waxFlagsFromResult(tx) : {}),
 				requiresReconciliation: false,
 				correlationId,
 			}
@@ -690,7 +622,7 @@ async function completeInDatabase(
 		ticketCode,
 		reason: 'db_completion_failed',
 		errorMessage: dbResult.error,
-		transactionId: tx.id,
+		transactionId,
 	})
 	return failureResponse(
 		VALIDATION_ERROR_MESSAGES.DB_OPERATIONS_FAILED,
@@ -699,8 +631,8 @@ async function completeInDatabase(
 		HTTP_STATUS.INTERNAL_SERVER_ERROR,
 		{
 			details: dbResult.error,
-			transactionId: tx.id,
-			...waxFlagsFromResult(tx),
+			transactionId,
+			...(tx ? waxFlagsFromResult(tx) : {}),
 			requiresReconciliation: true,
 			correlationId,
 		}
@@ -715,65 +647,142 @@ function finalizeSession(context: APIContext, session: ValidatedSession): void {
 	)
 }
 
-function recoveredBroadcastResult(username: string): HiveTransactionResult {
-	return {
-		id: `recovered-${username}`,
-		mode: getHiveExecutionMode(),
-		broadcasted: true,
-		wax: {
-			validated: true,
-			onChainVerified: true,
-			signed: true,
-			authorityVerified: true,
-		},
-		requiredAuthorities: {},
-		signaturePublicKeys: [],
+async function rollbackForeignAccount(
+	ticketCode: string,
+	correlationId: string,
+	username: string
+): Promise<Response> {
+	const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+	if (!rollbackResult.success) {
+		await enqueueReconciliation({
+			correlationId,
+			username,
+			ticketCode,
+			reason: 'ambiguous_chain_error',
+			errorCategory: 'business',
+			errorMessage: `rollback_failed_after_foreign_account: ${rollbackResult.error}`,
+		})
 	}
+	return failureResponse(
+		'Account already exists on Hive',
+		'Account already exists with different authorities',
+		ERROR_CODES.ACCOUNT_ALREADY_EXISTS,
+		HTTP_STATUS.CONFLICT,
+		{ requiresReconciliation: !rollbackResult.success, correlationId }
+	)
 }
 
-async function transactionIfAccountOnHive(
-	username: string,
-	correlationId: string
-): Promise<HiveTransactionResult | null> {
-	const chain = await hiveChain()
-	const lookup = await validateHiveAccountExistsWithPolling({
-		chain,
-		accountName: username,
+async function handleAccountAlreadyExists(
+	params: ReturnType<typeof toCreateAccountParams>,
+	ticketCode: string,
+	correlationId: string,
+	username: string
+): Promise<Response | HiveTransactionResult> {
+	const recovered = await recoverOwnedAccount({
+		username,
+		ticket: ticketCode,
+		keys: {
+			ownerPublicKey: params.ownerPublicKey,
+			activePublicKey: params.activePublicKey,
+			postingPublicKey: params.postingPublicKey,
+			memoPublicKey: params.memoPublicKey,
+		},
+		correlationId,
 	})
-	if (lookup.status !== 'found') {
-		logger.warn(
-			`[${correlationId}] Hive lookup after create attempt was ${lookup.status}`
+
+	if (recovered.kind === 'recovered') {
+		logger.info(
+			`[${correlationId}] Account ${username} on Hive matches this attempt. Recovering without rollback.`
 		)
-		return null
+		if (recovered.tx) return recovered.tx
+		const dbResult = await completeInDatabase(username, ticketCode, correlationId)
+		if (dbResult instanceof Response) return dbResult
+		const chainConfirmed = await confirmAccountOnHive(username, correlationId)
+		maybeQueueRcDelegation(username, chainConfirmed)
+		const account = await getAccountCreationState(username)
+		return idempotentSuccessResponse(
+			`Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
+			account
+		)
 	}
-	return recoveredBroadcastResult(username)
+
+	if (recovered.kind === 'error' || recovered.kind === 'ambiguous') {
+		await enqueueReconciliation({
+			correlationId,
+			username,
+			ticketCode,
+			reason: 'ambiguous_chain_error',
+			errorCategory: 'api',
+			errorMessage: recovered.kind === 'error' ? recovered.message : 'ambiguous hive authorities',
+		})
+		return failureResponse(
+			'Account creation result is uncertain',
+			'Could not verify Hive authorities after ACCOUNT_ALREADY_EXISTS',
+			ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+			HTTP_STATUS.INTERNAL_SERVER_ERROR,
+			{ requiresReconciliation: true, correlationId }
+		)
+	}
+
+	logger.warn(
+		`[${correlationId}] Account ${username} already exists and is not this attempt. Rolling back.`
+	)
+	return rollbackForeignAccount(ticketCode, correlationId, username)
 }
 
 async function recoverReservedHttpRetry(
 	context: APIContext,
 	session: ValidatedSession,
-	username: string
+	request: ValidatedAccountRequest
 ): Promise<Response | null> {
-	const reserved = await ticketCreditAlreadyReserved(session.ticket)
-	if (!reserved) return null
+	const recovered = await recoverOwnedAccount({
+		username: request.username,
+		ticket: session.ticket,
+		keys: keysFromRequest(request),
+	})
 
-	const correlationId = `${username}-retry`
-	const tx = await transactionIfAccountOnHive(username, correlationId)
-	if (!tx) return null
+	if (recovered.kind === 'no_attempt' || recovered.kind === 'not_found') return null
+	if (recovered.kind === 'error' || recovered.kind === 'ambiguous') return null
 
-	const dbResult = await completeInDatabase(username, session.ticket, correlationId, tx)
+	if (recovered.kind === 'foreign_account') {
+		return rollbackForeignAccount(
+			session.ticket,
+			recovered.attempt.correlationId,
+			request.username
+		)
+	}
+
+	const correlationId = recovered.attempt.correlationId
+	const dbResult = await completeInDatabase(
+		request.username,
+		session.ticket,
+		correlationId,
+		recovered.tx ?? undefined
+	)
 	if (dbResult instanceof Response) return dbResult
 
-	const chainConfirmed = await confirmAccountOnHive(username, correlationId)
-	if (canDelegateResourceCredits(chainConfirmed)) {
-		queueRcDelegation(username)
-	}
+	const chainConfirmed = await confirmAccountOnHive(request.username, correlationId)
+	maybeQueueRcDelegation(request.username, chainConfirmed)
 	finalizeSession(context, session)
-	logCreationOutcome(correlationId, username, tx, true)
-	return successResponse(
-		`Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
-		tx,
-		{ transactionId: tx.id, correlationId, chainConfirmed, isIdempotent: true }
+
+	if (recovered.tx) {
+		logCreationOutcome(correlationId, request.username, recovered.tx, true)
+		return successResponse(
+			`Account ${request.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+			recovered.tx,
+			{
+				transactionId: recovered.tx.id,
+				correlationId,
+				chainConfirmed,
+				isIdempotent: true,
+			}
+		)
+	}
+
+	const account = await getAccountCreationState(request.username)
+	return idempotentSuccessResponse(
+		`Account ${request.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+		account
 	)
 }
 
@@ -801,6 +810,7 @@ async function confirmAccountOnHive(
 		logger.error(
 			`[${correlationId}] Hive confirmed ${username} but DB status update failed`
 		)
+		return false
 	}
 	return true
 }
@@ -852,7 +862,7 @@ export const POST: APIRoute = async (context) => {
 			const recovered = await recoverReservedHttpRetry(
 				context,
 				sessionResult,
-				requestResult.username
+				requestResult
 			)
 			if (recovered) return recovered
 			return preflightResult
@@ -870,7 +880,12 @@ export const POST: APIRoute = async (context) => {
 		}
 
 		try {
-			const reserveResult = await reserveTicket(sessionResult.ticket, correlationId)
+			const reserveResult = await reserveTicket(
+				sessionResult.ticket,
+				correlationId,
+				requestResult.username,
+				keysFromRequest(requestResult)
+			)
 			if (reserveResult instanceof Response) return reserveResult
 
 			const txResult = await createAccountOnChain(params, sessionResult.ticket, correlationId, requestResult.username)
@@ -903,9 +918,7 @@ export const POST: APIRoute = async (context) => {
 				)
 			}
 
-			if (canDelegateResourceCredits(chainConfirmed)) {
-				queueRcDelegation(requestResult.username)
-			}
+			maybeQueueRcDelegation(requestResult.username, chainConfirmed)
 
 			finalizeSession(context, sessionResult)
 			logCreationOutcome(correlationId, requestResult.username, txResult, true)

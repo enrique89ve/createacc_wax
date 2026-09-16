@@ -20,6 +20,9 @@
 import { logger } from '@/lib/logger'
 import { hiveChain } from '@/lib/hiveservice'
 import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
+import { recoverOwnedAccount } from '@/lib/recover-owned-account'
+import { hiveTransactionFromAttempt, getCreationAttempt } from '@/lib/creation-attempts'
+import { confirmPendingBroadcastedAccounts } from '@/lib/confirm-broadcasted'
 import {
 	getPendingReconciliations,
 	claimReconciliationEntry,
@@ -93,6 +96,35 @@ async function reconcileEntry(
 		// 4. Resolve from confirmed on-chain state
 		if (chainResult.status === 'found') {
 			const existsInDB = await accountExistsInDB(username)
+			const attempt = await getCreationAttempt(correlationId)
+			if (!attempt) {
+				await markReconciliationFailed(id, 'No creation attempt for correlation')
+				return
+			}
+
+			const recovered = await recoverOwnedAccount({
+				username,
+				ticket: ticketCode,
+				keys: attempt.keys,
+				correlationId,
+			})
+
+			if (recovered.kind !== 'recovered') {
+				if (recovered.kind === 'foreign_account') {
+					const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+					if (!rollbackResult.success) {
+						await markReconciliationFailed(id, `Rollback failed: ${rollbackResult.error}`)
+						return
+					}
+					await markReconciliationResolved(id, RESOLVER_ID)
+					logger.info(
+						`[${RESOLVER_ID}] [${correlationId}] Foreign Hive account for ${username}. Rolled back this attempt.`
+					)
+					return
+				}
+				await markReconciliationFailed(id, `Recovery was ${recovered.kind}`)
+				return
+			}
 
 			if (existsInDB) {
 				await markReconciliationResolved(id, RESOLVER_ID)
@@ -102,7 +134,12 @@ async function reconcileEntry(
 				return
 			}
 
-			const dbResult = await completeAccountCreationInDB(username, ticketCode, correlationId)
+			const dbResult = await completeAccountCreationInDB(
+				username,
+				ticketCode,
+				correlationId,
+				hiveTransactionFromAttempt(attempt) ?? undefined
+			)
 			if (!dbResult.success) {
 				await markReconciliationFailed(id, `DB completion failed: ${dbResult.error}`)
 				logger.error(
@@ -111,7 +148,7 @@ async function reconcileEntry(
 			} else {
 				await markReconciliationResolved(id, RESOLVER_ID)
 				logger.info(
-					`[${RESOLVER_ID}] [${correlationId}] Completed DB for on-chain account ${username}. Ticket: ${obfuscated}`
+					`[${RESOLVER_ID}] [${correlationId}] Completed DB for owned on-chain account ${username}. Ticket: ${obfuscated}`
 				)
 			}
 			return
@@ -162,6 +199,11 @@ async function runReconciliation(): Promise<void> {
 			logger.warn(`[${RESOLVER_ID}] Reset ${resetCount} stuck processing entry/entries to 'failed'.`)
 		}
 
+		const confirmed = await confirmPendingBroadcastedAccounts()
+		if (confirmed > 0) {
+			logger.info(`[${RESOLVER_ID}] Confirmed ${confirmed} broadcasted account(s) and queued RC once.`)
+		}
+
 		const pending = await getPendingReconciliations()
 		if (pending.length === 0) return
 
@@ -181,7 +223,7 @@ async function runReconciliation(): Promise<void> {
 		for (const entry of mature) {
 			await reconcileEntry(entry, chain)
 			// Small delay between entries to avoid hammering the API
-			await new Promise(r => setTimeout(r, RECONCILIATION_CONFIG.RATE_LIMIT_DELAY_MS))
+			await new Promise(resolve => setTimeout(resolve, RECONCILIATION_CONFIG.RATE_LIMIT_DELAY_MS))
 		}
 	} catch (error) {
 		const errMsg = error instanceof Error ? error.message : 'Unknown error'

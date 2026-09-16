@@ -29,6 +29,8 @@ import {
 } from '@/utils/db-ticket-validator'
 import { hiveChain } from '@/lib/hiveservice'
 import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
+import { recoverOwnedAccount } from '@/lib/recover-owned-account'
+import { getCreationAttempt, hiveTransactionFromAttempt } from '@/lib/creation-attempts'
 import { RECONCILIATION_CONFIG } from '@/consts/constants'
 
 const RESOLVER_ID = 'reconcile-script'
@@ -123,6 +125,62 @@ async function reconcileEntry(
 		// Step 4: status='found' path resolves consistency or DB completion.
 		if (chainResult.status === 'found') {
 			const existsInDB = await accountExistsInDB(username)
+			const attempt = await getCreationAttempt(correlationId)
+			if (!attempt) {
+				if (!isDryRun) {
+					await markReconciliationFailed(id, 'No creation attempt for correlation')
+				}
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'error',
+					detail: `No creation attempt for ${correlationId}. Ticket: ${obfuscated}`,
+				}
+			}
+
+			const recovered = await recoverOwnedAccount({
+				username,
+				ticket: ticketCode,
+				keys: attempt.keys,
+				correlationId,
+			})
+
+			if (recovered.kind !== 'recovered') {
+				if (recovered.kind === 'foreign_account') {
+					if (!isDryRun) {
+						const rollbackResult = await rollbackTicketReservation(ticketCode, correlationId)
+						if (!rollbackResult.success) {
+							await markReconciliationFailed(id, `Rollback failed: ${rollbackResult.error}`)
+							return {
+								entryId: id,
+								correlationId,
+								username,
+								action: 'error',
+								detail: `Rollback failed after foreign account. Ticket: ${obfuscated}`,
+							}
+						}
+						await markReconciliationResolved(id, RESOLVER_ID)
+					}
+					return {
+						entryId: id,
+						correlationId,
+						username,
+						action: 'rolled_back',
+						detail: `Hive account authorities do not match this attempt. ${isDryRun ? 'Would roll back' : 'Rolled back'} this credit. Ticket: ${obfuscated}`,
+					}
+				}
+				if (!isDryRun) {
+					await markReconciliationFailed(id, `Recovery was ${recovered.kind}`)
+				}
+				return {
+					entryId: id,
+					correlationId,
+					username,
+					action: 'error',
+					detail: `Could not recover owned account (${recovered.kind}). Ticket: ${obfuscated}`,
+				}
+			}
 
 			if (existsInDB) {
 				if (!isDryRun) {
@@ -133,12 +191,17 @@ async function reconcileEntry(
 					correlationId,
 					username,
 					action: 'already_consistent',
-					detail: `Account exists on-chain and in DB. Resolved.`,
+					detail: `Account exists on-chain with matching keys and in DB. Resolved.`,
 				}
 			}
 
 			if (!isDryRun) {
-				const dbResult = await completeAccountCreationInDB(username, ticketCode, correlationId)
+				const dbResult = await completeAccountCreationInDB(
+					username,
+					ticketCode,
+					correlationId,
+					hiveTransactionFromAttempt(attempt) ?? undefined
+				)
 				if (!dbResult.success) {
 					await markReconciliationFailed(id, `DB completion failed: ${dbResult.error}`)
 					return {
@@ -156,7 +219,7 @@ async function reconcileEntry(
 				correlationId,
 				username,
 				action: 'completed_db',
-				detail: `Account on-chain but not in DB. ${isDryRun ? 'Would complete' : 'Completed'} DB operations. Ticket: ${obfuscated}`,
+				detail: `Owned account on-chain but not in DB. ${isDryRun ? 'Would complete' : 'Completed'} DB operations. Ticket: ${obfuscated}`,
 			}
 		}
 

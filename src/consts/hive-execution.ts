@@ -25,6 +25,16 @@ export const WAX_STATUS = {
 
 export type WaxStatus = (typeof WAX_STATUS)[keyof typeof WAX_STATUS]
 
+export const CREATION_ATTEMPT_STATUS = {
+	RESERVED: 'reserved',
+	PREPARED: 'prepared',
+	COMPLETED: 'completed',
+	ROLLED_BACK: 'rolled_back',
+} as const
+
+export type CreationAttemptStatus =
+	(typeof CREATION_ATTEMPT_STATUS)[keyof typeof CREATION_ATTEMPT_STATUS]
+
 export const RC_PREFLIGHT_THRESHOLDS = {
 	PASS_PERCENT: 20,
 	WARNING_PERCENT: 5,

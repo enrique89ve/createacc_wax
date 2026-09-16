@@ -15,6 +15,7 @@ vi.mock('@/lib/create/beekeeper-service', () => ({
 
 import { HiveTransactionService } from '@/lib/hive-transaction-service'
 import { HiveBroadcastAttemptError } from '@/lib/hive-broadcaster'
+import { BroadcastDisabledError } from '@/lib/hive-execution-mode'
 
 const ORIGINAL_TX = process.env.HIVE_TX_MODE
 const ORIGINAL_CONFIRM = process.env.HIVE_BROADCAST_CONFIRM
@@ -173,8 +174,7 @@ describe('HiveTransactionService broadcast spy', () => {
 	it('does not retry after a broadcast timeout', async () => {
 		process.env.HIVE_TX_MODE = 'broadcast'
 		process.env.HIVE_BROADCAST_CONFIRM = 'HIVE_MAINNET'
-		const gateway = vi.fn().mockRejectedValue(new Error('network timeout'))
-		const chainBroadcast = vi.fn()
+		const chainBroadcast = vi.fn().mockRejectedValue(new Error('network timeout'))
 		const tx = createTxMock()
 		const chain = {
 			createTransaction: async () => tx,
@@ -191,14 +191,61 @@ describe('HiveTransactionService broadcast spy', () => {
 			},
 			{
 				getChain: async () => chain,
-				broadcast: gateway,
 			}
 		)
 		await expect(service.executeTransaction(() => {})).rejects.toBeInstanceOf(
 			HiveBroadcastAttemptError
 		)
-		expect(gateway).toHaveBeenCalledTimes(1)
+		expect(chainBroadcast).toHaveBeenCalledTimes(1)
+	})
+
+	it('does not wrap BroadcastDisabledError as a broadcast attempt', async () => {
+		process.env.HIVE_TX_MODE = 'broadcast'
+		delete process.env.HIVE_BROADCAST_CONFIRM
+		const chainBroadcast = vi.fn()
+		const tx = createTxMock()
+		const chain = {
+			createTransaction: async () => tx,
+			endpointUrl: 'https://api.hive.blog',
+			broadcast: chainBroadcast,
+		} as unknown as IHiveChainInterface
+		const service = HiveTransactionService.create(
+			{
+				account: 'creator',
+				privateKey: '5secret',
+				walletName: 'test',
+				maxRetries: 2,
+				retryDelayMs: 1,
+			},
+			{ getChain: async () => chain }
+		)
+		await expect(service.executeTransaction(() => {})).rejects.toBeInstanceOf(
+			BroadcastDisabledError
+		)
 		expect(chainBroadcast).not.toHaveBeenCalled()
+	})
+
+	it('persists the prepared snapshot before broadcasting', async () => {
+		process.env.HIVE_TX_MODE = 'simulate'
+		const tx = createTxMock()
+		const onPrepared = vi.fn().mockResolvedValue(undefined)
+		const gateway = vi.fn().mockResolvedValue({ broadcasted: false })
+		const chain = {
+			createTransaction: async () => tx,
+			endpointUrl: 'https://api.hive.blog',
+			broadcast: vi.fn(),
+		} as unknown as IHiveChainInterface
+		const service = HiveTransactionService.create(
+			{ account: 'creator', privateKey: '5secret', walletName: 'test', maxRetries: 0 },
+			{ getChain: async () => chain, broadcast: gateway }
+		)
+		await service.executeTransaction(() => {}, { onPrepared })
+		expect(onPrepared).toHaveBeenCalledTimes(1)
+		expect(onPrepared.mock.calls[0]?.[0]?.id).toBe('txid')
+		expect(gateway).toHaveBeenCalledTimes(1)
+		expect(onPrepared.mock.invocationCallOrder[0]).toBeLessThan(
+			gateway.mock.invocationCallOrder[0]
+		)
 	})
 
 	it('RC simulation skips on-chain verification and still does not broadcast', async () => {

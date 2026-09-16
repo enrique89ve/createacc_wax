@@ -137,7 +137,8 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		blockchain_status TEXT NOT NULL DEFAULT 'confirmed',
 		transaction_id TEXT,
 		correlation_id TEXT,
-		wax_status TEXT
+		wax_status TEXT,
+		rc_delegated INTEGER NOT NULL DEFAULT 0
 	)`,
 
 	`CREATE TABLE IF NOT EXISTS TicketAudit (
@@ -199,6 +200,27 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 	)`,
 
+	`CREATE TABLE IF NOT EXISTS CreationAttempts (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		correlation_id TEXT NOT NULL UNIQUE,
+		username TEXT NOT NULL,
+		ticket TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('reserved', 'prepared', 'completed', 'rolled_back')),
+		owner_public_key TEXT NOT NULL,
+		active_public_key TEXT NOT NULL,
+		posting_public_key TEXT NOT NULL,
+		memo_public_key TEXT NOT NULL,
+		transaction_id TEXT,
+		execution_mode TEXT NOT NULL DEFAULT 'simulate',
+		broadcasted INTEGER NOT NULL DEFAULT 0,
+		wax_validated INTEGER NOT NULL DEFAULT 0,
+		wax_on_chain_verified INTEGER NOT NULL DEFAULT 0,
+		wax_signed INTEGER NOT NULL DEFAULT 0,
+		wax_authority_verified INTEGER NOT NULL DEFAULT 0,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`,
+
 	`CREATE TABLE IF NOT EXISTS ReconciliationQueue (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		correlation_id TEXT NOT NULL,
@@ -230,6 +252,10 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 	`CREATE INDEX IF NOT EXISTS idx_notifications_cleanup ON Notifications (user_id, is_read, viewed_at) WHERE viewed_at IS NOT NULL AND is_read = TRUE`,
 	`CREATE INDEX IF NOT EXISTS idx_reconciliation_pending ON ReconciliationQueue (resolved, created_at DESC) WHERE resolved = FALSE`,
 	`CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable ON ReconciliationQueue (status, created_at)`,
+	`CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket, username)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
+		ON CreationAttempts (username) WHERE status IN ('reserved', 'prepared')`,
+	`CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,
 
 	`CREATE TRIGGER IF NOT EXISTS prevent_multiple_admins
 		BEFORE INSERT ON "user"
@@ -326,6 +352,10 @@ const ACCOUNT_COLUMN_MIGRATIONS: readonly { name: string; sql: string }[] = [
 	{
 		name: 'wax_status',
 		sql: `ALTER TABLE Accounts ADD COLUMN wax_status TEXT`,
+	},
+	{
+		name: 'rc_delegated',
+		sql: `ALTER TABLE Accounts ADD COLUMN rc_delegated INTEGER NOT NULL DEFAULT 0`,
 	},
 ]
 

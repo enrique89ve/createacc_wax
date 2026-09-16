@@ -1,35 +1,49 @@
 import './test-setup-env.ts'
 import { initializeDatabase, db } from '@/lib/database'
+import { hiveAuthEmail } from '@/lib/auth-user'
 import {
 	completeAccountCreationInDB,
 	getPendingReconciliations,
 	reserveTicketCredit,
 } from '@/utils/db-ticket-validator'
+import { persistAttemptPreparation } from '@/lib/creation-attempts'
 import { HiveKeys } from '@/lib/create/get-keys'
 import { createAccount } from '@/lib/create/create-account'
 import { noopHiveBroadcast } from '@/lib/hive-broadcaster'
 import { isSimulationSuccess } from '@/types/hive-transaction'
 
-const BUILDER_ID = '22222222-2222-4222-8222-222222222222'
-
-function isolationIds(): { ticket: string; username: string } {
+function isolationIds() {
 	const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
+	const builderUsername = `intb${suffix}`
 	return {
 		ticket: `INTSIM${suffix.toUpperCase()}`,
 		username: `hhint${suffix}`,
+		builderId: crypto.randomUUID(),
+		builderUsername,
+		builderEmail: hiveAuthEmail(builderUsername),
 	}
 }
 
-async function cleanupOwnRecords(ticket: string, username: string): Promise<void> {
-	await db.execute({ sql: `DELETE FROM Accounts WHERE username = ?`, args: [username] })
-	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [ticket] })
+async function cleanupOwnRecords(params: {
+	ticket: string
+	username: string
+	builderId: string
+}): Promise<void> {
+	await db.execute({ sql: `DELETE FROM Notifications WHERE user_id = ?`, args: [params.builderId] })
+	await db.execute({ sql: `DELETE FROM CreditAudit WHERE builder_id = ?`, args: [params.builderId] })
+	await db.execute({ sql: `DELETE FROM CreationAttempts WHERE ticket = ?`, args: [params.ticket] })
+	await db.execute({ sql: `DELETE FROM Accounts WHERE username = ?`, args: [params.username] })
+	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [params.ticket] })
+	await db.execute({ sql: `DELETE FROM Credits WHERE builder_id = ?`, args: [params.builderId] })
+	await db.execute({ sql: `DELETE FROM "user" WHERE id = ?`, args: [params.builderId] })
 }
 
 async function main(): Promise<void> {
 	process.env.HIVE_TX_MODE = 'simulate'
 	delete process.env.HIVE_BROADCAST_CONFIRM
 
-	const { ticket, username } = isolationIds()
+	const fixture = isolationIds()
+	const { ticket, username, builderId, builderUsername, builderEmail } = fixture
 	const correlationId = `corr-${username}`
 
 	const ok = await initializeDatabase()
@@ -37,20 +51,20 @@ async function main(): Promise<void> {
 
 	try {
 		await db.execute({
-			sql: `INSERT OR IGNORE INTO "user" (
+			sql: `INSERT INTO "user" (
 				id, name, email, email_verified, username, role, auth_method, is_active
 			) VALUES (?, ?, ?, 1, ?, 'builder', 'keychain', 1)`,
-			args: [BUILDER_ID, 'int-builder', 'int-builder@hive.local', 'int-builder'],
+			args: [builderId, builderUsername, builderEmail, builderUsername],
 		})
 		await db.execute({
-			sql: `INSERT OR IGNORE INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
+			sql: `INSERT INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
 				VALUES (?, 0, 10, 10, 0)`,
-			args: [BUILDER_ID],
+			args: [builderId],
 		})
 		await db.execute({
 			sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
 				VALUES (?, 'integration sim', 3, 3, ?)`,
-			args: [ticket, BUILDER_ID],
+			args: [ticket, builderId],
 		})
 
 		const before = await db.execute({
@@ -59,11 +73,24 @@ async function main(): Promise<void> {
 		})
 		const creditsBefore = Number(before.rows[0]?.credits)
 		const keys = await HiveKeys.generate(username)
-		const reserved = await reserveTicketCredit(ticket, correlationId)
+		const createParams = keys.toCreateAccountParams(username)
+		const reserved = await reserveTicketCredit({
+			ticketCode: ticket,
+			correlationId,
+			username,
+			keys: {
+				ownerPublicKey: createParams.ownerPublicKey,
+				activePublicKey: createParams.activePublicKey,
+				postingPublicKey: createParams.postingPublicKey,
+				memoPublicKey: createParams.memoPublicKey,
+			},
+		})
 		if (!reserved.success) throw new Error(reserved.error)
 
-		const tx = await createAccount(keys.toCreateAccountParams(username), {
+		const tx = await createAccount(createParams, {
 			broadcast: noopHiveBroadcast,
+		}, async (snapshot) => {
+			await persistAttemptPreparation(correlationId, snapshot)
 		})
 		if (!isSimulationSuccess(tx)) {
 			throw new Error('Simulation did not pass WAX checks')
@@ -102,7 +129,7 @@ async function main(): Promise<void> {
 		console.log(`reconciliation=${ownPending.length}`)
 		console.log('INTEGRATION SIMULATION PASSED')
 	} finally {
-		await cleanupOwnRecords(ticket, username)
+		await cleanupOwnRecords(fixture)
 	}
 }
 

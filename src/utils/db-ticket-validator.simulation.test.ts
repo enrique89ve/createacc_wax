@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { initializeDatabase, db } from '@/lib/database'
+import { hiveAuthEmail } from '@/lib/auth-user'
 import {
 	blockchainStatusFromTransaction,
 	completeAccountCreationInDB,
@@ -9,14 +10,32 @@ import {
 	reserveTicketCredit,
 	rollbackTicketReservation,
 	updateAccountBlockchainStatus,
-	ticketCreditAlreadyReserved,
 } from '@/utils/db-ticket-validator'
+import {
+	findOpenCreationAttempt,
+	getCreationAttempt,
+	persistAttemptPreparation,
+} from '@/lib/creation-attempts'
+import { claimAccountRcDelegation } from '@/lib/create/queue-rc-delegation'
 import { creationFlagsFromPersistedAccount } from '@/lib/account-status'
 import { BLOCKCHAIN_STATUS, HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
+import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 
-const TICKET = 'SIMTESTTICKET01'
-const BUILDER_ID = '11111111-1111-4111-8111-111111111111'
+const RUN = crypto.randomUUID().replace(/-/g, '')
+const TICKET = `SIMT${RUN.slice(0, 12).toUpperCase()}`
+const BUILDER_ID = crypto.randomUUID()
+const BUILDER_USERNAME = `simb${RUN.slice(0, 10)}`
+const BUILDER_EMAIL = hiveAuthEmail(BUILDER_USERNAME)
+
+function keysFor(username: string): CreationAttemptKeys {
+	return {
+		ownerPublicKey: `STM7owner${username}`,
+		activePublicKey: `STM7active${username}`,
+		postingPublicKey: `STM7posting${username}`,
+		memoPublicKey: `STM7memo${username}`,
+	}
+}
 
 function simulatedTx(id: string): HiveTransactionResult {
 	return {
@@ -34,23 +53,39 @@ function simulatedTx(id: string): HiveTransactionResult {
 	}
 }
 
+function reserveInput(correlationId: string, username: string) {
+	return {
+		ticketCode: TICKET,
+		correlationId,
+		username,
+		keys: keysFor(username),
+	}
+}
+
+async function cleanupFixture(): Promise<void> {
+	await db.execute({ sql: `DELETE FROM Notifications WHERE user_id = ?`, args: [BUILDER_ID] })
+	await db.execute({ sql: `DELETE FROM CreditAudit WHERE builder_id = ?`, args: [BUILDER_ID] })
+	await db.execute({ sql: `DELETE FROM CreationAttempts WHERE ticket = ?`, args: [TICKET] })
+	await db.execute({ sql: `DELETE FROM Accounts WHERE ticket = ?`, args: [TICKET] })
+	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [TICKET] })
+	await db.execute({ sql: `DELETE FROM Credits WHERE builder_id = ?`, args: [BUILDER_ID] })
+	await db.execute({ sql: `DELETE FROM "user" WHERE id = ?`, args: [BUILDER_ID] })
+}
+
 beforeAll(async () => {
 	const ok = await initializeDatabase()
 	expect(ok).toBe(true)
+	await cleanupFixture()
 	await db.execute({
-		sql: `INSERT OR IGNORE INTO "user" (
+		sql: `INSERT INTO "user" (
 			id, name, email, email_verified, username, role, auth_method, is_active
 		) VALUES (?, ?, ?, 1, ?, 'builder', 'keychain', 1)`,
-		args: [BUILDER_ID, 'sim-builder', 'sim-builder@hive.local', 'sim-builder'],
+		args: [BUILDER_ID, BUILDER_USERNAME, BUILDER_EMAIL, BUILDER_USERNAME],
 	})
 	await db.execute({
-		sql: `INSERT OR IGNORE INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
+		sql: `INSERT INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
 			VALUES (?, 0, 10, 10, 0)`,
 		args: [BUILDER_ID],
-	})
-	await db.execute({
-		sql: `DELETE FROM Tickets WHERE code = ?`,
-		args: [TICKET],
 	})
 	await db.execute({
 		sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
@@ -60,16 +95,15 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-	await db.execute({ sql: `DELETE FROM Accounts WHERE ticket = ?`, args: [TICKET] })
-	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [TICKET] })
+	await cleanupFixture()
 })
 
 describe('simulation DB completion', () => {
 	it('T01 consumes ticket and stores simulated account', async () => {
-		const reserved = await reserveTicketCredit(TICKET, 'corr-1')
+		const username = `simu${Date.now().toString(36)}`
+		const reserved = await reserveTicketCredit(reserveInput('corr-1', username))
 		expect(reserved.success).toBe(true)
 
-		const username = `simuser${Date.now().toString(36)}`
 		const completed = await completeAccountCreationInDB(
 			username,
 			TICKET,
@@ -106,9 +140,9 @@ describe('simulation DB completion', () => {
 			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		const reserved = await reserveTicketCredit(TICKET, 'corr-live')
+		const username = `liveu${Date.now().toString(36)}`
+		const reserved = await reserveTicketCredit(reserveInput('corr-live', username))
 		expect(reserved.success).toBe(true)
-		const username = `liveuser${Date.now().toString(36)}`
 		const completed = await completeAccountCreationInDB(
 			username,
 			TICKET,
@@ -128,11 +162,19 @@ describe('simulation DB completion', () => {
 			args: [TICKET],
 		})
 		const [first, second] = await Promise.all([
-			reserveTicketCredit(TICKET, 'corr-a'),
-			reserveTicketCredit(TICKET, 'corr-b'),
+			reserveTicketCredit(reserveInput('corr-a', `cona${Date.now().toString(36)}`)),
+			reserveTicketCredit(reserveInput('corr-b', `conb${Date.now().toString(36)}`)),
 		])
 		const successes = [first, second].filter(result => result.success)
 		expect(successes).toHaveLength(1)
+		const failed = [first, second].find(result => !result.success)
+		if (failed?.correlationId) {
+			await rollbackTicketReservation(TICKET, failed.correlationId)
+		}
+		const winner = successes[0]
+		if (winner?.correlationId) {
+			await rollbackTicketReservation(TICKET, winner.correlationId)
+		}
 	})
 
 	it('T06 simulation DB failure rolls back ticket and skips reconciliation', async () => {
@@ -140,7 +182,8 @@ describe('simulation DB completion', () => {
 			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		await reserveTicketCredit(TICKET, 'corr-fail')
+		const username = `failu${Date.now().toString(36)}`
+		await reserveTicketCredit(reserveInput('corr-fail', username))
 		const completed = await completeAccountCreationInDB(
 			'',
 			TICKET,
@@ -164,7 +207,8 @@ describe('simulation DB completion', () => {
 			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		const reserved = await reserveTicketCredit(TICKET, 'corr-wax')
+		const username = `waxu${Date.now().toString(36)}`
+		const reserved = await reserveTicketCredit(reserveInput('corr-wax', username))
 		expect(reserved.success).toBe(true)
 		const mid = await db.execute({
 			sql: `SELECT credits FROM Tickets WHERE code = ?`,
@@ -178,6 +222,7 @@ describe('simulation DB completion', () => {
 			args: [TICKET],
 		})
 		expect(Number(after.rows[0]?.credits)).toBe(3)
+		expect(await getCreationAttempt('corr-wax')).toMatchObject({ status: 'rolled_back' })
 	})
 
 	it('duplicate username does not consume a second credit', async () => {
@@ -185,13 +230,14 @@ describe('simulation DB completion', () => {
 			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		const username = `dupuser${Date.now().toString(36)}`
-		expect((await reserveTicketCredit(TICKET, 'corr-dup-1')).success).toBe(true)
+		const username = `dupu${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-dup-1', username))).success).toBe(true)
 		expect(
 			(await completeAccountCreationInDB(username, TICKET, 'corr-dup-1', simulatedTx('tx-dup-1'))).success
 		).toBe(true)
 
-		expect((await reserveTicketCredit(TICKET, 'corr-dup-2')).success).toBe(true)
+		const other = `dupo${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-dup-2', other))).success).toBe(true)
 		const second = await completeAccountCreationInDB(
 			username,
 			TICKET,
@@ -213,8 +259,8 @@ describe('simulation DB completion', () => {
 			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		const username = `confuser${Date.now().toString(36)}`
-		expect((await reserveTicketCredit(TICKET, 'corr-conf')).success).toBe(true)
+		const username = `confu${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-conf', username))).success).toBe(true)
 		const liveTx: HiveTransactionResult = {
 			...simulatedTx('tx-conf-1'),
 			mode: HIVE_TX_MODE_VALUES.BROADCAST,
@@ -234,15 +280,46 @@ describe('simulation DB completion', () => {
 		expect(flags.broadcasted).toBe(true)
 		expect(flags.chainConfirmed).toBe(true)
 		expect(flags.executionMode).toBe(HIVE_TX_MODE_VALUES.BROADCAST)
+		expect(await claimAccountRcDelegation(username)).toBe(true)
+		expect(await claimAccountRcDelegation(username)).toBe(false)
 	})
 
-	it('detects a reserved ticket credit for HTTP retry recovery', async () => {
+	it('ties a reserved credit to this username and keys, not the ticket counter', async () => {
 		await db.execute({
 			sql: `UPDATE Tickets SET credits = 3, original_credits = 3 WHERE code = ?`,
 			args: [TICKET],
 		})
-		expect(await ticketCreditAlreadyReserved(TICKET)).toBe(false)
-		expect((await reserveTicketCredit(TICKET, 'corr-reserved')).success).toBe(true)
-		expect(await ticketCreditAlreadyReserved(TICKET)).toBe(true)
+		const firstUser = `resu${Date.now().toString(36)}`
+		const laterUser = `resl${Date.now().toString(36)}`
+		expect(await findOpenCreationAttempt({
+			username: laterUser,
+			ticket: TICKET,
+			keys: keysFor(laterUser),
+		})).toBeNull()
+
+		expect((await reserveTicketCredit(reserveInput('corr-reserved', firstUser))).success).toBe(true)
+		expect(await findOpenCreationAttempt({
+			username: firstUser,
+			ticket: TICKET,
+			keys: keysFor(firstUser),
+		})).not.toBeNull()
+		expect(await findOpenCreationAttempt({
+			username: laterUser,
+			ticket: TICKET,
+			keys: keysFor(laterUser),
+		})).toBeNull()
+
+		await persistAttemptPreparation('corr-reserved', {
+			id: 'prepared-tx-1',
+			wax: {
+				validated: true,
+				onChainVerified: true,
+				signed: true,
+				authorityVerified: true,
+			},
+		})
+		const attempt = await getCreationAttempt('corr-reserved')
+		expect(attempt?.transactionId).toBe('prepared-tx-1')
+		await rollbackTicketReservation(TICKET, 'corr-reserved')
 	})
 })
