@@ -1,8 +1,5 @@
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
-import {
-	assertBroadcastAllowed,
-	isSimulationMode,
-} from '@/lib/hive-execution-mode'
+import { isBroadcastEnabled } from '@/lib/hive-execution-mode'
 
 export interface HiveBroadcastOutcome {
 	readonly broadcasted: boolean
@@ -46,11 +43,9 @@ export async function broadcastHiveTransaction(
 	chain: IHiveChainInterface,
 	tx: IOnlineTransaction
 ): Promise<HiveBroadcastOutcome> {
-	if (isSimulationMode()) {
+	if (!isBroadcastEnabled()) {
 		return { broadcasted: false }
 	}
-
-	assertBroadcastAllowed()
 	try {
 		await chain.broadcast(tx)
 	} catch (error) {

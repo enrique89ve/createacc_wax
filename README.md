@@ -47,8 +47,7 @@ AUTH_SECRET=           # ≥ 32 chars
 SESSION_SECRET=        # openssl rand -base64 64
 BEEKEEPER_WALLET_PASSWORD=
 
-HIVE_TX_MODE=simulate
-# HIVE_BROADCAST_CONFIRM=HIVE_MAINNET   # required only for live broadcast
+HIVE_TX_MODE=simulate   # or broadcast for live mainnet transmission
 ```
 
 Optional Turso:

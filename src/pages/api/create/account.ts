@@ -9,7 +9,6 @@ import {
 import {
 	getHiveExecutionMode,
 	isSimulationMode,
-	BroadcastDisabledError,
 } from '@/lib/hive-execution-mode'
 import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
 import {
@@ -554,24 +553,6 @@ async function createAccountOnChain(
 		await persistAttemptBroadcastOutcome(correlationId, tx)
 		return tx
 	} catch (chainError) {
-		if (chainError instanceof BroadcastDisabledError) {
-			await rollbackAfterFailure(
-				ticketCode,
-				correlationId,
-				username,
-				'ambiguous_chain_error',
-				'config',
-				chainError.message
-			)
-			return failureResponse(
-				'Broadcast is disabled',
-				chainError.message,
-				ERROR_CODES.INTERNAL_ERROR,
-				HTTP_STATUS.SERVICE_UNAVAILABLE,
-				{ correlationId }
-			)
-		}
-
 		const errorInfo = analyzeWaxError(unwrapBroadcastError(chainError))
 
 		if (isSimulationMode()) {

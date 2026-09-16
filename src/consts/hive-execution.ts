@@ -6,8 +6,6 @@ export const HIVE_TX_MODE_VALUES = {
 export type HiveExecutionMode =
 	(typeof HIVE_TX_MODE_VALUES)[keyof typeof HIVE_TX_MODE_VALUES]
 
-export const HIVE_BROADCAST_CONFIRM_VALUE = 'HIVE_MAINNET' as const
-
 export const BLOCKCHAIN_STATUS = {
 	SIMULATED: 'simulated',
 	BROADCASTED: 'broadcasted',

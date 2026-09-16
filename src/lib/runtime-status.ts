@@ -10,7 +10,7 @@ export interface RuntimeStatus {
 
 export function getRuntimeStatus(): RuntimeStatus {
 	const mode = getHiveExecutionMode()
-	const isLive = mode === HIVE_TX_MODE_VALUES.BROADCAST && isBroadcastEnabled()
+	const isLive = isBroadcastEnabled()
 
 	return {
 		network: 'Hive Mainnet',

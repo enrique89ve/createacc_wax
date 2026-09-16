@@ -15,7 +15,6 @@ import type { APIContext } from 'astro'
 import type { AdminSession, BuilderSession } from '@/types/auth'
 import { parseRole, UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
-import { assertBroadcastConfig } from '@/lib/hive-execution-mode'
 import { signUserId } from '@/lib/user-id-token'
 
 function toAdminSession(user: AdminUser): AdminSession | null {
@@ -144,8 +143,6 @@ function hiveConnectSources(): string[] {
 		...HIVE_CHAIN_CONFIG.MAINNET_BACKUPS,
 	]
 }
-
-assertBroadcastConfig()
 
 /**
  * Security headers applied to all responses.

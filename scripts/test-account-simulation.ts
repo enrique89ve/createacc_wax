@@ -1,136 +1,301 @@
 import './test-setup-env.ts'
 import { initializeDatabase, db } from '@/lib/database'
 import { hiveAuthEmail } from '@/lib/auth-user'
+import { RC_DELEGATION_AMOUNT } from '@/consts/constants'
+import {
+	BLOCKCHAIN_STATUS,
+	CREATION_ATTEMPT_STATUS,
+	HIVE_TX_MODE_VALUES,
+} from '@/consts/hive-execution'
 import {
 	completeAccountCreationInDB,
 	getPendingReconciliations,
 	reserveTicketCredit,
+	rollbackTicketReservation,
 } from '@/utils/db-ticket-validator'
-import { persistAttemptPreparation } from '@/lib/creation-attempts'
+import {
+	getCreationAttempt,
+	persistAttemptBroadcastOutcome,
+	persistAttemptPreparation,
+} from '@/lib/creation-attempts'
 import { HiveKeys } from '@/lib/create/get-keys'
-import { createAccount } from '@/lib/create/create-account'
-import { noopHiveBroadcast } from '@/lib/hive-broadcaster'
-import { isSimulationSuccess } from '@/types/hive-transaction'
+import { createAccount, type ICreateAccountParams } from '@/lib/create/create-account'
+import { simulateRcDelegation } from '@/lib/create/delegate-rc'
+import {
+	isBroadcastEnabled,
+	isSimulationMode,
+} from '@/lib/hive-execution-mode'
+import {
+	isRcSimulationSuccess,
+	isSimulationSuccess,
+	type HiveTransactionResult,
+} from '@/types/hive-transaction'
+import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 
-function isolationIds() {
+interface IsolationFixture {
+	readonly ticket: string
+	readonly username: string
+	readonly builderId: string
+	readonly builderUsername: string
+	readonly builderEmail: string
+	readonly correlationId: string
+}
+
+interface BatteryCase {
+	readonly name: string
+	readonly run: () => Promise<void>
+}
+
+function isolationIds(): IsolationFixture {
 	const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
 	const builderUsername = `intb${suffix}`
+	const username = `hhint${suffix}`
 	return {
 		ticket: `INTSIM${suffix.toUpperCase()}`,
-		username: `hhint${suffix}`,
+		username,
 		builderId: crypto.randomUUID(),
 		builderUsername,
 		builderEmail: hiveAuthEmail(builderUsername),
+		correlationId: `corr-${username}`,
 	}
 }
 
-async function cleanupOwnRecords(params: {
-	ticket: string
-	username: string
-	builderId: string
-}): Promise<void> {
-	await db.execute({ sql: `DELETE FROM Notifications WHERE user_id = ?`, args: [params.builderId] })
-	await db.execute({ sql: `DELETE FROM CreditAudit WHERE builder_id = ?`, args: [params.builderId] })
-	await db.execute({ sql: `DELETE FROM CreationAttempts WHERE ticket = ?`, args: [params.ticket] })
-	await db.execute({ sql: `DELETE FROM Accounts WHERE username = ?`, args: [params.username] })
-	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [params.ticket] })
-	await db.execute({ sql: `DELETE FROM Credits WHERE builder_id = ?`, args: [params.builderId] })
-	await db.execute({ sql: `DELETE FROM "user" WHERE id = ?`, args: [params.builderId] })
+function requireSimulationMode(): void {
+	process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.SIMULATE
+	if (!isSimulationMode() || isBroadcastEnabled()) {
+		throw new Error('Simulation battery refused to run outside HIVE_TX_MODE=simulate')
+	}
 }
 
-async function main(): Promise<void> {
-	process.env.HIVE_TX_MODE = 'simulate'
-	delete process.env.HIVE_BROADCAST_CONFIRM
+function keysFromParams(params: ICreateAccountParams): CreationAttemptKeys {
+	return {
+		ownerPublicKey: params.ownerPublicKey,
+		activePublicKey: params.activePublicKey,
+		postingPublicKey: params.postingPublicKey,
+		memoPublicKey: params.memoPublicKey,
+	}
+}
 
+function invalidCreateParams(username: string): ICreateAccountParams {
+	return {
+		username,
+		ownerPublicKey: 'not-a-hive-key',
+		activePublicKey: 'not-a-hive-key',
+		postingPublicKey: 'not-a-hive-key',
+		memoPublicKey: 'not-a-hive-key',
+	}
+}
+
+function assert(condition: boolean, message: string): asserts condition {
+	if (!condition) throw new Error(message)
+}
+
+async function ticketCredits(ticket: string): Promise<number> {
+	const result = await db.execute({
+		sql: `SELECT credits FROM Tickets WHERE code = ?`,
+		args: [ticket],
+	})
+	return Number(result.rows[0]?.credits)
+}
+
+async function accountFields(username: string): Promise<{
+	readonly executionMode: string
+	readonly blockchainStatus: string
+	readonly transactionId: string
+} | null> {
+	const result = await db.execute({
+		sql: `SELECT execution_mode, blockchain_status, transaction_id
+			FROM Accounts WHERE username = ?`,
+		args: [username],
+	})
+	const row = result.rows[0]
+	if (!row) return null
+	return {
+		executionMode: String(row.execution_mode),
+		blockchainStatus: String(row.blockchain_status),
+		transactionId: String(row.transaction_id),
+	}
+}
+
+async function pendingFor(correlationId: string): Promise<number> {
+	const pending = await getPendingReconciliations()
+	return pending.filter(entry => entry.correlationId === correlationId).length
+}
+
+async function cleanupOwnRecords(fixture: IsolationFixture): Promise<void> {
+	await db.execute({ sql: `DELETE FROM Notifications WHERE user_id = ?`, args: [fixture.builderId] })
+	await db.execute({ sql: `DELETE FROM CreditAudit WHERE builder_id = ?`, args: [fixture.builderId] })
+	await db.execute({ sql: `DELETE FROM CreationAttempts WHERE ticket = ?`, args: [fixture.ticket] })
+	await db.execute({ sql: `DELETE FROM Accounts WHERE username = ?`, args: [fixture.username] })
+	await db.execute({ sql: `DELETE FROM Tickets WHERE code = ?`, args: [fixture.ticket] })
+	await db.execute({ sql: `DELETE FROM Credits WHERE builder_id = ?`, args: [fixture.builderId] })
+	await db.execute({ sql: `DELETE FROM "user" WHERE id = ?`, args: [fixture.builderId] })
+}
+
+async function insertFixture(fixture: IsolationFixture): Promise<void> {
+	await db.execute({
+		sql: `INSERT INTO "user" (
+			id, name, email, email_verified, username, role, auth_method, is_active
+		) VALUES (?, ?, ?, 1, ?, 'builder', 'keychain', 1)`,
+		args: [fixture.builderId, fixture.builderUsername, fixture.builderEmail, fixture.builderUsername],
+	})
+	await db.execute({
+		sql: `INSERT INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
+			VALUES (?, 0, 10, 10, 0)`,
+		args: [fixture.builderId],
+	})
+	await db.execute({
+		sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
+			VALUES (?, 'integration sim', 3, 3, ?)`,
+		args: [fixture.ticket, fixture.builderId],
+	})
+}
+
+async function withFixture(run: (fixture: IsolationFixture) => Promise<void>): Promise<void> {
 	const fixture = isolationIds()
-	const { ticket, username, builderId, builderUsername, builderEmail } = fixture
-	const correlationId = `corr-${username}`
-
-	const ok = await initializeDatabase()
-	if (!ok) throw new Error('DB init failed')
-
+	await insertFixture(fixture)
 	try {
-		await db.execute({
-			sql: `INSERT INTO "user" (
-				id, name, email, email_verified, username, role, auth_method, is_active
-			) VALUES (?, ?, ?, 1, ?, 'builder', 'keychain', 1)`,
-			args: [builderId, builderUsername, builderEmail, builderUsername],
-		})
-		await db.execute({
-			sql: `INSERT INTO Credits (builder_id, pending_amount, available_amount, total_assigned, total_consumed)
-				VALUES (?, 0, 10, 10, 0)`,
-			args: [builderId],
-		})
-		await db.execute({
-			sql: `INSERT INTO Tickets (code, description, original_credits, credits, created_by)
-				VALUES (?, 'integration sim', 3, 3, ?)`,
-			args: [ticket, builderId],
-		})
-
-		const before = await db.execute({
-			sql: `SELECT credits FROM Tickets WHERE code = ?`,
-			args: [ticket],
-		})
-		const creditsBefore = Number(before.rows[0]?.credits)
-		const keys = await HiveKeys.generate(username)
-		const createParams = keys.toCreateAccountParams(username)
-		const reserved = await reserveTicketCredit({
-			ticketCode: ticket,
-			correlationId,
-			username,
-			keys: {
-				ownerPublicKey: createParams.ownerPublicKey,
-				activePublicKey: createParams.activePublicKey,
-				postingPublicKey: createParams.postingPublicKey,
-				memoPublicKey: createParams.memoPublicKey,
-			},
-		})
-		if (!reserved.success) throw new Error(reserved.error)
-
-		const tx = await createAccount(createParams, {
-			broadcast: noopHiveBroadcast,
-		}, async (snapshot) => {
-			await persistAttemptPreparation(correlationId, snapshot)
-		})
-		if (!isSimulationSuccess(tx)) {
-			throw new Error('Simulation did not pass WAX checks')
-		}
-		if (tx.broadcasted) throw new Error('Broadcast occurred during simulation')
-		if (!tx.wax.onChainVerified) throw new Error('on-chain verification did not pass')
-
-		const dbResult = await completeAccountCreationInDB(username, ticket, correlationId, tx)
-		if (!dbResult.success) throw new Error(dbResult.error)
-
-		const after = await db.execute({
-			sql: `SELECT credits FROM Tickets WHERE code = ?`,
-			args: [ticket],
-		})
-		const creditsAfter = Number(after.rows[0]?.credits)
-		const account = await db.execute({
-			sql: `SELECT execution_mode, blockchain_status FROM Accounts WHERE username = ?`,
-			args: [username],
-		})
-		const pending = await getPendingReconciliations()
-		const ownPending = pending.filter(entry => entry.correlationId === correlationId)
-		const mode = String(account.rows[0]?.execution_mode)
-		const status = String(account.rows[0]?.blockchain_status)
-
-		if (creditsBefore !== 3) throw new Error(`Expected ticket credits 3 before, got ${creditsBefore}`)
-		if (creditsAfter !== 2) throw new Error(`Expected ticket credits 2 after, got ${creditsAfter}`)
-		if (mode !== 'simulate') throw new Error(`Expected execution_mode=simulate, got ${mode}`)
-		if (status !== 'simulated') throw new Error(`Expected blockchain_status=simulated, got ${status}`)
-		if (ownPending.length !== 0) {
-			throw new Error(`Expected 0 reconciliations for ${correlationId}, got ${ownPending.length}`)
-		}
-
-		console.log(`ticket=${ticket} username=${username}`)
-		console.log(`ticket before=${creditsBefore} after=${creditsAfter}`)
-		console.log(`account mode=${mode} status=${status}`)
-		console.log(`reconciliation=${ownPending.length}`)
-		console.log('INTEGRATION SIMULATION PASSED')
+		await run(fixture)
 	} finally {
 		await cleanupOwnRecords(fixture)
 	}
+}
+
+async function reserveFor(
+	fixture: IsolationFixture,
+	params: ICreateAccountParams
+): Promise<void> {
+	const reserved = await reserveTicketCredit({
+		ticketCode: fixture.ticket,
+		correlationId: fixture.correlationId,
+		username: fixture.username,
+		keys: keysFromParams(params),
+	})
+	assert(reserved.success, reserved.error ?? 'reserve failed')
+}
+
+function assertSimulationTx(tx: HiveTransactionResult): void {
+	assert(isSimulationSuccess(tx), 'Simulation did not pass WAX checks')
+	assert(tx.broadcasted === false, 'Broadcast occurred during simulation')
+	assert(tx.mode === HIVE_TX_MODE_VALUES.SIMULATE, `Expected mode simulate, got ${tx.mode}`)
+	assert(tx.wax.onChainVerified, 'on-chain verification did not pass')
+}
+
+async function runCreatePipeline(): Promise<void> {
+	await withFixture(async (fixture) => {
+		const keys = await HiveKeys.generate(fixture.username)
+		const params = keys.toCreateAccountParams(fixture.username)
+		assert((await ticketCredits(fixture.ticket)) === 3, 'ticket should start at 3 credits')
+
+		await reserveFor(fixture, params)
+		assert(
+			(await getCreationAttempt(fixture.correlationId))?.status === CREATION_ATTEMPT_STATUS.RESERVED,
+			'attempt should be reserved'
+		)
+		assert((await ticketCredits(fixture.ticket)) === 2, 'reserve should consume one credit')
+
+		const tx = await createAccount(params, undefined, async (snapshot) => {
+			const persisted = await persistAttemptPreparation(fixture.correlationId, snapshot)
+			assert(persisted, 'Failed to persist prepared snapshot')
+		})
+		assertSimulationTx(tx)
+
+		const prepared = await getCreationAttempt(fixture.correlationId)
+		assert(prepared?.status === CREATION_ATTEMPT_STATUS.PREPARED, 'attempt should be prepared')
+		assert(prepared?.transactionId === tx.id, 'prepared snapshot id must match tx.id')
+		assert(prepared?.broadcasted === false, 'prepared attempt must not be marked broadcasted')
+
+		await persistAttemptBroadcastOutcome(fixture.correlationId, tx)
+		assert(
+			(await getCreationAttempt(fixture.correlationId))?.status === CREATION_ATTEMPT_STATUS.PREPARED,
+			'simulate outcome must stay prepared, never broadcasting'
+		)
+
+		const dbResult = await completeAccountCreationInDB(
+			fixture.username,
+			fixture.ticket,
+			fixture.correlationId,
+			tx
+		)
+		assert(dbResult.success, dbResult.error ?? 'DB complete failed')
+
+		const account = await accountFields(fixture.username)
+		assert(account?.executionMode === HIVE_TX_MODE_VALUES.SIMULATE, 'account mode must be simulate')
+		assert(
+			account?.blockchainStatus === BLOCKCHAIN_STATUS.SIMULATED,
+			'account status must be simulated'
+		)
+		assert(account?.transactionId === tx.id, 'account tx id must match prepared tx')
+		assert(
+			(await getCreationAttempt(fixture.correlationId))?.status === CREATION_ATTEMPT_STATUS.COMPLETED,
+			'attempt should be completed'
+		)
+		assert((await pendingFor(fixture.correlationId)) === 0, 'simulate must not enqueue reconciliation')
+
+		const rc = await simulateRcDelegation(fixture.username, RC_DELEGATION_AMOUNT)
+		assert(rc !== null, 'RC simulation returned null')
+		assert(isRcSimulationSuccess(rc), 'RC simulation predicate failed')
+		assert(rc.broadcasted === false, 'RC simulation broadcasted')
+		assert(rc.wax.onChainVerified === false, 'RC simulation must skip on-chain verification')
+	})
+}
+
+async function runWaxFailureRollback(): Promise<void> {
+	await withFixture(async (fixture) => {
+		const params = invalidCreateParams(fixture.username)
+		await reserveFor(fixture, params)
+		assert((await ticketCredits(fixture.ticket)) === 2, 'reserve should consume one credit')
+
+		let waxFailed = false
+		try {
+			await createAccount(params)
+		} catch {
+			waxFailed = true
+		}
+		assert(waxFailed, 'invalid keys should fail WAX before broadcast')
+		assert(
+			(await getCreationAttempt(fixture.correlationId))?.status === CREATION_ATTEMPT_STATUS.RESERVED,
+			'failed WAX must leave the attempt reserved'
+		)
+
+		const rolled = await rollbackTicketReservation(fixture.ticket, fixture.correlationId)
+		assert(rolled.success, rolled.error ?? 'rollback failed')
+		assert((await ticketCredits(fixture.ticket)) === 3, 'rollback should restore the credit')
+		assert(
+			(await getCreationAttempt(fixture.correlationId))?.status === CREATION_ATTEMPT_STATUS.ROLLED_BACK,
+			'attempt should be rolled_back'
+		)
+		assert((await accountFields(fixture.username)) === null, 'failed WAX must not persist Accounts')
+		assert((await pendingFor(fixture.correlationId)) === 0, 'failed WAX must not enqueue reconciliation')
+	})
+}
+
+const cases: readonly BatteryCase[] = [
+	{ name: 'create pipeline reserved→prepared→completed + RC', run: runCreatePipeline },
+	{ name: 'WAX failure rolls back credit and skips Accounts', run: runWaxFailureRollback },
+]
+
+async function main(): Promise<void> {
+	requireSimulationMode()
+	const ok = await initializeDatabase()
+	if (!ok) throw new Error('DB init failed')
+
+	const failures: string[] = []
+	for (const testCase of cases) {
+		try {
+			await testCase.run()
+			console.log(`PASS  ${testCase.name}`)
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Unknown error'
+			failures.push(`${testCase.name}: ${message}`)
+			console.error(`FAIL  ${testCase.name}: ${message}`)
+		}
+	}
+
+	if (failures.length > 0) {
+		throw new Error(`${failures.length}/${cases.length} simulation cases failed`)
+	}
+	console.log(`INTEGRATION SIMULATION PASSED  ${cases.length}/${cases.length}`)
 }
 
 main().catch((error) => {

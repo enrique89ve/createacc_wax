@@ -9,7 +9,7 @@ import {
 	HiveBroadcastAttemptError,
 	type HiveBroadcaster,
 } from '@/lib/hive-broadcaster'
-import { BroadcastDisabledError, getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import type { HiveTransactionResult, HiveWaxPipelineStatus } from '@/types/hive-transaction'
 
 export interface IHiveTransactionConfig {
@@ -205,7 +205,6 @@ export class HiveTransactionService {
 				return await operation()
 			} catch (error) {
 				if (error instanceof HiveBroadcastAttemptError) throw error
-				if (error instanceof BroadcastDisabledError) throw error
 				const isRetryable = shouldRetryWaxError(error)
 
 				if (!isRetryable || attempt === this.retryConfig.maxRetries) {

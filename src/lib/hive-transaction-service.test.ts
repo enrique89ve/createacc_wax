@@ -15,16 +15,12 @@ vi.mock('@/lib/create/beekeeper-service', () => ({
 
 import { HiveTransactionService } from '@/lib/hive-transaction-service'
 import { HiveBroadcastAttemptError } from '@/lib/hive-broadcaster'
-import { BroadcastDisabledError } from '@/lib/hive-execution-mode'
 
 const ORIGINAL_TX = process.env.HIVE_TX_MODE
-const ORIGINAL_CONFIRM = process.env.HIVE_BROADCAST_CONFIRM
 
 afterEach(() => {
 	if (ORIGINAL_TX === undefined) delete process.env.HIVE_TX_MODE
 	else process.env.HIVE_TX_MODE = ORIGINAL_TX
-	if (ORIGINAL_CONFIRM === undefined) delete process.env.HIVE_BROADCAST_CONFIRM
-	else process.env.HIVE_BROADCAST_CONFIRM = ORIGINAL_CONFIRM
 	vi.restoreAllMocks()
 })
 
@@ -78,7 +74,6 @@ describe('HiveTransactionService broadcast spy', () => {
 
 	it('injected noop never broadcasts even when env is live', async () => {
 		process.env.HIVE_TX_MODE = 'broadcast'
-		process.env.HIVE_BROADCAST_CONFIRM = 'HIVE_MAINNET'
 		const broadcast = vi.fn().mockResolvedValue(undefined)
 		const tx = createTxMock()
 		const result = await createService(tx, broadcast).executeTransaction((built) => {
@@ -173,7 +168,6 @@ describe('HiveTransactionService broadcast spy', () => {
 
 	it('does not retry after a broadcast timeout', async () => {
 		process.env.HIVE_TX_MODE = 'broadcast'
-		process.env.HIVE_BROADCAST_CONFIRM = 'HIVE_MAINNET'
 		const chainBroadcast = vi.fn().mockRejectedValue(new Error('network timeout'))
 		const tx = createTxMock()
 		const chain = {
@@ -197,32 +191,6 @@ describe('HiveTransactionService broadcast spy', () => {
 			HiveBroadcastAttemptError
 		)
 		expect(chainBroadcast).toHaveBeenCalledTimes(1)
-	})
-
-	it('does not wrap BroadcastDisabledError as a broadcast attempt', async () => {
-		process.env.HIVE_TX_MODE = 'broadcast'
-		delete process.env.HIVE_BROADCAST_CONFIRM
-		const chainBroadcast = vi.fn()
-		const tx = createTxMock()
-		const chain = {
-			createTransaction: async () => tx,
-			endpointUrl: 'https://api.hive.blog',
-			broadcast: chainBroadcast,
-		} as unknown as IHiveChainInterface
-		const service = HiveTransactionService.create(
-			{
-				account: 'creator',
-				privateKey: '5secret',
-				walletName: 'test',
-				maxRetries: 2,
-				retryDelayMs: 1,
-			},
-			{ getChain: async () => chain }
-		)
-		await expect(service.executeTransaction(() => {})).rejects.toBeInstanceOf(
-			BroadcastDisabledError
-		)
-		expect(chainBroadcast).not.toHaveBeenCalled()
 	})
 
 	it('persists the prepared snapshot before broadcasting', async () => {
