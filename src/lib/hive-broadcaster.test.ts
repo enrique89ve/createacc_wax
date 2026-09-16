@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { broadcastHiveTransaction, noopHiveBroadcast } from '@/lib/hive-broadcaster'
+import {
+	broadcastHiveTransaction,
+	HiveBroadcastAttemptError,
+	noopHiveBroadcast,
+} from '@/lib/hive-broadcaster'
 import { BroadcastDisabledError } from '@/lib/hive-execution-mode'
 import { HIVE_BROADCAST_CONFIRM_VALUE } from '@/consts/hive-execution'
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
@@ -59,5 +63,17 @@ describe('hive broadcaster', () => {
 		expect(result.broadcasted).toBe(true)
 		expect(chain.broadcast).toHaveBeenCalledTimes(1)
 		expect(chain.broadcast).toHaveBeenCalledWith(tx)
+	})
+
+	it('broadcast timeout is marked as a single attempt, not a retryable pipeline', async () => {
+		process.env.HIVE_TX_MODE = 'broadcast'
+		process.env.HIVE_BROADCAST_CONFIRM = HIVE_BROADCAST_CONFIRM_VALUE
+		const chain = {
+			broadcast: vi.fn().mockRejectedValue(new Error('network timeout')),
+		} as unknown as IHiveChainInterface
+		await expect(
+			broadcastHiveTransaction(chain, {} as IOnlineTransaction)
+		).rejects.toBeInstanceOf(HiveBroadcastAttemptError)
+		expect(chain.broadcast).toHaveBeenCalledTimes(1)
 	})
 })

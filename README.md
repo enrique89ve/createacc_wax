@@ -58,7 +58,7 @@ DATABASE_URL=libsql://your-database-org.turso.io
 TURSO_AUTH_TOKEN=
 ```
 
-Default DB is local SQLite (`file:holahive.db`).
+Default DB is local SQLite (`file:holahive.db`). One database for simulate and live. Tickets have no execution mode — only Accounts records how a creation ran.
 
 ```bash
 pnpm db:init

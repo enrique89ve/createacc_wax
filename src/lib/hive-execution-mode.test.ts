@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import {
 	BroadcastDisabledError,
 	assertBroadcastAllowed,
+	canDelegateResourceCredits,
 	getHiveExecutionMode,
 	isBroadcastEnabled,
 	isBroadcastMode,
@@ -34,6 +35,20 @@ describe('hive execution mode', () => {
 	it('invalid value => simulate', () => {
 		process.env.HIVE_TX_MODE = 'live'
 		expect(getHiveExecutionMode()).toBe(HIVE_TX_MODE_VALUES.SIMULATE)
+	})
+
+	it('simulate + confirm still does not enable broadcast', () => {
+		process.env.HIVE_TX_MODE = 'simulate'
+		process.env.HIVE_BROADCAST_CONFIRM = HIVE_BROADCAST_CONFIRM_VALUE
+		expect(isBroadcastEnabled()).toBe(false)
+		expect(canDelegateResourceCredits(false)).toBe(true)
+	})
+
+	it('live RC waits for Hive confirmation', () => {
+		process.env.HIVE_TX_MODE = 'broadcast'
+		process.env.HIVE_BROADCAST_CONFIRM = HIVE_BROADCAST_CONFIRM_VALUE
+		expect(canDelegateResourceCredits(false)).toBe(false)
+		expect(canDelegateResourceCredits(true)).toBe(true)
 	})
 
 	it('broadcast without confirm => disabled', () => {

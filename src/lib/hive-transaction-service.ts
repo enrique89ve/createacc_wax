@@ -4,7 +4,11 @@ import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
 import { getEnvString } from '@/lib/env'
 import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
-import { broadcastHiveTransaction } from '@/lib/hive-broadcaster'
+import {
+	broadcastHiveTransaction,
+	HiveBroadcastAttemptError,
+	type HiveBroadcaster,
+} from '@/lib/hive-broadcaster'
 import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
 
@@ -24,7 +28,7 @@ export interface ExecuteTransactionOptions {
 
 export interface HiveTransactionRuntime {
 	readonly getChain?: () => Promise<IHiveChainInterface>
-	readonly broadcast?: typeof broadcastHiveTransaction
+	readonly broadcast?: HiveBroadcaster
 }
 
 interface RetryConfig {
@@ -100,15 +104,26 @@ export class HiveTransactionService {
 		tx: IOnlineTransaction
 	): Promise<boolean> {
 		const broadcast = this.runtime.broadcast ?? broadcastHiveTransaction
-		const outcome = await broadcast(chain, tx)
-		return outcome.broadcasted
+		try {
+			const outcome = await broadcast(chain, tx)
+			return outcome.broadcasted
+		} catch (error) {
+			if (error instanceof HiveBroadcastAttemptError) throw error
+			throw new HiveBroadcastAttemptError(error)
+		}
 	}
 
-	private async runPipeline(
+	private async prepareSignedTransaction(
 		operationBuilder: OperationBuilder,
 		walletSession: IWalletSession,
 		options: ExecuteTransactionOptions
-	): Promise<HiveTransactionResult> {
+	): Promise<{
+		chain: IHiveChainInterface
+		tx: IOnlineTransaction
+		requiredAuthorities: unknown
+		signaturePublicKeys: string[]
+		wax: HiveTransactionResult['wax']
+	}> {
 		const chain = await this.resolveChain()
 		const tx = await chain.createTransaction()
 		operationBuilder(tx, this.config.account)
@@ -122,21 +137,17 @@ export class HiveTransactionService {
 			throw new Error('Authority verification failed')
 		}
 
-		const broadcasted = await this.dispatchBroadcast(chain, tx)
-
 		return {
-			id: tx.id,
-			mode: getHiveExecutionMode(),
-			broadcasted,
+			chain,
+			tx,
+			requiredAuthorities,
+			signaturePublicKeys,
 			wax: {
 				validated: waxChecks.validated,
 				onChainVerified: waxChecks.onChainVerified,
 				signed: true,
 				authorityVerified,
 			},
-			requiredAuthorities,
-			signaturePublicKeys,
-			endpoint: chain.endpointUrl,
 		}
 	}
 
@@ -153,9 +164,23 @@ export class HiveTransactionService {
 
 		try {
 			walletSession = await beekeeperService.createWalletSession()
-			return await this.executeWithRetry(() =>
-				this.runPipeline(operationBuilder, walletSession as IWalletSession, options)
+			const prepared = await this.executeWithRetry(() =>
+				this.prepareSignedTransaction(
+					operationBuilder,
+					walletSession as IWalletSession,
+					options
+				)
 			)
+			const broadcasted = await this.dispatchBroadcast(prepared.chain, prepared.tx)
+			return {
+				id: prepared.tx.id,
+				mode: getHiveExecutionMode(),
+				broadcasted,
+				wax: prepared.wax,
+				requiredAuthorities: prepared.requiredAuthorities,
+				signaturePublicKeys: prepared.signaturePublicKeys,
+				endpoint: prepared.chain.endpointUrl,
+			}
 		} finally {
 			if (walletSession) {
 				await walletSession.cleanup()
@@ -168,6 +193,7 @@ export class HiveTransactionService {
 			try {
 				return await operation()
 			} catch (error) {
+				if (error instanceof HiveBroadcastAttemptError) throw error
 				const isRetryable = shouldRetryWaxError(error)
 
 				if (!isRetryable || attempt === this.retryConfig.maxRetries) {

@@ -64,7 +64,9 @@ export async function delegateResourceCredits(
 		(tx, account) => {
 			pushDelegateRcOperation(tx, account, params)
 		},
-		{ skipOnChainVerification: isSimulationMode() }
+		{
+			skipOnChainVerification: isSimulationMode(),
+		}
 	)
 }
 

@@ -8,7 +8,10 @@ import {
 	getPendingReconciliations,
 	reserveTicketCredit,
 	rollbackTicketReservation,
+	updateAccountBlockchainStatus,
+	ticketCreditAlreadyReserved,
 } from '@/utils/db-ticket-validator'
+import { creationFlagsFromPersistedAccount } from '@/lib/account-status'
 import { BLOCKCHAIN_STATUS, HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
 
@@ -154,5 +157,92 @@ describe('simulation DB completion', () => {
 		})
 		const pending = await getPendingReconciliations()
 		expect(pending.filter(entry => entry.correlationId === 'corr-fail')).toHaveLength(0)
+	})
+
+	it('pipeline failure rolls the reserved ticket credit back', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const reserved = await reserveTicketCredit(TICKET, 'corr-wax')
+		expect(reserved.success).toBe(true)
+		const mid = await db.execute({
+			sql: `SELECT credits FROM Tickets WHERE code = ?`,
+			args: [TICKET],
+		})
+		expect(Number(mid.rows[0]?.credits)).toBe(2)
+		const rolled = await rollbackTicketReservation(TICKET, 'corr-wax')
+		expect(rolled.success).toBe(true)
+		const after = await db.execute({
+			sql: `SELECT credits FROM Tickets WHERE code = ?`,
+			args: [TICKET],
+		})
+		expect(Number(after.rows[0]?.credits)).toBe(3)
+	})
+
+	it('duplicate username does not consume a second credit', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `dupuser${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(TICKET, 'corr-dup-1')).success).toBe(true)
+		expect(
+			(await completeAccountCreationInDB(username, TICKET, 'corr-dup-1', simulatedTx('tx-dup-1'))).success
+		).toBe(true)
+
+		expect((await reserveTicketCredit(TICKET, 'corr-dup-2')).success).toBe(true)
+		const second = await completeAccountCreationInDB(
+			username,
+			TICKET,
+			'corr-dup-2',
+			simulatedTx('tx-dup-2')
+		)
+		expect(second.success).toBe(false)
+		await rollbackTicketReservation(TICKET, 'corr-dup-2')
+
+		const ticket = await db.execute({
+			sql: `SELECT credits FROM Tickets WHERE code = ?`,
+			args: [TICKET],
+		})
+		expect(Number(ticket.rows[0]?.credits)).toBe(2)
+	})
+
+	it('Hive confirmation upgrades broadcasted to confirmed from persisted state', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `confuser${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(TICKET, 'corr-conf')).success).toBe(true)
+		const liveTx: HiveTransactionResult = {
+			...simulatedTx('tx-conf-1'),
+			mode: HIVE_TX_MODE_VALUES.BROADCAST,
+			broadcasted: true,
+		}
+		expect(
+			(await completeAccountCreationInDB(username, TICKET, 'corr-conf', liveTx)).success
+		).toBe(true)
+		expect((await getAccountCreationState(username))?.blockchainStatus).toBe(
+			BLOCKCHAIN_STATUS.BROADCASTED
+		)
+
+		expect(await updateAccountBlockchainStatus(username, BLOCKCHAIN_STATUS.CONFIRMED)).toBe(true)
+		const persisted = await getAccountCreationState(username)
+		expect(persisted?.blockchainStatus).toBe(BLOCKCHAIN_STATUS.CONFIRMED)
+		const flags = creationFlagsFromPersistedAccount(persisted!)
+		expect(flags.broadcasted).toBe(true)
+		expect(flags.chainConfirmed).toBe(true)
+		expect(flags.executionMode).toBe(HIVE_TX_MODE_VALUES.BROADCAST)
+	})
+
+	it('detects a reserved ticket credit for HTTP retry recovery', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3, original_credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		expect(await ticketCreditAlreadyReserved(TICKET)).toBe(false)
+		expect((await reserveTicketCredit(TICKET, 'corr-reserved')).success).toBe(true)
+		expect(await ticketCreditAlreadyReserved(TICKET)).toBe(true)
 	})
 })

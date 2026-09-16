@@ -19,7 +19,8 @@ function readProcessEnv(name: string): string {
 }
 
 /**
- * Dev default is simulate. Live broadcast is opt-in via env only.
+ * Sole source of execution mode. Unknown/missing values are simulate.
+ * Never defaults to broadcast.
  */
 export function getHiveExecutionMode(): HiveExecutionMode {
 	const raw = readProcessEnv(ENV_KEYS.HIVE_TX_MODE).toLowerCase()
@@ -40,6 +41,11 @@ export function isBroadcastMode(): boolean {
 export function isBroadcastEnabled(): boolean {
 	if (!isBroadcastMode()) return false
 	return readProcessEnv(ENV_KEYS.HIVE_BROADCAST_CONFIRM) === HIVE_BROADCAST_CONFIRM_VALUE
+}
+
+export function canDelegateResourceCredits(chainConfirmed: boolean): boolean {
+	if (isSimulationMode()) return true
+	return chainConfirmed
 }
 
 export function assertBroadcastAllowed(): void {

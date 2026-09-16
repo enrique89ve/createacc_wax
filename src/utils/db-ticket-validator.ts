@@ -217,6 +217,27 @@ export async function accountExistsInDB(username: string): Promise<boolean> {
   return existing !== null
 }
 
+export async function ticketCreditAlreadyReserved(
+  ticketCode: string
+): Promise<boolean> {
+  try {
+    const cleanCode = sanitizeTicketCode(ticketCode)
+    if (!cleanCode) return false
+
+    const result = await db.execute({
+      sql: `SELECT original_credits, credits FROM Tickets WHERE code = ?`,
+      args: [cleanCode],
+    })
+    if (result.rows.length === 0) return false
+    const original = Number(result.rows[0].original_credits)
+    const remaining = Number(result.rows[0].credits)
+    return Number.isFinite(original) && Number.isFinite(remaining) && original > remaining
+  } catch (error) {
+    logger.error('[ticketCreditAlreadyReserved] Failed to read ticket:', error)
+    return false
+  }
+}
+
 export async function getAccountCreationState(
   username: string
 ): Promise<PersistedAccountCreation | null> {
