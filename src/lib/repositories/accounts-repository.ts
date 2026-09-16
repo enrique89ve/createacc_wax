@@ -11,7 +11,7 @@
  * - Created accounts statistics
  */
 
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 
 const ACCOUNT_COLUMNS =
   'id, username, creation_date, ticket, builder_username, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
@@ -52,7 +52,7 @@ export class AccountsRepository {
    */
   async create(data: CreateAccountData): Promise<DatabaseAccountRow> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					INSERT INTO Accounts (
 						username, ticket, builder_username, creation_date, registered_at,
@@ -98,7 +98,7 @@ export class AccountsRepository {
    */
   async findById(id: number): Promise<DatabaseAccountRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `SELECT ${ACCOUNT_COLUMNS} FROM Accounts WHERE id = ?`,
         args: [id],
       })
@@ -118,7 +118,7 @@ export class AccountsRepository {
    */
   async findByUsername(username: string): Promise<DatabaseAccountRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `SELECT ${ACCOUNT_COLUMNS} FROM Accounts WHERE username = ?`,
         args: [username],
       })
@@ -138,7 +138,7 @@ export class AccountsRepository {
    */
   async existsByUsername(username: string): Promise<boolean> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as count FROM Accounts WHERE username = ?',
         args: [username],
       })
@@ -154,7 +154,7 @@ export class AccountsRepository {
    */
   async delete(id: number): Promise<void> {
     try {
-      await db.execute({
+      await execute({
         sql: 'DELETE FROM Accounts WHERE id = ?',
         args: [id],
       })
@@ -170,7 +170,7 @@ export class AccountsRepository {
    */
   async findByTicket(ticketCode: string): Promise<DatabaseAccountRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE ticket = ?
@@ -193,7 +193,7 @@ export class AccountsRepository {
     to: string
   ): Promise<DatabaseAccountRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE DATE(creation_date) BETWEEN DATE(?) AND DATE(?)
@@ -213,7 +213,7 @@ export class AccountsRepository {
    */
   async getAll(): Promise<DatabaseAccountRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					ORDER BY creation_date DESC
@@ -232,7 +232,7 @@ export class AccountsRepository {
    */
   async getRecent(limit: number = 5): Promise<DatabaseAccountRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					ORDER BY creation_date DESC
@@ -252,7 +252,7 @@ export class AccountsRepository {
    */
   async searchByUsername(pattern: string): Promise<DatabaseAccountRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT ${ACCOUNT_COLUMNS} FROM Accounts
 					WHERE username LIKE ?
@@ -314,7 +314,7 @@ export class AccountsRepository {
 				ORDER BY creation_date DESC
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return compactMap(result.rows, parseAccountRow)
     } catch (error) {
@@ -329,7 +329,7 @@ export class AccountsRepository {
    */
   async countAll(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as total FROM Accounts',
         args: [],
       })
@@ -345,7 +345,7 @@ export class AccountsRepository {
    */
   async countToday(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT COUNT(*) as total
 					FROM Accounts
@@ -365,7 +365,7 @@ export class AccountsRepository {
    */
   async getStats(): Promise<AccountStats> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						COUNT(*) as total_accounts,
@@ -395,7 +395,7 @@ export class AccountsRepository {
    */
   async countByBuilder(builderId: number): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT COUNT(*) as total
 					FROM Accounts a

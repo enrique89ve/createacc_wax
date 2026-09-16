@@ -11,7 +11,7 @@
  * - Activity statistics
  */
 
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import type {
   DatabaseTicketAuditRow,
   DatabaseCreditAuditRow,
@@ -79,7 +79,7 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return result.rows.map((row: Record<string, unknown>) => ({
         id: Number(row.id),
@@ -153,7 +153,7 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return result.rows.map((row: Record<string, unknown>) => ({
         id: Number(row.id),
@@ -211,7 +211,7 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return result.rows.map((row: Record<string, unknown>) => ({
         id: Number(row.id),
@@ -290,7 +290,7 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return result.rows.map((row: Record<string, unknown>) => ({
         id: Number(row.id),
@@ -329,7 +329,7 @@ export class AuditRepository {
     Record<'create' | 'update' | 'delete', number>
   > {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						action,
@@ -365,12 +365,12 @@ export class AuditRepository {
     creditLogs: number
   }> {
     try {
-      const ticketResult = await db.execute({
+      const ticketResult = await execute({
         sql: 'SELECT COUNT(*) as count FROM TicketAudit',
         args: [],
       })
 
-      const creditResult = await db.execute({
+      const creditResult = await execute({
         sql: 'SELECT COUNT(*) as count FROM CreditAudit',
         args: [],
       })

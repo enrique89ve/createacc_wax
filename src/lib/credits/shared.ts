@@ -1,4 +1,4 @@
-import { db } from '../database'
+import { execute } from '../database'
 
 export async function insertCreditAudit(params: {
   readonly hiveUsername: string
@@ -7,7 +7,7 @@ export async function insertCreditAudit(params: {
   readonly reason: string
   readonly performedBy?: string
 }): Promise<void> {
-  await db.execute({
+  await execute({
     sql: `
 			INSERT INTO CreditAudit (
 				hive_username, operation, amount, reason, performed_by, timestamp
@@ -29,7 +29,7 @@ export async function selectCreditRow(hiveUsername: string): Promise<{
   total_assigned: number
   total_consumed: number
 } | null> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `
 			SELECT pending_amount, available_amount, total_assigned, total_consumed
 			FROM Credits

@@ -111,7 +111,11 @@ No hay GitHub Actions. Las comprobaciones se corren en local:
 
 **Admin** — password. `POST /api/auth/management-login` → bcrypt → Better Auth session cookie.
 
-**Builder** — Hive Keychain. `GET /api/auth/challenge` issues a one-time nonce (2 min). Client signs. Server verifies with wax, binds the session to the user. Mutations never trust a raw user id from the client.
+**Builder** — Hive Keychain Posting proof. `POST /api/auth/challenge` receives the username and persists the exact server-generated message (canonical origin, server timestamp, nonce, username; 2 min expiry). The client signs that message; verification consumes the challenge once and issues an HttpOnly signed Builder cookie. Builders have no identity row in `user`; credits belong to Hive usernames. Challenge and verify enforce origin/CSRF checks.
+
+Blocking a Hive username denies Builder access and consumption of its existing tickets. Unblocking restores ticket usability without resetting credits or history. The atomic reservation checks the denylist even if earlier validation succeeded.
+
+See [AUTH closure and transaction follow-up](docs/auth-closure.md) for scope and remaining production validation.
 
 ---
 
@@ -141,7 +145,7 @@ scripts/         DB + admin
 - Keys generated in the browser. Never sent. Never stored.
 - Admin passwords: bcrypt.
 - Creation cookies: HMAC-SHA256.
-- Sessions: Better Auth (`user` / `session` in libsql), `AUTH_SECRET`.
+- Admin sessions: Better Auth (`user` / `session` in libsql), `AUTH_SECRET`. Builder sessions: signed HttpOnly cookies.
 - Keychain: one-time nonces.
 - Rate limits on IP, fingerprint, username.
 - Validate on client and server.

@@ -11,7 +11,7 @@
  * - Business validations related to tickets
  */
 
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 // Logger removed
 import {
   parseTicketRow,
@@ -73,7 +73,7 @@ export class TicketsRepository {
         )
       }
 
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					INSERT INTO Tickets (
 						code, description, original_credits, credits, creator_username
@@ -113,7 +113,7 @@ export class TicketsRepository {
    */
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [id],
       })
@@ -133,7 +133,7 @@ export class TicketsRepository {
    */
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?',
         args: [code],
       })
@@ -175,7 +175,7 @@ export class TicketsRepository {
 
     updates.push('updated_at = CURRENT_TIMESTAMP')
     args.push(id, creatorUsername)
-    const result = await db.execute({
+    const result = await execute({
       sql: `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ? AND creator_username = ?`,
       args,
     })
@@ -183,7 +183,7 @@ export class TicketsRepository {
   }
 
   async deleteOwned(id: number, creatorUsername: string): Promise<boolean> {
-    const result = await db.execute({
+    const result = await execute({
       sql: 'DELETE FROM Tickets WHERE id = ? AND creator_username = ?',
       args: [id, creatorUsername],
     })
@@ -220,7 +220,7 @@ export class TicketsRepository {
 
       const sql = `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ?`
 
-      await db.execute({ sql, args })
+      await execute({ sql, args })
     } catch (error) {
       throw error
     }
@@ -231,7 +231,7 @@ export class TicketsRepository {
    */
   async delete(id: number): Promise<void> {
     try {
-      await db.execute({
+      await execute({
         sql: 'DELETE FROM Tickets WHERE id = ?',
         args: [id],
       })
@@ -247,7 +247,7 @@ export class TicketsRepository {
    */
   async findByCreator(userId: string): Promise<DatabaseTicketRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
 					WHERE creator_username = ?
@@ -269,7 +269,7 @@ export class TicketsRepository {
    */
   async findActiveTickets(): Promise<DatabaseTicketRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
 					WHERE is_active = TRUE
@@ -318,7 +318,7 @@ export class TicketsRepository {
 				ORDER BY created_at DESC
 			`
 
-      const result = await db.execute({ sql, args })
+      const result = await execute({ sql, args })
 
       return compactMap(result.rows, parseTicketRow)
     } catch (error) {
@@ -334,7 +334,7 @@ export class TicketsRepository {
    */
   async getAllWithCreators(): Promise<TicketWithCreator[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						t.*,
@@ -359,7 +359,7 @@ export class TicketsRepository {
     userId: string
   ): Promise<TicketWithCreator[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						t.*,
@@ -393,7 +393,7 @@ export class TicketsRepository {
    */
   async getRecentWithCreators(limit: number = 5): Promise<TicketWithCreator[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						t.*,
@@ -421,7 +421,7 @@ export class TicketsRepository {
    */
   async getUserStats(userId: string): Promise<TicketStats> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						COUNT(*) as total_tickets,
@@ -466,7 +466,7 @@ export class TicketsRepository {
    */
   async countAll(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as total FROM Tickets',
         args: [],
       })
@@ -484,7 +484,7 @@ export class TicketsRepository {
    */
   async countUsed(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as total FROM Tickets WHERE has_been_used = TRUE',
         args: [],
       })
@@ -510,7 +510,7 @@ export class TicketsRepository {
         throw new Error(`Ticket without available credits: ${code}`)
       }
 
-      await db.execute({
+      await execute({
         sql: `
 					UPDATE Tickets
 					SET credits = credits - 1, updated_at = CURRENT_TIMESTAMP

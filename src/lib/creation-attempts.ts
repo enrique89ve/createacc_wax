@@ -1,4 +1,4 @@
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import {
   CREATION_ATTEMPT_STATUS,
   OPEN_CREATION_ATTEMPT_STATUSES,
@@ -112,7 +112,7 @@ const ATTEMPT_SELECT = `correlation_id, username, ticket, status,
 export async function insertReservedAttempt(
   input: ReserveCreationAttemptInput
 ): Promise<void> {
-  await db.execute({
+  await execute({
     sql: `INSERT INTO CreationAttempts (
 			correlation_id, username, ticket, status,
 			owner_public_key, active_public_key, posting_public_key, memo_public_key,
@@ -135,7 +135,7 @@ export async function insertReservedAttempt(
 export async function getCreationAttempt(
   correlationId: string
 ): Promise<CreationAttempt | null> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT ${ATTEMPT_SELECT} FROM CreationAttempts WHERE correlation_id = ?`,
     args: [correlationId],
   })
@@ -148,7 +148,7 @@ export async function findOpenCreationAttempt(params: {
   readonly ticket: string
   readonly keys: CreationAttemptKeys
 }): Promise<CreationAttempt | null> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT ${ATTEMPT_SELECT}
 			FROM CreationAttempts
 			WHERE username = ?
@@ -178,7 +178,7 @@ export async function persistAttemptPreparation(
   correlationId: string,
   snapshot: PreparedAttemptSnapshot
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE CreationAttempts
 			SET transaction_id = ?,
 			    wax_validated = ?,
@@ -208,7 +208,7 @@ export async function persistAttemptBroadcastOutcome(
   correlationId: string,
   tx: HiveTransactionResult
 ): Promise<void> {
-  await db.execute({
+  await execute({
     sql: `UPDATE CreationAttempts
 			SET transaction_id = ?,
 			    execution_mode = ?,
@@ -242,7 +242,7 @@ export async function persistAttemptBroadcastOutcome(
 export async function markAttemptBroadcasting(
   correlationId: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE correlation_id = ? AND status = ?
@@ -259,7 +259,7 @@ export async function markAttemptBroadcasting(
 export async function markAttemptCompleted(
   correlationId: string
 ): Promise<void> {
-  await db.execute({
+  await execute({
     sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE correlation_id = ? AND status IN (?, ?, ?)`,
@@ -274,7 +274,7 @@ export async function markAttemptCompleted(
 export async function markAttemptRecoveredOnChain(
   correlationId: string
 ): Promise<void> {
-  await db.execute({
+  await execute({
     sql: `UPDATE CreationAttempts
 			SET broadcasted = 1,
 			    status = ?,
@@ -287,7 +287,7 @@ export async function markAttemptRecoveredOnChain(
 export async function markAttemptRolledBack(
   correlationId: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
 			WHERE correlation_id = ? AND status IN (?, ?, ?)
@@ -304,7 +304,7 @@ export async function markAttemptRolledBack(
 export async function getOpenCreationAttemptByUsername(
   username: string
 ): Promise<CreationAttempt | null> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT ${ATTEMPT_SELECT}
 			FROM CreationAttempts
 			WHERE username = ? AND status IN (?, ?, ?)
@@ -317,7 +317,7 @@ export async function getOpenCreationAttemptByUsername(
 }
 
 export async function listOpenCreationAttempts(): Promise<CreationAttempt[]> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT ${ATTEMPT_SELECT}
 			FROM CreationAttempts
 			WHERE status IN (?, ?, ?)

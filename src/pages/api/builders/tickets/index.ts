@@ -13,7 +13,7 @@ import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { withTransaction } from '@/lib/database'
+import { execute, withTransaction } from '@/lib/database'
 import {
   validateTicketName,
   validateTicketCredits,

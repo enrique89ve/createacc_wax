@@ -1,4 +1,4 @@
-import { db, withTransaction } from '../database'
+import { execute, withTransaction } from '../database'
 import { insertCreditAudit } from './shared'
 
 export async function claimCredits(
@@ -6,7 +6,7 @@ export async function claimCredits(
   amount: number
 ): Promise<void> {
   await withTransaction(async () => {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				UPDATE Credits
 				SET
@@ -37,7 +37,7 @@ export async function deductCreditsForTicket(
   ticketCode: string
 ): Promise<void> {
   await withTransaction(async () => {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				UPDATE Credits
 				SET
@@ -67,7 +67,7 @@ export async function markCreditsAsConsumed(
   accountUsername: string
 ): Promise<void> {
   await withTransaction(async () => {
-    await db.execute({
+    await execute({
       sql: `
 				UPDATE Credits
 				SET
@@ -93,7 +93,7 @@ export async function refundCreditsFromTicket(
   ticketCode: string
 ): Promise<void> {
   await withTransaction(async () => {
-    await db.execute({
+    await execute({
       sql: `
 				UPDATE Credits
 				SET

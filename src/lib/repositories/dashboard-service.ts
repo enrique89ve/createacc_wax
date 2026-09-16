@@ -11,7 +11,7 @@
  * - System reports and metrics
  */
 
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 // Logger removed
 import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 
@@ -81,7 +81,7 @@ export class DashboardService {
   async getDashboardStats(): Promise<DashboardStats> {
     try {
       // Single query with multiple subqueries to get all stats
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						(SELECT COUNT(*) FROM Credits) as total_builders,
@@ -112,7 +112,7 @@ export class DashboardService {
    */
   async getRecentTickets(limit: number = 5): Promise<RecentTicketInfo[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						t.code,
@@ -150,7 +150,7 @@ export class DashboardService {
    */
   async getRecentAccounts(limit: number = 5): Promise<RecentAccountInfo[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT username, ticket, creation_date
 					FROM Accounts
@@ -203,7 +203,7 @@ export class DashboardService {
     builderId: string
   ): Promise<BuilderFullStats | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						? as hive_username,
@@ -248,7 +248,7 @@ export class DashboardService {
    */
   async getAllBuildersFullStats(): Promise<BuilderFullStats[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						c.hive_username,
@@ -290,7 +290,7 @@ export class DashboardService {
    */
   async getTicketTypeDistribution(): Promise<Record<string, number>> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT type, COUNT(*) as count
 					FROM Tickets
@@ -319,7 +319,7 @@ export class DashboardService {
     days: number = 7
   ): Promise<Array<{ date: string; count: number }>> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						DATE(creation_date) as date,
@@ -352,7 +352,7 @@ export class DashboardService {
     }>
   > {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						a.builder_username as hive_username,
@@ -387,7 +387,7 @@ export class DashboardService {
     total_consumed: number
   }> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						SUM(pending_amount) as total_pending,

@@ -45,3 +45,8 @@ test-results/
 # Markdown files (except README.md)
 *.md
 !README.md
+
+# Version the AUTH closure decision without exposing other local docs
+!/docs/
+/docs/*
+!/docs/auth-closure.md

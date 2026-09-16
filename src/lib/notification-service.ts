@@ -1,4 +1,4 @@
-import { db } from './database'
+import { execute } from './database'
 import { logger } from '@/lib/logger'
 import type {
   CreateNotificationData,
@@ -8,7 +8,7 @@ import { parseNotificationRow as parseRow } from '@/types/database'
 
 export async function getUnreadCount(hiveUsername: string): Promise<number> {
   try {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				SELECT COUNT(*) as count
 				FROM Notifications
@@ -30,7 +30,7 @@ export async function getNotifications(
   limit = 10
 ): Promise<DatabaseNotificationRow[]> {
   try {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				SELECT id, hive_username, type, title, message, metadata, is_read, created_at, read_at, viewed_at
 				FROM Notifications
@@ -54,7 +54,7 @@ export async function getUnreadNotifications(
   hiveUsername: string
 ): Promise<DatabaseNotificationRow[]> {
   try {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				SELECT id, hive_username, type, title, message, metadata, is_read, created_at, read_at, viewed_at
 				FROM Notifications
@@ -77,7 +77,7 @@ export async function createNotification(
   data: CreateNotificationData
 ): Promise<boolean> {
   try {
-    await db.execute({
+    await execute({
       sql: `
 				INSERT INTO Notifications (hive_username, type, title, message, metadata)
 				VALUES (?, ?, ?, ?, ?)
@@ -102,7 +102,7 @@ export async function markAsRead(
   hiveUsername: string
 ): Promise<boolean> {
   try {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				UPDATE Notifications
 				SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
@@ -119,7 +119,7 @@ export async function markAsRead(
 
 export async function markAllAsRead(hiveUsername: string): Promise<boolean> {
   try {
-    await db.execute({
+    await execute({
       sql: `
 				UPDATE Notifications
 				SET is_read = TRUE, read_at = CURRENT_TIMESTAMP
@@ -184,7 +184,7 @@ export async function notifyAccountCreated(
 
 export async function markAsViewed(hiveUsername: string): Promise<boolean> {
   try {
-    await db.execute({
+    await execute({
       sql: `
 				UPDATE Notifications
 				SET viewed_at = CURRENT_TIMESTAMP

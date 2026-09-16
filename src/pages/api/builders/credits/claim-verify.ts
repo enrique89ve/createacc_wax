@@ -9,7 +9,7 @@
  */
 
 import type { APIRoute } from 'astro'
-import { db, withTransaction } from '@/lib/database'
+import { execute, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import { verifyClaimTransaction } from '@/lib/hive-transaction-verifier'
@@ -112,7 +112,7 @@ export const POST: APIRoute = async context => {
       const creditsToAdd = hashData.creditsAvailable
 
       // 4. Verify credit record exists and has sufficient pending
-      const creditResult = await db.execute({
+      const creditResult = await execute({
         sql: 'SELECT hive_username, pending_amount FROM Credits WHERE hive_username = ?',
         args: [session.username],
       })
@@ -135,7 +135,7 @@ export const POST: APIRoute = async context => {
 
       // 5. Atomic DB transaction — hash is NOT consumed yet
       await withTransaction(async () => {
-        await db.execute({
+        await execute({
           sql: `UPDATE Credits
 						SET pending_amount = pending_amount - ?,
 							available_amount = available_amount + ?,
@@ -144,7 +144,7 @@ export const POST: APIRoute = async context => {
           args: [creditsToAdd, creditsToAdd, session.username, creditsToAdd],
         })
 
-        await db.execute({
+        await execute({
           sql: `INSERT INTO CreditAudit (
 						hive_username, operation, amount, reason, timestamp
 					) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
@@ -160,7 +160,7 @@ export const POST: APIRoute = async context => {
       // 6. COMMIT succeeded — NOW consume the hash (one-time use)
       claimHashCache.consume(hash)
 
-      const balanceResult = await db.execute({
+      const balanceResult = await execute({
         sql: 'SELECT available_amount FROM Credits WHERE hive_username = ?',
         args: [session.username],
       })

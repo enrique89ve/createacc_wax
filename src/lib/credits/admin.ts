@@ -1,4 +1,4 @@
-import { db, withTransaction } from '../database'
+import { execute, withTransaction } from '../database'
 import { notifyPendingCredits } from '../notification-service'
 import { logger } from '@/lib/logger'
 import { insertCreditAudit, selectCreditRow } from './shared'
@@ -12,7 +12,7 @@ export async function assignCredits(
   operation: AssignCreditsOperation
 ): Promise<CreditBalance> {
   await withTransaction(async () => {
-    await db.execute({
+    await execute({
       sql: `
 				INSERT INTO Credits (
 					hive_username, pending_amount, available_amount, total_assigned, total_consumed
@@ -65,7 +65,7 @@ export async function transferCredits(
   }
 
   await withTransaction(async () => {
-    const deductResult = await db.execute({
+    const deductResult = await execute({
       sql: `
 				UPDATE Credits
 				SET available_amount = available_amount - ?, updated_at = CURRENT_TIMESTAMP
@@ -78,7 +78,7 @@ export async function transferCredits(
       throw new Error('Insufficient available credits for transfer')
     }
 
-    await db.execute({
+    await execute({
       sql: `
 				INSERT INTO Credits (
 					hive_username, pending_amount, available_amount, total_assigned, total_consumed
@@ -149,7 +149,7 @@ export async function adjustCredits(params: {
     updates.push('updated_at = CURRENT_TIMESTAMP')
     args.push(params.hive_username)
 
-    await db.execute({
+    await execute({
       sql: `UPDATE Credits SET ${updates.join(', ')} WHERE hive_username = ?`,
       args,
     })

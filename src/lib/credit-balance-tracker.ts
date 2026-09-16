@@ -1,4 +1,4 @@
-import { db } from './database'
+import { execute } from './database'
 import { ZERO_BALANCE } from './credits/types'
 
 export interface CreditBalance {
@@ -59,7 +59,7 @@ function toBalance(
 }
 
 async function calculateBreakdown(hiveUsername: string) {
-  const result = await db.execute({
+  const result = await execute({
     sql: `
 			SELECT
 				COALESCE(SUM(CASE WHEN operation = 'assign_credits' THEN amount ELSE 0 END), 0) as assigned,
@@ -86,7 +86,7 @@ async function calculateBreakdown(hiveUsername: string) {
 }
 
 async function getStoredCredits(hiveUsername: string) {
-  const result = await db.execute({
+  const result = await execute({
     sql: `
 			SELECT pending_amount, available_amount, total_assigned, total_consumed
 			FROM Credits
@@ -236,7 +236,7 @@ export async function validateOperation(
 }
 
 export async function detectAllInconsistencies(): Promise<ConsistencyCheck[]> {
-  const result = await db.execute({
+  const result = await execute({
     sql: 'SELECT hive_username FROM Credits',
     args: [],
   })

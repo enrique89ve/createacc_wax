@@ -1,7 +1,7 @@
-import { db } from '../database'
+import { execute } from '../database'
 
 export async function getCreditAuditHistory(hiveUsername: string) {
-  const result = await db.execute({
+  const result = await execute({
     sql: `
 			SELECT id, hive_username, operation, amount, reason, performed_by, timestamp
 			FROM CreditAudit
@@ -25,7 +25,7 @@ export async function getCreditHistory(hiveUsername: string): Promise<
   }>
 > {
   try {
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				SELECT id, operation, amount, reason, timestamp, performed_by
 				FROM CreditAudit
