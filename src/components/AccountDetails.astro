@@ -66,13 +66,16 @@ const { username } = Astro.props
 							</div>
 							<p class="text-foreground text-sm">Generando claves seguras...</p>
 						</div>
-						<!-- Master key display (hidden initially, clickable) -->
+						<p
+							id="master-key-placeholder"
+							class="text-muted-foreground hidden min-h-[2rem] items-center font-mono text-[15px] tracking-tight"
+						>
+							La Master Key está oculta. Pulsa Mostrar para verla.
+						</p>
 						<p
 							id="master-key-display"
-							class="text-foreground/90 hidden min-h-[2rem] cursor-pointer break-all font-mono text-[15px] tracking-tight opacity-0 transition-all duration-500 ease-in-out group-hover:opacity-40 group-hover:blur-[0.5px]"
-							data-master-key=""
+							class="text-foreground/90 hidden min-h-[2rem] cursor-pointer break-all font-mono text-[15px] tracking-tight"
 							title="Clic para copiar Master Key"
-							style="transition-property: opacity, filter, transform;"
 						>
 						</p>
 						<!-- Copy button overlay (appears on hover) -->
@@ -143,8 +146,17 @@ const { username } = Astro.props
 				</button>
 				<button
 					type="button"
+					id="btn-reveal-master"
+					class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+					aria-label="Mostrar Master Key"
+					aria-pressed="false"
+				>
+					Mostrar Master Key
+				</button>
+				<button
+					type="button"
 					id="btn-copy-master-cta"
-					class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-300"
+					class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
 					aria-label="Copiar Master Key"
 				>
 					Copiar Master Key
@@ -236,11 +248,16 @@ const { username } = Astro.props
 	<ProgressModal />
 
 	<script>
-		import { HiveKeys } from '@/lib/create/get-keys'
 		import type { DownloadFormat } from '@/utils/key-download-manager'
 		import { obtainPowSolution } from '@/utils/pow-solver'
 		import type { ExtendedWindow, DOMElements, AppState } from '@/lib/details/types'
-		import { KEYS_SESSION_KEY, KEYSET_SEPARATOR } from '@/lib/details/types'
+		import { KEYS_SESSION_KEY } from '@/lib/details/types'
+		import {
+			ClientKeySession,
+			KEY_SESSION_PHASE,
+			bindActiveKeySession,
+			destroyActiveKeySession,
+		} from '@/lib/details/client-key-session'
 		import { copyMasterKey } from '@/lib/details/clipboard'
 		import { downloadAndNotify, preSolvePowBundle } from '@/lib/details/download-handler'
 		import { resolvePow, submitAccountCreation } from '@/lib/details/account-submit'
@@ -256,7 +273,9 @@ const { username } = Astro.props
 			private elements: DOMElements
 			private state: AppState
 			private isSubmitting = false
+			private tornDown = false
 			private sessionRecoveryPromise: Promise<boolean> | null = null
+			private readonly pageAbort = new AbortController()
 			private readonly extWindow = window as Window & ExtendedWindow
 
 			constructor() {
@@ -273,9 +292,11 @@ const { username } = Astro.props
 					submitBtn: document.querySelector<HTMLButtonElement>('#btn-create-account'),
 					copyBtn: document.querySelector<HTMLButtonElement>('#btn-copy-master-cta'),
 					downloadBtn: document.querySelector<HTMLButtonElement>('#btn-download-keys'),
+					revealBtn: document.querySelector<HTMLButtonElement>('#btn-reveal-master'),
 					loadingEl: document.querySelector<HTMLElement>('#key-loading'),
 					keysContainer: document.querySelector<HTMLElement>('#keys-container'),
 					masterKeyDisplay: document.querySelector<HTMLElement>('#master-key-display'),
+					masterKeyPlaceholder: document.querySelector<HTMLElement>('#master-key-placeholder'),
 					masterKeyCopyBtn: document.querySelector<HTMLButtonElement>('#master-key-copy-btn'),
 					masterKeyFeedback: document.querySelector<HTMLElement>('#master-key-feedback'),
 					form: document.querySelector<HTMLFormElement>('#form-confirm'),
@@ -290,14 +311,16 @@ const { username } = Astro.props
 				const username = usernameEl?.getAttribute('data-username') || ''
 
 				return {
-					masterKey: '',
-					allKeys: null,
-					hasDownloaded: false,
+					keySession: null,
+					masterKeyRevealed: false,
 					copyFeedbackTimeout: undefined,
 					username,
-					keysetId: '',
 					preSolvedBundle: null,
 				}
+			}
+
+			private hasBackup(): boolean {
+				return this.state.keySession?.phase === KEY_SESSION_PHASE.BACKUP_CONFIRMED
 			}
 
 			private async recoverCreationSession(): Promise<boolean> {
@@ -327,13 +350,20 @@ const { username } = Astro.props
 				try {
 					if (!this.state.username) throw new Error('Username not found')
 
-					const hiveKeys = await HiveKeys.generate(this.state.username)
-					this.state.masterKey = hiveKeys.masterPrivateKey
-					this.state.allKeys = hiveKeys
-					this.state.keysetId = `${this.state.username}${KEYSET_SEPARATOR}${Date.now().toString(36)}`
-					this.state.hasDownloaded = sessionStorage.getItem(KEYS_SESSION_KEY) === this.state.keysetId
+					const session = await ClientKeySession.generate(this.state.username)
+					if (this.tornDown) {
+						session.destroy()
+						return
+					}
+					bindActiveKeySession(session)
+					this.state.keySession = session
+					this.state.masterKeyRevealed = false
 
-					// Show toast for new keys on page reload
+					const storedKeyset = sessionStorage.getItem(KEYS_SESSION_KEY)
+					if (storedKeyset === session.keysetId) {
+						session.confirmBackup()
+					}
+
 					const nav = performance.getEntriesByType('navigation')[0]
 					const isReload = nav && (nav as PerformanceNavigationTiming).type === 'reload'
 					if (isReload && this.extWindow.showToast) {
@@ -344,34 +374,81 @@ const { username } = Astro.props
 						)
 					}
 
-					this.updateMasterKeyDisplay()
+					this.showGeneratedKeyUi()
 				} catch {
 					this.showErrorState()
 				}
 			}
 
-			private updateMasterKeyDisplay(): void {
-				if (!this.elements.masterKeyDisplay || !this.state.masterKey) return
-
-				this.elements.masterKeyDisplay.textContent = this.state.masterKey
-				this.elements.masterKeyDisplay.setAttribute('data-master-key', this.state.masterKey)
+			private showGeneratedKeyUi(): void {
 				this.elements.loadingEl?.classList.add('opacity-0')
 
 				setTimeout(() => {
 					this.elements.loadingEl?.classList.add('hidden')
-					this.elements.masterKeyDisplay?.classList.remove('hidden')
-					this.elements.masterKeyDisplay?.classList.add('flex', 'items-center')
-					setTimeout(() => {
-						this.elements.masterKeyDisplay?.classList.remove('opacity-0')
-					}, 50)
+					this.hideMasterInDom()
+					this.elements.masterKeyPlaceholder?.classList.remove('hidden')
+					this.elements.masterKeyPlaceholder?.classList.add('flex')
 					this.elements.masterKeyCopyBtn?.classList.remove('hidden')
 					this.elements.masterKeyCopyBtn?.classList.add('flex')
+					this.elements.revealBtn?.classList.remove('hidden')
 				}, 300)
+			}
+
+			private hideMasterInDom(): void {
+				if (this.elements.masterKeyDisplay) {
+					this.elements.masterKeyDisplay.textContent = ''
+					this.elements.masterKeyDisplay.classList.add('hidden')
+					this.elements.masterKeyDisplay.classList.remove('flex', 'items-center')
+				}
+				this.elements.masterKeyPlaceholder?.classList.remove('hidden')
+				this.elements.masterKeyPlaceholder?.classList.add('flex')
+				if (this.elements.revealBtn) {
+					this.elements.revealBtn.textContent = 'Mostrar Master Key'
+					this.elements.revealBtn.setAttribute('aria-pressed', 'false')
+					this.elements.revealBtn.setAttribute('aria-label', 'Mostrar Master Key')
+				}
+				this.state.masterKeyRevealed = false
+			}
+
+			private revealMasterInDom(): void {
+				const session = this.state.keySession
+				if (!session || !session.isAlive() || !this.elements.masterKeyDisplay) return
+
+				this.elements.masterKeyPlaceholder?.classList.add('hidden')
+				this.elements.masterKeyPlaceholder?.classList.remove('flex')
+				this.elements.masterKeyDisplay.textContent = session.revealMaster()
+				this.elements.masterKeyDisplay.classList.remove('hidden')
+				this.elements.masterKeyDisplay.classList.add('flex', 'items-center')
+				if (this.elements.revealBtn) {
+					this.elements.revealBtn.textContent = 'Ocultar Master Key'
+					this.elements.revealBtn.setAttribute('aria-pressed', 'true')
+					this.elements.revealBtn.setAttribute('aria-label', 'Ocultar Master Key')
+				}
+				this.state.masterKeyRevealed = true
+			}
+
+			private toggleMasterReveal(): void {
+				if (this.state.masterKeyRevealed) {
+					this.hideMasterInDom()
+					return
+				}
+				this.revealMasterInDom()
+			}
+
+			private teardownSecrets(): void {
+				this.tornDown = true
+				this.hideMasterInDom()
+				this.state.keySession?.destroy()
+				this.state.keySession = null
+				destroyActiveKeySession()
+				if (!this.pageAbort.signal.aborted) {
+					this.pageAbort.abort()
+				}
 			}
 
 			private showErrorState(): void {
 				if (!this.elements.loadingEl) return
-				this.elements.loadingEl.innerHTML = ''
+				this.elements.loadingEl.replaceChildren()
 
 				const errorContainer = document.createElement('div')
 				errorContainer.className = 'flex items-center justify-center gap-3 text-red-400 py-2'
@@ -391,11 +468,11 @@ const { username } = Astro.props
 			private updateSubmitState(): void {
 				if (!this.elements.submitBtn || !this.elements.chk1 || !this.elements.chk2) return
 
-				const ok = this.elements.chk1.checked && this.elements.chk2.checked && this.state.hasDownloaded
+				const ok = this.elements.chk1.checked && this.elements.chk2.checked && this.hasBackup()
 				this.elements.submitBtn.disabled = !ok
-				this.elements.submitBtn.title = !this.state.hasDownloaded ? 'You must download the key file first' : ''
+				this.elements.submitBtn.title = !this.hasBackup() ? 'You must download the key file first' : ''
 
-				if (this.state.hasDownloaded) {
+				if (this.hasBackup()) {
 					const tooltipTarget = this.elements.submitBtn.getAttribute('data-tooltip-target')
 					if (tooltipTarget) {
 						this.elements.submitBtn.removeAttribute('data-tooltip-target')
@@ -405,9 +482,11 @@ const { username } = Astro.props
 			}
 
 			private async handleCopy(trigger: HTMLElement): Promise<void> {
+				const session = this.state.keySession
+				if (!session || !session.isAlive()) return
 				if (!this.elements.masterKeyFeedback || !this.elements.masterKeyDisplay) return
 				this.state.copyFeedbackTimeout = await copyMasterKey(
-					this.state.masterKey,
+					session.revealMaster(),
 					trigger,
 					{ feedback: this.elements.masterKeyFeedback, keyDisplay: this.elements.masterKeyDisplay },
 					this.state.copyFeedbackTimeout,
@@ -428,10 +507,7 @@ const { username } = Astro.props
 
 			private buildDownloadDeps() {
 				return {
-					username: this.state.username,
-					masterKey: this.state.masterKey,
-					allKeys: this.state.allKeys!,
-					keysetId: this.state.keysetId,
+					keySession: this.state.keySession!,
 					recoverSession: () => this.recoverCreationSession(),
 				}
 			}
@@ -454,15 +530,18 @@ const { username } = Astro.props
 			}
 
 			private async handleDownload(format: DownloadFormat): Promise<void> {
-				if (!this.state.allKeys || !this.state.masterKey) return
+				const session = this.state.keySession
+				if (!session || !session.isAlive()) return
 
 				try {
 					await downloadAndNotify(this.buildDownloadDeps(), format)
 
 					this.markFormatDownloaded(format)
 
-					this.state.hasDownloaded = true
-					sessionStorage.setItem(KEYS_SESSION_KEY, this.state.keysetId)
+					if (session.phase === KEY_SESSION_PHASE.GENERATED) {
+						session.confirmBackup()
+					}
+					sessionStorage.setItem(KEYS_SESSION_KEY, session.keysetId)
 					this.updateSubmitState()
 
 					// Auto-close modal when both formats downloaded
@@ -492,14 +571,15 @@ const { username } = Astro.props
 
 			private resetSubmitButton(): void {
 				if (!this.elements.submitBtn) return
-				this.elements.submitBtn.innerHTML = this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+				this.elements.submitBtn.textContent = this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
 				this.elements.submitBtn.disabled = false
 				this.updateSubmitState()
 			}
 
 			private async handleFormSubmit(e: Event): Promise<void> {
 				e.preventDefault()
-				if (this.isSubmitting || !this.state.allKeys || !this.state.username) return
+				const session = this.state.keySession
+				if (this.isSubmitting || !session || !this.hasBackup() || !this.state.username) return
 				this.isSubmitting = true
 
 				const { progressModal, progressErrorActions, submitBtn } = this.elements
@@ -515,7 +595,7 @@ const { username } = Astro.props
 
 				if (submitBtn) {
 					submitBtn.disabled = true
-					submitBtn.innerHTML = submitBtn.dataset.loadingLabel ?? 'Creating account...'
+					submitBtn.textContent = submitBtn.dataset.loadingLabel ?? 'Creating account...'
 				}
 
 				// Resolve PoW + timing token (throws if token unavailable)
@@ -541,7 +621,7 @@ const { username } = Astro.props
 				updateStepStates(progressModal, 1, [0], -1)
 
 				try {
-					const publicKeys = this.state.allKeys.getAllPublicKeys()
+					const publicKeys = session.getPublicKeys()
 					const result = await submitAccountCreation(
 						this.state.username,
 						publicKeys,
@@ -558,6 +638,8 @@ const { username } = Astro.props
 						updateStepStates(progressModal, -1, [0, 1, 2], -1)
 						await new Promise(resolve => setTimeout(resolve, PROGRESS_COMPLETE_DELAY_MS))
 
+						session.markSubmitted()
+						this.teardownSecrets()
 						window.location.href = `/success/${this.state.username}`
 					} else {
 						throw new Error(result.error)
@@ -579,24 +661,29 @@ const { username } = Astro.props
 			}
 
 			private setupEventListeners(): void {
-				this.elements.chk1?.addEventListener('change', () => this.updateSubmitState())
-				this.elements.chk2?.addEventListener('change', () => this.updateSubmitState())
+				const { signal } = this.pageAbort
+				this.elements.chk1?.addEventListener('change', () => this.updateSubmitState(), { signal })
+				this.elements.chk2?.addEventListener('change', () => this.updateSubmitState(), { signal })
 
-				this.elements.copyBtn?.addEventListener('click', () => this.handleCopy(this.elements.copyBtn!))
-				this.elements.masterKeyDisplay?.addEventListener('click', () => this.handleCopy(this.elements.masterKeyDisplay!))
-				this.elements.masterKeyCopyBtn?.addEventListener('click', () => this.handleCopy(this.elements.masterKeyCopyBtn!))
+				this.elements.copyBtn?.addEventListener('click', () => this.handleCopy(this.elements.copyBtn!), { signal })
+				this.elements.masterKeyDisplay?.addEventListener('click', () => this.handleCopy(this.elements.masterKeyDisplay!), { signal })
+				this.elements.masterKeyCopyBtn?.addEventListener('click', () => this.handleCopy(this.elements.masterKeyCopyBtn!), { signal })
+				this.elements.revealBtn?.addEventListener('click', () => this.toggleMasterReveal(), { signal })
 
 				this.elements.downloadBtn?.addEventListener('click', () => {
-					if (!this.state.allKeys || !this.state.masterKey) return
+					if (!this.state.keySession?.isAlive()) return
 					this.openDownloadModal()
-				})
+				}, { signal })
 
-				this.elements.form?.addEventListener('submit', e => this.handleFormSubmit(e))
+				this.elements.form?.addEventListener('submit', e => this.handleFormSubmit(e), { signal })
 
 				this.elements.closeProgressBtn?.addEventListener('click', () => {
 					if (this.elements.progressModal) hideProgressModal(this.elements.progressModal)
 					this.resetSubmitButton()
-				})
+				}, { signal })
+
+				window.addEventListener('pagehide', () => this.teardownSecrets(), { signal })
+				window.addEventListener('beforeunload', () => this.teardownSecrets(), { signal })
 			}
 
 			private setupGlobalMethods(): void {
@@ -609,9 +696,12 @@ const { username } = Astro.props
 			}
 		}
 
-		// Initialize on each ClientRouter navigation (module scripts run once)
+		let currentManager: AccountDetailsManager | null = null
+
 		document.addEventListener('astro:page-load', () => {
-			// Release stale closures from previous navigation (prevents GC leak)
+			currentManager?.teardownSecrets()
+			currentManager = null
+
 			const extWin = window as Window & ExtendedWindow
 			extWin.closeDownloadModal = undefined
 			extWin.handleFormatSelection = undefined
@@ -621,8 +711,8 @@ const { username } = Astro.props
 			if (form.dataset.initialized) return
 			form.dataset.initialized = 'true'
 
-			const accountManager = new AccountDetailsManager()
-			accountManager.initialize()
+			currentManager = new AccountDetailsManager()
+			currentManager.initialize()
 		})
 	</script>
 </section>

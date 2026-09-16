@@ -2,11 +2,16 @@ import type { APIRoute } from 'astro'
 import { ensureCreation } from '@/lib/session-helpers'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import { HTTP_STATUS, API_MESSAGES } from '@/consts/constants'
-import type { PublicKeysPayload } from '@/types/keys'
+import { hasForbiddenPrivateKeyFields } from '@/types/keys'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { validateHiveKeySet } from '@/utils/key-validation'
+import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
 
 export const POST: APIRoute = async context => {
   try {
@@ -27,9 +32,27 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    const body: PublicKeysPayload = await context.request.json()
+    const rawBody: unknown = await context.request.json()
+    if (!isJsonObject(rawBody)) {
+      return apiError(
+        API_MESSAGES.ERROR.MISSING_KEYS,
+        HTTP_STATUS.BAD_REQUEST,
+        undefined,
+        { noCache: true }
+      )
+    }
+
+    if (hasForbiddenPrivateKeyFields(rawBody)) {
+      return apiError(
+        VALIDATION_ERROR_MESSAGES.PRIVATE_KEYS_NOT_ALLOWED,
+        HTTP_STATUS.BAD_REQUEST,
+        undefined,
+        { noCache: true }
+      )
+    }
+
     const { ownerPublicKey, activePublicKey, postingPublicKey, memoPublicKey } =
-      body
+      rawBody
 
     // Validate that all public keys are present
     if (

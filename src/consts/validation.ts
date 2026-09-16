@@ -25,6 +25,7 @@ export const VALIDATION_ERROR_MESSAGES = {
 	ACCOUNT_CREATION_SUCCESS: 'created and verified successfully',
 	USERNAME_HIVE_STANDARDS: 'Username does not meet Hive naming standards',
 	INVALID_PUBLIC_KEY_FORMAT: 'Invalid public key format',
+	PRIVATE_KEYS_NOT_ALLOWED: 'Request must contain public keys only',
 	INVALID_PUBLIC_KEYS_MULTIPLE: 'One or more public keys have invalid format',
 	USERNAME_SESSION_MISMATCH: 'Username does not match the current session',
 	TICKET_REQUIRED: 'A valid ticket is required to create an account',

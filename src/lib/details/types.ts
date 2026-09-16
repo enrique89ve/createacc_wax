@@ -1,6 +1,6 @@
-import type { HiveKeys } from '@/lib/create/get-keys'
 import type { DownloadFormat } from '@/utils/key-download-manager'
 import type { PowSolution } from '@/utils/pow-solver'
+import type { ClientKeySession } from './client-key-session'
 
 export interface ExtendedWindow {
 	showToast?: (
@@ -18,9 +18,11 @@ export interface DOMElements {
 	readonly submitBtn: HTMLButtonElement | null
 	readonly copyBtn: HTMLButtonElement | null
 	readonly downloadBtn: HTMLButtonElement | null
+	readonly revealBtn: HTMLButtonElement | null
 	readonly loadingEl: HTMLElement | null
 	readonly keysContainer: HTMLElement | null
 	readonly masterKeyDisplay: HTMLElement | null
+	readonly masterKeyPlaceholder: HTMLElement | null
 	readonly masterKeyCopyBtn: HTMLButtonElement | null
 	readonly masterKeyFeedback: HTMLElement | null
 	readonly form: HTMLFormElement | null
@@ -37,12 +39,10 @@ export interface PreSolvedBundle {
 }
 
 export interface AppState {
-	masterKey: string
-	allKeys: HiveKeys | null
-	hasDownloaded: boolean
+	keySession: ClientKeySession | null
+	masterKeyRevealed: boolean
 	copyFeedbackTimeout: number | undefined
 	username: string
-	keysetId: string
 	preSolvedBundle: Promise<PreSolvedBundle | null> | null
 }
 

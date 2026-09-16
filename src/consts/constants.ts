@@ -31,6 +31,7 @@ export const ROUTES = {
 	BUILDERS_LOGIN: '/builders/login',
 	BUILDERS_PREFIX: '/builders/',
 	BUILDERS_DASHBOARD: '/builders/accounts',
+	DETAILS_PREFIX: '/details/',
 } as const
 
 // Re-export UserRole enum from centralized roles module

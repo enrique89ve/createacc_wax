@@ -1,6 +1,7 @@
 import { obtainPowSolution, fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
 import { TIMING_FLOOR_MS } from '@/consts/pow'
 import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
+import type { PublicKeySet } from '@/types/keys'
 import type { PreSolvedBundle } from './types'
 
 interface ResolvedPow {
@@ -58,7 +59,7 @@ export type AccountCreationResult =
  */
 export async function submitAccountCreation(
 	username: string,
-	publicKeys: Record<string, string>,
+	publicKeys: PublicKeySet,
 	pow: PowSolution,
 	timingTokenId: string,
 ): Promise<AccountCreationResult> {
@@ -67,10 +68,7 @@ export async function submitAccountCreation(
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			username,
-			ownerPublicKey: publicKeys.owner,
-			activePublicKey: publicKeys.active,
-			postingPublicKey: publicKeys.posting,
-			memoPublicKey: publicKeys.memo,
+			...publicKeys,
 			pow,
 			timingTokenId,
 		}),

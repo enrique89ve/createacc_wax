@@ -6,13 +6,10 @@ import {
 } from '@/lib/hive-transaction-service'
 import { BRAND } from '@/consts/branding'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
+import type { PublicKeySet } from '@/types/keys'
 
-export interface ICreateAccountParams {
+export type ICreateAccountParams = PublicKeySet & {
 	readonly username: string
-	readonly ownerPublicKey: string
-	readonly activePublicKey: string
-	readonly postingPublicKey: string
-	readonly memoPublicKey: string
 }
 
 export function buildCreateClaimedAccountOperation(

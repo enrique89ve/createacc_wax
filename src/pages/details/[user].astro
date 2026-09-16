@@ -4,6 +4,7 @@ import CreationStepper from '@/components/ui/CreationStepper.astro'
 import AccountDetails from '@/components/AccountDetails.astro'
 import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
+import { logger } from '@/lib/logger'
 
 const { user } = Astro.params
 
@@ -13,7 +14,7 @@ if (!user || typeof user !== 'string') {
 
 const usernameError = validateAccountName(user)
 if (usernameError) {
-  console.warn('Invalid username format in URL', { user, usernameError })
+  logger.warn('[details] Invalid username format in URL')
   return Astro.redirect('/access-denied')
 }
 
@@ -31,7 +32,7 @@ if (creationSession.accountCreated) {
 }
 ---
 
-<Layout>
+<Layout noindex>
   <div class="pt-6">
     <CreationStepper />
   </div>

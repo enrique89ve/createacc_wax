@@ -1,20 +1,14 @@
 import {
 	KeyDownloadManager,
-	type KeysData,
 	type DownloadFormat,
 } from '@/utils/key-download-manager'
 import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
-import type { HiveKeyRole } from '@/types/keys'
+import type { PublicKeySet } from '@/types/keys'
+import type { ClientKeySession } from './client-key-session'
 import type { PreSolvedBundle } from './types'
 
 export interface DownloadDependencies {
-	readonly username: string
-	readonly masterKey: string
-	readonly allKeys: {
-		getAllPrivateKeys(): Record<HiveKeyRole, string>
-		getAllPublicKeys(): Record<HiveKeyRole, string>
-	}
-	readonly keysetId: string
+	readonly keySession: ClientKeySession
 	readonly recoverSession: () => Promise<boolean>
 }
 
@@ -22,34 +16,19 @@ export async function downloadAndNotify(
 	deps: DownloadDependencies,
 	format: DownloadFormat,
 ): Promise<void> {
-	const privateKeys = deps.allKeys.getAllPrivateKeys()
-	const publicKeys = deps.allKeys.getAllPublicKeys()
-
-	const keysData: KeysData = {
-		username: deps.username,
-		masterKey: deps.masterKey,
-		privateKeys,
-		publicKeys,
-		keysetId: deps.keysetId,
-		timestamp: new Date().toISOString(),
-	}
-
+	const keysData = deps.keySession.createDownload()
 	await KeyDownloadManager.downloadKeys(keysData, format)
-
-	// Notify server about downloaded keys (best-effort)
-	await notifyServerKeysDownloaded(publicKeys, deps.recoverSession)
+	await notifyServerKeysDownloaded(
+		deps.keySession.getPublicKeys(),
+		deps.recoverSession,
+	)
 }
 
 async function notifyServerKeysDownloaded(
-	publicKeys: Record<string, string>,
+	publicKeys: PublicKeySet,
 	recoverSession: () => Promise<boolean>,
 ): Promise<void> {
-	const body = JSON.stringify({
-		ownerPublicKey: publicKeys.owner,
-		activePublicKey: publicKeys.active,
-		postingPublicKey: publicKeys.posting,
-		memoPublicKey: publicKeys.memo,
-	})
+	const body = JSON.stringify(publicKeys)
 	const headers = { 'Content-Type': 'application/json' }
 
 	try {

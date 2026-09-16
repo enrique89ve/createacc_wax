@@ -3,7 +3,7 @@ import {
   type IPrivateKeyData,
 } from '@hiveio/wax'
 import type { ICreateAccountParams } from './create-account'
-import type { HiveKeyRole } from '@/types/keys'
+import type { HiveKeyRole, PublicKeySet } from '@/types/keys'
 import { getWaxFoundation } from '@/lib/wax-foundation'
 
 /**
@@ -81,7 +81,24 @@ export class HiveKeys {
   }
 
   /**
-   * Gets all public keys in a flat object
+   * The only representation allowed to cross toward APIs.
+   * JSON.stringify(hiveKeys) uses this via toJSON().
+   */
+  publicKeys(): PublicKeySet {
+    return {
+      ownerPublicKey: this.owner.publicKey,
+      activePublicKey: this.active.publicKey,
+      postingPublicKey: this.posting.publicKey,
+      memoPublicKey: this.memo.publicKey,
+    }
+  }
+
+  toJSON(): PublicKeySet {
+    return this.publicKeys()
+  }
+
+  /**
+   * Role-keyed public keys for local download files only.
    */
   getAllPublicKeys(): Record<HiveKeyRole, TPublicKey> {
     return {

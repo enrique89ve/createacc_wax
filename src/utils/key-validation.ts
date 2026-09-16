@@ -1,4 +1,5 @@
 import { isPublicKey, type TPublicKey } from '@hiveio/wax'
+import type { PublicKeySet } from '@/types/keys'
 
 /**
  * Type guard that verifies if a public key is valid using wax
@@ -46,24 +47,14 @@ export function castToPublicKey(key: string): TPublicKey {
 }
 
 /**
- * Interface for a set of Hive public keys
- * Clear and easy to understand structure
+ * Untrusted public-key payload (request body, JSON).
+ * Validated output is {@link PublicKeySet}.
  */
-export interface PublicKeySet {
+export interface UncheckedPublicKeySet {
 	readonly ownerPublicKey: unknown
 	readonly activePublicKey: unknown
 	readonly postingPublicKey: unknown
 	readonly memoPublicKey: unknown
-}
-
-/**
- * Key validation result - simple structure
- */
-export interface ValidatedKeySet {
-	readonly ownerPublicKey: TPublicKey
-	readonly activePublicKey: TPublicKey
-	readonly postingPublicKey: TPublicKey
-	readonly memoPublicKey: TPublicKey
 }
 
 /**
@@ -73,7 +64,7 @@ export interface ValidatedKeySet {
  * @returns Validated set with correct types
  * @throws Error if any key is invalid
  */
-export function validateHiveKeySet(keySet: PublicKeySet): ValidatedKeySet {
+export function validateHiveKeySet(keySet: UncheckedPublicKeySet): PublicKeySet {
 	// Validate each key individually - step by step
 	validatePublicKeyOrThrow(keySet.ownerPublicKey, 'owner')
 	validatePublicKeyOrThrow(keySet.activePublicKey, 'active')

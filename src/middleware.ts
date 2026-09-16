@@ -168,6 +168,8 @@ function buildSecurityHeaders(): Record<string, string> {
 			"img-src 'self' data: https:",
 			"font-src 'self' data:",
 			`connect-src ${connectSrc}`,
+			"object-src 'none'",
+			"script-src-attr 'none'",
 			"frame-ancestors 'none'",
 			"base-uri 'self'",
 			"form-action 'self'",
@@ -175,10 +177,40 @@ function buildSecurityHeaders(): Record<string, string> {
 	}
 }
 
-const SECURITY_HEADERS = buildSecurityHeaders()
+function isKeyCeremonyPath(pathname: string): boolean {
+	return pathname.startsWith(ROUTES.DETAILS_PREFIX)
+}
 
-function applySecurityHeaders(response: Response): Response {
-	for (const [header, value] of Object.entries(SECURITY_HEADERS)) {
+function buildKeyCeremonySecurityHeaders(): Record<string, string> {
+	const headers = buildSecurityHeaders()
+	const connectSrc = ["'self'", ...hiveConnectSources()].join(' ')
+	headers['Content-Security-Policy'] = [
+		"default-src 'self'",
+		"script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data:",
+		"font-src 'self' data:",
+		`connect-src ${connectSrc}`,
+		"object-src 'none'",
+		"script-src-attr 'none'",
+		"worker-src 'none'",
+		"frame-src 'none'",
+		"frame-ancestors 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+	].join('; ')
+	headers['Referrer-Policy'] = 'no-referrer'
+	return headers
+}
+
+const SECURITY_HEADERS = buildSecurityHeaders()
+const KEY_CEREMONY_SECURITY_HEADERS = buildKeyCeremonySecurityHeaders()
+
+function applySecurityHeaders(response: Response, pathname = ''): Response {
+	const headers = isKeyCeremonyPath(pathname)
+		? KEY_CEREMONY_SECURITY_HEADERS
+		: SECURITY_HEADERS
+	for (const [header, value] of Object.entries(headers)) {
 		response.headers.set(header, value)
 	}
 	return response
@@ -187,7 +219,7 @@ function applySecurityHeaders(response: Response): Response {
 const securityHeadersMiddleware = defineMiddleware(async (context, next) => {
 	if (context.isPrerendered) return next()
 	const response = await next()
-	return applySecurityHeaders(response)
+	return applySecurityHeaders(response, context.url.pathname)
 })
 
 const managementAuthMiddleware = defineMiddleware(async (context, next) => {
@@ -195,12 +227,12 @@ const managementAuthMiddleware = defineMiddleware(async (context, next) => {
 
 	try {
 		const result = await protectManagementRoutes(context)
-		if (result) return applySecurityHeaders(result)
+		if (result) return applySecurityHeaders(result, context.url.pathname)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 		logger.warn(`[middleware] Management auth error: ${errorMessage}`)
 		if (context.url.pathname.startsWith(ROUTES.MANAGEMENT)) {
-			return applySecurityHeaders(context.redirect(ROUTES.LOGIN))
+			return applySecurityHeaders(context.redirect(ROUTES.LOGIN), context.url.pathname)
 		}
 	}
 
@@ -212,12 +244,15 @@ const buildersAuthMiddleware = defineMiddleware(async (context, next) => {
 
 	try {
 		const result = await protectBuildersRoutes(context)
-		if (result) return applySecurityHeaders(result)
+		if (result) return applySecurityHeaders(result, context.url.pathname)
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error'
 		logger.warn(`[middleware] Builders auth error: ${errorMessage}`)
 		if (context.url.pathname.startsWith(ROUTES.BUILDERS_PREFIX)) {
-			return applySecurityHeaders(context.redirect(ROUTES.BUILDERS_LOGIN))
+			return applySecurityHeaders(
+				context.redirect(ROUTES.BUILDERS_LOGIN),
+				context.url.pathname
+			)
 		}
 	}
 

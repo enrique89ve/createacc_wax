@@ -1,21 +1,18 @@
-import { type TPublicKey } from '@hiveio/wax'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import type { ICreateAccountParams } from '@/lib/create/create-account'
 import { validateHiveKeySet } from '@/utils/key-validation'
 import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
+import type { PublicKeySet } from '@/types/keys'
+import { hasForbiddenPrivateKeyFields } from '@/types/keys'
 import {
 	type ValidationResult,
 	createValidationSuccess,
 	createValidationFailure
 } from '@/utils/validation-result'
 
-export interface ValidatedAccountRequest {
+export type ValidatedAccountRequest = PublicKeySet & {
 	readonly username: string
-	readonly ownerPublicKey: TPublicKey
-	readonly activePublicKey: TPublicKey
-	readonly postingPublicKey: TPublicKey
-	readonly memoPublicKey: TPublicKey
 }
 
 export interface ValidatedSession {
@@ -34,6 +31,14 @@ export interface ValidatedSession {
 export function validateRequestData(
 	data: Record<string, unknown>
 ): ValidationResult<ValidatedAccountRequest> {
+	if (hasForbiddenPrivateKeyFields(data)) {
+		return createValidationFailure(
+			VALIDATION_ERROR_MESSAGES.PRIVATE_KEYS_NOT_ALLOWED,
+			'request_body',
+			'PRIVATE_KEYS_NOT_ALLOWED'
+		)
+	}
+
 	const { username, ownerPublicKey, activePublicKey, postingPublicKey, memoPublicKey } = data
 
 	if (!username || !ownerPublicKey || !activePublicKey || !postingPublicKey || !memoPublicKey) {
