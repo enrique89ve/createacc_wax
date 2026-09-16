@@ -63,7 +63,6 @@ export interface SystemActivitySummary {
  */
 export interface BuilderFullStats {
   readonly hive_username: string
-  readonly is_active: boolean
   readonly total_tickets: number
   readonly active_tickets: number
   readonly total_accounts: number
@@ -208,7 +207,6 @@ export class DashboardService {
         sql: `
 					SELECT
 						? as hive_username,
-						1 as is_active,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
 						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
@@ -232,7 +230,6 @@ export class DashboardService {
 
       return {
         hive_username: String(row.hive_username),
-        is_active: sqliteToBoolean(row.is_active),
         total_tickets: Number(row.total_tickets || 0),
         active_tickets: Number(row.active_tickets || 0),
         total_accounts: Number(row.total_accounts || 0),
@@ -255,7 +252,6 @@ export class DashboardService {
         sql: `
 					SELECT
 						c.hive_username,
-						1 as is_active,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
 						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
@@ -274,7 +270,6 @@ export class DashboardService {
 
       return result.rows.map((row: Record<string, unknown>) => ({
         hive_username: String(row.hive_username),
-        is_active: sqliteToBoolean(row.is_active),
         total_tickets: Number(row.total_tickets || 0),
         active_tickets: Number(row.active_tickets || 0),
         total_accounts: Number(row.total_accounts || 0),
@@ -360,14 +355,12 @@ export class DashboardService {
       const result = await db.execute({
         sql: `
 					SELECT
-						u.username as hive_username,
+						a.builder_username as hive_username,
 						COUNT(DISTINCT a.id) as total_accounts,
 						COUNT(DISTINCT t.id) as total_tickets
-					FROM "user" u
-					LEFT JOIN Tickets t ON u.id = t.creator_username
-					LEFT JOIN Accounts a ON t.code = a.ticket
-					WHERE u.role = 'builder'
-					GROUP BY u.id, u.username
+					FROM Accounts a
+					LEFT JOIN Tickets t ON t.creator_username = a.builder_username
+					GROUP BY a.builder_username
 					ORDER BY total_accounts DESC
 					LIMIT ?
 				`,

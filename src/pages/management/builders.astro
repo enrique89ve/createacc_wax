@@ -29,13 +29,13 @@ try {
 }
 ---
 
-<ManagementLayout title="Gestión de Builders" activeTab="builders">
+<ManagementLayout title="Cuentas de créditos" activeTab="builders">
   <!-- Header Section -->
   <div class="mb-8 flex items-center justify-between">
     <div>
-      <h2 class="text-foreground text-2xl font-bold">Gestión de Builders</h2>
+      <h2 class="text-foreground text-2xl font-bold">Cuentas de créditos</h2>
       <p class="text-muted-foreground mt-1">
-        Asigna créditos a usuarios de Hive para crear cuentas
+        Asigna créditos a usernames de Hive. No hay cuentas Builder persistidas.
       </p>
     </div>
     <button
@@ -49,7 +49,7 @@ try {
   <!-- Builders Table -->
   <div class="bg-card border-border overflow-hidden rounded-lg border">
     <div class="border-border border-b px-6 py-4">
-      <h3 class="text-foreground text-lg font-semibold">Usuarios Builders</h3>
+      <h3 class="text-foreground text-lg font-semibold">Cuentas de créditos</h3>
     </div>
 
     {
@@ -62,9 +62,6 @@ try {
                   Usuario Hive
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Estado
-                </th>
-                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                   Créditos Disponibles
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
@@ -72,9 +69,6 @@ try {
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                   Tickets Creados
-                </th>
-                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Último Claim
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                   Fecha Creación
@@ -86,27 +80,11 @@ try {
             </thead>
             <tbody class="bg-background divide-border divide-y">
               {builders.map(builder => (
-                <tr
-                  class={`hover:bg-muted/20 ${!builder.is_active ? 'opacity-60' : ''}`}
-                >
+                <tr class="hover:bg-muted/20">
                   <td class="whitespace-nowrap px-6 py-4">
                     <div class="text-foreground text-sm font-medium">
                       @{builder.hive_username}
-                      {!builder.is_active && (
-                        <span class="ml-2 text-xs text-red-500">(Baneado)</span>
-                      )}
                     </div>
-                  </td>
-                  <td class="whitespace-nowrap px-6 py-4">
-                    <span
-                      class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                        builder.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {builder.is_active ? 'Activo' : 'Baneado'}
-                    </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <span class="font-semibold text-green-600">
@@ -122,56 +100,28 @@ try {
                     {builder.tickets_created}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {builder.last_claim_at
-                      ? formatDate(builder.last_claim_at)
-                      : 'Nunca'}
-                  </td>
-                  <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     {formatDate(builder.created_at)}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <div class="flex gap-2">
-                      {builder.is_active ? (
-                        <>
-                          <button
-                            class="text-primary hover:text-primary/80 text-sm font-medium"
-                            data-action="assign-credits"
-                            data-username={builder.hive_username}
-                            title="Asignar más créditos"
-                          >
-                            💳 Asignar
-                          </button>
-                          <button
-                            class="text-sm font-medium text-blue-600 hover:text-blue-500"
-                            data-action="edit-credits"
-                            data-username={builder.hive_username}
-                            data-available={builder.available_credits}
-                            data-pending={builder.pending_credits}
-                            title="Editar créditos"
-                          >
-                            ✏️ Editar
-                          </button>
-                          <button
-                            class="text-destructive hover:text-destructive/80 text-sm font-medium"
-                            data-action="ban-builder"
-                            data-builder-id={builder.hive_username}
-                            data-username={builder.hive_username}
-                            title="Banear builder"
-                          >
-                            🚫 Banear
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          class="text-sm font-medium text-green-600 hover:text-green-500"
-                          data-action="reactivate-builder"
-                          data-builder-id={builder.hive_username}
-                          data-username={builder.hive_username}
-                          title="Reactivar builder"
-                        >
-                          ✅ Reactivar
-                        </button>
-                      )}
+                      <button
+                        class="text-primary hover:text-primary/80 text-sm font-medium"
+                        data-action="assign-credits"
+                        data-username={builder.hive_username}
+                        title="Asignar más créditos"
+                      >
+                        💳 Asignar
+                      </button>
+                      <button
+                        class="text-sm font-medium text-blue-600 hover:text-blue-500"
+                        data-action="edit-credits"
+                        data-username={builder.hive_username}
+                        data-available={builder.available_credits}
+                        data-pending={builder.pending_credits}
+                        title="Editar créditos"
+                      >
+                        ✏️ Editar
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -181,9 +131,9 @@ try {
         </div>
       ) : (
         <div class="p-8 text-center">
-          <div class="text-muted-foreground mb-4 text-6xl">👷</div>
+          <div class="text-muted-foreground mb-4 text-6xl">💳</div>
           <p class="text-foreground mb-2 text-lg font-medium">
-            No hay builders aún
+            No hay cuentas de créditos aún
           </p>
           <p class="text-muted-foreground">
             Asigna créditos a un usuario de Hive para comenzar
@@ -202,7 +152,7 @@ try {
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        Asignar Créditos a Builder
+        Asignar Créditos
       </h3>
 
       <form id="assign-form" class="space-y-4">
@@ -223,7 +173,7 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Si el usuario no existe, se creará automáticamente como builder
+            Si el username no tiene créditos, se crea la cuenta de créditos
           </p>
         </div>
 
@@ -255,11 +205,9 @@ try {
           </h4>
           <ul class="text-muted-foreground space-y-1 text-xs">
             <li>• Los créditos se asignan como "Pendientes"</li>
+            <li>• No se crea un usuario Builder: solo una fila de créditos</li>
             <li>
-              • Si el usuario no existe, se crea automáticamente como builder
-            </li>
-            <li>
-              • El builder debe autenticarse con Keychain para reclamarlos
+              • El usuario debe autenticarse con Keychain para reclamarlos
             </li>
             <li>• Después del claim, puede crear tickets y cuentas</li>
             <li>• 1 crédito = 1 cuenta de Hive que puede crear</li>

@@ -4,7 +4,6 @@ import { usersRepository } from '@/lib/repositories/users-repository'
 import { creditsService } from '@/lib/credits-service'
 import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { CREDITS_LIMITS } from '@/consts/constants'
-import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { Permission } from '@/lib/auth/permissions'
@@ -27,16 +26,15 @@ export const GET: APIRoute = async context => {
       // Get all builders using the unified repository
       const builders = await usersRepository.getAllBuilders()
 
-      const users = builders.map(builder => ({
-        id: builder.hive_username,
-        username: builder.hive_username,
-        role: UserRole.Builder,
-        is_active: builder.is_active,
-        last_claim_at: builder.last_claim_at,
+      const accounts = builders.map(builder => ({
+        hive_username: builder.hive_username,
         created_at: builder.created_at,
+        tickets_created: builder.tickets_created,
+        available_credits: builder.available_credits,
+        pending_credits: builder.pending_credits,
       }))
 
-      return apiSuccess({ users })
+      return apiSuccess({ accounts })
     } catch (error) {
       return apiError('Error interno', 500)
     }
@@ -99,23 +97,14 @@ export const POST: APIRoute = async context => {
       return apiSuccess(
         {
           message: 'Créditos asignados al username Hive',
-          user: {
-            id: cleanUsername,
+          account: {
             hive_username: cleanUsername,
-            role: UserRole.Builder,
             initial_credits: initialCredits,
           },
         },
         201
       )
     } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.includes('UNIQUE constraint failed')
-      ) {
-        return apiError('El builder ya existe', 400)
-      }
-
       return apiError('Error interno', 500)
     }
   })
@@ -147,17 +136,10 @@ export const DELETE: APIRoute = async context => {
         return apiError('ID de usuario inválido', 400)
       }
 
-      const user = await usersRepository.findById(userId)
-
-      if (!user || user.role !== UserRole.Builder) {
-        return apiError('Builder no encontrado', 404)
-      }
-
-      await usersRepository.deleteBuilderWithReferences(userId)
-
-      return apiSuccess({
-        message: 'Usuario eliminado exitosamente',
-      })
+      return apiError(
+        'Los builders no se persisten. No hay registro de usuario que eliminar.',
+        410
+      )
     } catch (error) {
       return apiError('Error interno', 500)
     }

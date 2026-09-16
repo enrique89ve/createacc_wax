@@ -1,220 +1,273 @@
 ---
 interface Props {
-	readonly steps: readonly string[]
-	readonly currentStep?: number
-	readonly completedSteps?: readonly number[]
-	readonly errorStep?: number
-	readonly className?: string
+  readonly steps: readonly string[]
+  readonly currentStep?: number
+  readonly completedSteps?: readonly number[]
+  readonly errorStep?: number
+  readonly className?: string
 }
 
 const {
-	steps,
-	currentStep = -1,
-	completedSteps = [],
-	errorStep = -1,
-	className = '',
+  steps,
+  currentStep = -1,
+  completedSteps = [],
+  errorStep = -1,
+  className = '',
 } = Astro.props as Props
 
 function getStepState(index: number) {
-	if (index === errorStep) return 'error'
-	if (completedSteps.includes(index)) return 'completed'
-	if (index === currentStep) return 'active'
-	return 'pending'
+  if (index === errorStep) return 'error'
+  if (completedSteps.includes(index)) return 'completed'
+  if (index === currentStep) return 'active'
+  return 'pending'
 }
 
-const progressPercentage = errorStep >= 0
-	? Math.max(0, ((errorStep + 1) / steps.length) * 100)
-	: Math.max(0, ((currentStep + 1) / steps.length) * 100)
+const progressPercentage =
+  errorStep >= 0
+    ? Math.max(0, ((errorStep + 1) / steps.length) * 100)
+    : Math.max(0, ((currentStep + 1) / steps.length) * 100)
 ---
 
 <div
-	class={`progress-stepper w-full max-w-md mx-auto ${className}`}
-	role="progressbar"
-	aria-valuemin="0"
-	aria-valuemax={steps.length}
-	aria-valuenow={currentStep + 1}
-	aria-label="Progreso de creación de cuenta"
+  class={`progress-stepper w-full max-w-md mx-auto ${className}`}
+  role="progressbar"
+  aria-valuemin="0"
+  aria-valuemax={steps.length}
+  aria-valuenow={currentStep + 1}
+  aria-label="Progreso de creación de cuenta"
 >
-	<!-- Progress Bar -->
-	<div class="progress-bar-container mb-6">
-		<div class="bg-muted h-2 rounded-full overflow-hidden">
-			<div
-				class="progress-fill h-full bg-primary rounded-full transition-all duration-700 ease-out"
-				data-progress-fill
-				style={`width: ${progressPercentage}%`}
-			></div>
-		</div>
-	</div>
+  <!-- Progress Bar -->
+  <div class="progress-bar-container mb-6">
+    <div class="bg-muted h-2 overflow-hidden rounded-full">
+      <div
+        class="progress-fill bg-primary h-full rounded-full transition-all duration-700 ease-out"
+        data-progress-fill
+        style={`width: ${progressPercentage}%`}
+      >
+      </div>
+    </div>
+  </div>
 
-	<!-- Steps Container -->
-	<div class="steps-container space-y-4">
-		{steps.map((step, index) => {
-			const state = getStepState(index)
+  <!-- Steps Container -->
+  <div class="steps-container space-y-4">
+    {
+      steps.map((step, index) => {
+        const state = getStepState(index)
 
-			return (
-				<div
-					class={`step-item flex items-center gap-4 p-4 rounded-lg border transition-all duration-500 ease-out ${
-						state === 'active' ? 'step-active border-primary bg-primary/5 shadow-sm' :
-						state === 'completed' ? 'step-completed border-green-500 bg-green-50' :
-						state === 'error' ? 'step-error border-red-500 bg-red-50' :
-						'step-pending border-border bg-muted/30 opacity-60'
-					}`}
-					data-step-index={index}
-					data-state={state}
-					style={`animation-delay: ${index * 150}ms`}
-					aria-current={state === 'active' ? 'step' : undefined}
-				>
-					<!-- Icon Container -->
-					<div class={`step-icon flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 ${
-						state === 'active' ? 'bg-primary text-primary-foreground animate-pulse' :
-						state === 'completed' ? 'bg-green-500 text-white' :
-						state === 'error' ? 'bg-red-500 text-white' :
-						'bg-muted text-muted-foreground'
-					}`}>
-						{/* Spinner icon (active) */}
-						<svg
-							class={`animate-spin h-4 w-4 ${state === 'active' ? '' : 'hidden'}`}
-							data-icon="spinner"
-							xmlns="http://www.w3.org/2000/svg"
-							fill="none"
-							viewBox="0 0 24 24"
-						>
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						{/* Check icon (completed) */}
-						<svg
-							class={`h-4 w-4 ${state === 'completed' ? '' : 'hidden'}`}
-							data-icon="check"
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-						>
-							<path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd"></path>
-						</svg>
-						{/* Error icon */}
-						<svg
-							class={`h-4 w-4 ${state === 'error' ? '' : 'hidden'}`}
-							data-icon="error"
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-						>
-							<path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"></path>
-						</svg>
-						{/* Number icon (pending) */}
-						<span
-							class={state === 'pending' ? '' : 'hidden'}
-							data-icon="number"
-						>{index + 1}</span>
-					</div>
+        return (
+          <div
+            class={`step-item flex items-center gap-4 rounded-lg border p-4 transition-all duration-500 ease-out ${
+              state === 'active'
+                ? 'step-active border-primary bg-primary/5 shadow-sm'
+                : state === 'completed'
+                  ? 'step-completed border-green-500 bg-green-50'
+                  : state === 'error'
+                    ? 'step-error border-red-500 bg-red-50'
+                    : 'step-pending border-border bg-muted/30 opacity-60'
+            }`}
+            data-step-index={index}
+            data-state={state}
+            style={`animation-delay: ${index * 150}ms`}
+            aria-current={state === 'active' ? 'step' : undefined}
+          >
+            {/* Icon Container */}
+            <div
+              class={`step-icon flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-all duration-300 ${
+                state === 'active'
+                  ? 'bg-primary text-primary-foreground animate-pulse'
+                  : state === 'completed'
+                    ? 'bg-green-500 text-white'
+                    : state === 'error'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {/* Spinner icon (active) */}
+              <svg
+                class={`h-4 w-4 animate-spin ${state === 'active' ? '' : 'hidden'}`}
+                data-icon="spinner"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  stroke-width="4"
+                />
+                <path
+                  class="opacity-75"
+                  fill="currentColor"
+                  d="m4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              {/* Check icon (completed) */}
+              <svg
+                class={`h-4 w-4 ${state === 'completed' ? '' : 'hidden'}`}
+                data-icon="check"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+              {/* Error icon */}
+              <svg
+                class={`h-4 w-4 ${state === 'error' ? '' : 'hidden'}`}
+                data-icon="error"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+              {/* Number icon (pending) */}
+              <span
+                class={state === 'pending' ? '' : 'hidden'}
+                data-icon="number"
+              >
+                {index + 1}
+              </span>
+            </div>
 
-					<!-- Step Text -->
-					<div class="step-text flex-1">
-						<p class={`text-sm font-medium transition-colors duration-300 ${
-							state === 'active' ? 'text-primary' :
-							state === 'completed' ? 'text-green-700' :
-							state === 'error' ? 'text-red-700' :
-							'text-muted-foreground'
-						}`} data-step-label>
-							{step}
-						</p>
-						<p
-							class={`text-xs mt-1 ${
-								state === 'active' ? 'text-muted-foreground' :
-								state === 'completed' ? 'text-green-600' :
-								state === 'error' ? 'text-red-600' :
-								'hidden'
-							}`}
-							data-step-status
-						>
-							{state === 'active' ? 'En progreso...' :
-							 state === 'completed' ? 'Completado' :
-							 state === 'error' ? 'Error' : ''}
-						</p>
-					</div>
-				</div>
-			)
-		})}
-	</div>
+            {/* Step Text */}
+            <div class="step-text flex-1">
+              <p
+                class={`text-sm font-medium transition-colors duration-300 ${
+                  state === 'active'
+                    ? 'text-primary'
+                    : state === 'completed'
+                      ? 'text-green-700'
+                      : state === 'error'
+                        ? 'text-red-700'
+                        : 'text-muted-foreground'
+                }`}
+                data-step-label
+              >
+                {step}
+              </p>
+              <p
+                class={`mt-1 text-xs ${
+                  state === 'active'
+                    ? 'text-muted-foreground'
+                    : state === 'completed'
+                      ? 'text-green-600'
+                      : state === 'error'
+                        ? 'text-red-600'
+                        : 'hidden'
+                }`}
+                data-step-status
+              >
+                {state === 'active'
+                  ? 'En progreso...'
+                  : state === 'completed'
+                    ? 'Completado'
+                    : state === 'error'
+                      ? 'Error'
+                      : ''}
+              </p>
+            </div>
+          </div>
+        )
+      })
+    }
+  </div>
 </div>
 
 <style>
-	@keyframes cascade-in {
-		from {
-			transform: translateY(20px);
-			opacity: 0;
-		}
-		to {
-			transform: translateY(0);
-			opacity: 1;
-		}
-	}
+  @keyframes cascade-in {
+    from {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
 
-	@keyframes step-highlight {
-		0%, 100% {
-			transform: scale(1);
-		}
-		50% {
-			transform: scale(1.02);
-		}
-	}
+  @keyframes step-highlight {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.02);
+    }
+  }
 
-	.step-item {
-		animation: cascade-in 0.6s ease-out forwards;
-		animation-fill-mode: both;
-		opacity: 0;
-	}
+  .step-item {
+    animation: cascade-in 0.6s ease-out forwards;
+    animation-fill-mode: both;
+    opacity: 0;
+  }
 
-	.step-item:nth-child(1) { animation-delay: 0ms; }
-	.step-item:nth-child(2) { animation-delay: 150ms; }
-	.step-item:nth-child(3) { animation-delay: 300ms; }
-	.step-item:nth-child(4) { animation-delay: 450ms; }
+  .step-item:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .step-item:nth-child(2) {
+    animation-delay: 150ms;
+  }
+  .step-item:nth-child(3) {
+    animation-delay: 300ms;
+  }
+  .step-item:nth-child(4) {
+    animation-delay: 450ms;
+  }
 
-	.step-active {
-		animation: cascade-in 0.6s ease-out forwards, step-highlight 2s ease-in-out infinite;
-	}
+  .step-active {
+    animation:
+      cascade-in 0.6s ease-out forwards,
+      step-highlight 2s ease-in-out infinite;
+  }
 
-	.progress-fill {
-		transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
-	}
+  .progress-fill {
+    transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-	/* Accessibility improvements */
-	@media (prefers-reduced-motion: reduce) {
-		.step-item,
-		.step-active,
-		.progress-fill {
-			animation: none;
-			transition: none;
-		}
+  /* Accessibility improvements */
+  @media (prefers-reduced-motion: reduce) {
+    .step-item,
+    .step-active,
+    .progress-fill {
+      animation: none;
+      transition: none;
+    }
 
-		.animate-spin {
-			animation: none;
-		}
+    .animate-spin {
+      animation: none;
+    }
 
-		.animate-pulse {
-			animation: none;
-		}
-	}
+    .animate-pulse {
+      animation: none;
+    }
+  }
 
-	/* Unified color system - single source of truth */
-	.step-active {
-		border-color: #e42f4d;
-		background-color: rgba(228, 47, 77, 0.05);
-	}
+  /* Unified color system - single source of truth */
+  .step-active {
+    border-color: #e42f4d;
+    background-color: rgba(228, 47, 77, 0.05);
+  }
 
-	.step-completed {
-		border-color: #10b981;
-		background-color: #f0fdf4;
-	}
+  .step-completed {
+    border-color: #10b981;
+    background-color: #f0fdf4;
+  }
 
-	.step-error {
-		border-color: #ef4444;
-		background-color: #fef2f2;
-	}
+  .step-error {
+    border-color: #ef4444;
+    background-color: #fef2f2;
+  }
 
-	.step-pending {
-		border-color: #18171c;
-		background-color: rgba(27, 27, 25, 0.3);
-	}
+  .step-pending {
+    border-color: #18171c;
+    background-color: rgba(27, 27, 25, 0.3);
+  }
 </style>

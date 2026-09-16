@@ -161,8 +161,8 @@ export const POST: APIRoute = async context => {
       claimHashCache.consume(hash)
 
       const balanceResult = await db.execute({
-        sql: 'SELECT available_amount FROM Credits WHERE id = ?',
-        args: [creditId],
+        sql: 'SELECT available_amount FROM Credits WHERE hive_username = ?',
+        args: [session.username],
       })
 
       const newBalance = Number(balanceResult.rows[0]?.available_amount ?? 0)

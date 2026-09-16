@@ -83,11 +83,13 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
 }
 ---
 
-<div class="overflow-hidden rounded-lg border border-border bg-card">
+<div class="border-border bg-card overflow-hidden rounded-lg border">
   <div
-    class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border px-4 sm:px-6 py-3 sm:py-4"
+    class="border-border flex flex-col justify-between gap-3 border-b px-4 py-3 sm:flex-row sm:items-center sm:px-6 sm:py-4"
   >
-    <h2 class="flex items-center gap-2 text-base sm:text-lg font-semibold text-foreground">
+    <h2
+      class="text-foreground flex items-center gap-2 text-base font-semibold sm:text-lg"
+    >
       {title}
     </h2>
 
@@ -97,12 +99,12 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
           <input
             type="text"
             placeholder={searchPlaceholder}
-            class="bg-background border-border focus:ring-primary w-full sm:w-64 rounded-lg border px-3 py-2 pl-10 text-sm text-foreground focus:border-transparent focus:outline-none focus:ring-2"
+            class="bg-background border-border focus:ring-primary text-foreground w-full rounded-lg border px-3 py-2 pl-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 sm:w-64"
             id="table-search"
           />
           <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <svg
-              class="h-5 w-5 text-muted-foreground"
+              class="text-muted-foreground h-5 w-5"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -124,19 +126,19 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
     data.length === 0 ? (
       <div class="p-10 text-center">
         <div class="mb-4 text-5xl">📋</div>
-        <p class="mb-2 font-semibold text-foreground">No data</p>
-        <p class="text-sm text-muted-foreground">{emptyMessage}</p>
+        <p class="text-foreground mb-2 font-semibold">No data</p>
+        <p class="text-muted-foreground text-sm">{emptyMessage}</p>
       </div>
     ) : (
       <>
         {/* Desktop Table (md and up) */}
-        <div class="hidden md:block overflow-x-auto">
-          <table class="w-full divide-y divide-border text-sm">
+        <div class="hidden overflow-x-auto md:block">
+          <table class="divide-border w-full divide-y text-sm">
             <thead class="bg-muted/60">
               <tr>
                 {columns.map((column, idx) => (
                   <th
-                    class={`px-6 py-3 font-medium uppercase tracking-wide text-muted-foreground ${
+                    class={`text-muted-foreground px-6 py-3 font-medium uppercase tracking-wide ${
                       idx === 0 ? 'text-left' : 'text-center'
                     } ${column.width || ''}`}
                   >
@@ -145,7 +147,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                 ))}
               </tr>
             </thead>
-            <tbody class="divide-y divide-border">
+            <tbody class="divide-border divide-y">
               {data.map((rowData, index) => {
                 const row = rowData as TableRow
                 return (
@@ -157,7 +159,9 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                       const cellValue = getRowValue(row, column.key)
                       const cellText = toDisplayText(cellValue)
                       return (
-                        <td class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}>
+                        <td
+                          class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}
+                        >
                           {column.type === 'date' && (
                             <span class="text-muted-foreground text-sm">
                               {formatDateCell(cellValue)}
@@ -183,10 +187,12 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                           )}
 
                           {column.type === 'key' && (
-                            <div class="font-mono text-sm text-foreground">
+                            <div class="text-foreground font-mono text-sm">
                               <span
                                 class={
-                                  column.truncate ? 'block max-w-xs truncate' : ''
+                                  column.truncate
+                                    ? 'block max-w-xs truncate'
+                                    : ''
                                 }
                               >
                                 {cellText}
@@ -223,11 +229,21 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                                   href={`https://peakd.com/@${cellText}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  class="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 transition-colors text-sm font-medium"
+                                  class="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
                                 >
                                   @{cellText}
-                                  <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  <svg
+                                    class="h-3.5 w-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                                    />
                                   </svg>
                                 </a>
                               ) : (
@@ -250,38 +266,56 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
         </div>
 
         {/* Mobile Cards (below md) */}
-        <div class="md:hidden space-y-3 p-3">
+        <div class="space-y-3 p-3 md:hidden">
           {data.map((rowData, index) => {
             const row = rowData as TableRow
             // First column as main title (username)
             const primaryColumn = columns[0]
             const secondaryColumns = columns.slice(1)
             const dateColumn = secondaryColumns.find(c => c.type === 'date')
-            const actionsColumn = secondaryColumns.find(c => c.type === 'actions')
+            const actionsColumn = secondaryColumns.find(
+              c => c.type === 'actions'
+            )
             const primaryValue = getRowValue(row, primaryColumn.key)
             const primaryText = toDisplayText(primaryValue)
             // Detect if it is a user account (has username)
-            const isUserAccount = primaryColumn.key === 'username' && primaryText.length > 0
-            const profileUrl = isUserAccount ? `https://peakd.com/@${primaryText}` : null
+            const isUserAccount =
+              primaryColumn.key === 'username' && primaryText.length > 0
+            const profileUrl = isUserAccount
+              ? `https://peakd.com/@${primaryText}`
+              : null
 
             return (
               <a
                 href={profileUrl || '#'}
                 target={profileUrl ? '_blank' : undefined}
                 rel={profileUrl ? 'noopener noreferrer' : undefined}
-                class={`block relative bg-muted/30 rounded-lg border border-border/50 overflow-hidden transition-all ${profileUrl ? 'hover:border-primary/50 hover:bg-muted/40 cursor-pointer' : ''}`}
+                class={`bg-muted/30 border-border/50 relative block overflow-hidden rounded-lg border transition-all ${profileUrl ? 'hover:border-primary/50 hover:bg-muted/40 cursor-pointer' : ''}`}
                 data-search-content={JSON.stringify(row)}
               >
                 {/* Tab with main data */}
-                <div class="bg-muted/60 px-3 py-2 border-b border-border/30">
+                <div class="bg-muted/60 border-border/30 border-b px-3 py-2">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                      <span class={`font-semibold text-sm ${isUserAccount ? 'text-primary' : 'text-foreground'}`}>
-                        {isUserAccount && '@'}{primaryText}
+                      <span
+                        class={`text-sm font-semibold ${isUserAccount ? 'text-primary' : 'text-foreground'}`}
+                      >
+                        {isUserAccount && '@'}
+                        {primaryText}
                       </span>
                       {profileUrl && (
-                        <svg class="h-3.5 w-3.5 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        <svg
+                          class="text-muted-foreground h-3.5 w-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                          />
                         </svg>
                       )}
                     </div>
@@ -297,57 +331,65 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                 {/* Content */}
                 <div class="p-3">
                   <div class="grid grid-cols-2 gap-2">
-                    {secondaryColumns.filter(c => c.type !== 'date' && c.type !== 'actions').map((column) => (
-                      <div>
-                        <dt class="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-0.5">
-                          {column.label}
-                        </dt>
-                        <dd class="text-sm text-foreground">
-                          {column.type === 'badge' ? (
-                            <span
-                              class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                                column.badgeVariant?.(getRowValue(row, column.key)) === 'success'
-                                  ? 'bg-green-500/20 text-green-300'
-                                  : column.badgeVariant?.(getRowValue(row, column.key)) === 'warning'
-                                    ? 'bg-yellow-500/20 text-yellow-300'
-                                    : column.badgeVariant?.(getRowValue(row, column.key)) === 'danger'
-                                      ? 'bg-red-500/20 text-red-300'
-                                      : 'bg-blue-500/20 text-blue-300'
-                              }`}
-                            >
-                              {toDisplayText(getRowValue(row, column.key))}
-                            </span>
-                          ) : column.type === 'key' ? (
-                            <span class="font-mono text-xs break-all">
-                              {toDisplayText(getRowValue(row, column.key))}
-                            </span>
-                          ) : (
-                            toDisplayText(getRowValue(row, column.key))
-                          )}
-                        </dd>
-                      </div>
-                    ))}
+                    {secondaryColumns
+                      .filter(c => c.type !== 'date' && c.type !== 'actions')
+                      .map(column => (
+                        <div>
+                          <dt class="text-muted-foreground mb-0.5 text-xs font-medium uppercase tracking-wide">
+                            {column.label}
+                          </dt>
+                          <dd class="text-foreground text-sm">
+                            {column.type === 'badge' ? (
+                              <span
+                                class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  column.badgeVariant?.(
+                                    getRowValue(row, column.key)
+                                  ) === 'success'
+                                    ? 'bg-green-500/20 text-green-300'
+                                    : column.badgeVariant?.(
+                                          getRowValue(row, column.key)
+                                        ) === 'warning'
+                                      ? 'bg-yellow-500/20 text-yellow-300'
+                                      : column.badgeVariant?.(
+                                            getRowValue(row, column.key)
+                                          ) === 'danger'
+                                        ? 'bg-red-500/20 text-red-300'
+                                        : 'bg-blue-500/20 text-blue-300'
+                                }`}
+                              >
+                                {toDisplayText(getRowValue(row, column.key))}
+                              </span>
+                            ) : column.type === 'key' ? (
+                              <span class="break-all font-mono text-xs">
+                                {toDisplayText(getRowValue(row, column.key))}
+                              </span>
+                            ) : (
+                              toDisplayText(getRowValue(row, column.key))
+                            )}
+                          </dd>
+                        </div>
+                      ))}
                   </div>
 
                   {/* Full date at the end if it exists */}
                   {dateColumn && (
-                    <div class="mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
+                    <div class="border-border/30 text-muted-foreground mt-2 border-t pt-2 text-xs">
                       {formatDateCell(getRowValue(row, dateColumn.key))}
                     </div>
                   )}
 
                   {/* Actions if they exist */}
                   {actionsColumn && (
-                    <div class="flex gap-2 mt-3 pt-2 border-t border-border/30">
+                    <div class="border-border/30 mt-3 flex gap-2 border-t pt-2">
                       {actionsColumn.actions?.map(action => (
                         <button
                           onclick={`event.preventDefault(); event.stopPropagation(); ${action.onClick}('${getRowId(row, index)}')`}
-                          class={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                          class={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all ${
                             action.variant === 'danger'
                               ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20 hover:bg-red-500/20'
                               : action.variant === 'secondary'
-                                ? 'bg-muted text-muted-foreground ring-1 ring-border hover:bg-muted/80'
-                                : 'bg-primary/10 text-primary ring-1 ring-primary/20 hover:bg-primary/20'
+                                ? 'bg-muted text-muted-foreground ring-border hover:bg-muted/80 ring-1'
+                                : 'bg-primary/10 text-primary ring-primary/20 hover:bg-primary/20 ring-1'
                           }`}
                         >
                           {action.icon && <span>{action.icon}</span>}
@@ -366,26 +408,23 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
   }
 </div>
 
-{
-  showSearch && (
-    <script>
-      ;(function initBuildersTableSearch() {
-        const searchInput = document.getElementById('table-search') as HTMLInputElement | null
-        if (!searchInput) return
-        const tableRows = Array.from(
-          document.querySelectorAll('[data-search-content]')
-        ) as HTMLElement[]
+<script>
+  ;(function initBuildersTableSearch() {
+    const searchInput = document.getElementById('table-search')
+    if (!(searchInput instanceof HTMLInputElement)) return
+    const tableRows = Array.from(
+      document.querySelectorAll('[data-search-content]')
+    )
 
-        const handleFilter = () => {
-          const searchTerm = searchInput.value.trim().toLowerCase()
-          for (const row of tableRows) {
-            const content = (row.dataset.searchContent || '').toLowerCase()
-            row.style.display = content.includes(searchTerm) ? '' : 'none'
-          }
-        }
+    const handleFilter = () => {
+      const searchTerm = searchInput.value.trim().toLowerCase()
+      for (const row of tableRows) {
+        if (!(row instanceof HTMLElement)) continue
+        const content = (row.dataset.searchContent || '').toLowerCase()
+        row.style.display = content.includes(searchTerm) ? '' : 'none'
+      }
+    }
 
-        searchInput.addEventListener('input', handleFilter)
-      })()
-    </script>
-  )
-}
+    searchInput.addEventListener('input', handleFilter)
+  })()
+</script>

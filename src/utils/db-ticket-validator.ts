@@ -1,4 +1,4 @@
-import { db } from '@/lib/database'
+import { db, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
 import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
@@ -653,10 +653,7 @@ export async function completeAccountCreationInDB(
   }
 
   try {
-    await db.execute('BEGIN IMMEDIATE TRANSACTION')
-
-    try {
-      // 1. Get ticket creator info
+    await withTransaction(async () => {
       const ticketInfo = await db.execute({
         sql: `SELECT creator_username FROM Tickets WHERE code = ?`,
         args: [cleanTicketCode],
@@ -677,7 +674,6 @@ export async function completeAccountCreationInDB(
         options
       )
 
-      // 2. Save account record
       try {
         await db.execute({
           sql: `INSERT INTO Accounts (
@@ -709,7 +705,6 @@ export async function completeAccountCreationInDB(
         throw accountError
       }
 
-      // 3. Mark credits as consumed in the builder balance
       if (createdBy) {
         await creditsService.markCreditsAsConsumed(createdBy, 1, cleanUsername)
       }
@@ -717,13 +712,8 @@ export async function completeAccountCreationInDB(
       if (correlationId) {
         await markAttemptCompleted(correlationId)
       }
-
-      await db.execute('COMMIT')
-      return { success: true, correlationId }
-    } catch (innerError) {
-      await db.execute('ROLLBACK')
-      throw innerError
-    }
+    })
+    return { success: true, correlationId }
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'

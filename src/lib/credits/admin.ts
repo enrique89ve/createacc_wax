@@ -1,4 +1,4 @@
-import { db } from '../database'
+import { db, withTransaction } from '../database'
 import { notifyPendingCredits } from '../notification-service'
 import { logger } from '@/lib/logger'
 import { insertCreditAudit, selectCreditRow } from './shared'
@@ -11,25 +11,27 @@ import {
 export async function assignCredits(
   operation: AssignCreditsOperation
 ): Promise<CreditBalance> {
-  await db.execute({
-    sql: `
-			INSERT INTO Credits (
-				hive_username, pending_amount, available_amount, total_assigned, total_consumed
-			) VALUES (?, ?, 0, ?, 0)
-			ON CONFLICT(hive_username) DO UPDATE SET
-				pending_amount = pending_amount + excluded.pending_amount,
-				total_assigned = total_assigned + excluded.total_assigned,
-				updated_at = CURRENT_TIMESTAMP
-		`,
-    args: [operation.hive_username, operation.amount, operation.amount],
-  })
+  await withTransaction(async () => {
+    await db.execute({
+      sql: `
+				INSERT INTO Credits (
+					hive_username, pending_amount, available_amount, total_assigned, total_consumed
+				) VALUES (?, ?, 0, ?, 0)
+				ON CONFLICT(hive_username) DO UPDATE SET
+					pending_amount = pending_amount + excluded.pending_amount,
+					total_assigned = total_assigned + excluded.total_assigned,
+					updated_at = CURRENT_TIMESTAMP
+			`,
+      args: [operation.hive_username, operation.amount, operation.amount],
+    })
 
-  await insertCreditAudit({
-    hiveUsername: operation.hive_username,
-    operation: 'assign_credits',
-    amount: operation.amount,
-    reason: `assigned: ${operation.source}`,
-    performedBy: operation.assigned_by_admin,
+    await insertCreditAudit({
+      hiveUsername: operation.hive_username,
+      operation: 'assign_credits',
+      amount: operation.amount,
+      reason: `assigned: ${operation.source}`,
+      performedBy: operation.assigned_by_admin,
+    })
   })
 
   try {
@@ -62,9 +64,7 @@ export async function transferCredits(
     throw new Error('The amount must be greater than 0')
   }
 
-  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-
-  try {
+  await withTransaction(async () => {
     const deductResult = await db.execute({
       sql: `
 				UPDATE Credits
@@ -103,12 +103,7 @@ export async function transferCredits(
       amount,
       reason: `received from ${fromUsername}`,
     })
-
-    await db.execute({ sql: 'COMMIT', args: [] })
-  } catch (error) {
-    await db.execute({ sql: 'ROLLBACK', args: [] })
-    throw error
-  }
+  })
 }
 
 export async function adjustCredits(params: {
@@ -139,9 +134,7 @@ export async function adjustCredits(params: {
     }
   }
 
-  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-
-  try {
+  await withTransaction(async () => {
     const updates: string[] = []
     const args: (number | string)[] = []
 
@@ -168,12 +161,7 @@ export async function adjustCredits(params: {
       reason: `Admin adjustment: ${params.reason}`,
       performedBy: params.performed_by_admin,
     })
-
-    await db.execute({ sql: 'COMMIT', args: [] })
-  } catch (error) {
-    await db.execute({ sql: 'ROLLBACK', args: [] })
-    throw error
-  }
+  })
 
   const updated = await selectCreditRow(params.hive_username)
   if (!updated) {

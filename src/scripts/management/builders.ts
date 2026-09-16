@@ -151,29 +151,16 @@ if (assignForm) {
     submitBtn.textContent = 'Procesando...'
 
     try {
-      // First try to assign credits (PATCH)
-      let response = await fetch(`/api/management/users/${username}/credits`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ amount }),
-      })
-
-      // If user not found (404), try to create user (POST)
-      if (response.status === 404) {
-        console.log('User not found, creating new builder...')
-        response = await fetch('/api/management/users', {
-          method: 'POST',
+      const response = await fetch(
+        `/api/management/users/${username}/credits`,
+        {
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            hive_username: username,
-            amount: amount,
-          }),
-        })
-      }
+          body: JSON.stringify({ amount }),
+        }
+      )
 
       const data = await response.json()
 
@@ -197,14 +184,13 @@ if (assignForm) {
   })
 }
 
-// Handle Table Actions (Assign, Ban, Reactivate, Edit)
+// Handle Table Actions (Assign, Edit)
 document.addEventListener('click', async e => {
   const target = e.target as HTMLElement
   const button = target.closest('button')
 
   if (!button) return
 
-  // Handle "Assign" button in table row
   if (button.dataset.action === 'assign-credits') {
     const username = button.dataset.username
     if (username) {
@@ -212,71 +198,6 @@ document.addEventListener('click', async e => {
     }
   }
 
-  // Handle "Ban" button in table row (Soft Delete)
-  if (button.dataset.action === 'ban-builder') {
-    const builderId = button.dataset.builderId
-    const username = button.dataset.username
-    if (builderId) {
-      if (
-        confirm(
-          `¿Estás seguro de que deseas BANEAR a @${username}?\n\nEsto desactivará su cuenta, pondrá sus créditos a 0 y desactivará todos sus tickets.\n\nEl historial se mantendrá y podrás reactivarlo después si es necesario.`
-        )
-      ) {
-        try {
-          const response = await fetch(
-            `/api/management/users?id=${encodeURIComponent(builderId)}`,
-            {
-              method: 'DELETE',
-            }
-          )
-
-          if (response.ok) {
-            window.location.reload()
-          } else {
-            const data = await response.json()
-            alert(data.error || 'Error al banear el builder')
-          }
-        } catch (error) {
-          console.error('Error banning builder:', error)
-          alert('Error de conexión al banear el builder')
-        }
-      }
-    }
-  }
-
-  // Handle "Reactivate" button in table row
-  if (button.dataset.action === 'reactivate-builder') {
-    const builderId = button.dataset.builderId
-    const username = button.dataset.username
-    if (builderId) {
-      if (
-        confirm(
-          `¿Reactivar a @${username}?\n\nEl builder podrá volver a usar la plataforma. Necesitarás asignarle créditos nuevamente.`
-        )
-      ) {
-        try {
-          const response = await fetch(
-            `/api/management/users/${encodeURIComponent(builderId)}/reactivate`,
-            {
-              method: 'POST',
-            }
-          )
-
-          if (response.ok) {
-            window.location.reload()
-          } else {
-            const data = await response.json()
-            alert(data.error || 'Error al reactivar el builder')
-          }
-        } catch (error) {
-          console.error('Error reactivating builder:', error)
-          alert('Error de conexión al reactivar el builder')
-        }
-      }
-    }
-  }
-
-  // Handle "Edit" button in table row
   if (button.dataset.action === 'edit-credits') {
     const username = button.dataset.username
     const available = button.dataset.available
