@@ -1,28 +1,48 @@
 import type { IHiveChainInterface } from '@hiveio/wax'
 import { hiveChain } from '@/lib/hiveservice'
-import { ENV_KEYS } from '@/consts/constants'
+import { ENV_KEYS, HIVE_CHAIN_CONFIG } from '@/consts/constants'
+import { getEnvString } from '@/lib/env'
+import { shouldTriggerWaxFailover } from '@/lib/wax-error-utils'
 
 export type RcDelegationLookup =
 	| { readonly status: 'found' }
 	| { readonly status: 'not_found' }
 	| { readonly status: 'error'; readonly message: string }
 
-interface RcDirectDelegation {
-	readonly from?: unknown
-	readonly to?: unknown
-	readonly delegated_rc?: unknown
+interface ListRcDirectDelegationsParams {
+	readonly start: readonly [string, string]
+	readonly limit: number
 }
 
-function parseDelegations(payload: unknown): RcDirectDelegation[] {
-	if (typeof payload !== 'object' || payload === null) return []
-	if (!('rc_direct_delegations' in payload)) return []
-	const rows = payload.rc_direct_delegations
-	if (!Array.isArray(rows)) return []
-	return rows.filter((row): row is RcDirectDelegation => typeof row === 'object' && row !== null)
+interface RcDirectDelegationRow {
+	readonly from: string
+	readonly to: string
+	readonly delegated_rc: string | number
 }
 
-function hasDelegation(
-	rows: readonly RcDirectDelegation[],
+interface ListRcDirectDelegationsResult {
+	readonly rc_direct_delegations: readonly RcDirectDelegationRow[]
+}
+
+/**
+ * WAX 2.0.2 types only ship rc_api.find_rc_accounts.
+ * IHiveChainInterface.extend adds undeclared JSON-RPC methods without casts.
+ */
+type RcDirectDelegationApi = {
+	readonly rc_api: {
+		readonly list_rc_direct_delegations: {
+			readonly params: ListRcDirectDelegationsParams
+			readonly result: ListRcDirectDelegationsResult
+		}
+	}
+}
+
+function withRcDirectDelegationApi(chain: IHiveChainInterface) {
+	return chain.extend<RcDirectDelegationApi>()
+}
+
+function hasPositiveDelegation(
+	rows: readonly RcDirectDelegationRow[],
 	from: string,
 	to: string
 ): boolean {
@@ -33,30 +53,53 @@ function hasDelegation(
 	})
 }
 
+function backupEndpoints(current: string): readonly string[] {
+	return HIVE_CHAIN_CONFIG.MAINNET_BACKUPS.filter(url => url !== current)
+}
+
+async function listRcDirectDelegations(
+	chain: IHiveChainInterface,
+	from: string,
+	to: string
+): Promise<ListRcDirectDelegationsResult> {
+	const extended = withRcDirectDelegationApi(chain)
+	const params: ListRcDirectDelegationsParams = {
+		start: [from, to],
+		limit: 1,
+	}
+	try {
+		return await extended.api.rc_api.list_rc_direct_delegations(params)
+	} catch (error) {
+		if (!shouldTriggerWaxFailover(error)) throw error
+		const previous = extended.api.rc_api.endpointUrl
+		try {
+			for (const url of backupEndpoints(chain.endpointUrl)) {
+				extended.api.rc_api.endpointUrl = url
+				try {
+					return await extended.api.rc_api.list_rc_direct_delegations(params)
+				} catch (backupError) {
+					if (!shouldTriggerWaxFailover(backupError)) throw backupError
+				}
+			}
+		} finally {
+			extended.api.rc_api.endpointUrl = previous
+		}
+		throw error
+	}
+}
+
 export async function fetchRcDelegationExists(
 	delegatee: string,
 	chain?: IHiveChainInterface
 ): Promise<RcDelegationLookup> {
-	const from = process.env[ENV_KEYS.HIVE_DELEGATOR_ACCOUNT]
+	const from = getEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
 	if (!from) {
 		return { status: 'error', message: 'Missing delegator account' }
 	}
 	try {
 		const hive = chain ?? (await hiveChain())
-		const rcApi = hive.api.rc_api as unknown as {
-			list_rc_direct_delegations?: (params: {
-				start: [string, string]
-				limit: number
-			}) => Promise<unknown>
-		}
-		if (typeof rcApi.list_rc_direct_delegations !== 'function') {
-			return { status: 'error', message: 'rc_api.list_rc_direct_delegations unavailable' }
-		}
-		const result = await rcApi.list_rc_direct_delegations({
-			start: [from, delegatee],
-			limit: 1,
-		})
-		if (hasDelegation(parseDelegations(result), from, delegatee)) {
+		const result = await listRcDirectDelegations(hive, from, delegatee)
+		if (hasPositiveDelegation(result.rc_direct_delegations, from, delegatee)) {
 			return { status: 'found' }
 		}
 		return { status: 'not_found' }

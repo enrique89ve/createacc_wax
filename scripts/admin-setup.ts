@@ -96,7 +96,6 @@ Usage:
   pnpm admin:create  - Create a new admin account (interactive)
   pnpm admin:reset   - Reset admin password
   pnpm admin:check   - Check current admin status
-  pnpm admin:setup   - Show this help message
 
 Environment Variables (for automated setup):
   ADMIN_USERNAME=admin ADMIN_PASSWORD=SecurePass123! pnpm admin:create

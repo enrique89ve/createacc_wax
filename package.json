@@ -13,15 +13,13 @@
     "db:quickstart": "pnpm run db:reset && pnpm run db:seed",
     "reconcile:pending": "tsx scripts/reconcile-pending.ts",
     "reconcile:pending:dry-run": "tsx scripts/reconcile-pending.ts --dry-run",
-    "admin:setup": "tsx scripts/admin-setup.ts",
     "admin:create": "tsx scripts/admin-setup.ts create",
     "admin:reset": "tsx scripts/admin-setup.ts reset",
     "admin:check": "tsx scripts/admin-setup.ts check",
     "check": "astro check && tsc --noEmit && eslint .",
     "test": "vitest run",
     "wax:self-test": "tsx scripts/wax-self-test.ts",
-    "test:simulation": "tsx scripts/test-account-simulation.ts",
-    "live:once": "tsx scripts/live-account-broadcast.ts"
+    "test:simulation": "tsx scripts/test-account-simulation.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",

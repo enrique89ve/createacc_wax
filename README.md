@@ -78,7 +78,7 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 | `pnpm preview` | Preview production build |
 | `pnpm db:init` | Schema |
 | `pnpm db:reset` | Drop DB, recreate schema |
-| `pnpm db:seed` | Test data |
+| `pnpm db:seed` | Test data (`SEED_ADMIN_PASSWORD` required) |
 | `pnpm db:quickstart` | Reset + seed |
 | `pnpm admin:create` | Create admin |
 | `pnpm admin:reset` | Rotate admin password |

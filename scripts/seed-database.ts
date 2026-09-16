@@ -4,11 +4,20 @@ import { UserRole } from '../src/lib/roles'
 
 const SEED_DEFAULTS = {
 	ADMIN_USERNAME: process.env.SEED_ADMIN_USERNAME || 'admin',
-	ADMIN_PASSWORD: process.env.SEED_ADMIN_PASSWORD || 'Admin123!',
 	BUILDER_USERNAME: process.env.SEED_BUILDER_USERNAME || 'builder-demo',
 	TICKET_CODE: process.env.SEED_TICKET_CODE || 'DEMO-TICKET',
 	TICKET_CREDITS: 5,
 } as const
+
+function requireSeedAdminPassword(): string {
+	const password = process.env.SEED_ADMIN_PASSWORD?.trim() ?? ''
+	if (password.length < 8) {
+		throw new Error(
+			'SEED_ADMIN_PASSWORD is required (≥ 8 chars). Refusing a hardcoded seed password.'
+		)
+	}
+	return password
+}
 
 async function rowExists(table: string, column: string, value: string): Promise<boolean> {
 	const result = await db.execute({
@@ -25,7 +34,7 @@ async function seedAdmin(): Promise<string | null> {
 		return String(result.rows[0]?.id ?? '')
 	}
 
-	const passwordHash = await bcrypt.hash(SEED_DEFAULTS.ADMIN_PASSWORD, 10)
+	const passwordHash = await bcrypt.hash(requireSeedAdminPassword(), 10)
 	const adminId = await insertAppUser({
 		username: SEED_DEFAULTS.ADMIN_USERNAME,
 		role: UserRole.Admin,
@@ -105,8 +114,7 @@ async function main() {
 		await seedTicket(builderId || adminId)
 
 		console.log('\nSeed completed successfully!\n')
-		console.log('Credentials:')
-		console.log(`  Admin:   ${SEED_DEFAULTS.ADMIN_USERNAME} / ${SEED_DEFAULTS.ADMIN_PASSWORD}`)
+		console.log(`  Admin:   ${SEED_DEFAULTS.ADMIN_USERNAME} (password from SEED_ADMIN_PASSWORD)`)
 		console.log(`  Builder: ${SEED_DEFAULTS.BUILDER_USERNAME} (keychain auth)`)
 		console.log(`  Ticket:  ${SEED_DEFAULTS.TICKET_CODE}`)
 		console.log(`\nLogin at /management/access`)
