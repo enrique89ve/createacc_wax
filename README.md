@@ -59,6 +59,13 @@ TURSO_AUTH_TOKEN=
 
 Default DB is local SQLite (`file:holahive.db`). One database for simulate and live. Tickets have no execution mode — only Accounts records how a creation ran.
 
+Schema is defined in `src/lib/database.ts`. There are no incremental migrations. After a structural change:
+
+```bash
+pnpm db:reset
+SEED_ADMIN_PASSWORD="..." pnpm db:seed   # optional admin/test data
+```
+
 ```bash
 pnpm db:init
 pnpm admin:create      # or ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create
@@ -76,8 +83,8 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 | `pnpm dev` | Dev server |
 | `pnpm build` | Production build |
 | `pnpm preview` | Preview production build |
-| `pnpm db:init` | Schema |
-| `pnpm db:reset` | Drop DB, recreate schema |
+| `pnpm db:init` | Apply current schema (`CREATE IF NOT EXISTS`) |
+| `pnpm db:reset` | Drop local DB and recreate schema from scratch |
 | `pnpm db:seed` | Test data (`SEED_ADMIN_PASSWORD` required) |
 | `pnpm db:quickstart` | Reset + seed |
 | `pnpm admin:create` | Create admin |

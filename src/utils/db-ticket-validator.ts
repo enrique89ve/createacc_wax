@@ -6,6 +6,7 @@ import type { DatabaseTicketRow } from '@/types/database'
 import {
   BLOCKCHAIN_STATUS,
   HIVE_TX_MODE_VALUES,
+  RC_STATUS,
   WAX_STATUS,
   type BlockchainStatus,
 } from '@/consts/hive-execution'
@@ -676,9 +677,10 @@ export async function completeAccountCreationInDB(
         await db.execute({
           sql: `INSERT INTO Accounts (
                   username, ticket, ticket_by, creation_date, registered_at,
-                  execution_mode, blockchain_status, transaction_id, correlation_id, wax_status
+                  execution_mode, blockchain_status, transaction_id, correlation_id, wax_status,
+                  rc_status, rc_delegated
                 )
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             cleanUsername,
             cleanTicketCode,
@@ -688,6 +690,8 @@ export async function completeAccountCreationInDB(
             accountMeta.transactionId,
             correlationId ?? null,
             accountMeta.waxStatus,
+            RC_STATUS.PENDING,
+            0,
           ],
         })
       } catch (accountError) {

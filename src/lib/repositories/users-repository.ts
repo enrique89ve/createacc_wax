@@ -475,8 +475,8 @@ export class UsersRepository {
         ticket_description: (row.ticket_description as string) || null,
         ticket_original_credits: Number(row.ticket_original_credits || 0),
         ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
-        blockchain_status: String(row.blockchain_status || 'confirmed'),
-        status_label: toAccountStatusLabel(String(row.blockchain_status || 'confirmed')),
+        blockchain_status: String(row.blockchain_status),
+        status_label: toAccountStatusLabel(String(row.blockchain_status)),
       }))
     } catch (error) {
       return []

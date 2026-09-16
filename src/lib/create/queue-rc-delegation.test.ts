@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeDatabase, db } from '@/lib/database'
-import { BLOCKCHAIN_STATUS, RC_STATUS } from '@/consts/hive-execution'
+import { BLOCKCHAIN_STATUS, HIVE_TX_MODE_VALUES, RC_STATUS } from '@/consts/hive-execution'
 import { RC_DELEGATION_AMOUNT } from '@/consts/constants'
 import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
 import {
@@ -29,8 +29,8 @@ async function insertUncertain(
 	await db.execute({
 		sql: `INSERT INTO Accounts (
 			username, ticket, execution_mode, blockchain_status, rc_status, rc_delegated
-		) VALUES (?, ?, 'broadcast', ?, ?, 0)`,
-		args: [username, TICKET, BLOCKCHAIN_STATUS.CONFIRMED, rcStatus],
+		) VALUES (?, ?, ?, ?, ?, 0)`,
+		args: [username, TICKET, HIVE_TX_MODE_VALUES.BROADCAST, BLOCKCHAIN_STATUS.CONFIRMED, rcStatus],
 	})
 }
 

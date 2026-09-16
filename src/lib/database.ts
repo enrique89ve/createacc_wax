@@ -2,6 +2,11 @@ import { createClient } from '@libsql/client'
 import { UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
 import { hiveAuthEmail } from '@/lib/auth-user'
+import {
+	BLOCKCHAIN_STATUS,
+	HIVE_TX_MODE_VALUES,
+	RC_STATUS,
+} from '@/consts/hive-execution'
 
 export const db = createClient({
 	url: process.env.DATABASE_URL || 'file:holahive.db',
@@ -133,13 +138,13 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		ticket TEXT NOT NULL,
 		ticket_by TEXT,
 		registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		execution_mode TEXT NOT NULL DEFAULT 'broadcast',
-		blockchain_status TEXT NOT NULL DEFAULT 'confirmed',
+		execution_mode TEXT NOT NULL CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
+		blockchain_status TEXT NOT NULL CHECK (blockchain_status IN ('${BLOCKCHAIN_STATUS.SIMULATED}', '${BLOCKCHAIN_STATUS.BROADCASTED}', '${BLOCKCHAIN_STATUS.CONFIRMED}', '${BLOCKCHAIN_STATUS.FAILED}')),
 		transaction_id TEXT,
 		correlation_id TEXT,
 		wax_status TEXT,
-		rc_delegated INTEGER NOT NULL DEFAULT 0,
-		rc_status TEXT NOT NULL DEFAULT 'pending'
+		rc_delegated INTEGER NOT NULL CHECK (rc_delegated IN (0, 1)),
+		rc_status TEXT NOT NULL CHECK (rc_status IN ('${RC_STATUS.PENDING}', '${RC_STATUS.PROCESSING}', '${RC_STATUS.UNCERTAIN}', '${RC_STATUS.DELEGATED}'))
 	)`,
 
 	`CREATE TABLE IF NOT EXISTS TicketAudit (
@@ -333,139 +338,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		END`,
 ]
 
-const ACCOUNT_COLUMN_MIGRATIONS: readonly { name: string; sql: string }[] = [
-	{
-		name: 'execution_mode',
-		sql: `ALTER TABLE Accounts ADD COLUMN execution_mode TEXT NOT NULL DEFAULT 'broadcast'`,
-	},
-	{
-		name: 'blockchain_status',
-		sql: `ALTER TABLE Accounts ADD COLUMN blockchain_status TEXT NOT NULL DEFAULT 'confirmed'`,
-	},
-	{
-		name: 'transaction_id',
-		sql: `ALTER TABLE Accounts ADD COLUMN transaction_id TEXT`,
-	},
-	{
-		name: 'correlation_id',
-		sql: `ALTER TABLE Accounts ADD COLUMN correlation_id TEXT`,
-	},
-	{
-		name: 'wax_status',
-		sql: `ALTER TABLE Accounts ADD COLUMN wax_status TEXT`,
-	},
-	{
-		name: 'rc_delegated',
-		sql: `ALTER TABLE Accounts ADD COLUMN rc_delegated INTEGER NOT NULL DEFAULT 0`,
-	},
-	{
-		name: 'rc_status',
-		sql: `ALTER TABLE Accounts ADD COLUMN rc_status TEXT NOT NULL DEFAULT 'pending'`,
-	},
-]
-
-async function tableColumnNames(table: string): Promise<Set<string>> {
-	const result = await db.execute(`PRAGMA table_info(${table})`)
-	const names = new Set<string>()
-	for (const row of result.rows) {
-		const name = (row as { name?: unknown }).name
-		if (typeof name === 'string') names.add(name)
-	}
-	return names
-}
-
-async function migrateAccountsSchema(): Promise<void> {
-	const existing = await tableColumnNames('Accounts')
-	for (const column of ACCOUNT_COLUMN_MIGRATIONS) {
-		if (existing.has(column.name)) continue
-		try {
-			await db.execute(column.sql)
-		} catch (error) {
-			const message = error instanceof Error ? error.message : ''
-			if (/duplicate column/i.test(message)) continue
-			throw error
-		}
-	}
-}
-
-async function tableSql(name: string): Promise<string> {
-	const result = await db.execute({
-		sql: `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`,
-		args: [name],
-	})
-	const sql = result.rows[0]?.sql
-	return typeof sql === 'string' ? sql : ''
-}
-
-async function migrateCreationAttemptsSchema(): Promise<void> {
-	const sql = await tableSql('CreationAttempts')
-	if (!sql) return
-	if (!sql.includes("'broadcasting'")) {
-		await db.execute('DROP INDEX IF EXISTS idx_creation_attempts_open_username')
-		await db.execute('DROP INDEX IF EXISTS idx_creation_attempts_ticket')
-		await db.execute(`CREATE TABLE CreationAttempts_migrated (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			correlation_id TEXT NOT NULL UNIQUE,
-			username TEXT NOT NULL,
-			ticket TEXT NOT NULL,
-			status TEXT NOT NULL CHECK (status IN ('reserved', 'prepared', 'broadcasting', 'completed', 'rolled_back')),
-			owner_public_key TEXT NOT NULL,
-			active_public_key TEXT NOT NULL,
-			posting_public_key TEXT NOT NULL,
-			memo_public_key TEXT NOT NULL,
-			transaction_id TEXT,
-			execution_mode TEXT NOT NULL DEFAULT 'simulate',
-			broadcasted INTEGER NOT NULL DEFAULT 0,
-			wax_validated INTEGER NOT NULL DEFAULT 0,
-			wax_on_chain_verified INTEGER NOT NULL DEFAULT 0,
-			wax_signed INTEGER NOT NULL DEFAULT 0,
-			wax_authority_verified INTEGER NOT NULL DEFAULT 0,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`)
-		await db.execute(`INSERT INTO CreationAttempts_migrated (
-			id, correlation_id, username, ticket, status,
-			owner_public_key, active_public_key, posting_public_key, memo_public_key,
-			transaction_id, execution_mode, broadcasted,
-			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified,
-			created_at, updated_at
-		) SELECT
-			id, correlation_id, username, ticket, status,
-			owner_public_key, active_public_key, posting_public_key, memo_public_key,
-			transaction_id, execution_mode, broadcasted,
-			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified,
-			created_at, updated_at
-		FROM CreationAttempts`)
-		await db.execute('DROP TABLE CreationAttempts')
-		await db.execute('ALTER TABLE CreationAttempts_migrated RENAME TO CreationAttempts')
-		await db.execute(
-			`CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket, username)`
-		)
-	}
-
-	await db.execute('DROP INDEX IF EXISTS idx_creation_attempts_open_username')
-	await db.execute(
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
-			ON CreationAttempts (username) WHERE status IN ('reserved', 'prepared', 'broadcasting')`
-	)
-}
-
-async function migrateRcStatusValues(): Promise<void> {
-	const columns = await tableColumnNames('Accounts')
-	if (!columns.has('rc_status')) return
-	await db.execute(
-		`UPDATE Accounts SET rc_status = 'delegated' WHERE rc_delegated = 1 AND rc_status != 'delegated'`
-	)
-}
-
+/** Apply current schema. Structural changes require `pnpm db:reset`. */
 export async function initializeDatabase(): Promise<boolean> {
 	try {
 		for (const sql of SCHEMA_STATEMENTS) {
 			await db.execute(sql)
 		}
-		await migrateAccountsSchema()
-		await migrateCreationAttemptsSchema()
-		await migrateRcStatusValues()
 		return true
 	} catch (error) {
 		logger.error('Database initialization error:', error)

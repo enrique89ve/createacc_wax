@@ -14,7 +14,7 @@
 import { db } from '@/lib/database'
 
 const ACCOUNT_COLUMNS =
-	'id, username, creation_date, ticket, ticket_by, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status'
+	'id, username, creation_date, ticket, ticket_by, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
 // Logger removed
 import {
   parseAccountRow,
@@ -54,11 +54,27 @@ export class AccountsRepository {
     try {
       const result = await db.execute({
         sql: `
-					INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at)
-					VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+					INSERT INTO Accounts (
+						username, ticket, ticket_by, creation_date, registered_at,
+						execution_mode, blockchain_status, transaction_id, correlation_id,
+						wax_status, rc_status, rc_delegated
+					)
+					VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
 					RETURNING *
 				`,
-        args: [data.username, data.ticket, data.ticket_by ?? null, new Date().toISOString()],
+        args: [
+          data.username,
+          data.ticket,
+          data.ticket_by ?? null,
+          new Date().toISOString(),
+          data.execution_mode,
+          data.blockchain_status,
+          data.transaction_id ?? null,
+          data.correlation_id ?? null,
+          data.wax_status ?? null,
+          data.rc_status,
+          data.rc_delegated,
+        ],
       })
 
       if (result.rows.length === 0) {

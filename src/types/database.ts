@@ -88,6 +88,8 @@ export interface DatabaseAccountRow {
   readonly transaction_id: string | null
   readonly correlation_id: string | null
   readonly wax_status: string | null
+  readonly rc_delegated: number
+  readonly rc_status: string
 }
 
 /**
@@ -234,6 +236,13 @@ export interface CreateAccountData {
   readonly username: string
   readonly ticket: string
   readonly ticket_by?: string | null
+  readonly execution_mode: string
+  readonly blockchain_status: string
+  readonly rc_status: string
+  readonly rc_delegated: number
+  readonly transaction_id?: string | null
+  readonly correlation_id?: string | null
+  readonly wax_status?: string | null
 }
 
 /**
@@ -409,11 +418,14 @@ export function isDatabaseAccountRow(row: unknown): row is DatabaseAccountRow {
     typeof r.ticket === 'string' &&
     (r.ticket_by === null || typeof r.ticket_by === 'string') &&
     typeof r.registered_at === 'string' &&
-    (r.execution_mode === undefined || typeof r.execution_mode === 'string') &&
-    (r.blockchain_status === undefined || typeof r.blockchain_status === 'string') &&
-    (r.transaction_id === undefined || r.transaction_id === null || typeof r.transaction_id === 'string') &&
-    (r.correlation_id === undefined || r.correlation_id === null || typeof r.correlation_id === 'string') &&
-    (r.wax_status === undefined || r.wax_status === null || typeof r.wax_status === 'string')
+    typeof r.execution_mode === 'string' &&
+    typeof r.blockchain_status === 'string' &&
+    (r.transaction_id === null || typeof r.transaction_id === 'string') &&
+    (r.correlation_id === null || typeof r.correlation_id === 'string') &&
+    (r.wax_status === null || typeof r.wax_status === 'string') &&
+    typeof r.rc_delegated === 'number' &&
+    Number.isFinite(r.rc_delegated) &&
+    typeof r.rc_status === 'string'
   )
 }
 
@@ -492,11 +504,11 @@ export function parseAccountRow(raw: unknown): DatabaseAccountRow | null {
   const r = raw as Record<string, unknown>
   const converted = {
     ...r,
-    execution_mode: typeof r.execution_mode === 'string' ? r.execution_mode : 'broadcast',
-    blockchain_status: typeof r.blockchain_status === 'string' ? r.blockchain_status : 'confirmed',
+    ticket_by: typeof r.ticket_by === 'string' ? r.ticket_by : null,
     transaction_id: typeof r.transaction_id === 'string' ? r.transaction_id : null,
     correlation_id: typeof r.correlation_id === 'string' ? r.correlation_id : null,
     wax_status: typeof r.wax_status === 'string' ? r.wax_status : null,
+    rc_delegated: Number(r.rc_delegated),
   }
   if (!isDatabaseAccountRow(converted)) return null
   return converted
