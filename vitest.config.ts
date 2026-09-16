@@ -5,6 +5,7 @@ export default defineConfig({
 	test: {
 		environment: 'node',
 		include: ['src/**/*.test.ts'],
+		fileParallelism: false,
 		env: {
 			HIVE_TX_MODE: 'simulate',
 			SESSION_SECRET: 'session-secret-for-tests-32-chars-min',

@@ -18,6 +18,8 @@
     "admin:check": "tsx scripts/admin-setup.ts check",
     "check": "astro check && tsc --noEmit && eslint .",
     "test": "vitest run",
+    "verify": "pnpm check && pnpm test",
+    "verify:simulation": "pnpm verify && pnpm wax:self-test && pnpm test:simulation",
     "wax:self-test": "tsx scripts/wax-self-test.ts",
     "test:simulation": "tsx scripts/test-account-simulation.ts"
   },

@@ -185,39 +185,6 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
 // Use centralized type guard from database types
 
 /**
- * Saves a successfully created account to the Accounts table
- */
-export async function saveCreatedAccount(
-  username: string,
-  ticket?: string,
-  ticketBy?: string | null
-): Promise<boolean> {
-  try {
-    const cleanUsername = sanitizeUsername(username)
-    if (!cleanUsername) return false
-
-    const cleanTicket = ticket ? sanitizeTicketCode(ticket) : null
-
-    await db.execute({
-      sql: `INSERT INTO Accounts (username, ticket, ticket_by, creation_date, registered_at, execution_mode, blockchain_status)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?)`,
-      args: [
-        cleanUsername,
-        cleanTicket || 'N/A',
-        ticketBy ?? null,
-        HIVE_TX_MODE_VALUES.BROADCAST,
-        BLOCKCHAIN_STATUS.CONFIRMED,
-      ],
-    })
-
-    return true
-  } catch (error) {
-    logger.error('[saveCreatedAccount] Failed to save account:', error)
-    return false
-  }
-}
-
-/**
  * Verifies if an account already exists in the database (idempotency)
  */
 export async function accountExistsInDB(username: string): Promise<boolean> {

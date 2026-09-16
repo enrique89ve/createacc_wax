@@ -1,6 +1,6 @@
 import type { IHiveChainInterface } from '@hiveio/wax'
 import { hiveChain } from '@/lib/hiveservice'
-import { ENV_KEYS, HIVE_CHAIN_CONFIG } from '@/consts/constants'
+import { ENV_KEYS, HIVE_CHAIN_CONFIG, RC_DELEGATION_AMOUNT } from '@/consts/constants'
 import { getEnvString } from '@/lib/env'
 import { shouldTriggerWaxFailover } from '@/lib/wax-error-utils'
 
@@ -41,15 +41,26 @@ function withRcDirectDelegationApi(chain: IHiveChainInterface) {
 	return chain.extend<RcDirectDelegationApi>()
 }
 
-function hasPositiveDelegation(
+function parseDelegatedRc(value: string | number): bigint | null {
+	try {
+		if (typeof value === 'number' && !Number.isInteger(value)) return null
+		if (typeof value === 'string' && value.trim() === '') return null
+		return BigInt(value)
+	} catch {
+		return null
+	}
+}
+
+function hasExpectedDelegation(
 	rows: readonly RcDirectDelegationRow[],
 	from: string,
-	to: string
+	to: string,
+	expectedRc: bigint
 ): boolean {
 	return rows.some((row) => {
 		if (row.from !== from || row.to !== to) return false
-		const amount = Number(row.delegated_rc)
-		return Number.isFinite(amount) && amount > 0
+		const amount = parseDelegatedRc(row.delegated_rc)
+		return amount !== null && amount === expectedRc
 	})
 }
 
@@ -99,7 +110,14 @@ export async function fetchRcDelegationExists(
 	try {
 		const hive = chain ?? (await hiveChain())
 		const result = await listRcDirectDelegations(hive, from, delegatee)
-		if (hasPositiveDelegation(result.rc_direct_delegations, from, delegatee)) {
+		if (
+			hasExpectedDelegation(
+				result.rc_direct_delegations,
+				from,
+				delegatee,
+				BigInt(RC_DELEGATION_AMOUNT)
+			)
+		) {
 			return { status: 'found' }
 		}
 		return { status: 'not_found' }
