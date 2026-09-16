@@ -4,12 +4,13 @@ import { verifyBuilderLogin } from '@/lib/auth/builder-auth'
 import { setBuilderSessionCookie } from '@/lib/auth/builder-session'
 import { logger } from '@/lib/logger'
 import { UserRole } from '@/lib/roles'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 
 interface KeychainVerifyBody {
   readonly username?: unknown
-  readonly message?: unknown
   readonly publicKey?: unknown
   readonly signature?: unknown
+  readonly message?: unknown
 }
 
 function asNonEmptyString(value: unknown): string {
@@ -17,18 +18,21 @@ function asNonEmptyString(value: unknown): string {
 }
 
 export const POST: APIRoute = async context => {
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   try {
     const body = (await context.request.json()) as KeychainVerifyBody
     const username = asNonEmptyString(body.username)
-    const message = asNonEmptyString(body.message)
     const publicKey = asNonEmptyString(body.publicKey)
     const signature = asNonEmptyString(body.signature)
+    const message = asNonEmptyString(body.message)
 
     const result = await verifyBuilderLogin({
       username,
-      message,
       publicKey,
       signature,
+      message: message || undefined,
     })
 
     if (!result.ok) {

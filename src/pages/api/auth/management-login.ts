@@ -8,10 +8,12 @@
 
 import type { APIRoute } from 'astro'
 import { logger } from '@/lib/logger'
-import { validateCredentials } from '@/lib/admin/auth/validators/unified-validator'
-import type { PasswordCredentials } from '@/lib/admin/auth/validators/unified-validator'
 import { HTTP_STATUS } from '@/consts/constants'
-import { appendSessionCookie, createAppAuthSession } from '@/lib/auth-session'
+import { verifyPasswordAuth } from '@/lib/admin/auth/password'
+import {
+  appendAdminSessionCookie,
+  createAdminAuthSession,
+} from '@/lib/auth/admin-auth'
 import { UserRole } from '@/lib/roles'
 import {
   checkLoginRateLimit,
@@ -135,16 +137,10 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    const passwordCredentials: PasswordCredentials = {
-      type: 'password',
+    const validationResult = await verifyPasswordAuth({
       username: normalizedUsername,
       password: normalizedPassword,
-    }
-
-    const validationResult = await validateCredentials(
-      passwordCredentials,
-      'password'
-    )
+    })
 
     if (!validationResult.success) {
       await persistLoginAttempt(
@@ -170,8 +166,29 @@ export const POST: APIRoute = async context => {
     }
 
     const user = validationResult.user
+    if (!user) {
+      await persistLoginAttempt(
+        request,
+        source.sourceKey,
+        normalizedUsername,
+        false,
+        'Invalid credentials'
+      )
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Credenciales inválidas',
+          remaining: Math.max(0, rateLimit.remaining - 1),
+        }),
+        {
+          status: HTTP_STATUS.UNAUTHORIZED,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+    }
 
-    // Verify that the user is an admin
     if (user.role !== UserRole.Admin) {
       await persistLoginAttempt(
         request,
@@ -194,12 +211,8 @@ export const POST: APIRoute = async context => {
       )
     }
 
-    const created = await createAppAuthSession({
-      username: user.username,
-      role: user.role,
-      authMethod: 'password',
-      userId: user.id,
-      isActive: true,
+    const created = await createAdminAuthSession({
+      username: user.username ?? normalizedUsername,
     })
 
     if (!created) {
@@ -223,7 +236,7 @@ export const POST: APIRoute = async context => {
     const headers = new Headers({
       'Content-Type': 'application/json',
     })
-    appendSessionCookie(headers, created.token)
+    appendAdminSessionCookie(headers, created.token)
 
     return new Response(
       JSON.stringify({

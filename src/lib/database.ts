@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createClient } from '@libsql/client'
 import { UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
@@ -40,14 +41,21 @@ export async function insertAdminUser(params: {
   return id
 }
 
+const transactionContext = new AsyncLocalStorage<true>()
+
 /**
  * Execute a callback inside a SQLite transaction.
- * Do not nest: SQLite does not support concurrent transactions on one connection.
+ * Nested calls in the same async context join the outer transaction.
+ * Concurrent callers do not share that context.
  */
 export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
+  if (transactionContext.getStore()) {
+    return fn()
+  }
+
+  await db.execute({ sql: 'BEGIN IMMEDIATE TRANSACTION', args: [] })
   try {
-    const result = await fn()
+    const result = await transactionContext.run(true, fn)
     await db.execute({ sql: 'COMMIT', args: [] })
     return result
   } catch (error) {
@@ -113,7 +121,9 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 
   // AUTH BUILDER
   `CREATE TABLE IF NOT EXISTS BuilderAuthChallenges (
-		nonce_hash TEXT PRIMARY KEY NOT NULL,
+		username TEXT PRIMARY KEY NOT NULL,
+		nonce_hash TEXT NOT NULL UNIQUE,
+		message TEXT NOT NULL,
 		expires_at INTEGER NOT NULL
 	)`,
 

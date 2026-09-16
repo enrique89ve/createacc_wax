@@ -1,19 +1,27 @@
 /**
- * Challenge/Nonce endpoint for Keychain authentication
- * Generates a one-time cryptographic nonce to prevent replay attacks
+ * Challenge endpoint for Keychain authentication.
+ * The server builds the exact message the client must sign.
  */
 
 import type { APIRoute } from 'astro'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 import {
   checkChallengeRateLimit,
   createBuilderChallenge,
 } from '@/lib/auth/builder-auth'
 
-export const GET: APIRoute = async ({ clientAddress }) => {
+function asNonEmptyString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export const POST: APIRoute = async context => {
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   try {
-    if (!clientAddress) {
+    if (!context.clientAddress) {
       return new Response(
         JSON.stringify({ error: 'Unable to determine client identity' }),
         {
@@ -26,7 +34,7 @@ export const GET: APIRoute = async ({ clientAddress }) => {
       )
     }
 
-    if (!checkChallengeRateLimit(clientAddress)) {
+    if (!checkChallengeRateLimit(context.clientAddress)) {
       return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), {
         status: HTTP_STATUS.TOO_MANY_REQUESTS,
         headers: {
@@ -36,17 +44,36 @@ export const GET: APIRoute = async ({ clientAddress }) => {
       })
     }
 
-    const { nonce, expiresAt } = await createBuilderChallenge()
+    const body = (await context.request.json()) as { username?: unknown }
+    const username = asNonEmptyString(body.username)
+    const result = await createBuilderChallenge(username)
 
-    return new Response(JSON.stringify({ nonce, expiresAt }), {
-      status: HTTP_STATUS.OK,
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-store',
-      },
-    })
+    if (!result.ok) {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: HTTP_STATUS.BAD_REQUEST,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        username: result.value.username,
+        message: result.value.message,
+        expiresAt: result.value.expiresAt,
+      }),
+      {
+        status: HTTP_STATUS.OK,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store',
+        },
+      }
+    )
   } catch (error) {
-    logger.error('Error generating challenge nonce:', error)
+    logger.error('Error generating challenge:', error)
     return new Response(
       JSON.stringify({ error: 'Error generando challenge' }),
       {

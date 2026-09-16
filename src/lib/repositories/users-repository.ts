@@ -1,13 +1,6 @@
 /**
- * 👥 USERS REPOSITORY
- *
- * Centralizes all database operations related to users (admins and builders).
- * Manages the unified Users table with 'admin' and 'builder' roles.
- *
- * Responsibilities:
- * - User CRUD (admins and builders)
- * - Specialized queries with statistics
- * - Avoids SQL code duplication across pages
+ * Admin users in `"user"` plus credit-account listings keyed by Hive username.
+ * Builders are not rows in `"user"`.
  */
 
 import { db, insertAdminUser } from '@/lib/database'
@@ -28,8 +21,6 @@ import { toAccountStatusLabel } from '@/lib/account-status'
 export interface BuilderWithStats {
   readonly id: string
   readonly hive_username: string
-  readonly is_active: boolean
-  readonly last_claim_at: string | null
   readonly created_at: string
   readonly tickets_created: number
   readonly available_credits: number
@@ -40,7 +31,7 @@ export class UsersRepository {
   // ===== BASIC CRUD =====
 
   /**
-   * Create a new user (admin or builder)
+   * Create a persisted Admin user.
    */
   async create({
     username,
@@ -69,7 +60,7 @@ export class UsersRepository {
   async getById(id: string): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user" WHERE id = ?',
+        sql: 'SELECT id, username, role, is_active, created_at, updated_at FROM "user" WHERE id = ?',
         args: [id],
       })
 
@@ -90,7 +81,7 @@ export class UsersRepository {
   async getByUsername(username: string): Promise<DatabaseUserRow | null> {
     try {
       const result = await db.execute({
-        sql: 'SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user" WHERE username = ?',
+        sql: 'SELECT id, username, role, is_active, created_at, updated_at FROM "user" WHERE username = ?',
         args: [username],
       })
 
@@ -123,11 +114,6 @@ export class UsersRepository {
       if (data.is_active !== undefined) {
         updates.push('is_active = ?')
         args.push(data.is_active)
-      }
-
-      if (data.last_claim_at !== undefined) {
-        updates.push('last_claim_at = ?')
-        args.push(data.last_claim_at)
       }
 
       if (updates.length === 0) {
@@ -167,7 +153,7 @@ export class UsersRepository {
     try {
       const result = await db.execute({
         sql: `
-					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user"
+					SELECT id, username, role, is_active, created_at, updated_at FROM "user"
 					WHERE role = 'admin'
 					ORDER BY created_at DESC
 				`,
@@ -181,37 +167,12 @@ export class UsersRepository {
   }
 
   /**
-   * Get all users with 'builder' role
-   * SECURITY: Explicit columns - DO NOT include password_hash
-   */
-  async getBuilders(): Promise<DatabaseUserRow[]> {
-    try {
-      const result = await db.execute({
-        sql: `
-					SELECT id, username, role, is_active, last_claim_at, created_at, updated_at FROM "user"
-					WHERE role = 'builder'
-					ORDER BY created_at DESC
-				`,
-        args: [],
-      })
-
-      return compactMap(result.rows, parseUserRow)
-    } catch (error) {
-      return []
-    }
-  }
-
-  /**
-   * Alias required by legacy endpoints that expect basic statistics
+   * Alias required by endpoints that list credit accounts
    */
   async getAllBuilders(): Promise<BuilderWithStats[]> {
     return this.getBuildersWithStats()
   }
 
-  /**
-   * Get builders with ticket and credit statistics
-   * Used in management console
-   */
   async getBuildersWithStats(): Promise<BuilderWithStats[]> {
     try {
       const result = await db.execute({
@@ -219,8 +180,6 @@ export class UsersRepository {
 					SELECT
 						c.hive_username as id,
 						c.hive_username,
-						1 as is_active,
-						NULL as last_claim_at,
 						c.created_at,
 						COUNT(DISTINCT t.id) as tickets_created,
 						c.available_amount as available_credits,
@@ -236,204 +195,54 @@ export class UsersRepository {
       return result.rows.map((row: Record<string, unknown>) => ({
         id: String(row.id),
         hive_username: String(row.hive_username),
-        is_active: sqliteToBoolean(row.is_active),
-        last_claim_at: row.last_claim_at as string | null,
         created_at: String(row.created_at),
         tickets_created: Number(row.tickets_created || 0),
         available_credits: Number(row.available_credits || 0),
         pending_credits: Number(row.pending_credits || 0),
       }))
-    } catch (error) {
+    } catch {
       return []
     }
   }
 
-  /**
-   * Get count of users by role
-   */
-  async countByRole(role: 'admin' | 'builder'): Promise<number> {
+  async countAdmins(): Promise<number> {
     try {
       const result = await db.execute({
         sql: 'SELECT COUNT(*) as total FROM "user" WHERE role = ?',
-        args: [role],
+        args: [UserRole.Admin],
       })
-
       return Number(result.rows[0]?.total || 0)
-    } catch (error) {
+    } catch {
       return 0
     }
   }
 
-  /**
-   * Get total user count
-   */
   async countAll(): Promise<number> {
     try {
       const result = await db.execute({
         sql: 'SELECT COUNT(*) as total FROM "user"',
         args: [],
       })
-
       return Number(result.rows[0]?.total || 0)
-    } catch (error) {
+    } catch {
       return 0
     }
   }
 
-  /**
-   * Check if an admin exists in the system
-   */
   async hasAdmin(): Promise<boolean> {
-    try {
-      const count = await this.countByRole('admin')
-      return count > 0
-    } catch (error) {
-      return false
-    }
+    return (await this.countAdmins()) > 0
   }
 
-  /**
-   * Check if a username already exists
-   */
   async usernameExists(username: string): Promise<boolean> {
-    try {
-      const user = await this.getByUsername(username)
-      return user !== null
-    } catch (error) {
-      return false
-    }
+    return (await this.getByUsername(username)) !== null
   }
 
-  /**
-   * Check builder existence by normalized username
-   */
-  async builderExistsByUsername(username: string): Promise<boolean> {
-    try {
-      const normalizedUsername = username.trim().toLowerCase()
-      const result = await db.execute({
-        sql: `
-					SELECT 1
-					FROM "user"
-					WHERE role = 'builder' AND LOWER(username) = ?
-					LIMIT 1
-				`,
-        args: [normalizedUsername],
-      })
-
-      return result.rows.length > 0
-    } catch (error) {
-      return false
-    }
-  }
-
-  /**
-   * Alias for compatibility with existing code
-   */
   async findById(id: string): Promise<DatabaseUserRow | null> {
     return this.getById(id)
   }
 
-  /**
-   * Alias for compatibility with existing code
-   */
   async findByUsername(username: string): Promise<DatabaseUserRow | null> {
     return this.getByUsername(username)
-  }
-
-  /**
-   * Deactivate/Ban builder (Soft Delete)
-   *
-   * Instead of hard deleting, we mark as inactive to:
-   * - Preserve unique ID (avoid collisions with new builders)
-   * - Keep complete history intact (CreditAudit, TicketAudit, Accounts)
-   * - Allow reactivation if necessary
-   *
-   * WHAT IT DOES:
-   * - Mark user as is_active = false
-   * - Deactivate all tickets (is_active = false)
-   * - Set credits to 0 (pending and available)
-   *
-   * WHAT IT PRESERVES:
-   * - User record (with is_active = false)
-   * - All tickets (marked as inactive)
-   * - Accounts: complete history of created accounts
-   * - CreditAudit: complete credit history
-   * - TicketAudit: complete ticket history
-   */
-  async deleteBuilderWithReferences(builderId: string): Promise<void> {
-    await db.execute({ sql: 'BEGIN TRANSACTION', args: [] })
-
-    try {
-      // 1. Deactivate all tickets from builder (set credits to 0)
-      // is_active is VIRTUAL column (credits > 0), cannot be written directly
-      await db.execute({
-        sql: 'UPDATE Tickets SET credits = 0, updated_at = CURRENT_TIMESTAMP WHERE creator_username = ?',
-        args: [builderId],
-      })
-
-      // 2. Set credits to 0 (but keep record for reference)
-      await db.execute({
-        sql: `UPDATE Credits 
-              SET pending_amount = 0, 
-                  available_amount = 0,
-                  updated_at = CURRENT_TIMESTAMP 
-              WHERE hive_username = ?`,
-        args: [builderId],
-      })
-
-      // 3. Record in audit that the builder was deactivated
-      await db.execute({
-        sql: `INSERT INTO CreditAudit (
-                hive_username, operation, amount, reason, timestamp
-              ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        args: [
-          builderId,
-          'builder_deactivated',
-          0,
-          'Builder deactivated/banned by admin',
-        ],
-      })
-
-      // 4. Mark user as inactive (Soft Delete)
-      await db.execute({
-        sql: `UPDATE "user" 
-              SET is_active = 0, 
-                  updated_at = CURRENT_TIMESTAMP 
-              WHERE id = ? AND role = 'builder'`,
-        args: [builderId],
-      })
-
-      await db.execute({ sql: 'COMMIT', args: [] })
-    } catch (error) {
-      await db.execute({ sql: 'ROLLBACK', args: [] })
-      throw error
-    }
-  }
-
-  /**
-   * Reactivate a previously deactivated builder
-   */
-  async reactivateBuilder(builderId: string): Promise<void> {
-    await db.execute({
-      sql: `UPDATE "user" 
-            SET is_active = 1, 
-                updated_at = CURRENT_TIMESTAMP 
-            WHERE id = ? AND role = 'builder'`,
-      args: [builderId],
-    })
-
-    // Record in audit
-    await db.execute({
-      sql: `INSERT INTO CreditAudit (
-              hive_username, operation, amount, reason, timestamp
-            ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-      args: [
-        builderId,
-        'builder_reactivated',
-        0,
-        'Builder reactivated by admin',
-      ],
-    })
   }
 
   // ===== BUILDER SPECIFIC METHODS =====

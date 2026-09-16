@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 import { ROUTES, HTTP_STATUS } from '@/consts/constants'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import { apiError } from '@/utils/errorResponse'
-import { signOutAuth } from '@/lib/auth-session'
+import { signOutAdmin } from '@/lib/auth/admin-auth'
 import { buildLogoutHeaders } from '@/utils/logout-helpers'
 
 async function clearCreationSession(context: Parameters<APIRoute>[0]) {
@@ -19,7 +19,7 @@ async function clearCreationSession(context: Parameters<APIRoute>[0]) {
 
 export const GET: APIRoute = async context => {
   try {
-    await signOutAuth(context.request)
+    await signOutAdmin(context.request)
     await clearCreationSession(context)
     return context.redirect('/builders/login')
   } catch {
@@ -29,7 +29,7 @@ export const GET: APIRoute = async context => {
 
 export const POST: APIRoute = async context => {
   try {
-    await signOutAuth(context.request)
+    await signOutAdmin(context.request)
     await clearCreationSession(context)
 
     context.locals.adminUser = undefined

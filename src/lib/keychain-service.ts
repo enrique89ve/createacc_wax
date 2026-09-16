@@ -13,12 +13,6 @@ import type {
   HiveMessage,
 } from '@/types/hive-signature'
 import { createHiveUsername, createHiveMessage } from '@/types/hive-signature'
-import { BRAND } from '@/consts/branding'
-
-const KEYCHAIN_LOGIN_MESSAGE = {
-  DEFAULT_PREFIX: 'Login to HiveAccount Creation at',
-  FALLBACK_ORIGIN: BRAND.URL,
-} as const
 
 // Global declaration for TypeScript
 declare global {
@@ -81,42 +75,36 @@ export class HiveKeychainService {
   }
 
   /**
-   * Generates secure message for signing
+   * Requests the exact login message from the server. The client only signs it.
    */
-  private resolveLoginPrefix(customMessage?: string): string {
-    if (customMessage) {
-      return customMessage
-    }
-
-    const origin =
-      typeof window !== 'undefined' && window.location?.origin
-        ? window.location.origin
-        : KEYCHAIN_LOGIN_MESSAGE.FALLBACK_ORIGIN
-
-    return `${KEYCHAIN_LOGIN_MESSAGE.DEFAULT_PREFIX} ${origin}`
-  }
-
-  /**
-   * Requests a cryptographic nonce from the server to prevent replay attacks
-   */
-  private async fetchChallenge(): Promise<string> {
-    const response = await fetch('/api/auth/challenge')
+  private async fetchLoginMessage(username: string): Promise<HiveMessage> {
+    const response = await fetch('/api/auth/challenge', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username }),
+    })
     if (!response.ok) {
       throw new Error('No se pudo obtener challenge del servidor')
     }
-    const data = await response.json()
-    return data.nonce
+    const data = (await response.json()) as { message?: string }
+    if (!data.message) {
+      throw new Error('Challenge inválido recibido del servidor')
+    }
+    return createHiveMessage(data.message)
   }
 
   private async generateSecureMessage(
     username: HiveUsername,
     customMessage?: string
   ): Promise<HiveMessage> {
-    const timestamp = Date.now()
-    const nonce = await this.fetchChallenge()
-    const baseMessage = this.resolveLoginPrefix(customMessage)
-    const message = `${baseMessage}\nUsername: ${username}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
+    if (!customMessage) {
+      return this.fetchLoginMessage(username)
+    }
 
+    const timestamp = Date.now()
+    const nonce = crypto.randomUUID().replace(/-/g, '')
+    const message = `${customMessage}\nUsername: ${username}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
     return createHiveMessage(message)
   }
 
@@ -163,10 +151,9 @@ export class HiveKeychainService {
     const hiveUsername = createHiveUsername(username)
 
     try {
-      const message = await this.generateSecureMessage(
-        hiveUsername,
-        customMessage
-      )
+      const message = customMessage
+        ? await this.generateSecureMessage(hiveUsername, customMessage)
+        : await this.fetchLoginMessage(hiveUsername)
 
       const KEYCHAIN_TIMEOUT_MS = 60_000
 

@@ -1,6 +1,6 @@
 /**
- * Database types for HolaHive - Simplified architecture
- * Two roles: admin and builder
+ * Database types for HolaHive.
+ * `"user"` is Admin-only. Builders are not persisted there.
  */
 
 import { UserRole } from '@/lib/roles'
@@ -24,17 +24,14 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 // ===== DATABASE ROW INTERFACES =====
 
 /**
- * Users table - Unified table for both admins and builders
- * role: 'admin' | 'builder'
- * password_hash: Required for admins, null for builders (use Keychain)
+ * `"user"` table — persisted Admin accounts only.
  */
 export interface DatabaseUserRow {
   readonly id: string
   readonly username: string
   readonly password_hash: string | null
-  readonly role: UserRole
+  readonly role: typeof UserRole.Admin
   readonly is_active: boolean
-  readonly last_claim_at: string | null
   readonly created_at: string
   readonly updated_at: string
 }
@@ -47,7 +44,6 @@ export interface DatabaseUserRow {
  * total_consumed: Total histórico de créditos consumados al crear cuentas (solo aumenta)
  */
 export interface DatabaseCreditRow {
-  readonly id: number
   readonly hive_username: string
   readonly pending_amount: number
   readonly available_amount: number
@@ -150,16 +146,6 @@ export interface DatabaseNotificationRow {
 // ===== EXTENDED/JOINED QUERY TYPES =====
 
 /**
- * User with credits info (joined query for builders)
- */
-export interface UserWithCredits extends DatabaseUserRow {
-  readonly pending_amount: number
-  readonly available_amount: number
-  readonly total_assigned: number
-  readonly total_consumed: number
-}
-
-/**
  * Ticket with creator info (common join query)
  */
 export interface TicketWithCreator extends DatabaseTicketRow {
@@ -169,22 +155,21 @@ export interface TicketWithCreator extends DatabaseTicketRow {
 // ===== CRUD OPERATION TYPES =====
 
 /**
- * Data required to create a new user (admin or builder)
+ * Data required to create an admin user
  */
 export interface CreateUserData {
   readonly username: string
   readonly password_hash?: string | null
-  readonly role: UserRole
+  readonly role: typeof UserRole.Admin
   readonly is_active?: boolean
 }
 
 /**
- * Data allowed to update for a user
+ * Data allowed to update for an admin user
  */
 export interface UpdateUserData {
   readonly password_hash?: string | null
   readonly is_active?: boolean
-  readonly last_claim_at?: string
 }
 
 /**
@@ -343,11 +328,8 @@ export function isDatabaseUserRow(row: unknown): row is DatabaseUserRow {
     (r.password_hash === undefined ||
       r.password_hash === null ||
       typeof r.password_hash === 'string') &&
-    isUserRole(r.role) &&
+    r.role === UserRole.Admin &&
     isActiveValid &&
-    (r.last_claim_at === undefined ||
-      r.last_claim_at === null ||
-      typeof r.last_claim_at === 'string') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -361,7 +343,6 @@ export function isDatabaseCreditRow(row: unknown): row is DatabaseCreditRow {
   const r = row as Record<string, unknown>
 
   return (
-    typeof r.id === 'number' &&
     typeof r.hive_username === 'string' &&
     typeof r.pending_amount === 'number' &&
     typeof r.available_amount === 'number' &&
