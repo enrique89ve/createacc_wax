@@ -94,6 +94,7 @@ No hay GitHub Actions. Las comprobaciones se corren en local:
 | `pnpm check` | Types + lint |
 | `pnpm verify` | `check` then `test` |
 | `pnpm verify:simulation` | `verify` + WAX self-test + simulation |
+| `pnpm state` | Read-only DB observation (no Hive, no mutations) |
 | `pnpm wax:self-test` | WAX/mainnet diagnostics without broadcast |
 | `pnpm test:simulation` | Integration simulation against the local DB |
 

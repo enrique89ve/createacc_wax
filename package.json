@@ -21,7 +21,8 @@
     "verify": "pnpm check && pnpm test",
     "verify:simulation": "pnpm verify && pnpm wax:self-test && pnpm test:simulation",
     "wax:self-test": "tsx scripts/wax-self-test.ts",
-    "test:simulation": "tsx scripts/test-account-simulation.ts"
+    "test:simulation": "tsx scripts/test-account-simulation.ts",
+    "state": "tsx scripts/state.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
