@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs'
 import { db, insertAdminUser } from '../src/lib/database'
-import { UserRole } from '../src/lib/roles'
+
 import readline from 'readline'
 
 const rl = readline.createInterface({

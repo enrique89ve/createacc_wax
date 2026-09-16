@@ -475,7 +475,7 @@ const { username } = Astro.props
         this.revealMasterInDom()
       }
 
-      private teardownSecrets(): void {
+      teardownSecrets(): void {
         this.tornDown = true
         this.hideMasterInDom()
         this.state.keySession?.destroy()

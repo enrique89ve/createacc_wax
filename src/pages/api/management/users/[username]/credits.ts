@@ -1,13 +1,13 @@
 import type { APIRoute } from 'astro'
 import { withAdminApiSession } from '@/lib/session-helpers'
-import { db } from '@/lib/database'
+
 import {
   assertCanPerform,
   Permission,
   unauthorizedResponse,
 } from '@/lib/auth/permissions'
 import { creditsService } from '@/lib/credits-service'
-import { UserRole } from '@/lib/roles'
+
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
 /**

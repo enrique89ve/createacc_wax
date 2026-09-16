@@ -6,9 +6,13 @@ import { hiveAuthEmail } from '@/lib/auth-user'
 import { logger } from '@/lib/logger'
 
 export async function getAdminSession(
-  headers: Headers
+  headersOrRequest: Headers | Request
 ): Promise<AdminSession | null> {
   try {
+    const headers =
+      headersOrRequest instanceof Headers
+        ? headersOrRequest
+        : headersOrRequest.headers
     const result = await auth.api.getSession({ headers })
     if (!result?.user) return null
 
