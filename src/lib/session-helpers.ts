@@ -4,6 +4,10 @@ import type { AdminSession, BuilderSession } from '@/types/auth'
 import { ROUTES } from '@/consts/constants'
 import { getAdminSession as readAdminSession } from '@/lib/auth/admin-auth'
 import { getBuilderSessionCookie } from '@/lib/auth/builder-session'
+import {
+  blockedHiveAccountMessage,
+  isHiveUsernameBlocked,
+} from '@/lib/auth/blocked-hive-accounts'
 
 export interface RetrievedSessions {
   admin: AdminSession | null
@@ -146,6 +150,16 @@ export async function withBuilderApiSession<T>(
     )
   }
 
+  if (await isHiveUsernameBlocked(session.username)) {
+    return new Response(
+      JSON.stringify({ error: blockedHiveAccountMessage() }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  }
+
   context.locals.builderUser = session
   return handler(session)
 }
@@ -154,11 +168,14 @@ export async function requireBuilder(
   context: APIContext
 ): Promise<BuilderSession | Response> {
   if (context.locals.builderUser) {
+    if (await isHiveUsernameBlocked(context.locals.builderUser.username)) {
+      return context.redirect(ROUTES.BUILDERS_LOGIN)
+    }
     return context.locals.builderUser
   }
 
   const session = getBuilderSessionCookie(context.cookies)
-  if (!session) {
+  if (!session || (await isHiveUsernameBlocked(session.username))) {
     return context.redirect(ROUTES.BUILDERS_LOGIN)
   }
 

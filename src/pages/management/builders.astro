@@ -35,7 +35,8 @@ try {
     <div>
       <h2 class="text-foreground text-2xl font-bold">Cuentas de créditos</h2>
       <p class="text-muted-foreground mt-1">
-        Asigna créditos a usernames de Hive. No hay cuentas Builder persistidas.
+        Asigna créditos a usernames de Hive. Puedes bloquear un username por
+        abuso sin borrar créditos ni historial.
       </p>
     </div>
     <button
@@ -62,6 +63,9 @@ try {
                   Usuario Hive
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
+                  Estado
+                </th>
+                <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                   Créditos Disponibles
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
@@ -80,11 +84,29 @@ try {
             </thead>
             <tbody class="bg-background divide-border divide-y">
               {builders.map(builder => (
-                <tr class="hover:bg-muted/20">
+                <tr
+                  class={`hover:bg-muted/20 ${builder.is_blocked ? 'opacity-60' : ''}`}
+                >
                   <td class="whitespace-nowrap px-6 py-4">
                     <div class="text-foreground text-sm font-medium">
                       @{builder.hive_username}
+                      {builder.is_blocked && (
+                        <span class="ml-2 text-xs text-red-500">
+                          (Bloqueado)
+                        </span>
+                      )}
                     </div>
+                  </td>
+                  <td class="whitespace-nowrap px-6 py-4">
+                    <span
+                      class={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
+                        builder.is_blocked
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}
+                    >
+                      {builder.is_blocked ? 'Bloqueado' : 'Activo'}
+                    </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <span class="font-semibold text-green-600">
@@ -122,6 +144,25 @@ try {
                       >
                         ✏️ Editar
                       </button>
+                      {builder.is_blocked ? (
+                        <button
+                          class="text-sm font-medium text-green-600 hover:text-green-500"
+                          data-action="reactivate-builder"
+                          data-username={builder.hive_username}
+                          title="Reactivar username"
+                        >
+                          ✅ Reactivar
+                        </button>
+                      ) : (
+                        <button
+                          class="text-destructive hover:text-destructive/80 text-sm font-medium"
+                          data-action="ban-builder"
+                          data-username={builder.hive_username}
+                          title="Bloquear por abuso"
+                        >
+                          🚫 Bloquear
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

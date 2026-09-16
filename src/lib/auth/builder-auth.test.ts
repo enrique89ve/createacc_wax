@@ -155,6 +155,27 @@ describe('builder auth challenges', () => {
     expect(mockVerify).not.toHaveBeenCalled()
   })
 
+  it('rejects a blocked Hive username before issuing a challenge', async () => {
+    const username = `${PREFIX}-block`
+    const { blockHiveUsername, unblockHiveUsername } = await import(
+      '@/lib/auth/blocked-hive-accounts'
+    )
+    await blockHiveUsername({
+      hiveUsername: username,
+      blockedBy: 'admin',
+      reason: 'abuse',
+    })
+
+    const result = await createBuilderChallenge(username)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.error).toMatch(/blocked/i)
+
+    await unblockHiveUsername(username)
+    const after = await createBuilderChallenge(username)
+    expect(after.ok).toBe(true)
+  })
+
   it('does not create a user row after a valid signature', async () => {
     const username = `${PREFIX}-norow`
     const created = await createBuilderChallenge(username)

@@ -10,6 +10,10 @@ import {
   createHiveUsername,
 } from '@/types/hive-signature'
 import { createBuilderSession } from '@/lib/auth/builder-session'
+import {
+  blockedHiveAccountMessage,
+  isHiveUsernameBlocked,
+} from '@/lib/auth/blocked-hive-accounts'
 import type { BuilderSession } from '@/types/auth'
 
 const NONCE_TTL_MS = 2 * 60 * 1000
@@ -137,6 +141,10 @@ export async function createBuilderChallenge(usernameInput: string): Promise<
     return { ok: false, error: 'Administrators must use password login' }
   }
 
+  if (await isHiveUsernameBlocked(username)) {
+    return { ok: false, error: blockedHiveAccountMessage() }
+  }
+
   const nonce = randomBytes(32).toString('hex')
   const timestamp = Date.now()
   const expiresAt = timestamp + NONCE_TTL_MS
@@ -201,6 +209,10 @@ export async function verifyBuilderLogin(
   const username = normalizeHiveUsername(input.username)
   if (await isAdminUsername(username)) {
     return { ok: false, error: 'Administrators must use password login' }
+  }
+
+  if (await isHiveUsernameBlocked(username)) {
+    return { ok: false, error: blockedHiveAccountMessage() }
   }
 
   const storedMessage = await consumeBuilderChallenge(username)

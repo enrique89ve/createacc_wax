@@ -127,6 +127,13 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		expires_at INTEGER NOT NULL
 	)`,
 
+  `CREATE TABLE IF NOT EXISTS BlockedHiveAccounts (
+		hive_username TEXT PRIMARY KEY NOT NULL,
+		reason TEXT,
+		blocked_by TEXT NOT NULL,
+		blocked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`,
+
   // BUSINESS
   `CREATE TABLE IF NOT EXISTS Tickets (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,

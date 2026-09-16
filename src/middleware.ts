@@ -6,7 +6,11 @@ import '@/lib/auto-reconciler'
 import { HIVE_CHAIN_CONFIG, ROUTES } from '@/consts/constants'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import { getAdminSession } from '@/lib/auth/admin-auth'
-import { getBuilderSessionCookie } from '@/lib/auth/builder-session'
+import {
+  clearBuilderSessionCookie,
+  getBuilderSessionCookie,
+} from '@/lib/auth/builder-session'
+import { isHiveUsernameBlocked } from '@/lib/auth/blocked-hive-accounts'
 import type { APIContext } from 'astro'
 import { logger } from '@/lib/logger'
 
@@ -46,6 +50,14 @@ async function protectBuildersRoutes(
   }
 
   const session = getBuilderSessionCookie(context.cookies)
+
+  if (session && (await isHiveUsernameBlocked(session.username))) {
+    clearBuilderSessionCookie(context.cookies)
+    if (pathname === ROUTES.BUILDERS_LOGIN) {
+      return null
+    }
+    return context.redirect(ROUTES.BUILDERS_LOGIN)
+  }
 
   if (pathname === ROUTES.BUILDERS_LOGIN) {
     if (session) {

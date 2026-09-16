@@ -11,7 +11,6 @@ import {
   type CreateUserData,
   type UpdateUserData,
 } from '@/types/database'
-import { sqliteToBoolean } from '@/utils/sqlite-helpers'
 import { UserRole } from '@/lib/roles'
 import { toAccountStatusLabel } from '@/lib/account-status'
 
@@ -25,6 +24,7 @@ export interface BuilderWithStats {
   readonly tickets_created: number
   readonly available_credits: number
   readonly pending_credits: number
+  readonly is_blocked: boolean
 }
 
 export class UsersRepository {
@@ -183,10 +183,12 @@ export class UsersRepository {
 						c.created_at,
 						COUNT(DISTINCT t.id) as tickets_created,
 						c.available_amount as available_credits,
-						c.pending_amount as pending_credits
+						c.pending_amount as pending_credits,
+						CASE WHEN b.hive_username IS NULL THEN 0 ELSE 1 END as is_blocked
 					FROM Credits c
 					LEFT JOIN Tickets t ON t.creator_username = c.hive_username
-					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount
+					LEFT JOIN BlockedHiveAccounts b ON b.hive_username = c.hive_username
+					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount, b.hive_username
 					ORDER BY c.created_at DESC
 				`,
         args: [],
@@ -199,6 +201,7 @@ export class UsersRepository {
         tickets_created: Number(row.tickets_created || 0),
         available_credits: Number(row.available_credits || 0),
         pending_credits: Number(row.pending_credits || 0),
+        is_blocked: Number(row.is_blocked || 0) !== 0,
       }))
     } catch {
       return []

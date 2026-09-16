@@ -206,6 +206,62 @@ document.addEventListener('click', async e => {
       openEditModal(username, Number(available) || 0, Number(pending) || 0)
     }
   }
+
+  if (button.dataset.action === 'ban-builder') {
+    const username = button.dataset.username
+    if (!username) return
+    if (
+      !confirm(
+        `¿Bloquear a @${username} por abuso?\n\nNo podrá iniciar sesión. Créditos, tickets e historial se conservan.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/management/users?id=${encodeURIComponent(username)}`,
+        { method: 'DELETE' }
+      )
+      if (response.ok) {
+        window.location.reload()
+        return
+      }
+      const data = await response.json()
+      alert(data.error || 'Error al bloquear el username')
+    } catch (error) {
+      console.error('Error blocking hive username:', error)
+      alert('Error de conexión al bloquear el username')
+    }
+  }
+
+  if (button.dataset.action === 'reactivate-builder') {
+    const username = button.dataset.username
+    if (!username) return
+    if (
+      !confirm(
+        `¿Reactivar a @${username}?\n\nPodrá volver a iniciar sesión con Keychain.`
+      )
+    ) {
+      return
+    }
+
+    try {
+      const response = await fetch(
+        `/api/management/users/${encodeURIComponent(username)}/reactivate`,
+        { method: 'POST' }
+      )
+      if (response.ok) {
+        window.location.reload()
+        return
+      }
+      const data = await response.json()
+      alert(data.error || 'Error al reactivar el username')
+    } catch (error) {
+      console.error('Error unblocking hive username:', error)
+      alert('Error de conexión al reactivar el username')
+    }
+  }
 })
 
 // ===== Helper Functions =====

@@ -7,6 +7,7 @@ import { CREDITS_LIMITS } from '@/consts/constants'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { Permission } from '@/lib/auth/permissions'
+import { blockHiveUsername } from '@/lib/auth/blocked-hive-accounts'
 
 // GET: List builder users
 export const GET: APIRoute = async context => {
@@ -32,6 +33,7 @@ export const GET: APIRoute = async context => {
         tickets_created: builder.tickets_created,
         available_credits: builder.available_credits,
         pending_credits: builder.pending_credits,
+        is_blocked: builder.is_blocked,
       }))
 
       return apiSuccess({ accounts })
@@ -133,14 +135,26 @@ export const DELETE: APIRoute = async context => {
       const userId = url.searchParams.get('id')
 
       if (!userId) {
-        return apiError('ID de usuario inválido', 400)
+        return apiError('Username Hive inválido', 400)
       }
 
-      return apiError(
-        'Los builders no se persisten. No hay registro de usuario que eliminar.',
-        410
-      )
+      const hiveUsername = await blockHiveUsername({
+        hiveUsername: userId,
+        blockedBy: session.username,
+        reason: 'abuse',
+      })
+
+      return apiSuccess({
+        message: `Username @${hiveUsername} bloqueado por abuso`,
+        hive_username: hiveUsername,
+      })
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes('at least 3 characters')
+      ) {
+        return apiError('Username Hive inválido', 400)
+      }
       return apiError('Error interno', 500)
     }
   })

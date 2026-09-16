@@ -5,9 +5,14 @@ import {
   Permission,
   unauthorizedResponse,
 } from '@/lib/auth/permissions'
-import { apiError } from '@/utils/errorResponse'
+import { unblockHiveUsername } from '@/lib/auth/blocked-hive-accounts'
+import { apiError, apiSuccess } from '@/utils/errorResponse'
+import { requireValidOrigin } from '@/utils/csrf-protection'
 
 export const POST: APIRoute = async context => {
+  const csrfCheck = requireValidOrigin(context.request)
+  if (csrfCheck) return csrfCheck
+
   return withAdminApiSession(context, async session => {
     try {
       assertCanPerform(
@@ -19,9 +24,19 @@ export const POST: APIRoute = async context => {
       return unauthorizedResponse()
     }
 
-    return apiError(
-      'Los builders no se persisten. No hay estado de activación.',
-      410
-    )
+    const username = context.params.id
+    if (!username) {
+      return apiError('Username Hive inválido', 400)
+    }
+
+    const hiveUsername = await unblockHiveUsername(username)
+    if (!hiveUsername) {
+      return apiError('Ese username no está bloqueado', 404)
+    }
+
+    return apiSuccess({
+      message: `Username @${hiveUsername} reactivado`,
+      hive_username: hiveUsername,
+    })
   })
 }
