@@ -21,29 +21,51 @@ export type HiveAuthorityLookup =
 	| { readonly status: 'error'; readonly message: string }
 	| { readonly status: 'ambiguous' }
 
-function keyAuthsFromAuthority(authority: unknown): string[] {
-	if (typeof authority !== 'object' || authority === null) return []
-	if (!('key_auths' in authority)) return []
-	const keyAuths = authority.key_auths
-	if (Array.isArray(keyAuths)) {
-		const keys: string[] = []
-		for (const entry of keyAuths) {
-			if (Array.isArray(entry) && typeof entry[0] === 'string') {
-				keys.push(entry[0])
-			}
-		}
-		return keys
-	}
-	if (typeof keyAuths === 'object' && keyAuths !== null) {
-		return Object.keys(keyAuths)
-	}
-	return []
+function isEmptyAccountAuths(value: unknown): boolean {
+	if (value == null) return true
+	if (Array.isArray(value)) return value.length === 0
+	if (typeof value === 'object') return Object.keys(value).length === 0
+	return false
 }
 
-function soleKey(keys: readonly string[]): string | null {
-	if (keys.length !== 1) return null
-	const key = keys[0]
-	return typeof key === 'string' ? key : null
+function numericWeight(value: unknown): number | null {
+	if (typeof value === 'number' && Number.isFinite(value)) return value
+	if (typeof value === 'string' && value.trim() !== '') {
+		const parsed = Number(value)
+		return Number.isFinite(parsed) ? parsed : null
+	}
+	return null
+}
+
+function soleWeightedKey(keyAuths: unknown): { key: string; weight: number } | null {
+	if (Array.isArray(keyAuths)) {
+		if (keyAuths.length !== 1) return null
+		const entry = keyAuths[0]
+		if (!Array.isArray(entry) || typeof entry[0] !== 'string') return null
+		const weight = numericWeight(entry[1])
+		if (weight === null) return null
+		return { key: entry[0], weight }
+	}
+	if (typeof keyAuths === 'object' && keyAuths !== null) {
+		const keys = Object.keys(keyAuths)
+		if (keys.length !== 1) return null
+		const key = keys[0]
+		if (!key) return null
+		const weight = numericWeight((keyAuths as Record<string, unknown>)[key])
+		if (weight === null) return null
+		return { key, weight }
+	}
+	return null
+}
+
+function createdAccountAuthorityKey(authority: unknown): string | null {
+	if (typeof authority !== 'object' || authority === null) return null
+	const record = authority as Record<string, unknown>
+	if (numericWeight(record.weight_threshold) !== 1) return null
+	if (!isEmptyAccountAuths(record.account_auths)) return null
+	const sole = soleWeightedKey(record.key_auths)
+	if (!sole || sole.weight !== 1) return null
+	return sole.key
 }
 
 function memoKeyFromAccount(account: Record<string, unknown>): string | null {
@@ -56,9 +78,9 @@ export function authoritiesFromHiveAccount(
 ): HiveAccountAuthorities | null {
 	if (typeof account !== 'object' || account === null) return null
 	const record = account as Record<string, unknown>
-	const ownerKey = soleKey(keyAuthsFromAuthority(record.owner))
-	const activeKey = soleKey(keyAuthsFromAuthority(record.active))
-	const postingKey = soleKey(keyAuthsFromAuthority(record.posting))
+	const ownerKey = createdAccountAuthorityKey(record.owner)
+	const activeKey = createdAccountAuthorityKey(record.active)
+	const postingKey = createdAccountAuthorityKey(record.posting)
 	const memoKey = memoKeyFromAccount(record)
 	if (!ownerKey || !activeKey || !postingKey || !memoKey) return null
 	return { ownerKey, activeKey, postingKey, memoKey }

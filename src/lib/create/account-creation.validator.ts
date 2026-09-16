@@ -109,7 +109,7 @@ export function validateSessionData(
 
 	return createValidationSuccess({
 		username: session.username,
-		ticket: session.ticket,
+		ticket: session.ticket.trim().toUpperCase(),
 		confirmedDownload: session.confirmedDownload ?? false,
 		accountCreated: session.accountCreated ?? false,
 	} satisfies ValidatedSession)

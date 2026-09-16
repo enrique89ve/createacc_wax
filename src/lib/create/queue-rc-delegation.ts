@@ -10,7 +10,9 @@ import {
 import { HiveBroadcastAttemptError } from '@/lib/hive-broadcaster'
 import { RC_DELEGATION_AMOUNT, RC_DELEGATION_CONFIG } from '@/consts/constants'
 import { db } from '@/lib/database'
-import { BLOCKCHAIN_STATUS } from '@/consts/hive-execution'
+import { BLOCKCHAIN_STATUS, RC_STATUS } from '@/consts/hive-execution'
+import { analyzeWaxError } from '@/lib/wax-error-utils'
+import { AppErrorCode } from '@/consts/errors'
 
 const processedUsers = new Set<string>()
 
@@ -18,6 +20,24 @@ function scheduleUserCleanup(username: string): void {
 	setTimeout(() => {
 		processedUsers.delete(username)
 	}, RC_DELEGATION_CONFIG.CACHE_CLEANUP_MS)
+}
+
+async function markRcDelegated(username: string): Promise<void> {
+	await db.execute({
+		sql: `UPDATE Accounts
+			SET rc_status = ?, rc_delegated = 1
+			WHERE username = ?`,
+		args: [RC_STATUS.DELEGATED, username],
+	})
+}
+
+async function releaseRcProcessing(username: string): Promise<void> {
+	await db.execute({
+		sql: `UPDATE Accounts
+			SET rc_status = ?
+			WHERE username = ? AND rc_status = ?`,
+		args: [RC_STATUS.PENDING, username, RC_STATUS.PROCESSING],
+	})
 }
 
 function scheduleRcDelegation(username: string): void {
@@ -31,6 +51,7 @@ function scheduleRcDelegation(username: string): void {
 					delegatee: username,
 					maxRc: RC_DELEGATION_AMOUNT,
 				})
+				await markRcDelegated(username)
 				logger.info(
 					`[rc-delegation] Delegated RC to ${username} broadcast=${result.broadcasted} tx=${result.id}`
 				)
@@ -38,6 +59,13 @@ function scheduleRcDelegation(username: string): void {
 				return
 			} catch (error) {
 				const errMsg = error instanceof Error ? error.message : 'Unknown error'
+				const analyzed = analyzeWaxError(error)
+				if (analyzed.code === AppErrorCode.RC_DELEGATION_EXISTS) {
+					await markRcDelegated(username)
+					logger.info(`[rc-delegation] RC already present for ${username}`)
+					scheduleUserCleanup(username)
+					return
+				}
 				if (error instanceof HiveBroadcastAttemptError) {
 					logger.warn(
 						`[rc-delegation] Broadcast already attempted for ${username}: ${errMsg}. Not retrying.`
@@ -50,6 +78,7 @@ function scheduleRcDelegation(username: string): void {
 					await new Promise(resolve => setTimeout(resolve, RC_DELEGATION_CONFIG.RETRY_DELAY_MS))
 				} else {
 					logger.error(`[rc-delegation] All attempts failed for ${username}: ${errMsg}`)
+					await releaseRcProcessing(username)
 					processedUsers.delete(username)
 				}
 			}
@@ -71,12 +100,12 @@ export function queueRcDelegation(username: string): void {
 export async function claimAccountRcDelegation(username: string): Promise<boolean> {
 	const result = await db.execute({
 		sql: `UPDATE Accounts
-			SET rc_delegated = 1
+			SET rc_status = ?
 			WHERE username = ?
-			  AND rc_delegated = 0
+			  AND rc_status = ?
 			  AND blockchain_status = ?
 			RETURNING username`,
-		args: [username, BLOCKCHAIN_STATUS.CONFIRMED],
+		args: [RC_STATUS.PROCESSING, username, RC_STATUS.PENDING, BLOCKCHAIN_STATUS.CONFIRMED],
 	})
 	return result.rows.length > 0
 }

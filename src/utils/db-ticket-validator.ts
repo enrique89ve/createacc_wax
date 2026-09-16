@@ -578,34 +578,61 @@ function accountRowFromTransaction(
   }
 }
 
+export interface CompleteAccountOptions {
+  readonly hiveMatched?: boolean
+}
+
+function withHiveMatchedStatus(
+  row: {
+    executionMode: string
+    blockchainStatus: string
+    transactionId: string | null
+    waxStatus: string | null
+  },
+  hiveMatched: boolean | undefined
+) {
+  if (!hiveMatched) return row
+  return { ...row, blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED }
+}
+
 async function accountRowForCompletion(
   transactionResult: HiveTransactionResult | undefined,
-  correlationId: string | undefined
+  correlationId: string | undefined,
+  options?: CompleteAccountOptions
 ): Promise<{
   executionMode: string
   blockchainStatus: string
   transactionId: string | null
   waxStatus: string | null
 }> {
-  if (transactionResult) return accountRowFromTransaction(transactionResult)
+  const hiveMatched = options?.hiveMatched
+  if (transactionResult) {
+    return withHiveMatchedStatus(accountRowFromTransaction(transactionResult), hiveMatched)
+  }
 
   if (!correlationId) {
-    return {
-      executionMode: HIVE_TX_MODE_VALUES.BROADCAST,
-      blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
-      transactionId: null,
-      waxStatus: null,
-    }
+    return withHiveMatchedStatus(
+      {
+        executionMode: HIVE_TX_MODE_VALUES.BROADCAST,
+        blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
+        transactionId: null,
+        waxStatus: null,
+      },
+      hiveMatched
+    )
   }
 
   const attempt = await getCreationAttempt(correlationId)
   if (!attempt || !attempt.transactionId) {
-    return {
-      executionMode: attempt?.executionMode ?? HIVE_TX_MODE_VALUES.BROADCAST,
-      blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
-      transactionId: null,
-      waxStatus: null,
-    }
+    return withHiveMatchedStatus(
+      {
+        executionMode: attempt?.executionMode ?? HIVE_TX_MODE_VALUES.BROADCAST,
+        blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
+        transactionId: null,
+        waxStatus: null,
+      },
+      hiveMatched
+    )
   }
 
   const reconstructed: HiveTransactionResult = {
@@ -616,17 +643,21 @@ async function accountRowForCompletion(
     requiredAuthorities: {},
     signaturePublicKeys: [],
   }
-  return {
-    ...accountRowFromTransaction(reconstructed),
-    waxStatus: waxStatusFromAttempt(attempt),
-  }
+  return withHiveMatchedStatus(
+    {
+      ...accountRowFromTransaction(reconstructed),
+      waxStatus: waxStatusFromAttempt(attempt),
+    },
+    hiveMatched
+  )
 }
 
 export async function completeAccountCreationInDB(
   username: string,
   ticketCode: string,
   correlationId?: string,
-  transactionResult?: HiveTransactionResult
+  transactionResult?: HiveTransactionResult,
+  options?: CompleteAccountOptions
 ): Promise<DBOperationResult> {
   const cleanUsername = sanitizeUsername(username)
   if (!cleanUsername) {
@@ -667,7 +698,11 @@ export async function completeAccountCreationInDB(
         ? (ticketInfo.rows[0].created_by as string | null)
         : null
 
-      const accountMeta = await accountRowForCompletion(transactionResult, correlationId)
+      const accountMeta = await accountRowForCompletion(
+        transactionResult,
+        correlationId,
+        options
+      )
 
       // 2. Save account record
       try {

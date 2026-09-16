@@ -13,13 +13,21 @@ import {
 } from '@/lib/hive-execution-mode'
 import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
 import {
+	getOpenCreationAttemptByUsername,
+	isAttemptStale,
+	markAttemptBroadcasting,
 	persistAttemptBroadcastOutcome,
 	persistAttemptPreparation,
 } from '@/lib/creation-attempts'
 import { recoverOwnedAccount } from '@/lib/recover-owned-account'
+import {
+	persistHiveMatchedAccount,
+	sameAttemptIdentity,
+} from '@/lib/confirm-broadcasted'
 import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
 	BLOCKCHAIN_STATUS,
+	CREATION_ATTEMPT_STATUS,
 	type HiveExecutionMode,
 } from '@/consts/hive-execution'
 import {
@@ -34,6 +42,7 @@ import {
 } from '@/types/hive-transaction'
 import {
 	HTTP_STATUS,
+	RECONCILIATION_CONFIG,
 } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { isSuspiciousUsername } from '@/utils/suspicious-username'
@@ -141,6 +150,54 @@ function keysFromRequest(request: ValidatedAccountRequest): CreationAttemptKeys 
 		postingPublicKey: request.postingPublicKey,
 		memoPublicKey: request.memoPublicKey,
 	}
+}
+
+async function creationInProgressResponse(username: string, correlationId: string): Promise<Response> {
+	return failureResponse(
+		'Account creation already in progress',
+		`An open creation attempt already exists for ${username}`,
+		ERROR_CODES.TICKET_RACE_CONDITION,
+		HTTP_STATUS.CONFLICT,
+		{ correlationId }
+	)
+}
+
+async function reclaimOpenAttemptForRetry(
+	context: APIContext,
+	session: ValidatedSession,
+	request: ValidatedAccountRequest
+): Promise<Response | void> {
+	const open = await getOpenCreationAttemptByUsername(request.username)
+	if (!open) return
+	const keys = keysFromRequest(request)
+	if (!sameAttemptIdentity(open, session.ticket, keys)) {
+		return creationInProgressResponse(request.username, open.correlationId)
+	}
+
+	if (
+		open.status === CREATION_ATTEMPT_STATUS.RESERVED ||
+		open.status === CREATION_ATTEMPT_STATUS.PREPARED
+	) {
+		await rollbackTicketReservation(session.ticket, open.correlationId)
+		return
+	}
+
+	const recovered = await recoverOwnedAccount({
+		username: request.username,
+		ticket: session.ticket,
+		keys,
+		correlationId: open.correlationId,
+	})
+	if (recovered.kind === 'recovered') {
+		return (await recoverReservedHttpRetry(context, session, request)) ?? undefined
+	}
+	if (
+		recovered.kind === 'not_found' &&
+		!isAttemptStale(open.updatedAt, RECONCILIATION_CONFIG.ATTEMPT_STALE_MS)
+	) {
+		return creationInProgressResponse(request.username, open.correlationId)
+	}
+	await rollbackTicketReservation(session.ticket, open.correlationId)
 }
 
 // --- Type guard ---
@@ -484,6 +541,9 @@ async function createAccountOnChain(
 			if (!persisted) {
 				throw new Error('Failed to persist prepared transaction snapshot')
 			}
+			if (!isSimulationMode()) {
+				await markAttemptBroadcasting(correlationId)
+			}
 		})
 		await persistAttemptBroadcastOutcome(correlationId, tx)
 		return tx
@@ -694,11 +754,12 @@ async function handleAccountAlreadyExists(
 		logger.info(
 			`[${correlationId}] Account ${username} on Hive matches this attempt. Recovering without rollback.`
 		)
-		if (recovered.tx) return recovered.tx
-		const dbResult = await completeInDatabase(username, ticketCode, correlationId)
-		if (dbResult instanceof Response) return dbResult
-		const chainConfirmed = await confirmAccountOnHive(username, correlationId)
-		maybeQueueRcDelegation(username, chainConfirmed)
+		await persistHiveMatchedAccount({
+			username,
+			ticket: ticketCode,
+			correlationId,
+			attempt: recovered.attempt,
+		})
 		const account = await getAccountCreationState(username)
 		return idempotentSuccessResponse(
 			`Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
@@ -753,17 +814,23 @@ async function recoverReservedHttpRetry(
 	}
 
 	const correlationId = recovered.attempt.correlationId
-	const dbResult = await completeInDatabase(
-		request.username,
-		session.ticket,
+	const persisted = await persistHiveMatchedAccount({
+		username: request.username,
+		ticket: session.ticket,
 		correlationId,
-		recovered.tx ?? undefined
-	)
-	if (dbResult instanceof Response) return dbResult
-
-	const chainConfirmed = await confirmAccountOnHive(request.username, correlationId)
-	maybeQueueRcDelegation(request.username, chainConfirmed)
+		attempt: recovered.attempt,
+	})
+	if (!persisted) {
+		const dbResult = await completeInDatabase(
+			request.username,
+			session.ticket,
+			correlationId,
+			recovered.tx ?? undefined
+		)
+		if (dbResult instanceof Response) return dbResult
+	}
 	finalizeSession(context, session)
+	const chainConfirmed = true
 
 	if (recovered.tx) {
 		logCreationOutcome(correlationId, request.username, recovered.tx, true)
@@ -880,6 +947,13 @@ export const POST: APIRoute = async (context) => {
 		}
 
 		try {
+			const reclaimed = await reclaimOpenAttemptForRetry(
+				context,
+				sessionResult,
+				requestResult
+			)
+			if (reclaimed instanceof Response) return reclaimed
+
 			const reserveResult = await reserveTicket(
 				sessionResult.ticket,
 				correlationId,

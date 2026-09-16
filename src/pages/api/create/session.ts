@@ -90,7 +90,7 @@ export const POST: APIRoute = async context => {
 			// If the request HAS a ticket, update session while preserving other fields
 			const updatedSession: CreationSession = {
 				...existingSession,
-				ticket: ticket.trim(),
+				ticket: ticket.trim().toUpperCase(),
 			}
 			sessionManager.set(updatedSession)
 
@@ -106,7 +106,7 @@ export const POST: APIRoute = async context => {
 			username,
 			confirmedDownload: false,
 			// Only add ticket if it's not empty
-			...(ticket && ticket.trim() && { ticket: ticket.trim() }),
+			...(ticket && ticket.trim() && { ticket: ticket.trim().toUpperCase() }),
 		}
 
 		sessionManager.set(sessionData)

@@ -21,8 +21,12 @@ import { logger } from '@/lib/logger'
 import { hiveChain } from '@/lib/hiveservice'
 import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
 import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import { hiveTransactionFromAttempt, getCreationAttempt } from '@/lib/creation-attempts'
-import { confirmPendingBroadcastedAccounts } from '@/lib/confirm-broadcasted'
+import { getCreationAttempt } from '@/lib/creation-attempts'
+import {
+	confirmPendingBroadcastedAccounts,
+	persistHiveMatchedAccount,
+	recoverStaleCreationAttempts,
+} from '@/lib/confirm-broadcasted'
 import {
 	getPendingReconciliations,
 	claimReconciliationEntry,
@@ -30,7 +34,6 @@ import {
 	markReconciliationFailed,
 	markReconciliationAbandoned,
 	resetStuckProcessingEntries,
-	completeAccountCreationInDB,
 	rollbackTicketReservation,
 	accountExistsInDB,
 	obfuscateTicket,
@@ -126,31 +129,20 @@ async function reconcileEntry(
 				return
 			}
 
-			if (existsInDB) {
-				await markReconciliationResolved(id, RESOLVER_ID)
-				logger.info(
-					`[${RESOLVER_ID}] [${correlationId}] Already consistent. Resolved.`
-				)
+			const persisted = await persistHiveMatchedAccount({
+				username,
+				ticket: ticketCode,
+				correlationId,
+				attempt,
+			})
+			if (!persisted) {
+				await markReconciliationFailed(id, 'Hive-matched persist failed')
 				return
 			}
-
-			const dbResult = await completeAccountCreationInDB(
-				username,
-				ticketCode,
-				correlationId,
-				hiveTransactionFromAttempt(attempt) ?? undefined
+			await markReconciliationResolved(id, RESOLVER_ID)
+			logger.info(
+				`[${RESOLVER_ID}] [${correlationId}] Confirmed owned Hive account ${username} (existsInDB=${existsInDB}). Ticket: ${obfuscated}`
 			)
-			if (!dbResult.success) {
-				await markReconciliationFailed(id, `DB completion failed: ${dbResult.error}`)
-				logger.error(
-					`[${RESOLVER_ID}] [${correlationId}] DB completion failed: ${dbResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`
-				)
-			} else {
-				await markReconciliationResolved(id, RESOLVER_ID)
-				logger.info(
-					`[${RESOLVER_ID}] [${correlationId}] Completed DB for owned on-chain account ${username}. Ticket: ${obfuscated}`
-				)
-			}
 			return
 		}
 
@@ -202,6 +194,10 @@ async function runReconciliation(): Promise<void> {
 		const confirmed = await confirmPendingBroadcastedAccounts()
 		if (confirmed > 0) {
 			logger.info(`[${RESOLVER_ID}] Confirmed ${confirmed} broadcasted account(s) and queued RC once.`)
+		}
+		const stale = await recoverStaleCreationAttempts()
+		if (stale > 0) {
+			logger.info(`[${RESOLVER_ID}] Reclaimed ${stale} stale creation attempt(s).`)
 		}
 
 		const pending = await getPendingReconciliations()

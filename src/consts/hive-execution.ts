@@ -28,12 +28,27 @@ export type WaxStatus = (typeof WAX_STATUS)[keyof typeof WAX_STATUS]
 export const CREATION_ATTEMPT_STATUS = {
 	RESERVED: 'reserved',
 	PREPARED: 'prepared',
+	BROADCASTING: 'broadcasting',
 	COMPLETED: 'completed',
 	ROLLED_BACK: 'rolled_back',
 } as const
 
 export type CreationAttemptStatus =
 	(typeof CREATION_ATTEMPT_STATUS)[keyof typeof CREATION_ATTEMPT_STATUS]
+
+export const OPEN_CREATION_ATTEMPT_STATUSES = [
+	CREATION_ATTEMPT_STATUS.RESERVED,
+	CREATION_ATTEMPT_STATUS.PREPARED,
+	CREATION_ATTEMPT_STATUS.BROADCASTING,
+] as const
+
+export const RC_STATUS = {
+	PENDING: 'pending',
+	PROCESSING: 'processing',
+	DELEGATED: 'delegated',
+} as const
+
+export type RcStatus = (typeof RC_STATUS)[keyof typeof RC_STATUS]
 
 export const RC_PREFLIGHT_THRESHOLDS = {
 	PASS_PERCENT: 20,

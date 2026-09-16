@@ -149,6 +149,7 @@ export const RECONCILIATION_CONFIG = {
   MIN_ENTRY_AGE_MS: 2 * 60 * 1000, // Only process entries >2 min old
   MAX_ATTEMPTS: 10, // Max retry attempts before abandoning entry
   PROCESSING_TIMEOUT_MS: 5 * 60 * 1000, // 5 min — stuck entries reset to 'failed'
+  ATTEMPT_STALE_MS: 2 * 60 * 1000, // reserved/prepared/broadcasting older than this can be reclaimed
 } as const
 
 export const RECONCILIATION_STATUS = {

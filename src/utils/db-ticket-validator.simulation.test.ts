@@ -284,6 +284,57 @@ describe('simulation DB completion', () => {
 		expect(await claimAccountRcDelegation(username)).toBe(false)
 	})
 
+	it('Hive-matched recovery persists confirmed even if broadcasted was never saved', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `hivm${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-hive-match', username))).success).toBe(true)
+		await persistAttemptPreparation('corr-hive-match', {
+			id: 'tx-timeout-1',
+			wax: {
+				validated: true,
+				onChainVerified: true,
+				signed: true,
+				authorityVerified: true,
+			},
+		})
+		const completed = await completeAccountCreationInDB(
+			username,
+			TICKET,
+			'corr-hive-match',
+			{
+				...simulatedTx('tx-timeout-1'),
+				mode: HIVE_TX_MODE_VALUES.BROADCAST,
+				broadcasted: false,
+			},
+			{ hiveMatched: true }
+		)
+		expect(completed.success).toBe(true)
+		const persisted = await getAccountCreationState(username)
+		expect(persisted?.blockchainStatus).toBe(BLOCKCHAIN_STATUS.CONFIRMED)
+		expect(persisted?.transactionId).toBe('tx-timeout-1')
+	})
+
+	it('rolls back a stale reserved attempt so a later reserve can proceed', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `stal${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-stale', username))).success).toBe(true)
+		await db.execute({
+			sql: `UPDATE CreationAttempts SET updated_at = datetime('now', '-10 minutes') WHERE correlation_id = ?`,
+			args: ['corr-stale'],
+		})
+		const { recoverStaleCreationAttempts } = await import('@/lib/confirm-broadcasted')
+		expect(await recoverStaleCreationAttempts()).toBeGreaterThan(0)
+		expect(await getCreationAttempt('corr-stale')).toMatchObject({ status: 'rolled_back' })
+		expect((await reserveTicketCredit(reserveInput('corr-stale-2', username))).success).toBe(true)
+		await rollbackTicketReservation(TICKET, 'corr-stale-2')
+	})
+
 	it('ties a reserved credit to this username and keys, not the ticket counter', async () => {
 		await db.execute({
 			sql: `UPDATE Tickets SET credits = 3, original_credits = 3 WHERE code = ?`,

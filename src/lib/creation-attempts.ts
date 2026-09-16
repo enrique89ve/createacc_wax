@@ -1,6 +1,7 @@
 import { db } from '@/lib/database'
 import {
 	CREATION_ATTEMPT_STATUS,
+	OPEN_CREATION_ATTEMPT_STATUSES,
 	WAX_STATUS,
 	type CreationAttemptStatus,
 	type HiveExecutionMode,
@@ -26,6 +27,7 @@ export interface CreationAttempt {
 	readonly executionMode: HiveExecutionMode
 	readonly broadcasted: boolean
 	readonly wax: HiveWaxPipelineStatus
+	readonly updatedAt: string
 }
 
 export interface ReserveCreationAttemptInput {
@@ -46,9 +48,25 @@ function sqliteBool(value: unknown): boolean {
 
 function parseAttemptStatus(value: unknown): CreationAttemptStatus {
 	if (value === CREATION_ATTEMPT_STATUS.PREPARED) return CREATION_ATTEMPT_STATUS.PREPARED
+	if (value === CREATION_ATTEMPT_STATUS.BROADCASTING) return CREATION_ATTEMPT_STATUS.BROADCASTING
 	if (value === CREATION_ATTEMPT_STATUS.COMPLETED) return CREATION_ATTEMPT_STATUS.COMPLETED
 	if (value === CREATION_ATTEMPT_STATUS.ROLLED_BACK) return CREATION_ATTEMPT_STATUS.ROLLED_BACK
 	return CREATION_ATTEMPT_STATUS.RESERVED
+}
+
+export function normalizeAttemptTicket(ticket: string): string {
+	return ticket.trim().toUpperCase()
+}
+
+export function isOpenCreationAttempt(status: CreationAttemptStatus): boolean {
+	return (OPEN_CREATION_ATTEMPT_STATUSES as readonly string[]).includes(status)
+}
+
+export function isAttemptStale(updatedAt: string, staleMs: number): boolean {
+	const normalized = updatedAt.includes('T') ? updatedAt : updatedAt.replace(' ', 'T')
+	const timestamp = Date.parse(normalized.endsWith('Z') ? normalized : `${normalized}Z`)
+	if (!Number.isFinite(timestamp)) return false
+	return Date.now() - timestamp >= staleMs
 }
 
 function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
@@ -72,8 +90,15 @@ function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
 			signed: sqliteBool(row.wax_signed),
 			authorityVerified: sqliteBool(row.wax_authority_verified),
 		},
+		updatedAt: typeof row.updated_at === 'string' ? row.updated_at : '',
 	}
 }
+
+const ATTEMPT_SELECT = `correlation_id, username, ticket, status,
+			owner_public_key, active_public_key, posting_public_key, memo_public_key,
+			transaction_id, execution_mode, broadcasted,
+			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified,
+			updated_at`
 
 export async function insertReservedAttempt(
 	input: ReserveCreationAttemptInput
@@ -87,7 +112,7 @@ export async function insertReservedAttempt(
 		args: [
 			input.correlationId,
 			input.username,
-			input.ticket,
+			normalizeAttemptTicket(input.ticket),
 			CREATION_ATTEMPT_STATUS.RESERVED,
 			input.keys.ownerPublicKey,
 			input.keys.activePublicKey,
@@ -102,11 +127,7 @@ export async function getCreationAttempt(
 	correlationId: string
 ): Promise<CreationAttempt | null> {
 	const result = await db.execute({
-		sql: `SELECT correlation_id, username, ticket, status,
-			owner_public_key, active_public_key, posting_public_key, memo_public_key,
-			transaction_id, execution_mode, broadcasted,
-			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified
-			FROM CreationAttempts WHERE correlation_id = ?`,
+		sql: `SELECT ${ATTEMPT_SELECT} FROM CreationAttempts WHERE correlation_id = ?`,
 		args: [correlationId],
 	})
 	if (result.rows.length === 0) return null
@@ -119,10 +140,7 @@ export async function findOpenCreationAttempt(params: {
 	readonly keys: CreationAttemptKeys
 }): Promise<CreationAttempt | null> {
 	const result = await db.execute({
-		sql: `SELECT correlation_id, username, ticket, status,
-			owner_public_key, active_public_key, posting_public_key, memo_public_key,
-			transaction_id, execution_mode, broadcasted,
-			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified
+		sql: `SELECT ${ATTEMPT_SELECT}
 			FROM CreationAttempts
 			WHERE username = ?
 			  AND ticket = ?
@@ -130,18 +148,17 @@ export async function findOpenCreationAttempt(params: {
 			  AND active_public_key = ?
 			  AND posting_public_key = ?
 			  AND memo_public_key = ?
-			  AND status IN (?, ?)
+			  AND status IN (?, ?, ?)
 			ORDER BY created_at DESC
 			LIMIT 1`,
 		args: [
 			params.username,
-			params.ticket,
+			normalizeAttemptTicket(params.ticket),
 			params.keys.ownerPublicKey,
 			params.keys.activePublicKey,
 			params.keys.postingPublicKey,
 			params.keys.memoPublicKey,
-			CREATION_ATTEMPT_STATUS.RESERVED,
-			CREATION_ATTEMPT_STATUS.PREPARED,
+			...OPEN_CREATION_ATTEMPT_STATUSES,
 		],
 	})
 	if (result.rows.length === 0) return null
@@ -193,7 +210,7 @@ export async function persistAttemptBroadcastOutcome(
 			    wax_authority_verified = ?,
 			    status = ?,
 			    updated_at = CURRENT_TIMESTAMP
-			WHERE correlation_id = ? AND status IN (?, ?)`,
+			WHERE correlation_id = ? AND status IN (?, ?, ?)`,
 		args: [
 			tx.id,
 			tx.mode,
@@ -202,25 +219,53 @@ export async function persistAttemptBroadcastOutcome(
 			tx.wax.onChainVerified ? 1 : 0,
 			tx.wax.signed ? 1 : 0,
 			tx.wax.authorityVerified ? 1 : 0,
-			CREATION_ATTEMPT_STATUS.PREPARED,
+			tx.broadcasted
+				? CREATION_ATTEMPT_STATUS.BROADCASTING
+				: CREATION_ATTEMPT_STATUS.PREPARED,
 			correlationId,
 			CREATION_ATTEMPT_STATUS.RESERVED,
 			CREATION_ATTEMPT_STATUS.PREPARED,
+			CREATION_ATTEMPT_STATUS.BROADCASTING,
 		],
 	})
+}
+
+export async function markAttemptBroadcasting(correlationId: string): Promise<boolean> {
+	const result = await db.execute({
+		sql: `UPDATE CreationAttempts
+			SET status = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE correlation_id = ? AND status = ?
+			RETURNING correlation_id`,
+		args: [
+			CREATION_ATTEMPT_STATUS.BROADCASTING,
+			correlationId,
+			CREATION_ATTEMPT_STATUS.PREPARED,
+		],
+	})
+	return result.rows.length > 0
 }
 
 export async function markAttemptCompleted(correlationId: string): Promise<void> {
 	await db.execute({
 		sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE correlation_id = ? AND status IN (?, ?)`,
+			WHERE correlation_id = ? AND status IN (?, ?, ?)`,
 		args: [
 			CREATION_ATTEMPT_STATUS.COMPLETED,
 			correlationId,
-			CREATION_ATTEMPT_STATUS.RESERVED,
-			CREATION_ATTEMPT_STATUS.PREPARED,
+			...OPEN_CREATION_ATTEMPT_STATUSES,
 		],
+	})
+}
+
+export async function markAttemptRecoveredOnChain(correlationId: string): Promise<void> {
+	await db.execute({
+		sql: `UPDATE CreationAttempts
+			SET broadcasted = 1,
+			    status = ?,
+			    updated_at = CURRENT_TIMESTAMP
+			WHERE correlation_id = ?`,
+		args: [CREATION_ATTEMPT_STATUS.COMPLETED, correlationId],
 	})
 }
 
@@ -228,16 +273,41 @@ export async function markAttemptRolledBack(correlationId: string): Promise<bool
 	const result = await db.execute({
 		sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE correlation_id = ? AND status IN (?, ?)
+			WHERE correlation_id = ? AND status IN (?, ?, ?)
 			RETURNING correlation_id`,
 		args: [
 			CREATION_ATTEMPT_STATUS.ROLLED_BACK,
 			correlationId,
-			CREATION_ATTEMPT_STATUS.RESERVED,
-			CREATION_ATTEMPT_STATUS.PREPARED,
+			...OPEN_CREATION_ATTEMPT_STATUSES,
 		],
 	})
 	return result.rows.length > 0
+}
+
+export async function getOpenCreationAttemptByUsername(
+	username: string
+): Promise<CreationAttempt | null> {
+	const result = await db.execute({
+		sql: `SELECT ${ATTEMPT_SELECT}
+			FROM CreationAttempts
+			WHERE username = ? AND status IN (?, ?, ?)
+			ORDER BY created_at DESC
+			LIMIT 1`,
+		args: [username, ...OPEN_CREATION_ATTEMPT_STATUSES],
+	})
+	if (result.rows.length === 0) return null
+	return parseAttemptRow(result.rows[0] as Record<string, unknown>)
+}
+
+export async function listOpenCreationAttempts(): Promise<CreationAttempt[]> {
+	const result = await db.execute({
+		sql: `SELECT ${ATTEMPT_SELECT}
+			FROM CreationAttempts
+			WHERE status IN (?, ?, ?)
+			ORDER BY updated_at ASC`,
+		args: [...OPEN_CREATION_ATTEMPT_STATUSES],
+	})
+	return result.rows.map((row) => parseAttemptRow(row as Record<string, unknown>))
 }
 
 export function hiveTransactionFromAttempt(
@@ -252,6 +322,14 @@ export function hiveTransactionFromAttempt(
 		requiredAuthorities: {},
 		signaturePublicKeys: [],
 	}
+}
+
+export function hiveTransactionFromRecoveredAttempt(
+	attempt: CreationAttempt
+): HiveTransactionResult | null {
+	const tx = hiveTransactionFromAttempt(attempt)
+	if (!tx) return null
+	return { ...tx, broadcasted: true }
 }
 
 export function waxStatusFromAttempt(attempt: CreationAttempt): string | null {

@@ -22,15 +22,14 @@ import {
 	markReconciliationFailed,
 	markReconciliationAbandoned,
 	resetStuckProcessingEntries,
-	completeAccountCreationInDB,
 	rollbackTicketReservation,
-	accountExistsInDB,
 	obfuscateTicket,
 } from '@/utils/db-ticket-validator'
 import { hiveChain } from '@/lib/hiveservice'
 import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
 import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import { getCreationAttempt, hiveTransactionFromAttempt } from '@/lib/creation-attempts'
+import { getCreationAttempt } from '@/lib/creation-attempts'
+import { persistHiveMatchedAccount } from '@/lib/confirm-broadcasted'
 import { RECONCILIATION_CONFIG } from '@/consts/constants'
 
 const RESOLVER_ID = 'reconcile-script'
@@ -124,7 +123,6 @@ async function reconcileEntry(
 
 		// Step 4: status='found' path resolves consistency or DB completion.
 		if (chainResult.status === 'found') {
-			const existsInDB = await accountExistsInDB(username)
 			const attempt = await getCreationAttempt(correlationId)
 			if (!attempt) {
 				if (!isDryRun) {
@@ -182,34 +180,21 @@ async function reconcileEntry(
 				}
 			}
 
-			if (existsInDB) {
-				if (!isDryRun) {
-					await markReconciliationResolved(id, RESOLVER_ID)
-				}
-				return {
-					entryId: id,
-					correlationId,
-					username,
-					action: 'already_consistent',
-					detail: `Account exists on-chain with matching keys and in DB. Resolved.`,
-				}
-			}
-
 			if (!isDryRun) {
-				const dbResult = await completeAccountCreationInDB(
+				const persisted = await persistHiveMatchedAccount({
 					username,
-					ticketCode,
+					ticket: ticketCode,
 					correlationId,
-					hiveTransactionFromAttempt(attempt) ?? undefined
-				)
-				if (!dbResult.success) {
-					await markReconciliationFailed(id, `DB completion failed: ${dbResult.error}`)
+					attempt,
+				})
+				if (!persisted) {
+					await markReconciliationFailed(id, 'Hive-matched persist failed')
 					return {
 						entryId: id,
 						correlationId,
 						username,
 						action: 'error',
-						detail: `DB completion failed: ${dbResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`,
+						detail: `Hive-matched persist failed. Ticket: ${obfuscated}`,
 					}
 				}
 				await markReconciliationResolved(id, RESOLVER_ID)
