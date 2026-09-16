@@ -1,12 +1,17 @@
+import { existsSync } from 'node:fs'
+import type { Client } from '@libsql/client'
 import './test-setup-env.ts'
-import { initializeDatabase, db } from '@/lib/database'
 import { RECONCILIATION_CONFIG, RECONCILIATION_STATUS } from '@/consts/constants'
 import {
 	BLOCKCHAIN_STATUS,
 	OPEN_CREATION_ATTEMPT_STATUSES,
 	RC_STATUS,
 } from '@/consts/hive-execution'
-import { isAttemptStale } from '@/lib/creation-attempts'
+
+type IsAttemptStale = typeof import('@/lib/creation-attempts').isAttemptStale
+
+let db: Client
+let isAttemptStale: IsAttemptStale
 
 interface SystemState {
 	openAttempts: number
@@ -193,10 +198,36 @@ function printState(state: ObservedState): void {
 	console.log(isClean(totals) ? 'State clean.' : 'Attention required.')
 }
 
+function localSqlitePath(databaseUrl: string): string | null {
+	if (!databaseUrl.startsWith('file:')) return null
+	return databaseUrl.slice('file:'.length)
+}
+
+function schemaUnavailableMessage(error: unknown): string {
+	const detail = error instanceof Error ? error.message : 'Unknown error'
+	return `Database missing or schema outdated. Run \`pnpm db:reset\`. (${detail})`
+}
+
+async function openExistingDatabase(): Promise<void> {
+	const databaseUrl = process.env.DATABASE_URL || 'file:holahive.db'
+	const sqlitePath = localSqlitePath(databaseUrl)
+	if (sqlitePath && !existsSync(sqlitePath)) {
+		throw new Error('Database file not found. Run `pnpm db:reset`.')
+	}
+
+	const database = await import('@/lib/database')
+	const attempts = await import('@/lib/creation-attempts')
+	db = database.db
+	isAttemptStale = attempts.isAttemptStale
+}
+
 async function main(): Promise<void> {
-	const ok = await initializeDatabase()
-	if (!ok) throw new Error('DB init failed')
-	printState(await readState())
+	await openExistingDatabase()
+	try {
+		printState(await readState())
+	} catch (error) {
+		throw new Error(schemaUnavailableMessage(error))
+	}
 }
 
 main().catch((error) => {
