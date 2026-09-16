@@ -1,5 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { createClient } from '@libsql/client'
+import {
+  createClient,
+  type Transaction,
+  type InStatement,
+  type ResultSet,
+} from '@libsql/client'
 import { UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
 import { hiveAuthEmail } from '@/lib/auth-user'
@@ -41,7 +46,14 @@ export async function insertAdminUser(params: {
   return id
 }
 
-const transactionContext = new AsyncLocalStorage<true>()
+const transactionContext = new AsyncLocalStorage<Transaction>()
+let transactionQueue: Promise<void> = Promise.resolve()
+
+/** Execute on the active dedicated transaction, or on the shared client. */
+export async function execute(statement: InStatement): Promise<ResultSet> {
+  const transaction = transactionContext.getStore()
+  return transaction ? transaction.execute(statement) : db.execute(statement)
+}
 
 /**
  * Execute a callback inside a SQLite transaction.
@@ -53,14 +65,27 @@ export async function withTransaction<T>(fn: () => Promise<T>): Promise<T> {
     return fn()
   }
 
-  await db.execute({ sql: 'BEGIN IMMEDIATE TRANSACTION', args: [] })
+  const previous = transactionQueue
+  let release!: () => void
+  transactionQueue = new Promise<void>(resolve => {
+    release = resolve
+  })
+  await previous
+
   try {
-    const result = await transactionContext.run(true, fn)
-    await db.execute({ sql: 'COMMIT', args: [] })
-    return result
-  } catch (error) {
-    await db.execute({ sql: 'ROLLBACK', args: [] })
-    throw error
+    const transaction = await db.transaction('write')
+    try {
+      const result = await transactionContext.run(transaction, fn)
+      await transaction.commit()
+      return result
+    } catch (error) {
+      await transaction.rollback()
+      throw error
+    } finally {
+      transaction.close()
+    }
+  } finally {
+    release()
   }
 }
 

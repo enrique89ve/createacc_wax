@@ -1,5 +1,6 @@
-import { db, withTransaction } from '@/lib/database'
+import { execute, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
+import { isHiveUsernameBlocked } from '@/lib/auth/blocked-hive-accounts'
 import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
@@ -116,7 +117,7 @@ export async function validateTicketInDB(
       return { isValid: false, error: 'Código de ticket inválido' }
     }
 
-    const result = await db.execute({
+    const result = await execute({
       sql: `SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
@@ -128,6 +129,10 @@ export async function validateTicketInDB(
     const ticket = parseTicketRow(result.rows[0])
     if (!ticket) {
       return { isValid: false, error: 'Formato de ticket inválido' }
+    }
+
+    if (await isHiveUsernameBlocked(ticket.creator_username)) {
+      return { isValid: false, error: 'Ticket temporalmente no disponible' }
     }
 
     if (!ticket.is_active) {
@@ -155,11 +160,15 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
 
     // UPDATE reducing credits and refreshing updated_at
     // is_active and has_been_used are updated automatically
-    const updateReturning = await db.execute({
+    const updateReturning = await execute({
       sql: `UPDATE Tickets
             SET credits = CASE WHEN credits > 0 THEN credits - 1 ELSE 0 END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE code = ? AND is_active = TRUE
+              AND NOT EXISTS (
+                SELECT 1 FROM BlockedHiveAccounts b
+                WHERE b.hive_username = Tickets.creator_username
+              )
             RETURNING id, code`,
       args: [cleanCode],
     })
@@ -207,7 +216,7 @@ export async function getAccountCreationState(
     const cleanUsername = sanitizeUsername(username)
     if (!cleanUsername) return null
 
-    const result = await db.execute({
+    const result = await execute({
       sql: `SELECT username, execution_mode, blockchain_status, transaction_id, wax_status
             FROM Accounts WHERE username = ?`,
       args: [cleanUsername],
@@ -237,7 +246,7 @@ export async function updateAccountBlockchainStatus(
     const cleanUsername = sanitizeUsername(username)
     if (!cleanUsername) return false
 
-    const result = await db.execute({
+    const result = await execute({
       sql: `UPDATE Accounts SET blockchain_status = ? WHERE username = ? RETURNING username`,
       args: [status, cleanUsername],
     })
@@ -261,7 +270,7 @@ export async function isTicketAlreadyUsed(
     const cleanCode = sanitizeTicketCode(ticketCode)
     if (!cleanCode) return false
 
-    const result = await db.execute({
+    const result = await execute({
       sql: `SELECT has_been_used FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
@@ -350,7 +359,7 @@ export interface DBOperationResult {
 
 /**
  * F2 FIX: Reserve a ticket credit atomically BEFORE on-chain account creation.
- * Uses BEGIN IMMEDIATE TRANSACTION to prevent race conditions.
+ * Uses a dedicated write transaction to prevent race conditions.
  * If the on-chain creation fails afterwards, call rollbackTicketReservation().
  */
 export async function reserveTicketCredit(
@@ -377,10 +386,8 @@ export async function reserveTicketCredit(
   }
 
   try {
-    await db.execute('BEGIN IMMEDIATE TRANSACTION')
-
-    try {
-      const updateResult = await db.execute({
+    return await withTransaction(async () => {
+      const updateResult = await execute({
         sql: `UPDATE Tickets
               SET credits = CASE
                     WHEN credits > 0 THEN credits - 1
@@ -388,17 +395,19 @@ export async function reserveTicketCredit(
                   END,
                   updated_at = CURRENT_TIMESTAMP
               WHERE code = ? AND is_active = TRUE AND credits > 0
+                AND NOT EXISTS (
+                  SELECT 1 FROM BlockedHiveAccounts b
+                  WHERE b.hive_username = Tickets.creator_username
+                )
               RETURNING id, code, credits as remaining_credits`,
         args: [cleanTicketCode],
       })
 
       if (updateResult.rows.length === 0) {
-        const checkResult = await db.execute({
+        const checkResult = await execute({
           sql: `SELECT is_active, credits FROM Tickets WHERE code = ?`,
           args: [cleanTicketCode],
         })
-
-        await db.execute('ROLLBACK')
 
         if (checkResult.rows.length === 0) {
           return {
@@ -410,7 +419,7 @@ export async function reserveTicketCredit(
         }
         return {
           success: false,
-          error: 'Ticket has no available credits or is inactive',
+          error: 'Ticket is unavailable, inactive or has no available credits',
           errorCode: VALIDATION_ERROR_CODES.TICKET_RACE_CONDITION,
           correlationId,
         }
@@ -423,12 +432,8 @@ export async function reserveTicketCredit(
         keys: input.keys,
       })
 
-      await db.execute('COMMIT')
       return { success: true, correlationId }
-    } catch (innerError) {
-      await db.execute('ROLLBACK')
-      throw innerError
-    }
+    })
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
@@ -460,16 +465,14 @@ export async function rollbackTicketReservation(
   }
 
   try {
-    await db.execute('BEGIN IMMEDIATE TRANSACTION')
-    try {
+    return await withTransaction(async () => {
       const marked = await markAttemptRolledBack(correlationId)
       if (!marked) {
-        await db.execute('ROLLBACK')
         logger.warn(`[${correlationId}] Rollback skipped: attempt is not open`)
         return { success: true, correlationId }
       }
 
-      const result = await db.execute({
+      const result = await execute({
         sql: `UPDATE Tickets
               SET credits = credits + 1,
                   updated_at = CURRENT_TIMESTAMP
@@ -479,7 +482,6 @@ export async function rollbackTicketReservation(
       })
 
       if (result.rows.length === 0) {
-        await db.execute('ROLLBACK')
         logger.error(
           `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
         )
@@ -491,15 +493,11 @@ export async function rollbackTicketReservation(
         }
       }
 
-      await db.execute('COMMIT')
       logger.warn(
         `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back for this attempt`
       )
       return { success: true, correlationId }
-    } catch (innerError) {
-      await db.execute('ROLLBACK')
-      throw innerError
-    }
+    })
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
@@ -654,7 +652,7 @@ export async function completeAccountCreationInDB(
 
   try {
     await withTransaction(async () => {
-      const ticketInfo = await db.execute({
+      const ticketInfo = await execute({
         sql: `SELECT creator_username FROM Tickets WHERE code = ?`,
         args: [cleanTicketCode],
       })
@@ -675,7 +673,7 @@ export async function completeAccountCreationInDB(
       )
 
       try {
-        await db.execute({
+        await execute({
           sql: `INSERT INTO Accounts (
                   username, ticket, builder_username, creation_date, registered_at,
                   execution_mode, blockchain_status, transaction_id, correlation_id, wax_status,
@@ -782,7 +780,7 @@ export async function enqueueReconciliation(params: {
       return
     }
 
-    await db.execute({
+    await execute({
       sql: `INSERT INTO ReconciliationQueue
             (correlation_id, username, ticket_code, reason, error_category, error_message, transaction_id)
             VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -827,7 +825,7 @@ export interface ReconciliationEntry {
 export async function getPendingReconciliations(): Promise<
   ReconciliationEntry[]
 > {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT id, correlation_id, username, ticket_code, reason,
                   error_category, error_message, transaction_id, created_at,
                   status, attempt_count
@@ -875,7 +873,7 @@ export async function claimReconciliationEntry(
   entryId: number,
   claimedBy: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               attempt_count = attempt_count + 1,
@@ -902,7 +900,7 @@ export async function markReconciliationResolved(
   entryId: number,
   resolvedBy: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               resolved = TRUE,
@@ -930,7 +928,7 @@ export async function markReconciliationFailed(
   entryId: number,
   errorMessage: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               last_error = ?,
@@ -955,7 +953,7 @@ export async function markReconciliationAbandoned(
   entryId: number,
   errorMessage: string
 ): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               resolved = TRUE,
@@ -983,7 +981,7 @@ export async function resetStuckProcessingEntries(
   timeoutMs: number
 ): Promise<number> {
   const timeoutSeconds = Math.floor(timeoutMs / 1000)
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               last_error = 'Stuck in processing (timeout)',
