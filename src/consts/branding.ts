@@ -11,27 +11,27 @@
  */
 
 export const BRAND = {
-	/** Display name used in UI, titles, and footers */
-	NAME: 'HolaHive',
+  /** Display name used in UI, titles, and footers */
+  NAME: 'HolaHive',
 
-	/** Site tagline / default meta description */
-	TAGLINE: 'Crea una cuenta en Hive y comienza una camino innovador en Web3.',
+  /** Site tagline / default meta description */
+  TAGLINE: 'Crea una cuenta en Hive y comienza una camino innovador en Web3.',
 
-	/** Canonical site URL (no trailing slash) */
-	URL: 'https://join.holahive.com',
+  /** Canonical site URL (no trailing slash) */
+  URL: 'https://join.holahive.com',
 
-	/** Alt text for logo images */
-	LOGO_ALT: 'HolaHive',
+  /** Alt text for logo images */
+  LOGO_ALT: 'HolaHive',
 
-	/**
-	 * App identifier written into json_metadata on account creation.
-	 * Immutable once accounts have been created on-chain.
-	 */
-	APP_ID: 'HolaHive/1.0.0',
+  /**
+   * App identifier written into json_metadata on account creation.
+   * Immutable once accounts have been created on-chain.
+   */
+  APP_ID: 'HolaHive/1.0.0',
 
-	/**
-	 * Custom JSON app id used for credit claim operations.
-	 * Immutable once claims have been broadcast on-chain.
-	 */
-	CLAIM_APP_ID: 'holahiveCreateAcc',
+  /**
+   * Custom JSON app id used for credit claim operations.
+   * Immutable once claims have been broadcast on-chain.
+   */
+  CLAIM_APP_ID: 'holahiveCreateAcc',
 } as const

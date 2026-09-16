@@ -10,16 +10,16 @@ let waxFoundationPromise: Promise<WaxFoundation> | undefined
  * Recovers from initialization failures by clearing the cache.
  */
 export async function getWaxFoundation(): Promise<WaxFoundation> {
-	if (!waxFoundationPromise) {
-		waxFoundationPromise = createWaxFoundation()
-	}
+  if (!waxFoundationPromise) {
+    waxFoundationPromise = createWaxFoundation()
+  }
 
-	try {
-		return await waxFoundationPromise
-	} catch (error) {
-		waxFoundationPromise = undefined
-		throw error
-	}
+  try {
+    return await waxFoundationPromise
+  } catch (error) {
+    waxFoundationPromise = undefined
+    throw error
+  }
 }
 
 /**
@@ -27,10 +27,10 @@ export async function getWaxFoundation(): Promise<WaxFoundation> {
  * Fires and forgets — errors are silently ignored.
  */
 export function prewarmWaxFoundation(): void {
-	if (!waxFoundationPromise) {
-		waxFoundationPromise = createWaxFoundation()
-		waxFoundationPromise.catch(() => {
-			waxFoundationPromise = undefined
-		})
-	}
+  if (!waxFoundationPromise) {
+    waxFoundationPromise = createWaxFoundation()
+    waxFoundationPromise.catch(() => {
+      waxFoundationPromise = undefined
+    })
+  }
 }

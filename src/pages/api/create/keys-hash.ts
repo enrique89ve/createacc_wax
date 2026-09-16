@@ -6,7 +6,10 @@ import { hasForbiddenPrivateKeyFields } from '@/types/keys'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { validateHiveKeySet } from '@/utils/key-validation'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
-import { checkCreationRateLimit, createRateLimitResponse } from '@/lib/creation-rate-limiter'
+import {
+  checkCreationRateLimit,
+  createRateLimitResponse,
+} from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
@@ -78,7 +81,8 @@ export const POST: APIRoute = async context => {
         memoPublicKey,
       })
     } catch (keyError) {
-      const keyErrorMessage = keyError instanceof Error ? keyError.message : 'Key validation error'
+      const keyErrorMessage =
+        keyError instanceof Error ? keyError.message : 'Key validation error'
       return apiError(keyErrorMessage, HTTP_STATUS.BAD_REQUEST, undefined, {
         noCache: true,
       })
@@ -98,7 +102,8 @@ export const POST: APIRoute = async context => {
       noCache: true,
     })
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
+    const errorMessage =
+      error instanceof Error ? error.message : 'Internal server error'
     return apiError(
       errorMessage,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,

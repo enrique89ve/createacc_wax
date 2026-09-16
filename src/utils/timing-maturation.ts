@@ -10,14 +10,14 @@ export const POW_MAX_AGE_MS = CHALLENGE_TTL_MS - 60_000
  * @param marginMs   - extra margin for clock skew / jitter (default 100ms)
  */
 export async function ensureTimingMatured(
-	fetchedAt: number,
-	thresholdMs: number,
-	marginMs = 100,
+  fetchedAt: number,
+  thresholdMs: number,
+  marginMs = 100
 ): Promise<void> {
-	if (fetchedAt <= 0) return
-	const elapsed = Date.now() - fetchedAt
-	const required = thresholdMs + marginMs
-	if (elapsed < required) {
-		await new Promise(resolve => setTimeout(resolve, required - elapsed))
-	}
+  if (fetchedAt <= 0) return
+  const elapsed = Date.now() - fetchedAt
+  const required = thresholdMs + marginMs
+  if (elapsed < required) {
+    await new Promise(resolve => setTimeout(resolve, required - elapsed))
+  }
 }

@@ -170,10 +170,7 @@ export class SimplifiedErrorProcessor {
   ): string {
     // Try Wax specific message
     const waxMessage = formatWaxErrorForUser(originalError)
-    if (
-      waxMessage !==
-      'An unexpected error has occurred. Please try again.'
-    ) {
+    if (waxMessage !== 'An unexpected error has occurred. Please try again.') {
       return waxMessage
     }
 

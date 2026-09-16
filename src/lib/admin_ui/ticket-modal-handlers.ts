@@ -287,9 +287,7 @@ function setupUpdateModalListeners() {
 
     // Validate available credits if positive delta (uses cache)
     if (delta > 0 && delta > cachedAvailableCredits) {
-      showError(
-        `Not enough credits. Available: ${cachedAvailableCredits}`
-      )
+      showError(`Not enough credits. Available: ${cachedAvailableCredits}`)
       return
     }
 

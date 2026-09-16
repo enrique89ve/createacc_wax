@@ -1,13 +1,13 @@
 import {
-	HIVE_TX_MODE_VALUES,
-	type HiveExecutionMode,
+  HIVE_TX_MODE_VALUES,
+  type HiveExecutionMode,
 } from '@/consts/hive-execution'
 import { ENV_KEYS } from '@/consts/constants'
 
 function readProcessEnv(name: string): string {
-	const value = process.env[name]
-	if (typeof value !== 'string') return ''
-	return value.trim()
+  const value = process.env[name]
+  if (typeof value !== 'string') return ''
+  return value.trim()
 }
 
 /**
@@ -15,22 +15,22 @@ function readProcessEnv(name: string): string {
  * Broadcast means live mainnet transmission. Nothing else.
  */
 export function getHiveExecutionMode(): HiveExecutionMode {
-	const raw = readProcessEnv(ENV_KEYS.HIVE_TX_MODE).toLowerCase()
-	if (raw === HIVE_TX_MODE_VALUES.BROADCAST) {
-		return HIVE_TX_MODE_VALUES.BROADCAST
-	}
-	return HIVE_TX_MODE_VALUES.SIMULATE
+  const raw = readProcessEnv(ENV_KEYS.HIVE_TX_MODE).toLowerCase()
+  if (raw === HIVE_TX_MODE_VALUES.BROADCAST) {
+    return HIVE_TX_MODE_VALUES.BROADCAST
+  }
+  return HIVE_TX_MODE_VALUES.SIMULATE
 }
 
 export function isSimulationMode(): boolean {
-	return getHiveExecutionMode() === HIVE_TX_MODE_VALUES.SIMULATE
+  return getHiveExecutionMode() === HIVE_TX_MODE_VALUES.SIMULATE
 }
 
 export function isBroadcastEnabled(): boolean {
-	return getHiveExecutionMode() === HIVE_TX_MODE_VALUES.BROADCAST
+  return getHiveExecutionMode() === HIVE_TX_MODE_VALUES.BROADCAST
 }
 
 export function canDelegateResourceCredits(chainConfirmed: boolean): boolean {
-	if (isSimulationMode()) return true
-	return chainConfirmed
+  if (isSimulationMode()) return true
+  return chainConfirmed
 }

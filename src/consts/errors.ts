@@ -6,7 +6,7 @@
 import {
   BLOCKCHAIN_ERROR_CODES,
   UnifiedError,
-  type BlockchainErrorCode
+  type BlockchainErrorCode,
 } from './unified-errors'
 
 // Re-exportar códigos blockchain como AppErrorCode para compatibilidad
@@ -24,4 +24,3 @@ export class AppError extends UnifiedError {
     this.name = 'AppError'
   }
 }
-

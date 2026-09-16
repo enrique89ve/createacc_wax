@@ -109,7 +109,7 @@ export function isSuspiciousUsername(username: string): boolean {
     }
 
     // 5. ENTROPY DETECTION (Bot-generated names)
-    
+
     // Streak of 4 or more consecutive consonants (ignores numbers in between to evaluate readability)
     const lettersOnly = cleanUsername.replace(/[^a-z]/g, '')
     if (/[bcdfghjklmnpqrstvwxyz]{4,}/.test(lettersOnly)) {

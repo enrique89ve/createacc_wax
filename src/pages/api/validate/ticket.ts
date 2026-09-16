@@ -12,77 +12,81 @@ import { TIMING_THRESHOLDS } from '@/consts/pow'
  */
 
 const NO_CACHE_HEADERS = {
-	'Content-Type': 'application/json',
-	'Cache-Control': 'no-store',
+  'Content-Type': 'application/json',
+  'Cache-Control': 'no-store',
 } as const
 
-export const POST: APIRoute = async (context) => {
-	try {
-		const clientIp = resolveClientIp(context)
-		const rateLimit = checkCreationRateLimit('ticket', clientIp)
-		if (!rateLimit.allowed) {
-			const retryAfterSeconds = Math.ceil(rateLimit.retryAfterMs / 1000)
-			return new Response(
-				JSON.stringify({ valid: false }),
-				{
-					status: 429,
-					headers: {
-						...NO_CACHE_HEADERS,
-						'Retry-After': String(retryAfterSeconds),
-					},
-				}
-			)
-		}
+export const POST: APIRoute = async context => {
+  try {
+    const clientIp = resolveClientIp(context)
+    const rateLimit = checkCreationRateLimit('ticket', clientIp)
+    if (!rateLimit.allowed) {
+      const retryAfterSeconds = Math.ceil(rateLimit.retryAfterMs / 1000)
+      return new Response(JSON.stringify({ valid: false }), {
+        status: 429,
+        headers: {
+          ...NO_CACHE_HEADERS,
+          'Retry-After': String(retryAfterSeconds),
+        },
+      })
+    }
 
-		const data: {
-			ticket?: unknown
-			pow?: { challengeId?: string; nonce?: string }
-			timingTokenId?: string
-		} = await context.request.json()
+    const data: {
+      ticket?: unknown
+      pow?: { challengeId?: string; nonce?: string }
+      timingTokenId?: string
+    } = await context.request.json()
 
-		// Validate PoW before any business logic
-		if (!data.pow?.challengeId || !data.pow?.nonce || !validatePowSolution(data.pow as { challengeId: string; nonce: string })) {
-			return new Response(
-				JSON.stringify({ valid: false }),
-				{ status: 400, headers: NO_CACHE_HEADERS }
-			)
-		}
+    // Validate PoW before any business logic
+    if (
+      !data.pow?.challengeId ||
+      !data.pow?.nonce ||
+      !validatePowSolution(data.pow as { challengeId: string; nonce: string })
+    ) {
+      return new Response(JSON.stringify({ valid: false }), {
+        status: 400,
+        headers: NO_CACHE_HEADERS,
+      })
+    }
 
-		// Validate timing token (anti-bot: user must spend minimum time on page)
-		if (!data.timingTokenId || !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.ticket)) {
-			return new Response(
-				JSON.stringify({ valid: false }),
-				{ status: 400, headers: NO_CACHE_HEADERS }
-			)
-		}
+    // Validate timing token (anti-bot: user must spend minimum time on page)
+    if (
+      !data.timingTokenId ||
+      !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.ticket)
+    ) {
+      return new Response(JSON.stringify({ valid: false }), {
+        status: 400,
+        headers: NO_CACHE_HEADERS,
+      })
+    }
 
-		const { ticket } = data
+    const { ticket } = data
 
-		if (!ticket || typeof ticket !== 'string') {
-			return new Response(
-				JSON.stringify({ valid: false }),
-				{ status: 400, headers: NO_CACHE_HEADERS }
-			)
-		}
+    if (!ticket || typeof ticket !== 'string') {
+      return new Response(JSON.stringify({ valid: false }), {
+        status: 400,
+        headers: NO_CACHE_HEADERS,
+      })
+    }
 
-		const validation = await validateTicketInDB(ticket)
+    const validation = await validateTicketInDB(ticket)
 
-		if (!validation.isValid) {
-			return new Response(
-				JSON.stringify({ valid: false }),
-				{ status: 200, headers: NO_CACHE_HEADERS }
-			)
-		}
+    if (!validation.isValid) {
+      return new Response(JSON.stringify({ valid: false }), {
+        status: 200,
+        headers: NO_CACHE_HEADERS,
+      })
+    }
 
-		// F5c FIX: Only return validity, not ticket code/description
-		return new Response(
-			JSON.stringify({ valid: true }),
-			{ status: 200, headers: NO_CACHE_HEADERS }
-		)
-	} catch (_error) {
-		return new Response(
-			JSON.stringify({ valid: false }),
-			{ status: 500, headers: NO_CACHE_HEADERS }
-		)
-	}
+    // F5c FIX: Only return validity, not ticket code/description
+    return new Response(JSON.stringify({ valid: true }), {
+      status: 200,
+      headers: NO_CACHE_HEADERS,
+    })
+  } catch (_error) {
+    return new Response(JSON.stringify({ valid: false }), {
+      status: 500,
+      headers: NO_CACHE_HEADERS,
+    })
+  }
 }

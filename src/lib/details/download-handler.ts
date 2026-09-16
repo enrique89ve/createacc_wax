@@ -1,6 +1,6 @@
 import {
-	KeyDownloadManager,
-	type DownloadFormat,
+  KeyDownloadManager,
+  type DownloadFormat,
 } from '@/utils/key-download-manager'
 import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
 import type { PublicKeySet } from '@/types/keys'
@@ -8,68 +8,68 @@ import type { ClientKeySession } from './client-key-session'
 import type { PreSolvedBundle } from './types'
 
 export interface DownloadDependencies {
-	readonly keySession: ClientKeySession
-	readonly recoverSession: () => Promise<boolean>
+  readonly keySession: ClientKeySession
+  readonly recoverSession: () => Promise<boolean>
 }
 
 export async function downloadAndNotify(
-	deps: DownloadDependencies,
-	format: DownloadFormat,
+  deps: DownloadDependencies,
+  format: DownloadFormat
 ): Promise<void> {
-	const keysData = deps.keySession.createDownload()
-	await KeyDownloadManager.downloadKeys(keysData, format)
-	await notifyServerKeysDownloaded(
-		deps.keySession.getPublicKeys(),
-		deps.recoverSession,
-	)
+  const keysData = deps.keySession.createDownload()
+  await KeyDownloadManager.downloadKeys(keysData, format)
+  await notifyServerKeysDownloaded(
+    deps.keySession.getPublicKeys(),
+    deps.recoverSession
+  )
 }
 
 async function notifyServerKeysDownloaded(
-	publicKeys: PublicKeySet,
-	recoverSession: () => Promise<boolean>,
+  publicKeys: PublicKeySet,
+  recoverSession: () => Promise<boolean>
 ): Promise<void> {
-	const body = JSON.stringify(publicKeys)
-	const headers = { 'Content-Type': 'application/json' }
+  const body = JSON.stringify(publicKeys)
+  const headers = { 'Content-Type': 'application/json' }
 
-	try {
-		let res = await fetch('/api/create/keys-hash', {
-			method: 'POST',
-			headers,
-			body,
-		})
+  try {
+    let res = await fetch('/api/create/keys-hash', {
+      method: 'POST',
+      headers,
+      body,
+    })
 
-		if (res.status === 401) {
-			const ok = await recoverSession()
-			if (ok) {
-				res = await fetch('/api/create/keys-hash', {
-					method: 'POST',
-					headers,
-					body,
-				})
-			}
-		}
-	} catch {
-		// Non-critical: server notification is best-effort; keys are already saved locally
-	}
+    if (res.status === 401) {
+      const ok = await recoverSession()
+      if (ok) {
+        res = await fetch('/api/create/keys-hash', {
+          method: 'POST',
+          headers,
+          body,
+        })
+      }
+    }
+  } catch {
+    // Non-critical: server notification is best-effort; keys are already saved locally
+  }
 }
 
 export async function preSolvePowBundle(): Promise<PreSolvedBundle | null> {
-	try {
-		let tokenFetchedAt = 0
-		const [pow, timingTokenId] = await Promise.all([
-			obtainPowSolution(),
-			fetchTimingToken()
-				.then(id => {
-					tokenFetchedAt = Date.now()
-					return id
-				})
-				.catch(() => {
-					tokenFetchedAt = Date.now()
-					return undefined
-				}),
-		])
-		return { pow, timingTokenId, tokenFetchedAt, solvedAt: Date.now() }
-	} catch {
-		return null
-	}
+  try {
+    let tokenFetchedAt = 0
+    const [pow, timingTokenId] = await Promise.all([
+      obtainPowSolution(),
+      fetchTimingToken()
+        .then(id => {
+          tokenFetchedAt = Date.now()
+          return id
+        })
+        .catch(() => {
+          tokenFetchedAt = Date.now()
+          return undefined
+        }),
+    ])
+    return { pow, timingTokenId, tokenFetchedAt, solvedAt: Date.now() }
+  } catch {
+    return null
+  }
 }

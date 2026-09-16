@@ -11,17 +11,17 @@ import { ENV_KEYS } from '@/consts/constants'
 type EnvName = Extract<keyof ImportMetaEnv, string>
 
 function readEnvValue(name: EnvName): string {
-	const fromProcess = process.env[name]
-	if (typeof fromProcess === 'string' && fromProcess.trim().length > 0) {
-		return fromProcess.trim()
-	}
+  const fromProcess = process.env[name]
+  if (typeof fromProcess === 'string' && fromProcess.trim().length > 0) {
+    return fromProcess.trim()
+  }
 
-	const fromMeta = (import.meta.env as Record<string, unknown>)[name]
-	if (typeof fromMeta === 'string') {
-		return fromMeta.trim()
-	}
+  const fromMeta = (import.meta.env as Record<string, unknown>)[name]
+  if (typeof fromMeta === 'string') {
+    return fromMeta.trim()
+  }
 
-	return ''
+  return ''
 }
 
 /**
@@ -30,7 +30,7 @@ function readEnvValue(name: EnvName): string {
  * @returns Trimmed value or empty string if it does not exist
  */
 export function getEnvString(name: EnvName): string {
-	return readEnvValue(name)
+  return readEnvValue(name)
 }
 
 /**
@@ -39,11 +39,11 @@ export function getEnvString(name: EnvName): string {
  * @throws Error if the variable does not exist or is empty
  */
 export function getRequiredEnvString(name: EnvName): string {
-	const value = getEnvString(name)
-	if (!value) {
-		throw new Error(`Required environment variable ${name} is missing or empty`)
-	}
-	return value
+  const value = getEnvString(name)
+  if (!value) {
+    throw new Error(`Required environment variable ${name} is missing or empty`)
+  }
+  return value
 }
 
 /**
@@ -52,8 +52,8 @@ export function getRequiredEnvString(name: EnvName): string {
  * @returns true if the value is "TRUE", false otherwise
  */
 export function getBooleanEnv(name: EnvName): boolean {
-	const value = readEnvValue(name)
-	return value.toUpperCase() === 'TRUE'
+  const value = readEnvValue(name)
+  return value.toUpperCase() === 'TRUE'
 }
 
 /**
@@ -61,10 +61,10 @@ export function getBooleanEnv(name: EnvName): boolean {
  * Useful for variables that are not in import.meta.env (e.g. runtime-only vars)
  */
 export function isTruthyProcessEnv(name: string): boolean {
-	const value = process.env[name]
-	if (!value) return false
-	const normalized = value.trim().toLowerCase()
-	return normalized === 'true' || normalized === '1' || normalized === 'yes'
+  const value = process.env[name]
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === 'true' || normalized === '1' || normalized === 'yes'
 }
 
 /**
@@ -72,27 +72,31 @@ export function isTruthyProcessEnv(name: string): boolean {
  * @throws Error if any required variable is missing
  */
 export function validateEnvironment(): void {
-	const required: EnvName[] = [
-		ENV_KEYS.HIVE_CREATOR_ACCOUNT,
-		ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
-		ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
-		ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
-		ENV_KEYS.SESSION_SECRET,
-		ENV_KEYS.BEEKEEPER_WALLET_PASSWORD,
-	]
+  const required: EnvName[] = [
+    ENV_KEYS.HIVE_CREATOR_ACCOUNT,
+    ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
+    ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
+    ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
+    ENV_KEYS.SESSION_SECRET,
+    ENV_KEYS.BEEKEEPER_WALLET_PASSWORD,
+  ]
 
-	for (const key of required) {
-		getRequiredEnvString(key)
-	}
+  for (const key of required) {
+    getRequiredEnvString(key)
+  }
 
-	// SESSION_SECRET must be at least 32 characters for HMAC-SHA256 security
-	const sessionSecret = getEnvString(ENV_KEYS.SESSION_SECRET)
-	if (sessionSecret.length < 32) {
-		throw new Error('SESSION_SECRET must be at least 32 characters for secure HMAC-SHA256 signing')
-	}
+  // SESSION_SECRET must be at least 32 characters for HMAC-SHA256 security
+  const sessionSecret = getEnvString(ENV_KEYS.SESSION_SECRET)
+  if (sessionSecret.length < 32) {
+    throw new Error(
+      'SESSION_SECRET must be at least 32 characters for secure HMAC-SHA256 signing'
+    )
+  }
 
-	const authSecret = process.env.AUTH_SECRET?.trim() ?? ''
-	if (authSecret.length < 32) {
-		throw new Error('AUTH_SECRET must be at least 32 characters for Better Auth')
-	}
+  const authSecret = process.env.AUTH_SECRET?.trim() ?? ''
+  if (authSecret.length < 32) {
+    throw new Error(
+      'AUTH_SECRET must be at least 32 characters for Better Auth'
+    )
+  }
 }

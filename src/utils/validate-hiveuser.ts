@@ -27,7 +27,8 @@ export const validateHiveAccountExists = async ({
       ? { status: 'found' }
       : { status: 'not_found' }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown chain error'
+    const message =
+      error instanceof Error ? error.message : 'Unknown chain error'
     return { status: 'error', message }
   }
 }
@@ -60,7 +61,8 @@ export async function safeCheckAccountOnChain({
       ? { status: 'found' }
       : { status: 'not_found' }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown chain error'
+    const message =
+      error instanceof Error ? error.message : 'Unknown chain error'
     return { status: 'error', message }
   }
 }
@@ -81,24 +83,24 @@ interface PollingConfig {
  */
 export type PollingResult =
   | {
-    readonly status: 'found'
-    readonly attempts: number
-    readonly totalTimeMs: number
-    readonly timedOut: boolean
-  }
+      readonly status: 'found'
+      readonly attempts: number
+      readonly totalTimeMs: number
+      readonly timedOut: boolean
+    }
   | {
-    readonly status: 'not_found'
-    readonly attempts: number
-    readonly totalTimeMs: number
-    readonly timedOut: boolean
-  }
+      readonly status: 'not_found'
+      readonly attempts: number
+      readonly totalTimeMs: number
+      readonly timedOut: boolean
+    }
   | {
-    readonly status: 'error'
-    readonly attempts: number
-    readonly totalTimeMs: number
-    readonly timedOut: boolean
-    readonly message: string
-  }
+      readonly status: 'error'
+      readonly attempts: number
+      readonly totalTimeMs: number
+      readonly timedOut: boolean
+      readonly message: string
+    }
 
 /**
  * Helper function for delay with Promise
@@ -139,18 +141,18 @@ export const validateHiveAccountExistsWithPolling = async ({
     if (elapsed > finalConfig.timeoutMs) {
       return hadRpcError
         ? {
-          status: 'error',
-          attempts: attempt - 1,
-          totalTimeMs: elapsed,
-          timedOut: true,
-          message: lastRpcErrorMessage,
-        }
+            status: 'error',
+            attempts: attempt - 1,
+            totalTimeMs: elapsed,
+            timedOut: true,
+            message: lastRpcErrorMessage,
+          }
         : {
-          status: 'not_found',
-          attempts: attempt - 1,
-          totalTimeMs: elapsed,
-          timedOut: true,
-        }
+            status: 'not_found',
+            attempts: attempt - 1,
+            totalTimeMs: elapsed,
+            timedOut: true,
+          }
     }
 
     const result = await safeCheckAccountOnChain({ chain, accountName })
@@ -184,16 +186,16 @@ export const validateHiveAccountExistsWithPolling = async ({
 
   return hadRpcError
     ? {
-      status: 'error',
-      attempts: attempt,
-      totalTimeMs: totalTime,
-      timedOut: false,
-      message: lastRpcErrorMessage,
-    }
+        status: 'error',
+        attempts: attempt,
+        totalTimeMs: totalTime,
+        timedOut: false,
+        message: lastRpcErrorMessage,
+      }
     : {
-      status: 'not_found',
-      attempts: attempt,
-      totalTimeMs: totalTime,
-      timedOut: false,
-    }
+        status: 'not_found',
+        attempts: attempt,
+        totalTimeMs: totalTime,
+        timedOut: false,
+      }
 }

@@ -1,50 +1,48 @@
 ---
 import ProgressStepper from '@/components/ui/ProgressStepper.astro'
 
-const steps = [
-	'Verificando información',
-	'Creando la cuenta',
-	'Redirigiendo'
-]
+const steps = ['Verificando información', 'Creando la cuenta', 'Redirigiendo']
 ---
 
 <div
-	id="progress-modal"
-	class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
-	role="dialog"
-	aria-modal="true"
-	aria-labelledby="progress-modal-title"
+  id="progress-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="progress-modal-title"
 >
-	<div class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-2xl">
-		<div class="mb-6 text-center">
-			<h2
-				id="progress-modal-title"
-				class="text-foreground text-xl font-semibold"
-			>
-				Creando tu cuenta
-			</h2>
-			<p class="text-muted-foreground mt-2 text-sm">
-				Por favor espera mientras procesamos tu solicitud
-			</p>
-		</div>
+  <div
+    class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-2xl"
+  >
+    <div class="mb-6 text-center">
+      <h2
+        id="progress-modal-title"
+        class="text-foreground text-xl font-semibold"
+      >
+        Creando tu cuenta
+      </h2>
+      <p class="text-muted-foreground mt-2 text-sm">
+        Por favor espera mientras procesamos tu solicitud
+      </p>
+    </div>
 
-		<ProgressStepper
-			steps={steps}
-			currentStep={-1}
-			completedSteps={[]}
-			errorStep={-1}
-			className="mb-6"
-		/>
+    <ProgressStepper
+      steps={steps}
+      currentStep={-1}
+      completedSteps={[]}
+      errorStep={-1}
+      className="mb-6"
+    />
 
-		<!-- Close button (only visible if there is an error) -->
-		<div class="hidden text-center" data-progress-error-actions>
-			<button
-				type="button"
-				id="btn-close-progress"
-				class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
-			>
-				Cerrar
-			</button>
-		</div>
-	</div>
+    <!-- Close button (only visible if there is an error) -->
+    <div class="hidden text-center" data-progress-error-actions>
+      <button
+        type="button"
+        id="btn-close-progress"
+        class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
+      >
+        Cerrar
+      </button>
+    </div>
+  </div>
 </div>

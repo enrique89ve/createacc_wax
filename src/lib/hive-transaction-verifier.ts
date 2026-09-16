@@ -115,7 +115,8 @@ export async function verifyClaimTransaction(
     if (!requiredPostingAuths.includes(expectedUsername)) {
       return {
         valid: false,
-        error: 'The user does not have posting authorization in the transaction',
+        error:
+          'The user does not have posting authorization in the transaction',
         transaction,
       }
     }

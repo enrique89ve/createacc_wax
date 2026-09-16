@@ -25,62 +25,62 @@ const MIN_TICKET_CREDITS = 1
  * @returns ValidationResult with normalized string or error
  */
 export function validateTicketName(name: string): ValidationResult<string> {
-	if (!name || !name.trim()) {
-		return {
-			success: false,
-			error: {
-				message: 'El nombre del ticket no puede estar vacío',
-				field: 'code',
-			},
-		}
-	}
+  if (!name || !name.trim()) {
+    return {
+      success: false,
+      error: {
+        message: 'El nombre del ticket no puede estar vacío',
+        field: 'code',
+      },
+    }
+  }
 
-	const trimmedName = name.trim()
+  const trimmedName = name.trim()
 
-	if (trimmedName.length < TICKET_LENGTH.MIN) {
-		return {
-			success: false,
-			error: {
-				message: `El nombre debe tener al menos ${TICKET_LENGTH.MIN} caracteres`,
-				field: 'code',
-			},
-		}
-	}
+  if (trimmedName.length < TICKET_LENGTH.MIN) {
+    return {
+      success: false,
+      error: {
+        message: `El nombre debe tener al menos ${TICKET_LENGTH.MIN} caracteres`,
+        field: 'code',
+      },
+    }
+  }
 
-	if (trimmedName.length > TICKET_LENGTH.MAX) {
-		return {
-			success: false,
-			error: {
-				message: `El nombre no puede exceder ${TICKET_LENGTH.MAX} caracteres`,
-				field: 'code',
-			},
-		}
-	}
+  if (trimmedName.length > TICKET_LENGTH.MAX) {
+    return {
+      success: false,
+      error: {
+        message: `El nombre no puede exceder ${TICKET_LENGTH.MAX} caracteres`,
+        field: 'code',
+      },
+    }
+  }
 
-	if (!ALPHANUMERIC_REGEX.test(trimmedName)) {
-		return {
-			success: false,
-			error: {
-				message: 'El nombre solo puede contener letras y números',
-				field: 'code',
-			},
-		}
-	}
+  if (!ALPHANUMERIC_REGEX.test(trimmedName)) {
+    return {
+      success: false,
+      error: {
+        message: 'El nombre solo puede contener letras y números',
+        field: 'code',
+      },
+    }
+  }
 
-	if (ONLY_NUMBERS_REGEX.test(trimmedName)) {
-		return {
-			success: false,
-			error: {
-				message: 'El nombre no puede ser solo números',
-				field: 'code',
-			},
-		}
-	}
+  if (ONLY_NUMBERS_REGEX.test(trimmedName)) {
+    return {
+      success: false,
+      error: {
+        message: 'El nombre no puede ser solo números',
+        field: 'code',
+      },
+    }
+  }
 
-	return {
-		success: true,
-		data: trimmedName.toUpperCase(), // Normalized to uppercase
-	}
+  return {
+    success: true,
+    data: trimmedName.toUpperCase(), // Normalized to uppercase
+  }
 }
 
 /**
@@ -95,52 +95,52 @@ export function validateTicketName(name: string): ValidationResult<string> {
  * - Must be an integer
  */
 export function validateTicketCredits(
-	credits: unknown
+  credits: unknown
 ): ValidationResult<number> {
-	if (typeof credits !== 'number') {
-		return {
-			success: false,
-			error: {
-				message: 'Los créditos deben ser un número',
-				field: 'credits',
-			},
-		}
-	}
+  if (typeof credits !== 'number') {
+    return {
+      success: false,
+      error: {
+        message: 'Los créditos deben ser un número',
+        field: 'credits',
+      },
+    }
+  }
 
-	if (!Number.isInteger(credits)) {
-		return {
-			success: false,
-			error: {
-				message: 'Los créditos deben ser un número entero',
-				field: 'credits',
-			},
-		}
-	}
+  if (!Number.isInteger(credits)) {
+    return {
+      success: false,
+      error: {
+        message: 'Los créditos deben ser un número entero',
+        field: 'credits',
+      },
+    }
+  }
 
-	if (credits < MIN_TICKET_CREDITS) {
-		return {
-			success: false,
-			error: {
-				message: `Los créditos deben ser al menos ${MIN_TICKET_CREDITS}`,
-				field: 'credits',
-			},
-		}
-	}
+  if (credits < MIN_TICKET_CREDITS) {
+    return {
+      success: false,
+      error: {
+        message: `Los créditos deben ser al menos ${MIN_TICKET_CREDITS}`,
+        field: 'credits',
+      },
+    }
+  }
 
-	if (credits > MAX_TICKET_CREDITS) {
-		return {
-			success: false,
-			error: {
-				message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
-				field: 'credits',
-			},
-		}
-	}
+  if (credits > MAX_TICKET_CREDITS) {
+    return {
+      success: false,
+      error: {
+        message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
+        field: 'credits',
+      },
+    }
+  }
 
-	return {
-		success: true,
-		data: credits,
-	}
+  return {
+    success: true,
+    data: credits,
+  }
 }
 
 /**
@@ -157,65 +157,65 @@ export function validateTicketCredits(
  * - New credits must be in valid range
  */
 export function validateCreditsDelta(
-	currentCredits: number,
-	delta: unknown
+  currentCredits: number,
+  delta: unknown
 ): ValidationResult<{ delta: number; newCredits: number }> {
-	if (typeof delta !== 'number') {
-		return {
-			success: false,
-			error: {
-				message: 'El delta debe ser un número',
-				field: 'delta',
-			},
-		}
-	}
+  if (typeof delta !== 'number') {
+    return {
+      success: false,
+      error: {
+        message: 'El delta debe ser un número',
+        field: 'delta',
+      },
+    }
+  }
 
-	if (!Number.isInteger(delta)) {
-		return {
-			success: false,
-			error: {
-				message: 'El delta debe ser un número entero',
-				field: 'delta',
-			},
-		}
-	}
+  if (!Number.isInteger(delta)) {
+    return {
+      success: false,
+      error: {
+        message: 'El delta debe ser un número entero',
+        field: 'delta',
+      },
+    }
+  }
 
-	if (delta === 0) {
-		return {
-			success: false,
-			error: {
-				message: 'El delta no puede ser cero',
-				field: 'delta',
-			},
-		}
-	}
+  if (delta === 0) {
+    return {
+      success: false,
+      error: {
+        message: 'El delta no puede ser cero',
+        field: 'delta',
+      },
+    }
+  }
 
-	const newCredits = currentCredits + delta
+  const newCredits = currentCredits + delta
 
-	if (newCredits < MIN_TICKET_CREDITS) {
-		return {
-			success: false,
-			error: {
-				message: 'Debe quedar al menos 1 crédito en el ticket',
-				field: 'delta',
-			},
-		}
-	}
+  if (newCredits < MIN_TICKET_CREDITS) {
+    return {
+      success: false,
+      error: {
+        message: 'Debe quedar al menos 1 crédito en el ticket',
+        field: 'delta',
+      },
+    }
+  }
 
-	if (newCredits > MAX_TICKET_CREDITS) {
-		return {
-			success: false,
-			error: {
-				message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
-				field: 'delta',
-			},
-		}
-	}
+  if (newCredits > MAX_TICKET_CREDITS) {
+    return {
+      success: false,
+      error: {
+        message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
+        field: 'delta',
+      },
+    }
+  }
 
-	return {
-		success: true,
-		data: { delta, newCredits },
-	}
+  return {
+    success: true,
+    data: { delta, newCredits },
+  }
 }
 
 /**
@@ -225,61 +225,61 @@ export function validateCreditsDelta(
  * @returns ValidationResult with trimmed string or null
  */
 export function validateTicketDescription(
-	description: unknown
+  description: unknown
 ): ValidationResult<string | null> {
-	// Description is optional
-	if (description === undefined || description === null) {
-		return {
-			success: true,
-			data: null,
-		}
-	}
+  // Description is optional
+  if (description === undefined || description === null) {
+    return {
+      success: true,
+      data: null,
+    }
+  }
 
-	if (typeof description !== 'string') {
-		return {
-			success: false,
-			error: {
-				message: 'La descripción debe ser texto',
-				field: 'description',
-			},
-		}
-	}
+  if (typeof description !== 'string') {
+    return {
+      success: false,
+      error: {
+        message: 'La descripción debe ser texto',
+        field: 'description',
+      },
+    }
+  }
 
-	const trimmed = description.trim()
+  const trimmed = description.trim()
 
-	// Empty description is valid (saved as null)
-	if (trimmed.length === 0) {
-		return {
-			success: true,
-			data: null,
-		}
-	}
+  // Empty description is valid (saved as null)
+  if (trimmed.length === 0) {
+    return {
+      success: true,
+      data: null,
+    }
+  }
 
-	// Reasonable limit for description
-	if (trimmed.length > 200) {
-		return {
-			success: false,
-			error: {
-				message: 'La descripción no puede exceder 200 caracteres',
-				field: 'description',
-			},
-		}
-	}
+  // Reasonable limit for description
+  if (trimmed.length > 200) {
+    return {
+      success: false,
+      error: {
+        message: 'La descripción no puede exceder 200 caracteres',
+        field: 'description',
+      },
+    }
+  }
 
-	return {
-		success: true,
-		data: trimmed,
-	}
+  return {
+    success: true,
+    data: trimmed,
+  }
 }
 
 /**
  * Export constants for external use
  */
 export const TICKET_VALIDATION_CONSTANTS = {
-	MIN_TICKET_LENGTH: TICKET_LENGTH.MIN,
-	MAX_TICKET_LENGTH: TICKET_LENGTH.MAX,
-	MIN_TICKET_CREDITS,
-	MAX_TICKET_CREDITS,
-	ALPHANUMERIC_REGEX,
-	ONLY_NUMBERS_REGEX,
+  MIN_TICKET_LENGTH: TICKET_LENGTH.MIN,
+  MAX_TICKET_LENGTH: TICKET_LENGTH.MAX,
+  MIN_TICKET_CREDITS,
+  MAX_TICKET_CREDITS,
+  ALPHANUMERIC_REGEX,
+  ONLY_NUMBERS_REGEX,
 } as const

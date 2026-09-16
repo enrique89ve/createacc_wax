@@ -1,64 +1,64 @@
 export const HIVE_TX_MODE_VALUES = {
-	SIMULATE: 'simulate',
-	BROADCAST: 'broadcast',
+  SIMULATE: 'simulate',
+  BROADCAST: 'broadcast',
 } as const
 
 export type HiveExecutionMode =
-	(typeof HIVE_TX_MODE_VALUES)[keyof typeof HIVE_TX_MODE_VALUES]
+  (typeof HIVE_TX_MODE_VALUES)[keyof typeof HIVE_TX_MODE_VALUES]
 
 export const BLOCKCHAIN_STATUS = {
-	SIMULATED: 'simulated',
-	BROADCASTED: 'broadcasted',
-	CONFIRMED: 'confirmed',
-	FAILED: 'failed',
+  SIMULATED: 'simulated',
+  BROADCASTED: 'broadcasted',
+  CONFIRMED: 'confirmed',
+  FAILED: 'failed',
 } as const
 
 export type BlockchainStatus =
-	(typeof BLOCKCHAIN_STATUS)[keyof typeof BLOCKCHAIN_STATUS]
+  (typeof BLOCKCHAIN_STATUS)[keyof typeof BLOCKCHAIN_STATUS]
 
 export const WAX_STATUS = {
-	PASSED: 'passed',
-	FAILED: 'failed',
+  PASSED: 'passed',
+  FAILED: 'failed',
 } as const
 
 export type WaxStatus = (typeof WAX_STATUS)[keyof typeof WAX_STATUS]
 
 export const CREATION_ATTEMPT_STATUS = {
-	RESERVED: 'reserved',
-	PREPARED: 'prepared',
-	BROADCASTING: 'broadcasting',
-	COMPLETED: 'completed',
-	ROLLED_BACK: 'rolled_back',
+  RESERVED: 'reserved',
+  PREPARED: 'prepared',
+  BROADCASTING: 'broadcasting',
+  COMPLETED: 'completed',
+  ROLLED_BACK: 'rolled_back',
 } as const
 
 export type CreationAttemptStatus =
-	(typeof CREATION_ATTEMPT_STATUS)[keyof typeof CREATION_ATTEMPT_STATUS]
+  (typeof CREATION_ATTEMPT_STATUS)[keyof typeof CREATION_ATTEMPT_STATUS]
 
 export const OPEN_CREATION_ATTEMPT_STATUSES = [
-	CREATION_ATTEMPT_STATUS.RESERVED,
-	CREATION_ATTEMPT_STATUS.PREPARED,
-	CREATION_ATTEMPT_STATUS.BROADCASTING,
+  CREATION_ATTEMPT_STATUS.RESERVED,
+  CREATION_ATTEMPT_STATUS.PREPARED,
+  CREATION_ATTEMPT_STATUS.BROADCASTING,
 ] as const
 
 export const RC_STATUS = {
-	PENDING: 'pending',
-	PROCESSING: 'processing',
-	UNCERTAIN: 'uncertain',
-	DELEGATED: 'delegated',
+  PENDING: 'pending',
+  PROCESSING: 'processing',
+  UNCERTAIN: 'uncertain',
+  DELEGATED: 'delegated',
 } as const
 
 export type RcStatus = (typeof RC_STATUS)[keyof typeof RC_STATUS]
 
 export const RC_PREFLIGHT_THRESHOLDS = {
-	PASS_PERCENT: 20,
-	WARNING_PERCENT: 5,
+  PASS_PERCENT: 20,
+  WARNING_PERCENT: 5,
 } as const
 
 export const PREFLIGHT_CHECK_STATUS = {
-	PASS: 'pass',
-	WARNING: 'warning',
-	FAIL: 'fail',
+  PASS: 'pass',
+  WARNING: 'warning',
+  FAIL: 'fail',
 } as const
 
 export type PreflightCheckStatus =
-	(typeof PREFLIGHT_CHECK_STATUS)[keyof typeof PREFLIGHT_CHECK_STATUS]
+  (typeof PREFLIGHT_CHECK_STATUS)[keyof typeof PREFLIGHT_CHECK_STATUS]

@@ -1,6 +1,6 @@
 /**
  * ERROR NORMALIZER - Integrated with Error Processing Chain
- * 
+ *
  * Legacy utilities refactored to use the unified system.
  * Maintains backwards compatibility while using the new architecture.
  */
@@ -23,10 +23,9 @@ export function wrapHandlerWithFullProcessing<TArgs extends unknown[], TResult>(
     } catch (error) {
       const context = contextExtractor ? contextExtractor(...args) : {}
       const processed = processErrorSync(error, context)
-      
+
       // Technical log of the processed error
 
-      
       // Re-throw the unified error
       throw processed.error
     }
@@ -46,7 +45,8 @@ export function wrapApiHandler<TResult>(
       method: context.request?.method,
       path: context.url?.pathname,
       userAgent: context.request?.headers?.get('user-agent') || undefined,
-      correlationId: context.request?.headers?.get('x-correlation-id') || undefined,
+      correlationId:
+        context.request?.headers?.get('x-correlation-id') || undefined,
     })
   )
 }
@@ -59,11 +59,11 @@ declare const global: typeof globalThis & {
 if (!global.__ERROR_HOOKS_INSTALLED__) {
   global.__ERROR_HOOKS_INSTALLED__ = true
 
-  process.on('uncaughtException', (value) => {
+  process.on('uncaughtException', value => {
     logger.error('[uncaughtException]', value)
   })
 
-  process.on('unhandledRejection', (value) => {
+  process.on('unhandledRejection', value => {
     logger.error('[unhandledRejection]', value)
   })
 }

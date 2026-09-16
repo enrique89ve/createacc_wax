@@ -10,13 +10,13 @@ Built with Astro 7, Better Auth, and `@hiveio/wax`. Private keys are generated c
 
 Five phases. Ship, learn, finish.
 
-| | Phase | What we do | Done when |
-|---|---|---|---|
-| **1** | **Build** | Stand up the core. Create accounts. Keep keys local. Auth that holds. | The product works end to end. |
-| **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition. | New users finish without a guide. |
-| **3** | **Prove** | Lock v1. Test with the Hive community. | Community can create accounts without us in the loop. |
-| **4** | **Attract** | Turn the site into a growth surface, not a form. | The page itself pulls people in. |
-| **5** | **Ship** | A finished product. Trusted, reliable, ready to scale. | We would hand this to a stranger. |
+|       | Phase        | What we do                                                                       | Done when                                             |
+| ----- | ------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| **1** | **Build**    | Stand up the core. Create accounts. Keep keys local. Auth that holds.            | The product works end to end.                         |
+| **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition. | New users finish without a guide.                     |
+| **3** | **Prove**    | Lock v1. Test with the Hive community.                                           | Community can create accounts without us in the loop. |
+| **4** | **Attract**  | Turn the site into a growth surface, not a form.                                 | The page itself pulls people in.                      |
+| **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                           | We would hand this to a stranger.                     |
 
 We are in **phase 1**.
 
@@ -78,32 +78,32 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 
 ## Commands
 
-| Command | |
-|---|---|
-| `pnpm dev` | Dev server |
-| `pnpm build` | Production build |
-| `pnpm preview` | Preview production build |
-| `pnpm db:init` | Apply current schema (`CREATE IF NOT EXISTS`) |
-| `pnpm db:reset` | Drop local DB and recreate schema from scratch |
-| `pnpm db:seed` | Test data (`SEED_ADMIN_PASSWORD` required) |
-| `pnpm db:quickstart` | Reset + seed |
-| `pnpm admin:create` | Create admin |
-| `pnpm admin:reset` | Rotate admin password |
-| `pnpm admin:check` | Admin status |
+| Command              |                                                |
+| -------------------- | ---------------------------------------------- |
+| `pnpm dev`           | Dev server                                     |
+| `pnpm build`         | Production build                               |
+| `pnpm preview`       | Preview production build                       |
+| `pnpm db:init`       | Apply current schema (`CREATE IF NOT EXISTS`)  |
+| `pnpm db:reset`      | Drop local DB and recreate schema from scratch |
+| `pnpm db:seed`       | Test data (`SEED_ADMIN_PASSWORD` required)     |
+| `pnpm db:quickstart` | Reset + seed                                   |
+| `pnpm admin:create`  | Create admin                                   |
+| `pnpm admin:reset`   | Rotate admin password                          |
+| `pnpm admin:check`   | Admin status                                   |
 
 ## Validaciones internas
 
 No hay GitHub Actions. Las comprobaciones se corren en local:
 
-| Command | |
-|---|---|
-| `pnpm test` | Unit tests (`HIVE_TX_MODE=simulate`) |
-| `pnpm check` | Types + lint |
-| `pnpm verify` | `check` then `test` |
-| `pnpm verify:simulation` | `verify` + WAX self-test + simulation |
-| `pnpm state` | SELECT-only DB observation. Fails if the DB is missing or schema is outdated; never initializes or migrates. |
-| `pnpm wax:self-test` | WAX/mainnet diagnostics without broadcast |
-| `pnpm test:simulation` | Integration simulation against the local DB |
+| Command                  |                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `pnpm test`              | Unit tests (`HIVE_TX_MODE=simulate`)                                                                         |
+| `pnpm check`             | Types + lint                                                                                                 |
+| `pnpm verify`            | `check` then `test`                                                                                          |
+| `pnpm verify:simulation` | `verify` + WAX self-test + simulation                                                                        |
+| `pnpm state`             | SELECT-only DB observation. Fails if the DB is missing or schema is outdated; never initializes or migrates. |
+| `pnpm wax:self-test`     | WAX/mainnet diagnostics without broadcast                                                                    |
+| `pnpm test:simulation`   | Integration simulation against the local DB                                                                  |
 
 ---
 
@@ -127,11 +127,11 @@ src/
 scripts/         DB + admin
 ```
 
-| Layout | |
-|---|---|
-| `Base.astro` | HTML + meta |
-| `Layout.astro` | Public, indexable |
-| `BuildersLayout.astro` | `/builders/*`, noindex |
+| Layout                   |                          |
+| ------------------------ | ------------------------ |
+| `Base.astro`             | HTML + meta              |
+| `Layout.astro`           | Public, indexable        |
+| `BuildersLayout.astro`   | `/builders/*`, noindex   |
 | `ManagementLayout.astro` | `/management/*`, noindex |
 
 ---
@@ -161,7 +161,7 @@ export const BRAND = {
   TAGLINE: '…',
   URL: 'https://your-domain.com',
   LOGO_ALT: 'YourBrand',
-  APP_ID: 'YourBrand/1.0.0',        // frozen once on-chain
+  APP_ID: 'YourBrand/1.0.0', // frozen once on-chain
   CLAIM_APP_ID: 'yourBrandCreateAcc', // frozen once on-chain
 } as const
 ```

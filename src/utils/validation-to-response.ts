@@ -14,7 +14,11 @@ import { createJsonResponse } from '@/utils/errorResponse'
 import { HTTP_STATUS } from '@/consts/constants'
 import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
-import { ALL_ERROR_CODES, DATABASE_ERROR_CODES, type UnifiedErrorCode } from '@/consts/unified-errors'
+import {
+  ALL_ERROR_CODES,
+  DATABASE_ERROR_CODES,
+  type UnifiedErrorCode,
+} from '@/consts/unified-errors'
 
 /**
  * Mapping of internal error codes to appropriate HTTP status codes.
@@ -78,9 +82,10 @@ export function validationFailureToResponse(
   // Map the validation error code to a unified error code.
   // Falls back to INTERNAL_ERROR only when the code is unknown.
   const allCodes = ALL_ERROR_CODES as Record<string, UnifiedErrorCode>
-  const errorCode: UnifiedErrorCode = (error.code && allCodes[error.code])
-    ? allCodes[error.code]
-    : DATABASE_ERROR_CODES.INTERNAL_ERROR
+  const errorCode: UnifiedErrorCode =
+    error.code && allCodes[error.code]
+      ? allCodes[error.code]
+      : DATABASE_ERROR_CODES.INTERNAL_ERROR
 
   // Create response with standard frontend format
   return createJsonResponse(

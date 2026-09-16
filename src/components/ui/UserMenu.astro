@@ -1,40 +1,42 @@
 ---
 interface Props {
-	username: string
+  username: string
 }
 
 const { username } = Astro.props
 ---
 
 <div class="flex items-center space-x-2">
-	<!-- Hive Avatar -->
-	<img
-		src={`https://images.hive.blog/u/${username}/avatar`}
-		alt={`Avatar de ${username}`}
-		class="h-8 w-8 rounded-full border border-border/50 object-cover shadow-sm"
-		data-fallback="/assets/default-avatar.svg"
-	/>
+  <!-- Hive Avatar -->
+  <img
+    src={`https://images.hive.blog/u/${username}/avatar`}
+    alt={`Avatar de ${username}`}
+    class="border-border/50 h-8 w-8 rounded-full border object-cover shadow-sm"
+    data-fallback="/assets/default-avatar.svg"
+  />
 
-	<!-- Username -->
-	<div class="text-sm font-medium text-foreground truncate max-w-[120px]">
-		{username}
-	</div>
+  <!-- Username -->
+  <div class="text-foreground max-w-[120px] truncate text-sm font-medium">
+    {username}
+  </div>
 </div>
 
 <script>
-	document.querySelectorAll<HTMLImageElement>('img[data-fallback]').forEach(img => {
-		const applyFallback = () => {
-			const fallback = img.dataset.fallback
-			if (fallback && img.src !== fallback) {
-				img.src = fallback
-			}
-		}
+  document
+    .querySelectorAll<HTMLImageElement>('img[data-fallback]')
+    .forEach(img => {
+      const applyFallback = () => {
+        const fallback = img.dataset.fallback
+        if (fallback && img.src !== fallback) {
+          img.src = fallback
+        }
+      }
 
-		if (img.complete && img.naturalWidth === 0) {
-			applyFallback()
-			return
-		}
+      if (img.complete && img.naturalWidth === 0) {
+        applyFallback()
+        return
+      }
 
-		img.addEventListener('error', applyFallback, { once: true })
-	})
+      img.addEventListener('error', applyFallback, { once: true })
+    })
 </script>

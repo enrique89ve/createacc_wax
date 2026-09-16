@@ -8,7 +8,7 @@ import type { PublicKeySet } from '@/types/keys'
  * @returns true if valid and acts as type guard
  */
 export function checkPublicKeyFormat(key: unknown): key is string {
-	return typeof key === 'string' && isPublicKey(key)
+  return typeof key === 'string' && isPublicKey(key)
 }
 
 /**
@@ -18,22 +18,22 @@ export function checkPublicKeyFormat(key: unknown): key is string {
  * @returns true if valid TPublicKey
  */
 export function isValidPublicKey(key: unknown): key is TPublicKey {
-	// checkPublicKeyFormat already includes isPublicKey(), no need for double validation
-	return checkPublicKeyFormat(key)
+  // checkPublicKeyFormat already includes isPublicKey(), no need for double validation
+  return checkPublicKeyFormat(key)
 }
 
 /**
  * Validates a public key and throws error if invalid
  * Simple function that throws error - without advanced TypeScript
- * @param key - Key to validate  
+ * @param key - Key to validate
  * @param keyType - Key type (owner, active, etc.) for error messages
  * @throws Error if key is invalid
  */
 export function validatePublicKeyOrThrow(key: unknown, keyType?: string): void {
-	if (!checkPublicKeyFormat(key)) {
-		const keyName = keyType ? `${keyType} key` : 'key'
-		throw new Error(`Invalid ${keyName}: ${JSON.stringify(key)}`)
-	}
+  if (!checkPublicKeyFormat(key)) {
+    const keyName = keyType ? `${keyType} key` : 'key'
+    throw new Error(`Invalid ${keyName}: ${JSON.stringify(key)}`)
+  }
 }
 
 /**
@@ -43,7 +43,7 @@ export function validatePublicKeyOrThrow(key: unknown, keyType?: string): void {
  * @returns Key with correct type
  */
 export function castToPublicKey(key: string): TPublicKey {
-	return key as TPublicKey
+  return key as TPublicKey
 }
 
 /**
@@ -51,10 +51,10 @@ export function castToPublicKey(key: string): TPublicKey {
  * Validated output is {@link PublicKeySet}.
  */
 export interface UncheckedPublicKeySet {
-	readonly ownerPublicKey: unknown
-	readonly activePublicKey: unknown
-	readonly postingPublicKey: unknown
-	readonly memoPublicKey: unknown
+  readonly ownerPublicKey: unknown
+  readonly activePublicKey: unknown
+  readonly postingPublicKey: unknown
+  readonly memoPublicKey: unknown
 }
 
 /**
@@ -64,18 +64,20 @@ export interface UncheckedPublicKeySet {
  * @returns Validated set with correct types
  * @throws Error if any key is invalid
  */
-export function validateHiveKeySet(keySet: UncheckedPublicKeySet): PublicKeySet {
-	// Validate each key individually - step by step
-	validatePublicKeyOrThrow(keySet.ownerPublicKey, 'owner')
-	validatePublicKeyOrThrow(keySet.activePublicKey, 'active')
-	validatePublicKeyOrThrow(keySet.postingPublicKey, 'posting')
-	validatePublicKeyOrThrow(keySet.memoPublicKey, 'memo')
+export function validateHiveKeySet(
+  keySet: UncheckedPublicKeySet
+): PublicKeySet {
+  // Validate each key individually - step by step
+  validatePublicKeyOrThrow(keySet.ownerPublicKey, 'owner')
+  validatePublicKeyOrThrow(keySet.activePublicKey, 'active')
+  validatePublicKeyOrThrow(keySet.postingPublicKey, 'posting')
+  validatePublicKeyOrThrow(keySet.memoPublicKey, 'memo')
 
-	// If we get here, all are valid - convert to correct types
-	return {
-		ownerPublicKey: castToPublicKey(keySet.ownerPublicKey as string),
-		activePublicKey: castToPublicKey(keySet.activePublicKey as string),
-		postingPublicKey: castToPublicKey(keySet.postingPublicKey as string),
-		memoPublicKey: castToPublicKey(keySet.memoPublicKey as string),
-	}
+  // If we get here, all are valid - convert to correct types
+  return {
+    ownerPublicKey: castToPublicKey(keySet.ownerPublicKey as string),
+    activePublicKey: castToPublicKey(keySet.activePublicKey as string),
+    postingPublicKey: castToPublicKey(keySet.postingPublicKey as string),
+    memoPublicKey: castToPublicKey(keySet.memoPublicKey as string),
+  }
 }

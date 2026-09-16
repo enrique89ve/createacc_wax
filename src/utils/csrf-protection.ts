@@ -14,18 +14,14 @@ import { HTTP_STATUS } from '@/consts/constants'
  * CSRF validation result
  */
 export interface CsrfValidationResult {
-	readonly valid: boolean
-	readonly error?: string
+  readonly valid: boolean
+  readonly error?: string
 }
 
 /**
  * Allowed hosts for local development
  */
-const ALLOWED_DEV_HOSTS = new Set([
-	'localhost',
-	'127.0.0.1',
-	'0.0.0.0',
-])
+const ALLOWED_DEV_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0'])
 
 /**
  * Validates the Origin header against the request host
@@ -34,89 +30,89 @@ const ALLOWED_DEV_HOSTS = new Set([
  * @returns Validation result
  */
 export function validateOrigin(request: Request): CsrfValidationResult {
-	const origin = request.headers.get('origin')
-	const referer = request.headers.get('referer')
+  const origin = request.headers.get('origin')
+  const referer = request.headers.get('referer')
 
-	// If no Origin or Referer, reject (could be a direct malicious request)
-	// Note: Some browsers don't send Origin in same-origin requests,
-	// but they do send Referer
-	if (!origin && !referer) {
-		// Allow requests without Origin/Referer only for internal APIs (fetch from the same site)
-		// This is safe because SameSite=Strict on cookies already prevents CSRF
-		// However, for maximum security, we require at least one
-		return {
-			valid: false,
-			error: 'Missing Origin or Referer header',
-		}
-	}
+  // If no Origin or Referer, reject (could be a direct malicious request)
+  // Note: Some browsers don't send Origin in same-origin requests,
+  // but they do send Referer
+  if (!origin && !referer) {
+    // Allow requests without Origin/Referer only for internal APIs (fetch from the same site)
+    // This is safe because SameSite=Strict on cookies already prevents CSRF
+    // However, for maximum security, we require at least one
+    return {
+      valid: false,
+      error: 'Missing Origin or Referer header',
+    }
+  }
 
-	const requestUrl = new URL(request.url)
-	const requestHost = requestUrl.host
+  const requestUrl = new URL(request.url)
+  const requestHost = requestUrl.host
 
-	// Validate Origin if present
-	if (origin) {
-		try {
-			const originUrl = new URL(origin)
-			const originHost = originUrl.host
+  // Validate Origin if present
+  if (origin) {
+    try {
+      const originUrl = new URL(origin)
+      const originHost = originUrl.host
 
-			// Compare hosts
-			if (originHost === requestHost) {
-				return { valid: true }
-			}
+      // Compare hosts
+      if (originHost === requestHost) {
+        return { valid: true }
+      }
 
-			// Allow local development
-			if (isDevEnvironment(requestHost) && isDevEnvironment(originHost)) {
-				return { valid: true }
-			}
+      // Allow local development
+      if (isDevEnvironment(requestHost) && isDevEnvironment(originHost)) {
+        return { valid: true }
+      }
 
-			return {
-				valid: false,
-				error: `Origin mismatch: ${originHost} !== ${requestHost}`,
-			}
-		} catch {
-			return {
-				valid: false,
-				error: 'Invalid Origin header',
-			}
-		}
-	}
+      return {
+        valid: false,
+        error: `Origin mismatch: ${originHost} !== ${requestHost}`,
+      }
+    } catch {
+      return {
+        valid: false,
+        error: 'Invalid Origin header',
+      }
+    }
+  }
 
-	// Fallback to Referer if no Origin
-	if (referer) {
-		try {
-			const refererUrl = new URL(referer)
-			const refererHost = refererUrl.host
+  // Fallback to Referer if no Origin
+  if (referer) {
+    try {
+      const refererUrl = new URL(referer)
+      const refererHost = refererUrl.host
 
-			if (refererHost === requestHost) {
-				return { valid: true }
-			}
+      if (refererHost === requestHost) {
+        return { valid: true }
+      }
 
-			// Permitir desarrollo local
-			if (isDevEnvironment(requestHost) && isDevEnvironment(refererHost)) {
-				return { valid: true }
-			}
+      // Permitir desarrollo local
+      if (isDevEnvironment(requestHost) && isDevEnvironment(refererHost)) {
+        return { valid: true }
+      }
 
-			return {
-				valid: false,
-				error: `Referer mismatch: ${refererHost} !== ${requestHost}`,
-			}
-		} catch {
-			return {
-				valid: false,
-				error: 'Invalid Referer header',
-			}
-		}
-	}
+      return {
+        valid: false,
+        error: `Referer mismatch: ${refererHost} !== ${requestHost}`,
+      }
+    } catch {
+      return {
+        valid: false,
+        error: 'Invalid Referer header',
+      }
+    }
+  }
 
-	return { valid: true }
+  return { valid: true }
 }
 
 /**
  * Verifies if the host is for local development
  */
 function isDevEnvironment(host: string): boolean {
-	const hostname = host.split(':')[0]
-	return ALLOWED_DEV_HOSTS.has(hostname)
+  const hostname = host.split(':')[0]
+  return ALLOWED_DEV_HOSTS.has(hostname)
 }
 
 /**
@@ -136,20 +132,20 @@ function isDevEnvironment(host: string): boolean {
  * @returns Error Response if validation fails, null if valid
  */
 export function requireValidOrigin(request: Request): Response | null {
-	const validation = validateOrigin(request)
+  const validation = validateOrigin(request)
 
-	if (!validation.valid) {
-		return new Response(
-			JSON.stringify({
-				success: false,
-				error: 'CSRF validation failed',
-			}),
-			{
-				status: HTTP_STATUS.FORBIDDEN,
-				headers: { 'Content-Type': 'application/json' },
-			}
-		)
-	}
+  if (!validation.valid) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: 'CSRF validation failed',
+      }),
+      {
+        status: HTTP_STATUS.FORBIDDEN,
+        headers: { 'Content-Type': 'application/json' },
+      }
+    )
+  }
 
-	return null
+  return null
 }

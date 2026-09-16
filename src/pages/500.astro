@@ -4,42 +4,65 @@ import { BRAND } from '@/consts/branding'
 ---
 
 <Layout title={`Error del servidor - ${BRAND.NAME}`} noindex={true}>
-	<section class="flex min-h-screen w-full items-center justify-center px-4">
-		<div class="w-full max-w-md">
-			<div class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-8 shadow-lg backdrop-blur text-center">
+  <section class="flex min-h-screen w-full items-center justify-center px-4">
+    <div class="w-full max-w-md">
+      <div
+        class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-8 text-center shadow-lg backdrop-blur"
+      >
+        <!-- Icono -->
+        <div class="mb-6">
+          <div
+            class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-500/10"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-8 w-8 text-red-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
 
-				<!-- Icono -->
-				<div class="mb-6">
-					<div class="mx-auto w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center">
-						<svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-						</svg>
-					</div>
-				</div>
+        <!-- Título y mensaje -->
+        <h1 class="text-foreground mb-2 text-2xl font-bold">
+          Error del servidor
+        </h1>
 
-				<!-- Título y mensaje -->
-				<h1 class="text-foreground text-2xl font-bold mb-2">
-					Error del servidor
-				</h1>
+        <p class="text-muted-foreground mb-4 text-4xl font-bold">500</p>
 
-				<p class="text-muted-foreground text-4xl font-bold mb-4">500</p>
+        <p class="text-muted-foreground mb-6 text-sm leading-relaxed">
+          Algo salió mal en nuestro servidor. Por favor, inténtalo de nuevo más
+          tarde.
+        </p>
 
-				<p class="text-muted-foreground text-sm mb-6 leading-relaxed">
-					Algo salió mal en nuestro servidor. Por favor, inténtalo de nuevo más tarde.
-				</p>
-
-				<!-- Botón para volver -->
-				<a
-					href="/"
-					class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 inline-flex items-center justify-center gap-2 rounded-md px-6 py-3 text-sm font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2 w-full"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-					</svg>
-					Volver al inicio
-				</a>
-
-			</div>
-		</div>
-	</section>
+        <!-- Botón para volver -->
+        <a
+          href="/"
+          class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 inline-flex w-full items-center justify-center gap-2 rounded-md px-6 py-3 text-sm font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+          </svg>
+          Volver al inicio
+        </a>
+      </div>
+    </div>
+  </section>
 </Layout>

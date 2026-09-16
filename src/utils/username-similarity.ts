@@ -11,62 +11,68 @@
  * @param maxDistance - Optional early termination threshold
  * @returns Levenshtein distance (or maxDistance+1 if exceeded)
  */
-function levenshteinDistance(a: string, b: string, maxDistance?: number): number {
-	if (a.length === 0) return b.length
-	if (b.length === 0) return a.length
+function levenshteinDistance(
+  a: string,
+  b: string,
+  maxDistance?: number
+): number {
+  if (a.length === 0) return b.length
+  if (b.length === 0) return a.length
 
-	// Ensure a is the shorter string for O(min(m,n)) space
-	if (a.length > b.length) {
-		const tmp = a
-		a = b
-		b = tmp
-	}
+  // Ensure a is the shorter string for O(min(m,n)) space
+  if (a.length > b.length) {
+    const tmp = a
+    a = b
+    b = tmp
+  }
 
-	const aLen = a.length
-	const bLen = b.length
+  const aLen = a.length
+  const bLen = b.length
 
-	// Early termination: if length difference alone exceeds max, skip computation
-	if (maxDistance !== undefined && (bLen - aLen) > maxDistance) {
-		return maxDistance + 1
-	}
+  // Early termination: if length difference alone exceeds max, skip computation
+  if (maxDistance !== undefined && bLen - aLen > maxDistance) {
+    return maxDistance + 1
+  }
 
-	// Two-row technique: previous row and current row
-	let prevRow = new Array<number>(aLen + 1)
-	let currRow = new Array<number>(aLen + 1)
+  // Two-row technique: previous row and current row
+  let prevRow = new Array<number>(aLen + 1)
+  let currRow = new Array<number>(aLen + 1)
 
-	for (let j = 0; j <= aLen; j++) {
-		prevRow[j] = j
-	}
+  for (let j = 0; j <= aLen; j++) {
+    prevRow[j] = j
+  }
 
-	for (let i = 1; i <= bLen; i++) {
-		currRow[0] = i
-		let rowMin = currRow[0]
+  for (let i = 1; i <= bLen; i++) {
+    currRow[0] = i
+    let rowMin = currRow[0]
 
-		for (let j = 1; j <= aLen; j++) {
-			if (b.charAt(i - 1) === a.charAt(j - 1)) {
-				currRow[j] = prevRow[j - 1]
-			} else {
-				currRow[j] = 1 + Math.min(
-					prevRow[j - 1],  // substitution
-					currRow[j - 1],  // insertion
-					prevRow[j]       // deletion
-				)
-			}
-			if (currRow[j] < rowMin) rowMin = currRow[j]
-		}
+    for (let j = 1; j <= aLen; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        currRow[j] = prevRow[j - 1]
+      } else {
+        currRow[j] =
+          1 +
+          Math.min(
+            prevRow[j - 1], // substitution
+            currRow[j - 1], // insertion
+            prevRow[j] // deletion
+          )
+      }
+      if (currRow[j] < rowMin) rowMin = currRow[j]
+    }
 
-		// Early termination: if minimum value in row exceeds threshold, distance will too
-		if (maxDistance !== undefined && rowMin > maxDistance) {
-			return maxDistance + 1
-		}
+    // Early termination: if minimum value in row exceeds threshold, distance will too
+    if (maxDistance !== undefined && rowMin > maxDistance) {
+      return maxDistance + 1
+    }
 
-		// Swap rows
-		const tmp = prevRow
-		prevRow = currRow
-		currRow = tmp
-	}
+    // Swap rows
+    const tmp = prevRow
+    prevRow = currRow
+    currRow = tmp
+  }
 
-	return prevRow[aLen]
+  return prevRow[aLen]
 }
 
 /**
@@ -141,7 +147,11 @@ export function findSimilarUsernames(
     const maxLength = Math.max(cleanNewUsername.length, existingLower.length)
     // Max distance that still meets the threshold: (1 - threshold) * maxLength
     const maxDistance = Math.floor((1 - threshold) * maxLength)
-    const distance = levenshteinDistance(cleanNewUsername, existingLower, maxDistance)
+    const distance = levenshteinDistance(
+      cleanNewUsername,
+      existingLower,
+      maxDistance
+    )
 
     if (distance <= maxDistance) {
       const similarity = (maxLength - distance) / maxLength
@@ -252,4 +262,3 @@ export function suggestUsernames(originalUsername: string): string[] {
     })
     .slice(0, 3) // Maximum 3 suggestions
 }
-

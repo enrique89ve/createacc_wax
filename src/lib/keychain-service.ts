@@ -163,7 +163,10 @@ export class HiveKeychainService {
     const hiveUsername = createHiveUsername(username)
 
     try {
-      const message = await this.generateSecureMessage(hiveUsername, customMessage)
+      const message = await this.generateSecureMessage(
+        hiveUsername,
+        customMessage
+      )
 
       const KEYCHAIN_TIMEOUT_MS = 60_000
 
@@ -204,10 +207,14 @@ export class HiveKeychainService {
       })
 
       const timeoutPromise = new Promise<HiveKeychainAuthResult>(resolve => {
-        setTimeout(() => resolve({
-          success: false,
-          error: 'Keychain no respondió en el tiempo esperado (60s)',
-        }), KEYCHAIN_TIMEOUT_MS)
+        setTimeout(
+          () =>
+            resolve({
+              success: false,
+              error: 'Keychain no respondió en el tiempo esperado (60s)',
+            }),
+          KEYCHAIN_TIMEOUT_MS
+        )
       })
 
       return await Promise.race([keychainPromise, timeoutPromise])

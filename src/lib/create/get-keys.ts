@@ -1,7 +1,4 @@
-import {
-  type TPublicKey,
-  type IPrivateKeyData,
-} from '@hiveio/wax'
+import { type TPublicKey, type IPrivateKeyData } from '@hiveio/wax'
 import type { ICreateAccountParams } from './create-account'
 import type { HiveKeyRole, PublicKeySet } from '@/types/keys'
 import { getWaxFoundation } from '@/lib/wax-foundation'
@@ -166,7 +163,8 @@ export async function generateHiveKeys(
   const brainKeyData = hive.suggestBrainKey()
 
   // Replaces WIF prefix (5J/5K/5H) with P5 for visual distinction
-  const masterPrivateKey = MASTER_KEY_PREFIX + brainKeyData.wifPrivateKey.slice(2)
+  const masterPrivateKey =
+    MASTER_KEY_PREFIX + brainKeyData.wifPrivateKey.slice(2)
 
   // Derives keys for each role using the P5 master as password
   const keys: KeyPair[] = (['owner', 'active', 'posting', 'memo'] as const).map(
@@ -188,5 +186,3 @@ export async function generateHiveKeys(
 
   return { masterPrivateKey, keys }
 }
-
-

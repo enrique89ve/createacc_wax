@@ -101,22 +101,16 @@ body {
 @layer components {
   /* Botones */
   .btn-primary {
-    @apply bg-primary w-full rounded-lg px-4 py-2 text-primary-foreground
-      transition-opacity hover:opacity-90
-      disabled:cursor-not-allowed disabled:opacity-50;
+    @apply bg-primary text-primary-foreground w-full rounded-lg px-4 py-2 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-secondary {
-    @apply border border-border text-muted-foreground
-      hover:bg-muted rounded-lg px-4 py-2
-      transition-colors;
+    @apply border-border text-muted-foreground hover:bg-muted rounded-lg border px-4 py-2 transition-colors;
   }
 
   /* Cards */
   .card-stat {
-    @apply bg-card border-border hover:border-muted-foreground/40
-      relative overflow-hidden rounded-lg border p-6
-      transition-all;
+    @apply bg-card border-border hover:border-muted-foreground/40 relative overflow-hidden rounded-lg border p-6 transition-all;
   }
 
   .card-base {
@@ -129,7 +123,6 @@ body {
   }
 
   .table-th {
-    @apply text-muted-foreground px-6 py-3 text-left
-      font-medium uppercase tracking-wide;
+    @apply text-muted-foreground px-6 py-3 text-left font-medium uppercase tracking-wide;
   }
 }

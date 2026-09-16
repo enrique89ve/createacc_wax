@@ -9,29 +9,29 @@ import { createFreshChain } from '@/lib/hive-chain-factory'
  * The pool avoids ~200-400ms of redundant WASM init per request during active usage.
  */
 interface CachedChain {
-	instance: IHiveChainInterface
-	createdAt: number
+  instance: IHiveChainInterface
+  createdAt: number
 }
 
 let cachedChain: CachedChain | null = null
 let pendingCreation: Promise<IHiveChainInterface> | null = null
 
 function isCacheValid(): boolean {
-	return (
-		cachedChain !== null &&
-		Date.now() - cachedChain.createdAt < HIVE_CHAIN_CONFIG.POOL_TTL_MS
-	)
+  return (
+    cachedChain !== null &&
+    Date.now() - cachedChain.createdAt < HIVE_CHAIN_CONFIG.POOL_TTL_MS
+  )
 }
 
 function clearChainCache(): void {
-	if (cachedChain) {
-		try {
-			cachedChain.instance.delete()
-		} catch {
-			/* best-effort WASM cleanup */
-		}
-		cachedChain = null
-	}
+  if (cachedChain) {
+    try {
+      cachedChain.instance.delete()
+    } catch {
+      /* best-effort WASM cleanup */
+    }
+    cachedChain = null
+  }
 }
 
 /**
@@ -39,7 +39,7 @@ function clearChainCache(): void {
  * Call this after a retryable network/API failure.
  */
 export function invalidateHiveChain(): void {
-	clearChainCache()
+  clearChainCache()
 }
 
 /**
@@ -49,22 +49,22 @@ export function invalidateHiveChain(): void {
  * Callers MUST NOT call chain.delete() - the pool manages lifecycle.
  */
 export const hiveChain = async (): Promise<IHiveChainInterface> => {
-	if (isCacheValid() && cachedChain) {
-		return cachedChain.instance
-	}
+  if (isCacheValid() && cachedChain) {
+    return cachedChain.instance
+  }
 
-	if (pendingCreation) return pendingCreation
+  if (pendingCreation) return pendingCreation
 
-	pendingCreation = (async () => {
-		try {
-			clearChainCache()
-			const instance = await createFreshChain()
-			cachedChain = { instance, createdAt: Date.now() }
-			return instance
-		} finally {
-			pendingCreation = null
-		}
-	})()
+  pendingCreation = (async () => {
+    try {
+      clearChainCache()
+      const instance = await createFreshChain()
+      cachedChain = { instance, createdAt: Date.now() }
+      return instance
+    } finally {
+      pendingCreation = null
+    }
+  })()
 
-	return pendingCreation
+  return pendingCreation
 }

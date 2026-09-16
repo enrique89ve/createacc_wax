@@ -13,7 +13,12 @@ interface Props {
 const { title, description, ogImage, noindex = false } = Astro.props
 ---
 
-<Base title={title} description={description} ogImage={ogImage} noindex={noindex}>
+<Base
+  title={title}
+  description={description}
+  ogImage={ogImage}
+  noindex={noindex}
+>
   <Navbar />
   <slot />
   <Toasts />

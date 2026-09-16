@@ -11,7 +11,7 @@
  * @returns TypeScript boolean
  */
 export const sqliteToBoolean = (value: unknown): boolean => {
-	return value === 1 || value === true
+  return value === 1 || value === true
 }
 
 /**
@@ -20,5 +20,5 @@ export const sqliteToBoolean = (value: unknown): boolean => {
  * @returns SQLite integer (1 or 0)
  */
 export const booleanToSqlite = (value: boolean): number => {
-	return value ? 1 : 0
+  return value ? 1 : 0
 }
