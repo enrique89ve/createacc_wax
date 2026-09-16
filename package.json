@@ -20,7 +20,8 @@
     "check": "astro check && tsc --noEmit && eslint .",
     "test": "vitest run",
     "wax:self-test": "tsx scripts/wax-self-test.ts",
-    "test:simulation": "tsx scripts/test-account-simulation.ts"
+    "test:simulation": "tsx scripts/test-account-simulation.ts",
+    "live:once": "tsx scripts/live-account-broadcast.ts"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
