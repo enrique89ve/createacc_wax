@@ -9,7 +9,6 @@ import type {
   HiveKeychainResponse,
   HiveKeychainAuthResult,
   HiveKeychainLoginParams,
-  HiveUsername,
   HiveMessage,
 } from '@/types/hive-signature'
 import { createHiveUsername, createHiveMessage } from '@/types/hive-signature'
@@ -94,20 +93,6 @@ export class HiveKeychainService {
     return createHiveMessage(data.message)
   }
 
-  private async generateSecureMessage(
-    username: HiveUsername,
-    customMessage?: string
-  ): Promise<HiveMessage> {
-    if (!customMessage) {
-      return this.fetchLoginMessage(username)
-    }
-
-    const timestamp = Date.now()
-    const nonce = crypto.randomUUID().replace(/-/g, '')
-    const message = `${customMessage}\nUsername: ${username}\nTimestamp: ${timestamp}\nNonce: ${nonce}`
-    return createHiveMessage(message)
-  }
-
   /**
    * Extracts clean error message
    */
@@ -133,12 +118,7 @@ export class HiveKeychainService {
   async login(
     params: HiveKeychainLoginParams
   ): Promise<HiveKeychainAuthResult> {
-    const {
-      username,
-      customMessage,
-      keyType = 'Posting',
-      title = 'Login Request',
-    } = params
+    const { username, keyType = 'Posting', title = 'Login Request' } = params
 
     // Verify availability
     if (!this.checkAvailability()) {
@@ -151,9 +131,7 @@ export class HiveKeychainService {
     const hiveUsername = createHiveUsername(username)
 
     try {
-      const message = customMessage
-        ? await this.generateSecureMessage(hiveUsername, customMessage)
-        : await this.fetchLoginMessage(hiveUsername)
+      const message = await this.fetchLoginMessage(hiveUsername)
 
       const KEYCHAIN_TIMEOUT_MS = 60_000
 

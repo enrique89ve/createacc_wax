@@ -82,7 +82,6 @@ export interface HiveKeychainAuthResult {
 
 export interface HiveKeychainLoginParams {
   readonly username: HiveUsername
-  readonly customMessage?: string
   readonly keyType?: 'Posting' | 'Active' | 'Memo'
   readonly title?: string
 }
