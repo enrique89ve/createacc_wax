@@ -27,6 +27,7 @@ import {
 	persistHiveMatchedAccount,
 	recoverStaleCreationAttempts,
 } from '@/lib/confirm-broadcasted'
+import { reconcileUncertainRcDelegations } from '@/lib/create/queue-rc-delegation'
 import {
 	getPendingReconciliations,
 	claimReconciliationEntry,
@@ -198,6 +199,10 @@ async function runReconciliation(): Promise<void> {
 		const stale = await recoverStaleCreationAttempts()
 		if (stale > 0) {
 			logger.info(`[${RESOLVER_ID}] Reclaimed ${stale} stale creation attempt(s).`)
+		}
+		const rcResolved = await reconcileUncertainRcDelegations()
+		if (rcResolved > 0) {
+			logger.info(`[${RESOLVER_ID}] Resolved ${rcResolved} uncertain RC delegation(s).`)
 		}
 
 		const pending = await getPendingReconciliations()

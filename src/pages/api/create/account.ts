@@ -178,6 +178,9 @@ async function reclaimOpenAttemptForRetry(
 		open.status === CREATION_ATTEMPT_STATUS.RESERVED ||
 		open.status === CREATION_ATTEMPT_STATUS.PREPARED
 	) {
+		if (!isAttemptStale(open.updatedAt, RECONCILIATION_CONFIG.ATTEMPT_STALE_MS)) {
+			return creationInProgressResponse(request.username, open.correlationId)
+		}
 		await rollbackTicketReservation(session.ticket, open.correlationId)
 		return
 	}
@@ -542,7 +545,10 @@ async function createAccountOnChain(
 				throw new Error('Failed to persist prepared transaction snapshot')
 			}
 			if (!isSimulationMode()) {
-				await markAttemptBroadcasting(correlationId)
+				const marked = await markAttemptBroadcasting(correlationId)
+				if (!marked) {
+					throw new Error('Creation attempt lost ownership before broadcast')
+				}
 			}
 		})
 		await persistAttemptBroadcastOutcome(correlationId, tx)

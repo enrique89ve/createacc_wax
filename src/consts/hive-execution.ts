@@ -45,6 +45,7 @@ export const OPEN_CREATION_ATTEMPT_STATUSES = [
 export const RC_STATUS = {
 	PENDING: 'pending',
 	PROCESSING: 'processing',
+	UNCERTAIN: 'uncertain',
 	DELEGATED: 'delegated',
 } as const
 

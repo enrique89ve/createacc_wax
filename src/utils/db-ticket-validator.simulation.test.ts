@@ -14,6 +14,7 @@ import {
 import {
 	findOpenCreationAttempt,
 	getCreationAttempt,
+	markAttemptBroadcasting,
 	persistAttemptPreparation,
 } from '@/lib/creation-attempts'
 import { claimAccountRcDelegation } from '@/lib/create/queue-rc-delegation'
@@ -372,5 +373,48 @@ describe('simulation DB completion', () => {
 		const attempt = await getCreationAttempt('corr-reserved')
 		expect(attempt?.transactionId).toBe('prepared-tx-1')
 		await rollbackTicketReservation(TICKET, 'corr-reserved')
+	})
+
+	it('refuses to mark broadcasting after the attempt lost ownership', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `casu${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-cas', username))).success).toBe(true)
+		await persistAttemptPreparation('corr-cas', {
+			id: 'tx-cas-1',
+			wax: {
+				validated: true,
+				onChainVerified: true,
+				signed: true,
+				authorityVerified: true,
+			},
+		})
+		expect((await rollbackTicketReservation(TICKET, 'corr-cas')).success).toBe(true)
+		expect(await markAttemptBroadcasting('corr-cas')).toBe(false)
+		expect(await getCreationAttempt('corr-cas')).toMatchObject({ status: 'rolled_back' })
+	})
+
+	it('keeps the attempt open if Hive-matched DB complete fails', async () => {
+		await db.execute({
+			sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+			args: [TICKET],
+		})
+		const username = `open${Date.now().toString(36)}`
+		expect((await reserveTicketCredit(reserveInput('corr-open', username))).success).toBe(true)
+		const { persistHiveMatchedAccount } = await import('@/lib/confirm-broadcasted')
+		const attempt = await getCreationAttempt('corr-open')
+		expect(attempt).not.toBeNull()
+		expect(
+			await persistHiveMatchedAccount({
+				username: '',
+				ticket: TICKET,
+				correlationId: 'corr-open',
+				attempt: attempt!,
+			})
+		).toBe(false)
+		expect(await getCreationAttempt('corr-open')).toMatchObject({ status: 'reserved' })
+		await rollbackTicketReservation(TICKET, 'corr-open')
 	})
 })

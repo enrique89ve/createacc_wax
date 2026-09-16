@@ -36,7 +36,6 @@ export async function persistHiveMatchedAccount(params: {
 	readonly correlationId: string
 	readonly attempt: CreationAttempt
 }): Promise<boolean> {
-	await markAttemptRecoveredOnChain(params.correlationId)
 	const exists = await accountExistsInDB(params.username)
 	if (!exists) {
 		const dbResult = await completeAccountCreationInDB(
@@ -59,6 +58,7 @@ export async function persistHiveMatchedAccount(params: {
 		BLOCKCHAIN_STATUS.CONFIRMED
 	)
 	if (!confirmed) return false
+	await markAttemptRecoveredOnChain(params.correlationId)
 	await claimAndQueueConfirmedRc(params.username)
 	return true
 }

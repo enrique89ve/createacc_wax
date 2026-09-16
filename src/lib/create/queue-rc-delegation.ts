@@ -13,6 +13,7 @@ import { db } from '@/lib/database'
 import { BLOCKCHAIN_STATUS, RC_STATUS } from '@/consts/hive-execution'
 import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { AppErrorCode } from '@/consts/errors'
+import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
 
 const processedUsers = new Set<string>()
 
@@ -37,6 +38,15 @@ async function releaseRcProcessing(username: string): Promise<void> {
 			SET rc_status = ?
 			WHERE username = ? AND rc_status = ?`,
 		args: [RC_STATUS.PENDING, username, RC_STATUS.PROCESSING],
+	})
+}
+
+async function markRcUncertain(username: string): Promise<void> {
+	await db.execute({
+		sql: `UPDATE Accounts
+			SET rc_status = ?
+			WHERE username = ? AND rc_status = ?`,
+		args: [RC_STATUS.UNCERTAIN, username, RC_STATUS.PROCESSING],
 	})
 }
 
@@ -67,8 +77,9 @@ function scheduleRcDelegation(username: string): void {
 					return
 				}
 				if (error instanceof HiveBroadcastAttemptError) {
+					await markRcUncertain(username)
 					logger.warn(
-						`[rc-delegation] Broadcast already attempted for ${username}: ${errMsg}. Not retrying.`
+						`[rc-delegation] Broadcast already attempted for ${username}: ${errMsg}. Marked uncertain.`
 					)
 					processedUsers.delete(username)
 					return
@@ -115,6 +126,37 @@ export async function claimAndQueueConfirmedRc(username: string): Promise<boolea
 	if (!claimed) return false
 	queueRcDelegation(username)
 	return true
+}
+
+export async function listUncertainRcUsernames(): Promise<string[]> {
+	const result = await db.execute({
+		sql: `SELECT username FROM Accounts
+			WHERE rc_status = ? AND blockchain_status = ?`,
+		args: [RC_STATUS.UNCERTAIN, BLOCKCHAIN_STATUS.CONFIRMED],
+	})
+	return result.rows.map((row) => String(row.username))
+}
+
+export async function reconcileUncertainRcDelegations(): Promise<number> {
+	const usernames = await listUncertainRcUsernames()
+	let resolved = 0
+	for (const username of usernames) {
+		const lookup = await fetchRcDelegationExists(username)
+		if (lookup.status === 'found') {
+			await markRcDelegated(username)
+			resolved += 1
+			continue
+		}
+		if (lookup.status === 'not_found') {
+			await db.execute({
+				sql: `UPDATE Accounts SET rc_status = ? WHERE username = ? AND rc_status = ?`,
+				args: [RC_STATUS.PENDING, username, RC_STATUS.UNCERTAIN],
+			})
+			await claimAndQueueConfirmedRc(username)
+			resolved += 1
+		}
+	}
+	return resolved
 }
 
 export function maybeQueueRcDelegation(username: string, chainConfirmed: boolean): void {
