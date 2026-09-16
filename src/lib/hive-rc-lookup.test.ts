@@ -5,6 +5,7 @@ import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
 
 const ORIGINAL_DELEGATOR = process.env.HIVE_DELEGATOR_ACCOUNT
 const DELEGATEE = 'hhlvdbf3fa78'
+const EXPECTED = BigInt(RC_DELEGATION_AMOUNT)
 
 afterEach(() => {
 	if (ORIGINAL_DELEGATOR === undefined) delete process.env.HIVE_DELEGATOR_ACCOUNT
@@ -41,39 +42,72 @@ describe('fetchRcDelegationExists', () => {
 		const list = vi.fn().mockResolvedValue({
 			rc_direct_delegations: [row(RC_DELEGATION_AMOUNT)],
 		})
-		const result = await fetchRcDelegationExists(DELEGATEE, chainWithList(list))
-		expect(result).toEqual({ status: 'found' })
+		expect(await fetchRcDelegationExists(DELEGATEE, chainWithList(list))).toEqual({
+			status: 'found',
+			delegatedRc: EXPECTED,
+		})
 		expect(list).toHaveBeenCalledWith({
 			start: ['aliento', DELEGATEE],
 			limit: 1,
 		})
 	})
 
+	it('returns found with the exact expected amount', async () => {
+		process.env.HIVE_DELEGATOR_ACCOUNT = 'aliento'
+		const list = vi.fn().mockResolvedValue({
+			rc_direct_delegations: [row(50_000_000_000)],
+		})
+		expect(await fetchRcDelegationExists(DELEGATEE, chainWithList(list))).toEqual({
+			status: 'found',
+			delegatedRc: EXPECTED,
+		})
+	})
+
 	it.each([
-		['50000000000', 'found'],
-		[50_000_000_000, 'found'],
-		[0, 'not_found'],
-		[1, 'not_found'],
-		[49_999_999_999, 'not_found'],
-		[50_000_000_001, 'not_found'],
-		['49999999999', 'not_found'],
-		['not-a-number', 'not_found'],
-		['', 'not_found'],
-	] as const)('delegated_rc=%j is %s', async (amount, status) => {
+		[0, 0n],
+		[1, 1n],
+		[49_999_999_999, 49_999_999_999n],
+		[50_000_000_001, 50_000_000_001n],
+		['49999999999', 49_999_999_999n],
+	] as const)('delegated_rc=%j is mismatch', async (amount, delegatedRc) => {
 		process.env.HIVE_DELEGATOR_ACCOUNT = 'aliento'
 		const list = vi.fn().mockResolvedValue({
 			rc_direct_delegations: [row(amount)],
 		})
 		expect(await fetchRcDelegationExists(DELEGATEE, chainWithList(list))).toEqual({
-			status,
+			status: 'mismatch',
+			delegatedRc,
 		})
 	})
+
+	it.each(['not-a-number', ''] as const)(
+		'malformed delegated_rc=%j is error',
+		async (amount) => {
+			process.env.HIVE_DELEGATOR_ACCOUNT = 'aliento'
+			const list = vi.fn().mockResolvedValue({
+				rc_direct_delegations: [row(amount)],
+			})
+			expect(await fetchRcDelegationExists(DELEGATEE, chainWithList(list))).toEqual({
+				status: 'error',
+				message: 'Malformed delegated_rc',
+			})
+		}
+	)
 
 	it('returns not_found when WAX lists no matching row', async () => {
 		process.env.HIVE_DELEGATOR_ACCOUNT = 'aliento'
 		const list = vi.fn().mockResolvedValue({ rc_direct_delegations: [] })
 		expect(await fetchRcDelegationExists('nobody', chainWithList(list))).toEqual({
 			status: 'not_found',
+		})
+	})
+
+	it('returns error when the RPC fails', async () => {
+		process.env.HIVE_DELEGATOR_ACCOUNT = 'aliento'
+		const list = vi.fn().mockRejectedValue(new Error('business assertion failed'))
+		expect(await fetchRcDelegationExists(DELEGATEE, chainWithList(list))).toEqual({
+			status: 'error',
+			message: 'business assertion failed',
 		})
 	})
 
@@ -104,6 +138,7 @@ describe('fetchRcDelegationExists', () => {
 
 		expect(await fetchRcDelegationExists(DELEGATEE, chain)).toEqual({
 			status: 'found',
+			delegatedRc: EXPECTED,
 		})
 		expect(list).toHaveBeenCalledTimes(2)
 		expect(urls).toContain('https://api.openhive.network')

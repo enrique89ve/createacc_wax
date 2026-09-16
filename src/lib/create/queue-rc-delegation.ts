@@ -7,13 +7,19 @@ import {
 	canDelegateResourceCredits,
 	isBroadcastEnabled,
 } from '@/lib/hive-execution-mode'
-import { HiveBroadcastAttemptError } from '@/lib/hive-broadcaster'
+import {
+	HiveBroadcastAttemptError,
+	unwrapBroadcastError,
+} from '@/lib/hive-broadcaster'
 import { RC_DELEGATION_AMOUNT, RC_DELEGATION_CONFIG } from '@/consts/constants'
 import { db } from '@/lib/database'
 import { BLOCKCHAIN_STATUS, RC_STATUS } from '@/consts/hive-execution'
 import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { AppErrorCode } from '@/consts/errors'
-import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
+import {
+	fetchRcDelegationExists,
+	type RcDelegationLookup,
+} from '@/lib/hive-rc-lookup'
 
 const processedUsers = new Set<string>()
 
@@ -69,10 +75,9 @@ function scheduleRcDelegation(username: string): void {
 				return
 			} catch (error) {
 				const errMsg = error instanceof Error ? error.message : 'Unknown error'
-				const analyzed = analyzeWaxError(error)
+				const analyzed = analyzeWaxError(unwrapBroadcastError(error))
 				if (analyzed.code === AppErrorCode.RC_DELEGATION_EXISTS) {
-					await markRcDelegated(username)
-					logger.info(`[rc-delegation] RC already present for ${username}`)
+					await confirmExistingRcDelegation(username)
 					scheduleUserCleanup(username)
 					return
 				}
@@ -106,6 +111,39 @@ export function queueRcDelegation(username: string): void {
 		const errMsg = error instanceof Error ? error.message : 'Unknown error'
 		logger.warn(`[rc-delegation] Unexpected simulation error for ${username}: ${errMsg}`)
 	})
+}
+
+export async function confirmExistingRcDelegation(username: string): Promise<void> {
+	const lookup = await fetchRcDelegationExists(username)
+	if (lookup.status === 'found') {
+		await markRcDelegated(username)
+		logger.info(
+			`[rc-delegation] Hive RC matches expected amount for ${username} (${lookup.delegatedRc.toString()})`
+		)
+		return
+	}
+	await markRcUncertain(username)
+	logger.warn(
+		`[rc-delegation] RC exists on Hive but is not the expected amount for ${username}: ${lookup.status}`
+	)
+}
+
+export async function applyUncertainRcLookup(
+	username: string,
+	lookup: RcDelegationLookup
+): Promise<'delegated' | 'retry' | 'hold'> {
+	if (lookup.status === 'found') {
+		await markRcDelegated(username)
+		return 'delegated'
+	}
+	if (lookup.status === 'not_found') {
+		await db.execute({
+			sql: `UPDATE Accounts SET rc_status = ? WHERE username = ? AND rc_status = ?`,
+			args: [RC_STATUS.PENDING, username, RC_STATUS.UNCERTAIN],
+		})
+		return 'retry'
+	}
+	return 'hold'
 }
 
 export async function claimAccountRcDelegation(username: string): Promise<boolean> {
@@ -142,19 +180,12 @@ export async function reconcileUncertainRcDelegations(): Promise<number> {
 	let resolved = 0
 	for (const username of usernames) {
 		const lookup = await fetchRcDelegationExists(username)
-		if (lookup.status === 'found') {
-			await markRcDelegated(username)
-			resolved += 1
-			continue
-		}
-		if (lookup.status === 'not_found') {
-			await db.execute({
-				sql: `UPDATE Accounts SET rc_status = ? WHERE username = ? AND rc_status = ?`,
-				args: [RC_STATUS.PENDING, username, RC_STATUS.UNCERTAIN],
-			})
+		const outcome = await applyUncertainRcLookup(username, lookup)
+		if (outcome === 'hold') continue
+		if (outcome === 'retry') {
 			await claimAndQueueConfirmedRc(username)
-			resolved += 1
 		}
+		resolved += 1
 	}
 	return resolved
 }

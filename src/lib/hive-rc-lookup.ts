@@ -5,8 +5,9 @@ import { getEnvString } from '@/lib/env'
 import { shouldTriggerWaxFailover } from '@/lib/wax-error-utils'
 
 export type RcDelegationLookup =
-	| { readonly status: 'found' }
+	| { readonly status: 'found'; readonly delegatedRc: bigint }
 	| { readonly status: 'not_found' }
+	| { readonly status: 'mismatch'; readonly delegatedRc: bigint }
 	| { readonly status: 'error'; readonly message: string }
 
 interface ListRcDirectDelegationsParams {
@@ -43,7 +44,7 @@ function withRcDirectDelegationApi(chain: IHiveChainInterface) {
 
 function parseDelegatedRc(value: string | number): bigint | null {
 	try {
-		if (typeof value === 'number' && !Number.isInteger(value)) return null
+		if (typeof value === 'number' && !Number.isSafeInteger(value)) return null
 		if (typeof value === 'string' && value.trim() === '') return null
 		return BigInt(value)
 	} catch {
@@ -51,17 +52,20 @@ function parseDelegatedRc(value: string | number): bigint | null {
 	}
 }
 
-function hasExpectedDelegation(
+function classifyDelegation(
 	rows: readonly RcDirectDelegationRow[],
 	from: string,
 	to: string,
 	expectedRc: bigint
-): boolean {
-	return rows.some((row) => {
-		if (row.from !== from || row.to !== to) return false
-		const amount = parseDelegatedRc(row.delegated_rc)
-		return amount !== null && amount === expectedRc
-	})
+): RcDelegationLookup {
+	const match = rows.find(row => row.from === from && row.to === to)
+	if (!match) return { status: 'not_found' }
+	const amount = parseDelegatedRc(match.delegated_rc)
+	if (amount === null) {
+		return { status: 'error', message: 'Malformed delegated_rc' }
+	}
+	if (amount === expectedRc) return { status: 'found', delegatedRc: amount }
+	return { status: 'mismatch', delegatedRc: amount }
 }
 
 function backupEndpoints(current: string): readonly string[] {
@@ -110,17 +114,12 @@ export async function fetchRcDelegationExists(
 	try {
 		const hive = chain ?? (await hiveChain())
 		const result = await listRcDirectDelegations(hive, from, delegatee)
-		if (
-			hasExpectedDelegation(
-				result.rc_direct_delegations,
-				from,
-				delegatee,
-				BigInt(RC_DELEGATION_AMOUNT)
-			)
-		) {
-			return { status: 'found' }
-		}
-		return { status: 'not_found' }
+		return classifyDelegation(
+			result.rc_direct_delegations,
+			from,
+			delegatee,
+			BigInt(RC_DELEGATION_AMOUNT)
+		)
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'Unknown chain error'
 		return { status: 'error', message }
