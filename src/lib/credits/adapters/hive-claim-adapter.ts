@@ -1,4 +1,4 @@
-import { type TWaxRestExtended } from '@hiveio/wax'
+import { type TWaxExtended, type TWaxRestExtended } from '@hiveio/wax'
 import { BRAND } from '@/consts/branding'
 import { hiveChain } from '@/lib/hiveservice'
 
@@ -24,11 +24,23 @@ export type HiveClaimAdapterResult =
   | { readonly ok: true; readonly claim: VerifiedHiveClaim }
   | {
       readonly ok: false
-      readonly kind: 'invalid' | 'unavailable'
+      readonly kind: 'pending' | 'invalid' | 'unavailable'
       readonly error: string
     }
 
-type HiveClaimTransactionProvider = (transactionId: string) => Promise<unknown>
+export type HiveTransactionStatus =
+  | 'unknown'
+  | 'within_mempool'
+  | 'within_reversible_block'
+  | 'within_irreversible_block'
+  | 'expired_reversible'
+  | 'expired_irreversible'
+  | 'too_old'
+
+export type HiveClaimProvider = {
+  readonly getStatus: (transactionId: string) => Promise<unknown>
+  readonly getTransaction: (transactionId: string) => Promise<unknown>
+}
 
 type HiveOperation = {
   readonly type: string
@@ -44,6 +56,28 @@ type HiveTransaction = {
   readonly timestamp: string
   readonly operations: readonly HiveOperation[]
 }
+
+type HiveStatusApi = {
+  transaction_status_api: {
+    find_transaction: {
+      params: {
+        readonly transaction_id: string
+        readonly expiration?: string
+      }
+      result: unknown
+    }
+  }
+}
+
+const HIVE_TRANSACTION_STATUSES: ReadonlySet<string> = new Set([
+  'unknown',
+  'within_mempool',
+  'within_reversible_block',
+  'within_irreversible_block',
+  'expired_reversible',
+  'expired_irreversible',
+  'too_old',
+])
 
 type ClaimJson = {
   readonly app: string
@@ -155,6 +189,20 @@ function invalid(error: string): HiveClaimAdapterResult {
   return { ok: false, kind: 'invalid', error }
 }
 
+function pending(error: string): HiveClaimAdapterResult {
+  return { ok: false, kind: 'pending', error }
+}
+
+function unavailable(error: string): HiveClaimAdapterResult {
+  return { ok: false, kind: 'unavailable', error }
+}
+
+function parseTransactionStatus(value: unknown): HiveTransactionStatus | null {
+  if (!isRecord(value) || typeof value.status !== 'string') return null
+  if (!HIVE_TRANSACTION_STATUSES.has(value.status)) return null
+  return value.status as HiveTransactionStatus
+}
+
 function verifyTransactionPayload(
   rawTransaction: unknown,
   input: HiveClaimVerificationInput,
@@ -241,29 +289,70 @@ async function fetchHiveTransaction(transactionId: string): Promise<unknown> {
   return extended.restApi['hafah-api'].transactions.byId({ transactionId })
 }
 
+async function fetchHiveTransactionStatus(
+  transactionId: string
+): Promise<unknown> {
+  const chain = await hiveChain()
+  const extended: TWaxExtended<HiveStatusApi> = chain.extend<HiveStatusApi>()
+  return extended.api.transaction_status_api.find_transaction({
+    transaction_id: transactionId,
+  })
+}
+
+const defaultHiveClaimProvider: HiveClaimProvider = {
+  getStatus: fetchHiveTransactionStatus,
+  getTransaction: fetchHiveTransaction,
+}
+
 export async function verifyHiveClaim(
   input: HiveClaimVerificationInput,
-  provider: HiveClaimTransactionProvider = fetchHiveTransaction,
+  provider: HiveClaimProvider = defaultHiveClaimProvider,
   now: number = Date.now()
 ): Promise<HiveClaimAdapterResult> {
   try {
     const transactionId = normalizeTransactionId(input.transactionId)
     if (transactionId === null) return invalid('Invalid transaction ID')
-    const rawTransaction = await provider(transactionId)
-    return verifyTransactionPayload(rawTransaction, input, now)
-  } catch (error) {
-    return {
-      ok: false,
-      kind: 'unavailable',
-      error: `Hive transaction provider unavailable: ${
-        error instanceof Error ? error.message : 'Unknown error'
-      }`,
+
+    const rawStatus = await provider.getStatus(transactionId)
+    const status = parseTransactionStatus(rawStatus)
+    if (status === null) {
+      return unavailable('Hive returned an unknown transaction status')
     }
+
+    if (status === 'unknown' || status === 'within_mempool') {
+      return pending('Transaction has not been included in a block yet')
+    }
+
+    if (
+      status === 'expired_reversible' ||
+      status === 'expired_irreversible' ||
+      status === 'too_old'
+    ) {
+      return invalid(`Transaction is no longer claimable (${status})`)
+    }
+
+    const rawTransaction = await provider.getTransaction(transactionId)
+    const payloadResult = verifyTransactionPayload(rawTransaction, input, now)
+    if (!payloadResult.ok) return payloadResult
+
+    if (status === 'within_reversible_block') {
+      return pending(
+        'Transaction is included and awaiting irreversible confirmation'
+      )
+    }
+
+    return payloadResult
+  } catch (error) {
+    return unavailable(
+      `Hive transaction provider unavailable: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
+    )
   }
 }
 
 export function createHiveClaimAdapter(
-  provider: HiveClaimTransactionProvider = fetchHiveTransaction
+  provider: HiveClaimProvider = defaultHiveClaimProvider
 ): {
   readonly verify: (
     input: HiveClaimVerificationInput,

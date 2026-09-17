@@ -327,6 +327,7 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 <script>
   import { notify } from '@/utils/toast'
   import { BRAND } from '@/consts/branding'
+  import { pollClaimVerification } from '@/lib/credits/claim-polling'
 
   interface HiveKeychainResponse {
     readonly success: boolean
@@ -345,6 +346,30 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
       displayMsg: string,
       callback: (response: HiveKeychainResponse) => void
     ) => void
+  }
+
+  type ClaimVerificationData = {
+    readonly success?: boolean
+    readonly error?: string
+    readonly available?: number
+    readonly pending?: number
+  }
+
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null
+
+  const parseClaimVerificationData = (
+    value: unknown
+  ): ClaimVerificationData => {
+    if (!isRecord(value)) return {}
+
+    return {
+      success: typeof value.success === 'boolean' ? value.success : undefined,
+      error: typeof value.error === 'string' ? value.error : undefined,
+      available:
+        typeof value.available === 'number' ? value.available : undefined,
+      pending: typeof value.pending === 'number' ? value.pending : undefined,
+    }
   }
 
   const getHiveKeychain = (): HiveKeychainWithCustomJson | null => {
@@ -584,24 +609,30 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 
       const transactionId = keyResult.result.id
 
-      claimBtn.textContent = 'Verificando blockchain...'
-      notify('info', 'Verificando transacción en blockchain...')
-      // 5. Esperar un momento para que la transacción se propague
-      await new Promise(resolve => setTimeout(resolve, 3000))
+      claimBtn.textContent = 'Procesando transacción...'
+      notify('info', 'Procesando transacción en Hive...')
 
-      // 6. Verificar la transacción en el servidor
-      const verifyResponse = await fetch('/api/builders/credits/claim-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId: transactionId,
-          hash: hashData.hash,
-        }),
-      })
+      const verifyResult = await pollClaimVerification(
+        transactionId,
+        hashData.hash,
+        async (currentTransactionId, currentHash) => {
+          const response = await fetch('/api/builders/credits/claim-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              transactionId: currentTransactionId,
+              hash: currentHash,
+            }),
+          })
 
-      const verifyData = await verifyResponse.json()
+          return { status: response.status, body: await response.json() }
+        }
+      )
 
-      if (verifyResponse.ok && verifyData.success) {
+      const verifyResponse = { status: verifyResult.status }
+      const verifyData = parseClaimVerificationData(verifyResult.body)
+
+      if (verifyResponse.status === 200 && verifyData.success) {
         notify(
           'success',
           `¡Créditos reclamados! Disponible: ${verifyData.available || 0}, Pendiente: ${verifyData.pending || 0}`
@@ -609,6 +640,11 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 
         // Recargar página después de un momento
         setTimeout(() => location.reload(), 3000)
+      } else if (verifyResponse.status === 202) {
+        notify(
+          'warning',
+          'La transacción sigue confirmándose en Hive. Intenta verificarla nuevamente en unos momentos.'
+        )
       } else {
         notify('error', verifyData.error || 'Error verificando la transacción')
       }

@@ -37,9 +37,12 @@ function parseClaimVerifyBody(body: unknown): ClaimVerifyRequest | null {
   const transactionId = record.transactionId
   const hash = record.hash
 
-  if (typeof transactionId !== 'string' || transactionId.length === 0)
+  if (typeof transactionId !== 'string' || transactionId.length === 0) {
     return null
-  if (typeof hash !== 'string' || hash.length === 0) return null
+  }
+  if (typeof hash !== 'string' || hash.length === 0) {
+    return null
+  }
 
   return { transactionId, hash }
 }
@@ -79,6 +82,17 @@ export const POST: APIRoute = async context => {
       })
 
       if (!verificationResult.ok) {
+        if (verificationResult.kind === 'pending') {
+          return apiSuccess(
+            {
+              message: 'Transacción recibida; esperando confirmación de Hive',
+              transactionId,
+              pending: true,
+            },
+            HTTP_STATUS.ACCEPTED,
+            { noCache: true }
+          )
+        }
         if (verificationResult.kind === 'unavailable') {
           return apiError(
             'El proveedor Hive no está disponible temporalmente',

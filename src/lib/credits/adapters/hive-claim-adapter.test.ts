@@ -132,8 +132,11 @@ describe('Hive claim adapter', () => {
   })
 
   it('distinguishes provider outages from invalid chain evidence', async () => {
-    const adapter = createHiveClaimAdapter(async () => {
-      throw new Error('timeout')
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => {
+        throw new Error('timeout')
+      },
+      getTransaction: async () => null,
     })
 
     await expect(
@@ -143,5 +146,66 @@ describe('Hive claim adapter', () => {
         username: USERNAME,
       })
     ).resolves.toMatchObject({ ok: false, kind: 'unavailable' })
+  })
+
+  it('returns pending before an included claim becomes irreversible', async () => {
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => ({ status: 'within_reversible_block' }),
+      getTransaction: async () =>
+        transactionWithOperations([claimOperation(claimJson())]),
+    })
+
+    await expect(
+      adapter.verify(
+        {
+          transactionId: TRANSACTION_ID,
+          hash: HASH,
+          username: USERNAME,
+        },
+        NOW
+      )
+    ).resolves.toMatchObject({ ok: false, kind: 'pending' })
+  })
+
+  it('returns a verified claim only after Hive reports irreversible inclusion', async () => {
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => ({ status: 'within_irreversible_block' }),
+      getTransaction: async () =>
+        transactionWithOperations([claimOperation(claimJson())]),
+    })
+
+    await expect(
+      adapter.verify(
+        {
+          transactionId: TRANSACTION_ID,
+          hash: HASH,
+          username: USERNAME,
+        },
+        NOW
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('keeps unknown and mempool transactions pending without reading the payload', async () => {
+    let transactionReads = 0
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => ({ status: 'unknown' }),
+      getTransaction: async () => {
+        transactionReads += 1
+        return null
+      },
+    })
+
+    await expect(
+      adapter.verify(
+        {
+          transactionId: TRANSACTION_ID,
+          hash: HASH,
+          username: USERNAME,
+        },
+        NOW
+      )
+    ).resolves.toMatchObject({ ok: false, kind: 'pending' })
+    expect(transactionReads).toBe(0)
   })
 })
