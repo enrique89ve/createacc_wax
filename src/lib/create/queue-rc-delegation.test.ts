@@ -18,8 +18,10 @@ import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
 import {
   applyUncertainRcLookup,
   confirmExistingRcDelegation,
+  processPendingRcDelegations,
   reconcileUncertainRcDelegations,
 } from '@/lib/create/queue-rc-delegation'
+import { delegateResourceCredits } from '@/lib/create/delegate-rc'
 
 vi.mock('@/lib/hive-rc-lookup', () => ({
   fetchRcDelegationExists: vi.fn(),
@@ -31,6 +33,7 @@ vi.mock('@/lib/create/delegate-rc', () => ({
 }))
 
 const fetchLookup = vi.mocked(fetchRcDelegationExists)
+const delegate = vi.mocked(delegateResourceCredits)
 const RUN = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
 const TICKET = `RCUT${RUN.toUpperCase()}`
 
@@ -82,8 +85,14 @@ afterAll(async () => {
   })
 })
 
-beforeEach(() => {
+beforeEach(async () => {
+  process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.SIMULATE
   fetchLookup.mockReset()
+  delegate.mockReset()
+  await db.execute({
+    sql: `DELETE FROM Accounts WHERE ticket = ?`,
+    args: [TICKET],
+  })
 })
 
 describe('uncertain RC recovery', () => {
@@ -175,6 +184,40 @@ describe('uncertain RC recovery', () => {
     expect([RC_STATUS.PENDING, RC_STATUS.PROCESSING]).toContain(
       absentRow.rcStatus
     )
+  })
+})
+
+describe('durable RC worker', () => {
+  it('processes pending confirmed rows without an in-memory timer', async () => {
+    process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.BROADCAST
+    const username = `rcpen${RUN}`
+    await insertUncertain(username, RC_STATUS.PENDING)
+    delegate.mockResolvedValue({
+      id: 'rc-tx',
+      mode: HIVE_TX_MODE_VALUES.BROADCAST,
+      broadcasted: true,
+      wax: {
+        validated: true,
+        onChainVerified: true,
+        signed: true,
+        authorityVerified: true,
+      },
+      requiredAuthorities: {},
+      signaturePublicKeys: ['STM7public'],
+    })
+
+    expect(await processPendingRcDelegations()).toBeGreaterThanOrEqual(1)
+    expect(delegate).toHaveBeenCalledWith(
+      {
+        delegatee: username,
+        maxRc: RC_DELEGATION_AMOUNT,
+      },
+      HIVE_TX_MODE_VALUES.BROADCAST
+    )
+    expect(await rcRow(username)).toEqual({
+      rcStatus: RC_STATUS.DELEGATED,
+      rcDelegated: 1,
+    })
   })
 })
 

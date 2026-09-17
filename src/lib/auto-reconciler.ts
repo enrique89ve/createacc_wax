@@ -27,7 +27,10 @@ import {
   persistHiveMatchedAccount,
   recoverStaleCreationAttempts,
 } from '@/lib/confirm-broadcasted'
-import { reconcileUncertainRcDelegations } from '@/lib/create/queue-rc-delegation'
+import {
+  processPendingRcDelegations,
+  reconcileUncertainRcDelegations,
+} from '@/lib/create/queue-rc-delegation'
 import {
   getPendingReconciliations,
   claimReconciliationEntry,
@@ -228,6 +231,12 @@ async function runReconciliation(): Promise<void> {
     if (rcResolved > 0) {
       logger.info(
         `[${RESOLVER_ID}] Resolved ${rcResolved} uncertain RC delegation(s).`
+      )
+    }
+    const rcProcessed = await processPendingRcDelegations()
+    if (rcProcessed > 0) {
+      logger.info(
+        `[${RESOLVER_ID}] Processed ${rcProcessed} durable RC delegation(s).`
       )
     }
 

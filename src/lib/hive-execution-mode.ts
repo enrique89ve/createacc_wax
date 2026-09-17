@@ -30,7 +30,10 @@ export function isBroadcastEnabled(): boolean {
   return getHiveExecutionMode() === HIVE_TX_MODE_VALUES.BROADCAST
 }
 
-export function canDelegateResourceCredits(chainConfirmed: boolean): boolean {
-  if (isSimulationMode()) return true
+export function canDelegateResourceCredits(
+  chainConfirmed: boolean,
+  executionMode: HiveExecutionMode = getHiveExecutionMode()
+): boolean {
+  if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) return true
   return chainConfirmed
 }

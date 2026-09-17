@@ -145,10 +145,7 @@ export const BLOCKCHAIN_VERIFICATION_CONFIG = {
 } as const
 
 export const RC_DELEGATION_CONFIG = {
-  DELAY_MS: 4000, // one full Hive block (~3s) + margin
-  RETRY_DELAY_MS: 3000,
-  MAX_RETRIES: 1,
-  CACHE_CLEANUP_MS: 300000, // 5 minutes
+  PROCESSING_STALE_MS: 2 * 60 * 1000,
 } as const
 
 export const RECONCILIATION_CONFIG = {

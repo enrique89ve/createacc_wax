@@ -8,7 +8,11 @@ import { createDelegatorService } from '@/lib/hive-transaction-service'
 import { AppError, AppErrorCode } from '@/consts/errors'
 import { getRequiredEnvString } from '@/lib/env'
 import { ENV_KEYS } from '@/consts/constants'
-import { isSimulationMode } from '@/lib/hive-execution-mode'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import {
+  HIVE_TX_MODE_VALUES,
+  type HiveExecutionMode,
+} from '@/consts/hive-execution'
 import {
   isRcSimulationSuccess,
   type HiveTransactionResult,
@@ -49,9 +53,10 @@ function pushDelegateRcOperation(
 }
 
 export async function delegateResourceCredits(
-  params: IDelegateRCParams
+  params: IDelegateRCParams,
+  executionMode: HiveExecutionMode = getHiveExecutionMode()
 ): Promise<HiveTransactionResult> {
-  const service = createDelegatorService()
+  const service = createDelegatorService({ executionMode })
   const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
 
   try {
@@ -65,7 +70,7 @@ export async function delegateResourceCredits(
       pushDelegateRcOperation(tx, account, params)
     },
     {
-      skipOnChainVerification: isSimulationMode(),
+      skipOnChainVerification: executionMode === HIVE_TX_MODE_VALUES.SIMULATE,
     }
   )
 }
@@ -81,10 +86,13 @@ export async function simulateRcDelegation(
   maxRc: TNaiAssetConvertible
 ): Promise<HiveTransactionResult | null> {
   try {
-    const result = await delegateResourceCredits({
-      delegatee: username,
-      maxRc,
-    })
+    const result = await delegateResourceCredits(
+      {
+        delegatee: username,
+        maxRc,
+      },
+      HIVE_TX_MODE_VALUES.SIMULATE
+    )
     if (!isRcSimulationSuccess(result)) {
       logger.warn(
         `[rc-delegation] Simulated RC builder for ${username} did not pass RC simulation predicate`
@@ -105,7 +113,8 @@ export async function simulateRcDelegation(
 export async function removeDelegation(
   params: IRemoveDelegationParams
 ): Promise<HiveTransactionResult> {
-  const service = createDelegatorService()
+  const executionMode = getHiveExecutionMode()
+  const service = createDelegatorService({ executionMode })
   const delegatorAccount = getRequiredEnvString(ENV_KEYS.HIVE_DELEGATOR_ACCOUNT)
 
   try {
@@ -121,6 +130,8 @@ export async function removeDelegation(
       rcOperation.authorize(account)
       tx.pushOperation(rcOperation)
     },
-    { skipOnChainVerification: isSimulationMode() }
+    {
+      skipOnChainVerification: executionMode === HIVE_TX_MODE_VALUES.SIMULATE,
+    }
   )
 }
