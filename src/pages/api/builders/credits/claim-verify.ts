@@ -3,17 +3,18 @@
  *
  * POST /api/builders/credits/claim-verify
  *
- * Flow: validate hash (non-destructive) → verify blockchain tx →
- *       DB transaction → consume hash ONLY after successful COMMIT.
- *       If the transaction rolls back, the hash survives and the user can retry.
+ * Flow: verify blockchain tx → consume persistent intent and move Credits in one
+ *       DB transaction. If the transaction rolls back, the intent survives.
  */
 
 import type { APIRoute } from 'astro'
-import { execute, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
-import { verifyClaimTransaction } from '@/lib/hive-transaction-verifier'
-import { claimHashCache } from '@/lib/claim-hash-cache'
+import { verifyHiveClaim } from '@/lib/credits/adapters/hive-claim-adapter'
+import {
+  completeClaim,
+  CLAIM_SERVICE_ERRORS,
+} from '@/lib/credits/claim-service'
 import { withBuilderApiSession } from '@/lib/session-helpers'
 import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { requireValidOrigin } from '@/utils/csrf-protection'
@@ -24,8 +25,6 @@ type ClaimVerifyRequest = {
   readonly transactionId: string
   readonly hash: string
 }
-
-const OPAQUE_CLAIM_PATTERN = /^claim_([a-f0-9]{24})$/
 
 /**
  * Narrows unknown input to ClaimVerifyRequest or returns null.
@@ -73,106 +72,57 @@ export const POST: APIRoute = async context => {
 
       const { transactionId, hash } = parsed
 
-      // 1. Validate hash (non-destructive — hash stays in cache)
-      const hashData = claimHashCache.validate(hash, session.username)
-      if (!hashData) {
-        return apiError(
-          'Hash de validación no encontrado, inválido o expirado',
-          HTTP_STATUS.NOT_FOUND
-        )
-      }
-
-      // 2. Verify blockchain transaction (parallelizable with builder check)
-      const verificationResult = await verifyClaimTransaction(
+      const verificationResult = await verifyHiveClaim({
         transactionId,
         hash,
-        session.username
+        username: session.username,
+      })
+
+      if (!verificationResult.ok) {
+        if (verificationResult.kind === 'unavailable') {
+          return apiError(
+            'El proveedor Hive no está disponible temporalmente',
+            HTTP_STATUS.SERVICE_UNAVAILABLE
+          )
+        }
+        return apiError(verificationResult.error, HTTP_STATUS.BAD_REQUEST)
+      }
+
+      const completion = await completeClaim(verificationResult.claim)
+      if (!completion.ok) {
+        if (completion.code === CLAIM_SERVICE_ERRORS.INTENT_NOT_FOUND) {
+          return apiError(
+            'Hash de validación no encontrado, inválido o expirado',
+            HTTP_STATUS.NOT_FOUND
+          )
+        }
+        if (
+          completion.code === CLAIM_SERVICE_ERRORS.INSUFFICIENT_PENDING ||
+          completion.code === CLAIM_SERVICE_ERRORS.DUPLICATE_REFERENCE
+        ) {
+          return apiError(completion.error, HTTP_STATUS.CONFLICT)
+        }
+        if (completion.code === CLAIM_SERVICE_ERRORS.INVALID_INPUT) {
+          return apiError(completion.error, HTTP_STATUS.BAD_REQUEST)
+        }
+        return apiError(
+          'Error interno del servidor',
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
+        )
+      }
+
+      return apiSuccess(
+        {
+          message: 'Créditos reclamados exitosamente',
+          credits: completion.credits,
+          transactionId,
+          newBalance: completion.newBalance,
+          available: completion.available,
+          pending: completion.pending,
+        },
+        HTTP_STATUS.OK,
+        { noCache: true }
       )
-
-      if (!verificationResult.valid) {
-        return apiError(
-          verificationResult.error || 'Transacción inválida',
-          HTTP_STATUS.BAD_REQUEST
-        )
-      }
-
-      // 3. Resolve creditId from opaque claim token
-      const opaqueMatch = hashData.ticketCode.match(OPAQUE_CLAIM_PATTERN)
-      if (!opaqueMatch) {
-        return apiError('Código de claim inválido', HTTP_STATUS.BAD_REQUEST)
-      }
-
-      const creditId = claimHashCache.getCreditMapping(opaqueMatch[1])
-      if (creditId === null) {
-        return apiError(
-          'Código de claim expirado o ya consumido',
-          HTTP_STATUS.NOT_FOUND
-        )
-      }
-      const creditsToAdd = hashData.creditsAvailable
-
-      // 4. Verify credit record exists and has sufficient pending
-      const creditResult = await execute({
-        sql: 'SELECT hive_username, pending_amount FROM Credits WHERE hive_username = ?',
-        args: [session.username],
-      })
-
-      if (creditResult.rows.length === 0) {
-        return apiError(
-          'Registro de créditos no encontrado',
-          HTTP_STATUS.NOT_FOUND
-        )
-      }
-
-      const currentPending = Number(creditResult.rows[0].pending_amount)
-
-      if (currentPending < creditsToAdd) {
-        return apiError(
-          'Créditos pendientes insuficientes',
-          HTTP_STATUS.CONFLICT
-        )
-      }
-
-      // 5. Atomic DB transaction — hash is NOT consumed yet
-      await withTransaction(async () => {
-        await execute({
-          sql: `UPDATE Credits
-						SET pending_amount = pending_amount - ?,
-							available_amount = available_amount + ?,
-							updated_at = CURRENT_TIMESTAMP
-						WHERE hive_username = ? AND pending_amount >= ?`,
-          args: [creditsToAdd, creditsToAdd, session.username, creditsToAdd],
-        })
-
-        await execute({
-          sql: `INSERT INTO CreditAudit (
-						hive_username, operation, amount, reason, timestamp
-					) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-          args: [
-            session.username,
-            'claim_via_blockchain',
-            creditsToAdd,
-            `Claimed via transaction: ${transactionId}`,
-          ],
-        })
-      })
-
-      // 6. COMMIT succeeded — NOW consume the hash (one-time use)
-      claimHashCache.consume(hash)
-
-      const balanceResult = await execute({
-        sql: 'SELECT available_amount FROM Credits WHERE hive_username = ?',
-        args: [session.username],
-      })
-
-      const newBalance = Number(balanceResult.rows[0]?.available_amount ?? 0)
-
-      return apiSuccess({
-        message: 'Créditos reclamados exitosamente',
-        credits: creditsToAdd,
-        transactionId,
-        newBalance,
-      })
     } catch (error) {
       logger.error('Error en claim-verify:', error)
       return apiError(

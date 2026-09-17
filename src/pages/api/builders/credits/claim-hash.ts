@@ -5,11 +5,12 @@
  */
 
 import type { APIRoute } from 'astro'
-import { randomBytes } from 'crypto'
-import { db } from '@/lib/database'
 import { HTTP_STATUS } from '@/consts/constants'
 import { BRAND } from '@/consts/branding'
-import { claimHashCache } from '@/lib/claim-hash-cache'
+import {
+  CLAIM_SERVICE_ERRORS,
+  createClaimIntent,
+} from '@/lib/credits/claim-service'
 import { withBuilderApiSession } from '@/lib/session-helpers'
 import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
@@ -31,53 +32,44 @@ export const POST: APIRoute = async context => {
     }
 
     try {
-      const pendingCreditsResult = await db.execute({
-        sql: `SELECT hive_username, pending_amount FROM Credits
-					WHERE hive_username = ? AND pending_amount > 0
-					LIMIT 1`,
-        args: [session.username],
-      })
-
-      if (pendingCreditsResult.rows.length === 0) {
+      const intentResult = await createClaimIntent(session.username)
+      if (!intentResult.ok) {
+        if (intentResult.code === CLAIM_SERVICE_ERRORS.NO_PENDING) {
+          return apiError(
+            'No hay créditos pendientes para reclamar',
+            HTTP_STATUS.NOT_FOUND
+          )
+        }
         return apiError(
-          'No hay créditos pendientes para reclamar',
-          HTTP_STATUS.NOT_FOUND
+          'No se pudo generar el intent de claim',
+          HTTP_STATUS.INTERNAL_SERVER_ERROR
         )
       }
 
-      const pendingCredit = pendingCreditsResult.rows[0]
-      const creditsToGrant = Number(pendingCredit.pending_amount)
-
-      const opaqueToken = randomBytes(12).toString('hex')
-      const claimCode = `claim_${opaqueToken}`
-      claimHashCache.setCreditMapping(opaqueToken, 0)
-
-      // Generate hash and store in cache
-      const hashData = claimHashCache.generateHash(
-        session.username,
-        claimCode,
-        creditsToGrant
-      )
+      const { intent } = intentResult
 
       // Create the custom JSON structure for Keychain
       const customJson = {
         id: 'claim_credits',
         json: {
           app: BRAND.CLAIM_APP_ID,
-          hash: hashData.hash,
+          hash: intent.hash,
           username: session.username,
-          timestamp: hashData.createdAt,
+          timestamp: intent.createdAt,
           action: 'claim_credits',
         },
       }
 
-      return apiSuccess({
-        hash: hashData.hash,
-        customJson,
-        claimCode,
-        creditsAvailable: creditsToGrant,
-        expiresAt: new Date(hashData.expiresAt).toISOString(),
-      })
+      return apiSuccess(
+        {
+          hash: intent.hash,
+          customJson,
+          creditsAvailable: intent.amount,
+          expiresAt: new Date(intent.expiresAt).toISOString(),
+        },
+        HTTP_STATUS.OK,
+        { noCache: true }
+      )
     } catch (error) {
       return apiError(
         'Error interno del servidor',

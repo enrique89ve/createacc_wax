@@ -3,7 +3,8 @@ import { insertCreditAudit } from './shared'
 
 export async function claimCredits(
   hiveUsername: string,
-  amount: number
+  amount: number,
+  auditContext: { readonly externalReference?: string } = {}
 ): Promise<void> {
   await withTransaction(async () => {
     const result = await execute({
@@ -27,6 +28,7 @@ export async function claimCredits(
       operation: 'claim_credits',
       amount,
       reason: 'claimed by builder',
+      externalReference: auditContext.externalReference,
     })
   })
 }
