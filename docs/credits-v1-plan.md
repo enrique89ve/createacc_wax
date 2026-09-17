@@ -2,7 +2,7 @@
 
 Estado: implementado en `main`; la fase inicial y su seguimiento de finalidad
 quedaron cerrados en commits separados.
-Base revisada: `b182834` (`main`), 2026-09-17.
+Base revisada: `9d2e8a8` (`main`), 2026-09-17.
 
 ## Objetivo y alcance
 
@@ -103,9 +103,10 @@ prueba inválida. El adapter no importa base de datos, Credits Core ni pricing.
 La finalidad se consulta mediante `transaction_status_api.find_transaction`:
 `unknown` y `within_mempool` son estados reintentables,
 `within_reversible_block` devuelve `pending` y
-`within_irreversible_block` es el único estado que produce una prueba válida.
-Los estados expirados o demasiado antiguos son inválidos. La API oficial describe
-estos estados y su semántica en la [referencia de Transaction Status](https://developers.hive.io/apidefinitions/#transaction_status_api.find_transaction).
+`within_irreversible_block` y `expired_irreversible` producen una prueba final;
+`expired_reversible` y `too_old` son inválidos. En todos los estados finales el
+payload sigue pasando la ventana independiente de antigüedad de 30 minutos. La
+API oficial describe estos estados y su semántica en la [referencia de Transaction Status](https://developers.hive.io/apidefinitions/#transaction_status_api.find_transaction).
 
 La interfaz espera un segundo en el cliente después del broadcast para absorber
 la propagación inicial. Luego hace polling con backoff limitado. Esa ventana de
@@ -226,13 +227,14 @@ antes de crear el commit. No se agruparán cambios ajenos en estos commits.
 La fase posterior al cierre inicial se implementó en esta secuencia, manteniendo
 cada commit autocontenido:
 
-| Orden / mensaje                                                           | Alcance                                                                                                      | Criterio de salida                                                                                |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| 8. `fix(credits): model Hive finality and propagation grace`              | Estados del adapter, consulta `transaction_status_api`, HTTP 202, espera inicial de 1 s y polling de cliente | Solo la evidencia irreversible llama a `completeClaim`; estados transitorios no consumen intents  |
-| 9. `test(credits): cover reversible-to-irreversible claim flow`           | Tests del adapter, servicio y polling con límite de intentos                                                 | Reversible → pending → irreversible; replay y fallos transitorios quedan cubiertos                |
-| 10. `refactor(credits): unify balance consistency calculation`            | Función pura compartida por diagnóstico y detalle de balance                                                 | Ambas rutas calculan el mismo `expected_available`, incluyendo grants y transferencias históricas |
-| 11. `refactor(credits): make claim payload timestamp backward-compatible` | Se elimina `timestamp` de nuevos payloads y se aceptan payloads antiguos                                     | El formato nuevo funciona sin romper claims ya firmados                                           |
-| 12. `docs(credits): close finality and consistency phase`                 | Este documento, cierre y contexto de sesión                                                                  | Los resultados y límites reflejan la implementación actual                                        |
+| Orden / mensaje                                                           | Alcance                                                                                                      | Criterio de salida                                                                                                    |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| 8. `fix(credits): model Hive finality and propagation grace`              | Estados del adapter, consulta `transaction_status_api`, HTTP 202, espera inicial de 1 s y polling de cliente | Solo la evidencia irreversible llama a `completeClaim`; estados transitorios no consumen intents                      |
+| 9. `test(credits): cover reversible-to-irreversible claim flow`           | Tests del adapter, servicio y polling con límite de intentos                                                 | Reversible → pending → irreversible; replay y fallos transitorios quedan cubiertos                                    |
+| 10. `refactor(credits): unify balance consistency calculation`            | Función pura compartida por diagnóstico y detalle de balance                                                 | Ambas rutas calculan el mismo `expected_available`, incluyendo grants y transferencias históricas                     |
+| 11. `refactor(credits): make claim payload timestamp backward-compatible` | Se elimina `timestamp` de nuevos payloads y se aceptan payloads antiguos                                     | El formato nuevo funciona sin romper claims ya firmados                                                               |
+| 12. `docs(credits): close finality and consistency phase`                 | Este documento, cierre y contexto de sesión                                                                  | Los resultados y límites reflejan la implementación actual                                                            |
+| 13. `fix(credits): preserve irreversible expired claims`                  | Clasificación de `expired_irreversible` y regresiones del adapter                                            | `expired_irreversible` alcanza el payload y puede completar; `expired_reversible` y `too_old` siguen siendo inválidos |
 
 ## Matriz de pruebas
 
@@ -281,7 +283,7 @@ entre procesos no equivalen a validación de una instalación remota de Turso.
   un freeze que exija `pnpm verify` completamente verde queda pendiente hasta
   resolver también el baseline global. No se ocultarán errores con disables.
 - Estado final de esta fase: `pnpm test` sobre SQLite temporal, **30 archivos /
-  140 tests pasan**; `pnpm exec tsc --noEmit` y `pnpm build` pasan.
+  142 tests pasan**; `pnpm exec tsc --noEmit` y `pnpm build` pasan.
   `pnpm check` mantiene el baseline global de ESLint: 4.359 errores y 1.154
   warnings; no se introdujeron disables ni se hizo limpieza ajena a Credits.
 - Gestor detectado: `pnpm-lock.yaml`, `packageManager: pnpm@11.22.0`.

@@ -213,6 +213,45 @@ describe('Hive claim adapter', () => {
     ).resolves.toMatchObject({ ok: true })
   })
 
+  it('accepts an expired transaction when Hive confirms irreversible inclusion', async () => {
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => ({ status: 'expired_irreversible' }),
+      getTransaction: async () =>
+        transactionWithOperations([claimOperation(claimJson())]),
+    })
+
+    await expect(
+      adapter.verify(
+        {
+          transactionId: TRANSACTION_ID,
+          hash: HASH,
+          username: USERNAME,
+        },
+        NOW
+      )
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('rejects an expired transaction that is still reversible', async () => {
+    const adapter = createHiveClaimAdapter({
+      getStatus: async () => ({ status: 'expired_reversible' }),
+      getTransaction: async () => {
+        throw new Error('payload should not be read')
+      },
+    })
+
+    await expect(
+      adapter.verify(
+        {
+          transactionId: TRANSACTION_ID,
+          hash: HASH,
+          username: USERNAME,
+        },
+        NOW
+      )
+    ).resolves.toMatchObject({ ok: false, kind: 'invalid' })
+  })
+
   it('keeps unknown and mempool transactions pending without reading the payload', async () => {
     let transactionReads = 0
     const adapter = createHiveClaimAdapter({

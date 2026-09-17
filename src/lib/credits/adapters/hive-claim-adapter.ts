@@ -328,11 +328,7 @@ export async function verifyHiveClaim(
       return pending('Transaction has not been included in a block yet')
     }
 
-    if (
-      status === 'expired_reversible' ||
-      status === 'expired_irreversible' ||
-      status === 'too_old'
-    ) {
+    if (status === 'expired_reversible' || status === 'too_old') {
       return invalid(`Transaction is no longer claimable (${status})`)
     }
 

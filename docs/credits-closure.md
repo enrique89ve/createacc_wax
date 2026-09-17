@@ -1,6 +1,6 @@
 # Credits v1: cierre local
 
-Estado: implementado en trece commits sobre `main`.
+Estado: implementado en catorce commits sobre `main`.
 
 La serie dejó el claim en un flujo persistente, consciente de la finalidad Hive y atómico: el intent se guarda en
 `CreditClaimIntents`, Hive produce evidencia normalizada con índice de operación,
@@ -28,13 +28,14 @@ Commits aplicados:
 - `238b244` `test(credits): cover reversible-to-irreversible claim flow`
 - `ad7f80b` `refactor(credits): unify balance consistency calculation`
 - `b182834` `refactor(credits): make claim payload timestamp backward-compatible`
-- `HEAD` `docs(credits): close finality and consistency phase`
+- `9d2e8a8` `docs(credits): close finality and consistency phase`
+- `HEAD` `fix(credits): preserve irreversible expired claims`
 
 Validación local ejecutada el 2026-09-17 con Node Linux 22.17.0 y pnpm 11.22.0,
 usando una DB SQLite temporal y sin credenciales de Turso:
 
 ```text
-pnpm test                         30 files / 140 tests passed
+pnpm test                         30 files / 142 tests passed
 pnpm exec tsc --noEmit            passed
 pnpm build                        passed
 pnpm exec vitest run ...          adapter, polling, finality, schema, claim, core, stateless passed
@@ -62,7 +63,7 @@ reset destructivo ni se declaró despliegue.
 
 Este cierre local no prueba Keychain real, dos navegadores, un proveedor Hive
 desplegado ni Turso remoto. La finalidad está cubierta contra el contrato de
-estados del adapter y fixtures locales; falta evidencia operativa de una
+estados del adapter, incluyendo `expired_irreversible`, y fixtures locales; falta evidencia operativa de una
 transacción real atravesando reversible e irreversible. Tampoco implementa pagos HIVE/HBD, pricing,
 treasury u órdenes. Esa fase debe usar `HivePaymentAdapter`, referencias
 `hive:payment:<txid>:<op_index>` y `grantAvailableCredits()` después de fijar esos
