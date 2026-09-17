@@ -1,17 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import { validateCreditsDelta } from './ticket-validator'
+import { validateUsesDelta } from './ticket-validator'
 import { deriveTicketKind, deriveTicketStatus } from '@/types/database'
 
-describe('validateCreditsDelta', () => {
+describe('validateUsesDelta', () => {
   it('preserves consumed uses when adding capacity', () => {
-    expect(validateCreditsDelta(7, 2, 10)).toEqual({
+    expect(validateUsesDelta(7, 2, 10)).toEqual({
       success: true,
-      data: { delta: 2, newCredits: 9 },
+      data: { delta: 2, newUses: 9 },
     })
   })
 
   it('rejects a change that would exceed the total capacity limit', () => {
-    expect(validateCreditsDelta(7, 1, 100).success).toBe(false)
+    expect(validateUsesDelta(7, 1, 100).success).toBe(false)
+  })
+
+  it('allows resizing remaining uses down to zero', () => {
+    expect(validateUsesDelta(2, -2, 10)).toEqual({
+      success: true,
+      data: { delta: -2, newUses: 0 },
+    })
+  })
+
+  it('keeps total ticket uses at least one', () => {
+    expect(validateUsesDelta(1, -1, 1).success).toBe(false)
   })
 
   it('derives ticket kind and lifecycle from persisted facts', () => {

@@ -63,7 +63,7 @@ export const GET: APIRoute = async context => {
 						u.role as creator_role
 					FROM Tickets t
 					LEFT JOIN TicketAudit ta ON t.code = ta.ticket
-					LEFT JOIN "user" u ON t.creator_username = u.id
+					LEFT JOIN "user" u ON t.creator_username = u.username
 					WHERE t.creator_username = ?
 					ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
 					LIMIT ?
@@ -92,8 +92,8 @@ export const GET: APIRoute = async context => {
           'Type',
           'Code',
           'Description',
-          'Original Credits',
-          'Current Credits',
+          'Total Uses',
+          'Remaining Uses',
           'Action',
           'Status',
         ]
@@ -137,8 +137,8 @@ export const GET: APIRoute = async context => {
           type: item.type,
           code: item.code,
           description: item.description,
-          originalCredits: item.total_uses,
-          currentCredits: item.remaining_uses,
+          totalUses: item.total_uses,
+          remainingUses: item.remaining_uses,
           action: item.action || 'created',
           status: item.remaining_uses > 0 ? 'Available' : 'Used',
           createdBy: item.created_by_username,

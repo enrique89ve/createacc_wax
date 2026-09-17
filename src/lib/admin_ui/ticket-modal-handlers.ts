@@ -5,7 +5,7 @@
  * Uses native Astro components instead of innerHTML
  */
 
-import { BUILDERS_UI, MAX_TICKET_CREDITS } from '@/consts/constants'
+import { BUILDERS_UI, MAX_TICKET_USES } from '@/consts/constants'
 
 export interface TicketData {
   id: number
@@ -22,13 +22,13 @@ let updateModalContent: HTMLElement | null
 let deleteModalContent: HTMLElement | null
 let currentTicket: TicketData | null = null
 
-// Available credits cache (updated when opening modal)
+// Available builder credits cache (updated when opening modal)
 let cachedAvailableCredits: number = 0
 
 // Update modal elements (SLIDER)
 let updateForm: HTMLFormElement | null
 let updateCodeDisplay: HTMLInputElement | null
-let updateCreditsDisplay: HTMLInputElement | null
+let updateUsesDisplay: HTMLInputElement | null
 let deltaSlider: HTMLInputElement | null // Changed from deltaInput to deltaSlider
 let deltaValueDisplay: HTMLElement | null // New: value display
 let sliderMinLabel: HTMLElement | null // New: minimum label
@@ -41,7 +41,7 @@ let confirmBtn: HTMLButtonElement | null
 
 // Delete modal elements
 let deleteTicketCode: HTMLElement | null
-let deleteTicketCredits: HTMLElement | null
+let deleteTicketUses: HTMLElement | null
 let deleteRefundAmount: HTMLElement | null
 
 // Notification function (now accepts optional duration parameter)
@@ -61,8 +61,8 @@ export function initializeTicketModals(
   updateCodeDisplay = document.querySelector<HTMLInputElement>(
     '#update-ticket-code-display'
   )
-  updateCreditsDisplay = document.querySelector<HTMLInputElement>(
-    '#update-ticket-credits-display'
+  updateUsesDisplay = document.querySelector<HTMLInputElement>(
+    '#update-ticket-uses-display'
   )
 
   // Slider references and associated elements
@@ -78,7 +78,7 @@ export function initializeTicketModals(
   confirmBtn = document.querySelector<HTMLButtonElement>('#confirm-update')
 
   deleteTicketCode = document.getElementById('delete-ticket-code')
-  deleteTicketCredits = document.getElementById('delete-ticket-credits')
+  deleteTicketUses = document.getElementById('delete-ticket-uses')
   deleteRefundAmount = document.getElementById('delete-refund-amount')
 
   // Event listeners
@@ -112,9 +112,9 @@ async function getBuilderCredits(): Promise<number> {
 
 /**
  * Configure dynamic slider limits based on:
- * - Current ticket credits
+ * - Current ticket uses
  * - Available builder credits
- * - Maximum limit of 100 credits per ticket
+ * - Maximum limit of 100 uses per ticket
  */
 async function setupSlider(ticket: TicketData) {
   if (
@@ -130,10 +130,10 @@ async function setupSlider(ticket: TicketData) {
   cachedAvailableCredits = availableCredits
 
   // Calculate limits
-  const maxDecrease = ticket.remaining_uses - 1 // Minimum 1 credit on the ticket
+    const maxDecrease = ticket.remaining_uses // Resizing may exhaust a ticket
   const maxIncrease = Math.min(
     availableCredits,
-    MAX_TICKET_CREDITS - ticket.remaining_uses // Do not exceed 100 credits
+    MAX_TICKET_USES - ticket.remaining_uses // Do not exceed 100 uses
   )
 
   // Configure slider attributes
@@ -152,7 +152,7 @@ async function setupSlider(ticket: TicketData) {
     sliderMaxLabel.textContent = `+${maxIncrease}`
     sliderMaxLabel.className = 'text-emerald-400 font-medium'
   } else {
-    sliderMaxLabel.textContent = 'no credits'
+    sliderMaxLabel.textContent = 'no uses'
     sliderMaxLabel.className = 'text-gray-500 font-medium italic'
   }
 
@@ -178,8 +178,8 @@ export async function openUpdateModal(ticket: TicketData) {
 
   // Populate readonly fields
   if (updateCodeDisplay) updateCodeDisplay.value = ticket.code
-  if (updateCreditsDisplay) {
-    updateCreditsDisplay.value = `${ticket.remaining_uses} / ${ticket.total_uses}`
+  if (updateUsesDisplay) {
+    updateUsesDisplay.value = `${ticket.remaining_uses} / ${ticket.total_uses}`
   }
 
   // Configure slider with dynamic limits
@@ -209,8 +209,8 @@ export function openDeleteModal(ticket: TicketData) {
 
   // Populate fields
   if (deleteTicketCode) deleteTicketCode.textContent = ticket.code
-  if (deleteTicketCredits)
-    deleteTicketCredits.textContent = String(ticket.total_uses)
+  if (deleteTicketUses)
+    deleteTicketUses.textContent = String(ticket.total_uses)
   if (deleteRefundAmount)
     deleteRefundAmount.textContent = String(ticket.total_uses)
 
@@ -271,17 +271,17 @@ function setupUpdateModalListeners() {
     }
 
     // Calculate new values
-    const newCredits = currentTicket.remaining_uses + delta
+    const newUses = currentTicket.remaining_uses + delta
     const newOriginal = currentTicket.total_uses + delta
 
-    // Validate credit limits
-    if (newCredits < 1 || newOriginal < 1) {
-      showError(BUILDERS_UI.MESSAGES.MIN_CREDIT_REMAINING)
+    // Validate use limits
+    if (newUses < 0 || newOriginal < 1) {
+      showError(BUILDERS_UI.MESSAGES.MIN_USE_REMAINING)
       return
     }
 
-    if (newOriginal > MAX_TICKET_CREDITS) {
-      showError(`Credits cannot exceed ${MAX_TICKET_CREDITS}`)
+    if (newOriginal > MAX_TICKET_USES) {
+      showError(`Uses cannot exceed ${MAX_TICKET_USES}`)
       return
     }
 
@@ -307,11 +307,11 @@ function setupUpdateModalListeners() {
 
       const valueSpan = document.createElement('span')
       valueSpan.className = 'font-mono text-lg font-bold text-white'
-      valueSpan.textContent = String(newCredits)
+      valueSpan.textContent = String(newUses)
 
       const unitSpan = document.createElement('span')
       unitSpan.className = 'text-gray-500'
-      unitSpan.textContent = 'credits'
+      unitSpan.textContent = 'uses'
 
       container.appendChild(labelSpan)
       container.appendChild(valueSpan)
@@ -353,7 +353,7 @@ function setupUpdateModalListeners() {
         const deltaText = delta > 0 ? `+${delta}` : String(delta)
         notify(
           'success',
-          `Credits updated: ${currentTicket.remaining_uses} → ${currentTicket.remaining_uses + delta} (${deltaText})`,
+          `Uses updated: ${currentTicket.remaining_uses} → ${currentTicket.remaining_uses + delta} (${deltaText})`,
           3000
         )
         closeModal()
@@ -363,7 +363,7 @@ function setupUpdateModalListeners() {
           location.reload()
         }, 3000)
       } else {
-        notify('error', data.error || 'Error updating credits')
+        notify('error', data.error || 'Error updating uses')
       }
     } catch (_error) {
       // Network error: notify user with generic message
@@ -429,8 +429,8 @@ function setupTicketButtons() {
       const ticket: TicketData = {
         id: parseInt(target.dataset.ticketId || '0', 10),
         code: target.dataset.ticketCode || '',
-        remaining_uses: parseInt(target.dataset.ticketCredits || '0', 10),
-        total_uses: parseInt(target.dataset.ticketOriginal || '0', 10),
+        remaining_uses: parseInt(target.dataset.ticketUses || '0', 10),
+        total_uses: parseInt(target.dataset.ticketTotalUses || '0', 10),
       }
       openUpdateModal(ticket)
     })
@@ -443,8 +443,8 @@ function setupTicketButtons() {
       const ticket: TicketData = {
         id: parseInt(target.dataset.ticketId || '0', 10),
         code: target.dataset.ticketCode || '',
-        remaining_uses: parseInt(target.dataset.ticketCredits || '0', 10),
-        total_uses: parseInt(target.dataset.ticketOriginal || '0', 10),
+        remaining_uses: parseInt(target.dataset.ticketUses || '0', 10),
+        total_uses: parseInt(target.dataset.ticketTotalUses || '0', 10),
       }
       openDeleteModal(ticket)
     })

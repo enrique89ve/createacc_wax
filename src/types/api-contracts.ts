@@ -14,15 +14,12 @@
  */
 export interface CreateTicketRequest {
   readonly code: string
-  /** Kept as the wire name for backwards compatibility; persisted as uses. */
-  readonly credits: number
+  readonly uses: number
   readonly description?: string
 }
 
-/**
- * Request para actualizar créditos de un ticket
- */
-export interface UpdateTicketCreditsRequest {
+/** Request para actualizar los usos de un ticket. */
+export interface UpdateTicketUsesRequest {
   readonly ticketId: number
   readonly code: string
   readonly delta?: number
@@ -40,17 +37,15 @@ export interface CreateTicketResponse {
   readonly success: true
   readonly ticketId: number
   readonly code: string
-  readonly credits: number
+  readonly uses: number
 }
 
-/**
- * Response al actualizar créditos de un ticket
- */
-export interface UpdateTicketCreditsResponse {
+/** Response al actualizar los usos de un ticket. */
+export interface UpdateTicketUsesResponse {
   readonly success: true
   readonly message: string
-  readonly oldCredits: number
-  readonly newCredits: number
+  readonly oldUses: number
+  readonly newUses: number
 }
 
 /**
@@ -59,7 +54,7 @@ export interface UpdateTicketCreditsResponse {
 export interface DeleteTicketResponse {
   readonly success: true
   readonly message: string
-  readonly refundedCredits: number
+  readonly refundedUses: number
 }
 
 // ============================================

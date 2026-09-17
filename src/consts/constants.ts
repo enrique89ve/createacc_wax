@@ -230,7 +230,7 @@ export const BUILDERS_UI = {
   MESSAGES: {
     TICKET_CREATED: 'Ticket creado exitosamente',
     TICKET_DELETED: 'Ticket eliminado',
-    CREDITS_UPDATED: 'Créditos actualizados',
+    USES_UPDATED: 'Usos actualizados',
     INVALID_DELTA: 'Delta inválido',
     NETWORK_ERROR: 'Error de red',
     CODE_AVAILABLE: '✓ Código disponible',
@@ -238,7 +238,7 @@ export const BUILDERS_UI = {
     CHECKING_AVAILABILITY: 'Verificando disponibilidad...',
     TICKET_NAME_REQUIRED: 'El nombre del ticket es requerido',
     ONLY_NUMBERS: 'No puede ser solo números',
-    CREDITS_RANGE: 'Los créditos deben estar entre 1 y 100',
+    USES_RANGE: 'Los usos deben estar entre 1 y 100',
     CONFIRM_DELETE:
       '¿Eliminar ticket? Esta acción devolverá créditos originales.',
     MIN_LENGTH_ERROR: 'El nombre debe tener al menos',
@@ -246,8 +246,8 @@ export const BUILDERS_UI = {
     INSUFFICIENT_CREDITS: 'No tienes suficientes créditos disponibles',
     DELTA_REQUIRED: 'El delta de créditos es requerido',
     DELTA_ZERO: 'El delta no puede ser cero',
-    MIN_CREDIT_REMAINING: 'Debe quedar al menos 1 crédito en el ticket',
-    INVALID_NEW_CREDITS: 'Los nuevos créditos deben estar entre 1 y 100',
+    MIN_USE_REMAINING: 'Los usos restantes no pueden ser negativos',
+    INVALID_NEW_USES: 'Los nuevos usos deben estar entre 0 y 100',
   },
   API_ENDPOINTS: {
     // Nuevas rutas builders (organizadas por recurso)
@@ -269,7 +269,7 @@ export const BUILDERS_UI = {
   DEBOUNCE_DELAY_MS: 500,
 } as const
 
-export const MAX_TICKET_CREDITS = 100 as const
+export const MAX_TICKET_USES = 100 as const
 
 export const TICKET_LENGTH = {
   MIN: 10,

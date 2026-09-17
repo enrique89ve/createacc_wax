@@ -1,7 +1,7 @@
 /**
  * BUILDERS API: TICKET BY ID
  *
- * PATCH  /api/builders/tickets/:id - Update ticket credits
+ * PATCH  /api/builders/tickets/:id - Update ticket uses
  * DELETE /api/builders/tickets/:id - Delete a ticket
  */
 
@@ -14,19 +14,19 @@ import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { withTransaction } from '@/lib/database'
-import { validateCreditsDelta } from '@/lib/validators/ticket-validator'
+import { validateUsesDelta } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import type {
-  UpdateTicketCreditsRequest,
-  UpdateTicketCreditsResponse,
+  UpdateTicketUsesRequest,
+  UpdateTicketUsesResponse,
   DeleteTicketResponse,
 } from '@/types/api-contracts'
 
 /**
  * PATCH /api/builders/tickets/:id
- * Update ticket credits (add or reduce)
+ * Update ticket uses (add or reduce)
  */
 export const PATCH: APIRoute = async context => {
   const csrfCheck = requireValidOrigin(context.request)
@@ -49,7 +49,7 @@ export const PATCH: APIRoute = async context => {
         return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
-      const body: UpdateTicketCreditsRequest = await context.request.json()
+      const body: UpdateTicketUsesRequest = await context.request.json()
       const { code, delta } = body
 
       const ticket = await ticketsRepository.findById(ticketId)
@@ -94,7 +94,7 @@ export const PATCH: APIRoute = async context => {
         )
       }
 
-      const deltaValidation = validateCreditsDelta(
+      const deltaValidation = validateUsesDelta(
         ticket.remaining_uses,
         delta,
         ticket.total_uses
@@ -103,7 +103,7 @@ export const PATCH: APIRoute = async context => {
         return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
 
-      const { newCredits } = deltaValidation.data
+      const { newUses } = deltaValidation.data
 
       if (delta > 0) {
         const validation = await creditBalanceTracker.validateOperation(
@@ -143,7 +143,7 @@ export const PATCH: APIRoute = async context => {
           {
             remaining_uses: ticket.remaining_uses + delta,
             // Preserve the consumed-use history: total changes by delta,
-            // while remaining credits are updated independently.
+            // while remaining uses are updated independently.
             total_uses: ticket.total_uses + delta,
           }
         )
@@ -152,11 +152,11 @@ export const PATCH: APIRoute = async context => {
         }
       })
 
-      const response: UpdateTicketCreditsResponse = {
+      const response: UpdateTicketUsesResponse = {
         success: true,
         message: 'Ticket actualizado exitosamente',
-        oldCredits: ticket.remaining_uses,
-        newCredits: newCredits,
+        oldUses: ticket.remaining_uses,
+        newUses,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)
@@ -208,15 +208,15 @@ export const DELETE: APIRoute = async context => {
         )
       }
 
-      const creditsToRefund = ticket.has_been_used
+      const usesToRefund = ticket.has_been_used
         ? ticket.remaining_uses
         : ticket.total_uses
 
       await withTransaction(async () => {
-        if (creditsToRefund > 0) {
+        if (usesToRefund > 0) {
           await creditsService.refundCreditsFromTicket(
             session.username,
-            creditsToRefund,
+            usesToRefund,
             ticket.code
           )
         }
@@ -233,9 +233,9 @@ export const DELETE: APIRoute = async context => {
       const response: DeleteTicketResponse = {
         success: true,
         message: ticket.has_been_used
-          ? `Ticket eliminado. Se reembolsaron ${creditsToRefund} créditos restantes.`
+          ? `Ticket eliminado. Se reembolsaron ${usesToRefund} usos restantes.`
           : 'Ticket eliminado exitosamente',
-        refundedCredits: creditsToRefund,
+        refundedUses: usesToRefund,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)

@@ -94,7 +94,7 @@ if (builderUser) {
                 <thead class="table-header">
                   <tr>
                     <th class="table-th text-left">Código</th>
-                    <th class="table-th text-center">Créditos</th>
+                    <th class="table-th text-center">Usos</th>
                     <th class="table-th text-center">Creado</th>
                     <th class="table-th text-center">Acciones</th>
                   </tr>
@@ -147,9 +147,9 @@ if (builderUser) {
                             class="ticket-update-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400 ring-1 ring-blue-500/20 transition-all hover:bg-blue-500/20"
                             data-ticket-id={t.id}
                             data-ticket-code={t.code}
-                            data-ticket-credits={t.remaining_uses}
-                            data-ticket-original={t.total_uses}
-                            title="Editar créditos"
+                            data-ticket-uses={t.remaining_uses}
+                            data-ticket-total-uses={t.total_uses}
+                            title="Editar usos"
                           >
                             <svg
                               class="h-3.5 w-3.5"
@@ -170,8 +170,8 @@ if (builderUser) {
                             class="ticket-delete-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20"
                             data-ticket-id={t.id}
                             data-ticket-code={t.code}
-                            data-ticket-credits={t.remaining_uses}
-                            data-ticket-original={t.total_uses}
+                            data-ticket-uses={t.remaining_uses}
+                            data-ticket-total-uses={t.total_uses}
                             title="Eliminar ticket"
                           >
                             <svg
@@ -223,7 +223,7 @@ if (builderUser) {
                     {/* Créditos destacados */}
                     <div class="flex items-center justify-between">
                       <span class="text-muted-foreground text-xs uppercase tracking-wide">
-                        Créditos
+                        Usos
                       </span>
                       <div class="text-foreground text-lg font-semibold tabular-nums">
                         {t.remaining_uses}
@@ -262,9 +262,9 @@ if (builderUser) {
                         class="ticket-update-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-2 text-xs font-medium text-blue-400 ring-1 ring-blue-500/20 transition-all hover:bg-blue-500/20"
                         data-ticket-id={t.id}
                         data-ticket-code={t.code}
-                        data-ticket-credits={t.remaining_uses}
-                        data-ticket-original={t.total_uses}
-                        title="Actualizar créditos"
+                        data-ticket-uses={t.remaining_uses}
+                        data-ticket-total-uses={t.total_uses}
+                        title="Actualizar usos"
                       >
                         <svg
                           class="h-4 w-4"
@@ -287,8 +287,8 @@ if (builderUser) {
                         class="ticket-delete-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-red-500/10 px-3 py-2 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20"
                         data-ticket-id={t.id}
                         data-ticket-code={t.code}
-                        data-ticket-credits={t.remaining_uses}
-                        data-ticket-original={t.total_uses}
+                        data-ticket-uses={t.remaining_uses}
+                        data-ticket-total-uses={t.total_uses}
                         title="Eliminar ticket"
                       >
                         <svg
@@ -331,10 +331,10 @@ if (builderUser) {
       <h3 class="text-foreground mb-2 text-sm font-semibold">ℹ️ Notas</h3>
       <ul class="text-muted-foreground list-disc space-y-1 pl-4 text-xs">
         <li>
-          Actualizar créditos aplica un delta (positivo o negativo) sobre los
-          créditos actuales.
+          Actualizar usos aplica un delta (positivo o negativo) sobre los
+            usos restantes.
         </li>
-        <li>El borrado devuelve los créditos originales a tu saldo.</li>
+        <li>El borrado devuelve los usos no consumidos a tu saldo.</li>
         <li>
           Si el ticket ya fue usado para crear cuentas, se eliminará pero sin
           reembolso de créditos consumidos.
@@ -385,15 +385,15 @@ if (builderUser) {
         </div>
         <div class="mb-4">
           <label
-            for="ticket-credits"
+            for="ticket-uses"
             class="mb-2 block text-sm font-medium text-gray-300"
           >
-            Créditos Iniciales
+            Usos Iniciales
           </label>
           <input
             type="number"
-            id="ticket-credits"
-            name="credits"
+            id="ticket-uses"
+            name="uses"
             min="1"
             value="1"
             max={Math.min(availableCredits, 100)}
@@ -405,7 +405,7 @@ if (builderUser) {
           <p id="credits-help-text" class="mt-1 text-xs text-gray-400">
             Tienes <span class="text-primary font-semibold"
               >{availableCredits}</span
-            > créditos disponibles (máx. 100 por ticket)
+            > créditos disponibles (máx. 100 usos por ticket)
           </p>
         </div>
         <div class="mb-6">
@@ -487,8 +487,8 @@ if (builderUser) {
   ) as HTMLInputElement | null
   const ticketAvailabilityEl = document.getElementById('ticket-availability')
   const ticketCheckIcon = document.getElementById('ticket-check-icon')
-  const ticketCreditsInput = document.getElementById(
-    'ticket-credits'
+  const ticketUsesInput = document.getElementById(
+    'ticket-uses'
   ) as HTMLInputElement | null
   const creditsHelpText = document.getElementById(
     'credits-help-text'
@@ -581,17 +581,17 @@ if (builderUser) {
     }, 500)
   })
 
-  // Validación en tiempo real del campo de créditos
-  ticketCreditsInput?.addEventListener('input', () => {
+  // Validación en tiempo real del campo de usos
+  ticketUsesInput?.addEventListener('input', () => {
     const availableCredits = parseInt(
-      ticketCreditsInput.dataset.availableCredits || '0'
+      ticketUsesInput.dataset.availableCredits || '0'
     )
     const maxAllowed = Math.min(availableCredits, 100)
-    const currentValue = parseInt(ticketCreditsInput.value) || 0
+    const currentValue = parseInt(ticketUsesInput.value) || 0
 
     // Si el valor excede el máximo permitido, ajustarlo automáticamente
     if (currentValue > maxAllowed) {
-      ticketCreditsInput.value = maxAllowed.toString()
+      ticketUsesInput.value = maxAllowed.toString()
 
       // Mostrar feedback visual temporal (usando textContent para prevenir XSS)
       if (creditsHelpText) {
@@ -607,8 +607,8 @@ if (builderUser) {
     }
 
     // Si el valor es menor que 1, ajustar a 1
-    if (currentValue < 1 && ticketCreditsInput.value !== '') {
-      ticketCreditsInput.value = '1'
+    if (currentValue < 1 && ticketUsesInput.value !== '') {
+      ticketUsesInput.value = '1'
     }
   })
 
@@ -647,7 +647,7 @@ if (builderUser) {
     const ticketName = (formData.get('ticketName') as string)
       .toUpperCase()
       .trim()
-    const credits = parseInt(formData.get('credits') as string)
+    const uses = parseInt(formData.get('uses') as string)
     const description = formData.get('description') as string
 
     // Validar nombre
@@ -666,21 +666,21 @@ if (builderUser) {
       return
     }
 
-    // Validar créditos (usar el elemento ya declarado al inicio del script)
+    // Validar usos (usar el elemento ya declarado al inicio del script)
     const maxCredits = parseInt(
-      ticketCreditsInput?.dataset.availableCredits || '0'
+      ticketUsesInput?.dataset.availableCredits || '0'
     )
     const effectiveMax = Math.min(maxCredits, 100)
 
-    if (!credits || credits < 1) {
-      notify('error', 'Los créditos deben ser al menos 1')
+    if (!uses || uses < 1) {
+      notify('error', 'Los usos deben ser al menos 1')
       return
     }
 
-    if (credits > effectiveMax) {
+    if (uses > effectiveMax) {
       notify(
         'error',
-        `No puedes asignar más de ${effectiveMax} créditos (tienes ${maxCredits} disponibles)`
+        `No puedes asignar más de ${effectiveMax} usos (tienes ${maxCredits} créditos disponibles)`
       )
       return
     }
@@ -691,7 +691,7 @@ if (builderUser) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: ticketName,
-          credits,
+          uses,
           description: description || null,
         }),
       })

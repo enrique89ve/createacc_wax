@@ -62,9 +62,9 @@ export class TicketsRepository {
    */
   async create(data: CreateTicketData): Promise<TicketCreationResult> {
     try {
-      // Validate credits
+      // Validate ticket uses
       if (data.total_uses <= 0 || data.remaining_uses < 0) {
-        throw new Error('Credits must be greater than 0')
+        throw new Error('Ticket uses must be greater than 0')
       }
 
       if (data.remaining_uses > data.total_uses) {
@@ -502,7 +502,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Deduct credits from a ticket (used when creating an account)
+   * Deduct one use from a ticket (used when creating an account)
    */
   async deductCredit(code: string): Promise<void> {
     try {

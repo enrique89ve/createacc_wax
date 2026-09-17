@@ -92,7 +92,7 @@ function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(message)
 }
 
-async function ticketCredits(ticket: string): Promise<number> {
+async function ticketUses(ticket: string): Promise<number> {
   const result = await db.execute({
     sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
     args: [ticket],
@@ -204,7 +204,7 @@ async function runCreatePipeline(): Promise<void> {
     const keys = await HiveKeys.generate(fixture.username)
     const params = keys.toCreateAccountParams(fixture.username)
     assert(
-      (await ticketCredits(fixture.ticket)) === 3,
+      (await ticketUses(fixture.ticket)) === 3,
       'ticket should start at 3 uses'
     )
 
@@ -215,7 +215,7 @@ async function runCreatePipeline(): Promise<void> {
       'attempt should be reserved'
     )
     assert(
-      (await ticketCredits(fixture.ticket)) === 2,
+      (await ticketUses(fixture.ticket)) === 2,
       'reserve should consume one credit'
     )
 
@@ -299,7 +299,7 @@ async function runWaxFailureRollback(): Promise<void> {
     const params = invalidCreateParams(fixture.username)
     await reserveFor(fixture, params)
     assert(
-      (await ticketCredits(fixture.ticket)) === 2,
+      (await ticketUses(fixture.ticket)) === 2,
       'reserve should consume one credit'
     )
 
@@ -322,7 +322,7 @@ async function runWaxFailureRollback(): Promise<void> {
     )
     assert(rolled.success, rolled.error ?? 'rollback failed')
     assert(
-      (await ticketCredits(fixture.ticket)) === 3,
+      (await ticketUses(fixture.ticket)) === 3,
       'rollback should restore the credit'
     )
     assert(

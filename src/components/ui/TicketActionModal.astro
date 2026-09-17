@@ -7,7 +7,7 @@
 
 import UpdateTicketModal from '@/components/modals/UpdateTicketModal.astro'
 import DeleteTicketModal from '@/components/modals/DeleteTicketModal.astro'
-import { MAX_TICKET_CREDITS } from '@/consts/constants'
+import { MAX_TICKET_USES } from '@/consts/constants'
 
 interface Props {
   availableCredits: number
@@ -24,7 +24,7 @@ const { availableCredits } = Astro.props
     <!-- Modales como componentes Astro nativos -->
     <UpdateTicketModal
       availableCredits={availableCredits}
-      maxTicketCredits={MAX_TICKET_CREDITS}
+      maxTicketUses={MAX_TICKET_USES}
     />
     <DeleteTicketModal />
   </div>

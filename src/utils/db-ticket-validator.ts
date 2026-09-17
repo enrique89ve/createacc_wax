@@ -139,7 +139,7 @@ export async function validateTicketInDB(
       return { isValid: false, error: 'Ticket no está activo' }
     }
 
-    // Verify that the ticket has available credits
+    // Verify that the ticket has available uses
     if (ticket.remaining_uses <= 0) {
       return { isValid: false, error: 'Ticket sin créditos disponibles' }
     }
@@ -158,7 +158,7 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
     const cleanCode = sanitizeTicketCode(ticketCode)
     if (!cleanCode) return false
 
-    // UPDATE reducing credits and refreshing updated_at
+    // UPDATE reducing uses and refreshing updated_at
     // is_active and has_been_used are updated automatically
     const updateReturning = await execute({
       sql: `UPDATE Tickets
@@ -174,7 +174,7 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
     })
 
     if (updateReturning.rows.length === 0) {
-      return false // no longer had credits or did not exist
+      return false // no longer had uses or did not exist
     }
 
     const row = updateReturning.rows[0] as { id?: unknown; code?: unknown }
@@ -402,7 +402,7 @@ export async function reserveTicketCredit(
                   SELECT 1 FROM BlockedHiveAccounts b
                   WHERE b.hive_username = Tickets.creator_username
                 )
-              RETURNING id, code, remaining_uses as remaining_credits`,
+              RETURNING id, code, remaining_uses`,
         args: [cleanTicketCode],
       })
 
@@ -422,7 +422,7 @@ export async function reserveTicketCredit(
         }
         return {
           success: false,
-          error: 'Ticket is unavailable, inactive or has no available credits',
+          error: 'Ticket is unavailable, inactive or has no available uses',
           errorCode: VALIDATION_ERROR_CODES.TICKET_RACE_CONDITION,
           correlationId,
         }

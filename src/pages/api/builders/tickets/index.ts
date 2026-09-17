@@ -16,7 +16,7 @@ import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { withTransaction } from '@/lib/database'
 import {
   validateTicketName,
-  validateTicketCredits,
+  validateTicketUses,
   validateTicketDescription,
 } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
@@ -78,17 +78,17 @@ export const POST: APIRoute = async context => {
 
     try {
       const body: CreateTicketRequest = await context.request.json()
-      const { code, credits, description } = body
+      const { code, uses, description } = body
 
       const codeValidation = validateTicketName(code)
       if (!isValidationSuccess(codeValidation)) {
         return apiError(codeValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
 
-      const creditsValidation = validateTicketCredits(credits)
-      if (!isValidationSuccess(creditsValidation)) {
+      const usesValidation = validateTicketUses(uses)
+      if (!isValidationSuccess(usesValidation)) {
         return apiError(
-          creditsValidation.error.message,
+          usesValidation.error.message,
           HTTP_STATUS.BAD_REQUEST
         )
       }
@@ -102,7 +102,7 @@ export const POST: APIRoute = async context => {
       }
 
       const ticketCode = codeValidation.data
-      const ticketCredits = creditsValidation.data
+      const ticketUses = usesValidation.data
       const ticketDescription = descriptionValidation.data
 
       const existingTicket = await ticketsRepository.findByCode(ticketCode)
@@ -116,7 +116,7 @@ export const POST: APIRoute = async context => {
       const validation = await creditBalanceTracker.validateOperation(
         session.username,
         'deduct',
-        ticketCredits
+        ticketUses
       )
 
       if (!validation.valid) {
@@ -129,15 +129,15 @@ export const POST: APIRoute = async context => {
       const createdTicket = await withTransaction(async () => {
         await creditsService.deductCreditsForTicket(
           session.username,
-          ticketCredits,
+          ticketUses,
           ticketCode
         )
 
         return ticketsRepository.create({
           code: ticketCode,
           description: ticketDescription,
-          total_uses: ticketCredits,
-          remaining_uses: ticketCredits,
+          total_uses: ticketUses,
+          remaining_uses: ticketUses,
           creator_username: session.username,
         })
       })
@@ -146,7 +146,7 @@ export const POST: APIRoute = async context => {
         success: true,
         ticketId: createdTicket.id,
         code: createdTicket.code,
-        credits: createdTicket.remaining_uses,
+        uses: createdTicket.remaining_uses,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)

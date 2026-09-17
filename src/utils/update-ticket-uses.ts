@@ -1,28 +1,28 @@
 import { db } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
 
-export interface UpdateTicketCreditsResultSuccess {
+export interface UpdateTicketUsesResultSuccess {
   readonly ok: true
   readonly ticketId: number
   readonly code: string
-  readonly oldCredits: number
-  readonly newCredits: number
+  readonly oldUses: number
+  readonly newUses: number
 }
 
-export interface UpdateTicketCreditsResultError {
+export interface UpdateTicketUsesResultError {
   readonly ok: false
   readonly error: string
 }
 
-export type UpdateTicketCreditsResult =
-  | UpdateTicketCreditsResultSuccess
-  | UpdateTicketCreditsResultError
+export type UpdateTicketUsesResult =
+  | UpdateTicketUsesResultSuccess
+  | UpdateTicketUsesResultError
 
-export async function updateTicketCredits(options: {
+export async function updateTicketUses(options: {
   readonly code: string
   readonly delta: number // puede ser negativo
   readonly performedBy?: number
-}): Promise<UpdateTicketCreditsResult> {
+}): Promise<UpdateTicketUsesResult> {
   try {
     const { code, delta, performedBy } = options
     if (typeof code !== 'string' || !code.trim()) {
@@ -47,7 +47,7 @@ export async function updateTicketCredits(options: {
     if (result.rows.length === 0) {
       return {
         ok: false,
-        error: 'Ticket no encontrado o créditos insuficientes',
+        error: 'Ticket no encontrado o usos insuficientes',
       }
     }
 
@@ -56,8 +56,8 @@ export async function updateTicketCredits(options: {
       return { ok: false, error: 'Error parseando ticket actualizado' }
     }
 
-    const newCredits = ticket.remaining_uses
-    const oldCredits = newCredits - delta
+    const newUses = ticket.remaining_uses
+    const oldUses = newUses - delta
 
     await db.execute({
       sql: `INSERT INTO TicketAudit (ticket, action, performed_by)
@@ -72,8 +72,8 @@ export async function updateTicketCredits(options: {
       ok: true,
       ticketId: ticket.id,
       code: ticket.code,
-      oldCredits,
-      newCredits,
+      oldUses,
+      newUses,
     }
   } catch (error) {
     return { ok: false, error: 'Error interno' }

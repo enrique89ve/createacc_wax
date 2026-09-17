@@ -6,10 +6,10 @@
 
 interface Props {
   availableCredits: number
-  maxTicketCredits: number
+  maxTicketUses: number
 }
 
-const { availableCredits, maxTicketCredits } = Astro.props
+const { availableCredits, maxTicketUses } = Astro.props
 ---
 
 <div id="update-modal-content" class="hidden">
@@ -28,26 +28,26 @@ const { availableCredits, maxTicketCredits } = Astro.props
       />
     </div>
 
-    <!-- Créditos Actuales -->
+    <!-- Usos actuales -->
     <div class="mb-4">
       <label class="mb-2 block text-sm font-medium text-gray-300">
-        Créditos Actuales
+        Usos actuales
       </label>
       <input
         type="text"
-        id="update-ticket-credits-display"
+        id="update-ticket-uses-display"
         disabled
         class="bg-background border-border w-full rounded-lg border px-3 py-2 text-gray-500 opacity-50"
       />
     </div>
 
-    <!-- SLIDER: Ajustar Créditos -->
+    <!-- SLIDER: Ajustar usos -->
     <div class="mb-4">
       <label
         for="delta-slider"
         class="mb-3 block text-sm font-medium text-gray-300"
       >
-        Ajustar Créditos
+        Ajustar usos
       </label>
 
       <!-- Display del Delta - Diseño vertical centrado -->
@@ -59,7 +59,7 @@ const { availableCredits, maxTicketCredits } = Astro.props
           0
         </span>
         <span class="mt-1 text-xs uppercase tracking-wider text-gray-500">
-          créditos
+          usos
         </span>
       </div>
 
@@ -111,7 +111,7 @@ const { availableCredits, maxTicketCredits } = Astro.props
       </div>
       <div class="flex justify-between text-gray-400">
         <span>⚠️ Límite máximo por ticket:</span>
-        <span class="font-semibold text-white">{maxTicketCredits}</span>
+        <span class="font-semibold text-white">{maxTicketUses}</span>
       </div>
     </div>
 

@@ -34,7 +34,7 @@ export const VALIDATION_ERROR_MESSAGES = {
   USERNAME_SESSION_MISMATCH: 'Username does not match the current session',
   TICKET_REQUIRED: 'A valid ticket is required to create an account',
   TICKET_INVALID: 'The provided ticket is not valid',
-  TICKET_EXHAUSTED: 'The provided ticket has no remaining credits',
+  TICKET_EXHAUSTED: 'The provided ticket has no remaining uses',
   TICKET_RESERVATION_FAILED: 'Failed to reserve ticket credit',
   ACCOUNT_EXISTS_ON_CHAIN:
     'This username is already taken on the Hive blockchain',

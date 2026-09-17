@@ -6,11 +6,11 @@
  */
 
 import type { ValidationResult } from '@/utils/validation-result'
-import { MAX_TICKET_CREDITS, TICKET_LENGTH } from '@/consts/constants'
+import { MAX_TICKET_USES, TICKET_LENGTH } from '@/consts/constants'
 const ALPHANUMERIC_REGEX = /^[a-zA-Z0-9]+$/
 const ONLY_NUMBERS_REGEX = /^\d+$/
 
-const MIN_TICKET_CREDITS = 1
+const MIN_TICKET_USES = 1
 
 /**
  * Validate ticket name
@@ -84,83 +84,83 @@ export function validateTicketName(name: string): ValidationResult<string> {
 }
 
 /**
- * Validate credits quantity for ticket
+ * Validate uses quantity for ticket
  *
- * @param credits - Credits quantity to validate (can be any)
+ * @param uses - Uses quantity to validate (can be any)
  * @returns ValidationResult with validated number or error
  *
  * Rules:
  * - Must be a number
- * - Between 1 and MAX_TICKET_CREDITS (100)
+ * - Between 1 and MAX_TICKET_USES (100)
  * - Must be an integer
  */
-export function validateTicketCredits(
-  credits: unknown
+export function validateTicketUses(
+  uses: unknown
 ): ValidationResult<number> {
-  if (typeof credits !== 'number') {
+  if (typeof uses !== 'number') {
     return {
       success: false,
       error: {
-        message: 'Los créditos deben ser un número',
-        field: 'credits',
+        message: 'Los usos deben ser un número',
+        field: 'uses',
       },
     }
   }
 
-  if (!Number.isInteger(credits)) {
+  if (!Number.isInteger(uses)) {
     return {
       success: false,
       error: {
-        message: 'Los créditos deben ser un número entero',
-        field: 'credits',
+        message: 'Los usos deben ser un número entero',
+        field: 'uses',
       },
     }
   }
 
-  if (credits < MIN_TICKET_CREDITS) {
+  if (uses < MIN_TICKET_USES) {
     return {
       success: false,
       error: {
-        message: `Los créditos deben ser al menos ${MIN_TICKET_CREDITS}`,
-        field: 'credits',
+        message: `Los usos deben ser al menos ${MIN_TICKET_USES}`,
+        field: 'uses',
       },
     }
   }
 
-  if (credits > MAX_TICKET_CREDITS) {
+  if (uses > MAX_TICKET_USES) {
     return {
       success: false,
       error: {
-        message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
-        field: 'credits',
+        message: `Los usos no pueden exceder ${MAX_TICKET_USES}`,
+        field: 'uses',
       },
     }
   }
 
   return {
     success: true,
-    data: credits,
+    data: uses,
   }
 }
 
 /**
- * Validate credits update delta
+ * Validate uses update delta
  *
- * @param currentCredits - Current credits of the ticket
+ * @param currentUses - Current uses of the ticket
  * @param delta - Change to apply (positive or negative)
- * @returns ValidationResult with delta and newly calculated credits
+ * @returns ValidationResult with delta and newly calculated uses
  *
  * Rules:
  * - Must be a number
  * - Cannot be zero
  * - Must be an integer
- * - New credits must be in valid range
+ * - New uses must be in valid range
  */
-export function validateCreditsDelta(
-  currentCredits: number,
+export function validateUsesDelta(
+  currentUses: number,
   delta: unknown,
-  originalCredits: number = currentCredits
-): ValidationResult<{ delta: number; newCredits: number }> {
+  originalUses: number = currentUses
+): ValidationResult<{ delta: number; newUses: number }> {
   if (typeof delta !== 'number') {
     return {
       success: false,
@@ -191,44 +191,54 @@ export function validateCreditsDelta(
     }
   }
 
-  const newCredits = currentCredits + delta
-  const newOriginalCredits = originalCredits + delta
+  const newUses = currentUses + delta
+  const newOriginalUses = originalUses + delta
 
-  if (newCredits < MIN_TICKET_CREDITS) {
+  if (newUses < 0) {
     return {
       success: false,
       error: {
-        message: 'Debe quedar al menos 1 crédito en el ticket',
+        message: 'Los usos restantes no pueden ser negativos',
         field: 'delta',
       },
     }
   }
 
-  if (newCredits > MAX_TICKET_CREDITS) {
+  if (newUses > MAX_TICKET_USES) {
     return {
       success: false,
       error: {
-        message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
+        message: `Los usos no pueden exceder ${MAX_TICKET_USES}`,
         field: 'delta',
       },
     }
   }
 
-  if (newOriginalCredits > MAX_TICKET_CREDITS) {
+  if (newOriginalUses > MAX_TICKET_USES) {
     return {
       success: false,
       error: {
-        message: `El total de créditos no puede exceder ${MAX_TICKET_CREDITS}`,
+        message: `El total de usos no puede exceder ${MAX_TICKET_USES}`,
         field: 'delta',
       },
     }
   }
 
-  if (newOriginalCredits < newCredits) {
+  if (newOriginalUses < MIN_TICKET_USES) {
     return {
       success: false,
       error: {
-        message: 'El total de créditos no puede ser menor que los restantes',
+        message: `El total de usos debe ser al menos ${MIN_TICKET_USES}`,
+        field: 'delta',
+      },
+    }
+  }
+
+  if (newOriginalUses < newUses) {
+    return {
+      success: false,
+      error: {
+        message: 'El total de usos no puede ser menor que los restantes',
         field: 'delta',
       },
     }
@@ -236,7 +246,7 @@ export function validateCreditsDelta(
 
   return {
     success: true,
-    data: { delta, newCredits },
+    data: { delta, newUses },
   }
 }
 
@@ -300,8 +310,8 @@ export function validateTicketDescription(
 export const TICKET_VALIDATION_CONSTANTS = {
   MIN_TICKET_LENGTH: TICKET_LENGTH.MIN,
   MAX_TICKET_LENGTH: TICKET_LENGTH.MAX,
-  MIN_TICKET_CREDITS,
-  MAX_TICKET_CREDITS,
+  MIN_TICKET_USES,
+  MAX_TICKET_USES,
   ALPHANUMERIC_REGEX,
   ONLY_NUMBERS_REGEX,
 } as const
