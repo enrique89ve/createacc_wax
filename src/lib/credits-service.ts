@@ -5,7 +5,7 @@ import {
   markCreditsAsConsumed,
   refundCreditsFromTicket,
 } from './credits/core'
-import { assignCredits, transferCredits, adjustCredits } from './credits/admin'
+import { assignCredits, adjustCredits } from './credits/admin'
 import { getCreditHistory, getCreditAuditHistory } from './credits/history'
 
 export type {
@@ -20,7 +20,6 @@ export const creditsService = {
   deductCreditsForTicket,
   markCreditsAsConsumed,
   refundCreditsFromTicket,
-  transferCredits,
   adjustCredits,
   getCreditHistory,
   getCreditAuditHistory,

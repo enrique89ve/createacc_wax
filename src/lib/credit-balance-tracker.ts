@@ -21,6 +21,8 @@ export interface CreditBalanceBreakdown extends CreditBalance {
     readonly consumed_on_accounts: number
     readonly admin_adjustments: number
     readonly admin_pending_adjustments: number
+    readonly legacy_transfer_in: number
+    readonly legacy_transfer_out: number
   }
   readonly discrepancy: {
     readonly has_discrepancy: boolean
@@ -72,7 +74,9 @@ async function calculateBreakdown(hiveUsername: string) {
 				COALESCE(SUM(CASE WHEN operation = 'delete_ticket_refund' THEN amount ELSE 0 END), 0) as refunded_from_tickets,
 				COALESCE(SUM(CASE WHEN operation = 'consume_credits' THEN amount ELSE 0 END), 0) as consumed_on_accounts,
 				COALESCE(SUM(CASE WHEN operation = 'admin_adjustment' THEN amount ELSE 0 END), 0) as admin_adjustments,
-				COALESCE(SUM(CASE WHEN operation = 'admin_adjust_pending' THEN amount ELSE 0 END), 0) as admin_pending_adjustments
+				COALESCE(SUM(CASE WHEN operation = 'admin_adjust_pending' THEN amount ELSE 0 END), 0) as admin_pending_adjustments,
+				COALESCE(SUM(CASE WHEN operation = 'transfer_in' THEN amount ELSE 0 END), 0) as legacy_transfer_in,
+				COALESCE(SUM(CASE WHEN operation = 'transfer_out' THEN amount ELSE 0 END), 0) as legacy_transfer_out
 			FROM CreditAudit
 			WHERE hive_username = ?
 		`,
@@ -89,6 +93,8 @@ async function calculateBreakdown(hiveUsername: string) {
     consumed_on_accounts: Number(row.consumed_on_accounts || 0),
     admin_adjustments: Number(row.admin_adjustments || 0),
     admin_pending_adjustments: Number(row.admin_pending_adjustments || 0),
+    legacy_transfer_in: Number(row.legacy_transfer_in || 0),
+    legacy_transfer_out: Number(row.legacy_transfer_out || 0),
   }
 }
 
@@ -133,6 +139,8 @@ export async function checkConsistency(
   const calculatedAvailable =
     breakdown.claimed +
     breakdown.granted_available +
+    breakdown.legacy_transfer_in +
+    breakdown.legacy_transfer_out +
     breakdown.spent_on_tickets +
     breakdown.refunded_from_tickets +
     breakdown.admin_adjustments
