@@ -35,11 +35,13 @@ export async function updateTicketCredits(options: {
     // Intentar update con chequeo de no negativo
     const result = await db.execute({
       sql: `UPDATE Tickets
-			      SET credits = credits + ?,
+			      SET remaining_uses = remaining_uses + ?,
+			          total_uses = total_uses + ?,
 			          updated_at = CURRENT_TIMESTAMP
-			      WHERE code = ? AND (credits + ?) >= 0
+			      WHERE code = ? AND (remaining_uses + ?) >= 0
+			        AND (total_uses + ?) >= (remaining_uses + ?)
 			      RETURNING *`,
-      args: [delta, code.trim().toUpperCase(), delta],
+      args: [delta, delta, code.trim().toUpperCase(), delta, delta, delta],
     })
 
     if (result.rows.length === 0) {
@@ -54,7 +56,7 @@ export async function updateTicketCredits(options: {
       return { ok: false, error: 'Error parseando ticket actualizado' }
     }
 
-    const newCredits = ticket.credits
+    const newCredits = ticket.remaining_uses
     const oldCredits = newCredits - delta
 
     await db.execute({

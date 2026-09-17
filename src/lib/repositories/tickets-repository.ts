@@ -30,8 +30,8 @@ export interface TicketCreationResult {
   readonly id: number
   readonly code: string
   readonly description: string | null
-  readonly original_credits: number
-  readonly credits: number
+  readonly total_uses: number
+  readonly remaining_uses: number
 }
 
 /**
@@ -63,29 +63,27 @@ export class TicketsRepository {
   async create(data: CreateTicketData): Promise<TicketCreationResult> {
     try {
       // Validate credits
-      if (data.original_credits <= 0 || data.credits < 0) {
+      if (data.total_uses <= 0 || data.remaining_uses < 0) {
         throw new Error('Credits must be greater than 0')
       }
 
-      if (data.credits > data.original_credits) {
-        throw new Error(
-          'Current credits cannot be greater than original credits'
-        )
+      if (data.remaining_uses > data.total_uses) {
+        throw new Error('Remaining uses cannot be greater than total uses')
       }
 
       const result = await execute({
         sql: `
 					INSERT INTO Tickets (
-						code, description, original_credits, credits, creator_username
+						code, description, total_uses, remaining_uses, creator_username
 					)
 					VALUES (?, ?, ?, ?, ?)
-					RETURNING id, code, description, original_credits, credits
+					RETURNING id, code, description, total_uses, remaining_uses
 				`,
         args: [
           data.code,
           data.description ?? null,
-          data.original_credits,
-          data.credits,
+          data.total_uses,
+          data.remaining_uses,
           data.creator_username ?? null,
         ],
       })
@@ -100,8 +98,8 @@ export class TicketsRepository {
         id: Number(row.id),
         code: String(row.code),
         description: row.description as string | null,
-        original_credits: Number(row.original_credits),
-        credits: Number(row.credits),
+        total_uses: Number(row.total_uses),
+        remaining_uses: Number(row.remaining_uses),
       }
     } catch (error) {
       throw error
@@ -114,7 +112,7 @@ export class TicketsRepository {
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
       const result = await execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [id],
       })
 
@@ -134,7 +132,7 @@ export class TicketsRepository {
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
       const result = await execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?',
+        sql: 'SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE code = ?',
         args: [code],
       })
 
@@ -163,13 +161,17 @@ export class TicketsRepository {
       updates.push('description = ?')
       args.push(data.description ?? null)
     }
-    if (data.original_credits !== undefined) {
-      updates.push('original_credits = ?')
-      args.push(data.original_credits)
+    if (data.total_uses !== undefined) {
+      updates.push('total_uses = ?')
+      args.push(data.total_uses)
     }
-    if (data.credits !== undefined) {
-      updates.push('credits = ?')
-      args.push(data.credits)
+    if (data.remaining_uses !== undefined) {
+      updates.push('remaining_uses = ?')
+      args.push(data.remaining_uses)
+    }
+    if (data.revoked_at !== undefined) {
+      updates.push('revoked_at = ?')
+      args.push(data.revoked_at)
     }
     if (updates.length === 0) return true
 
@@ -201,14 +203,18 @@ export class TicketsRepository {
         args.push(data.description ?? null)
       }
 
-      if (data.original_credits !== undefined) {
-        updates.push('original_credits = ?')
-        args.push(data.original_credits)
+      if (data.total_uses !== undefined) {
+        updates.push('total_uses = ?')
+        args.push(data.total_uses)
       }
 
-      if (data.credits !== undefined) {
-        updates.push('credits = ?')
-        args.push(data.credits)
+      if (data.remaining_uses !== undefined) {
+        updates.push('remaining_uses = ?')
+        args.push(data.remaining_uses)
+      }
+      if (data.revoked_at !== undefined) {
+        updates.push('revoked_at = ?')
+        args.push(data.revoked_at)
       }
 
       if (updates.length === 0) {
@@ -249,7 +255,7 @@ export class TicketsRepository {
     try {
       const result = await execute({
         sql: `
-					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
+					SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
 					WHERE creator_username = ?
 					ORDER BY created_at DESC
 				`,
@@ -263,7 +269,7 @@ export class TicketsRepository {
   }
 
   /**
-   * Get active tickets (with available credits)
+   * Get active tickets (with available remaining_uses)
    * @deprecated Not used in current codebase. Kept for compatibility.
    * Consider deleting in v2.0
    */
@@ -271,8 +277,8 @@ export class TicketsRepository {
     try {
       const result = await execute({
         sql: `
-					SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
-					WHERE is_active = TRUE
+					SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
+					WHERE remaining_uses > 0 AND revoked_at IS NULL
 					ORDER BY created_at DESC
 				`,
         args: [],
@@ -300,12 +306,12 @@ export class TicketsRepository {
       }
 
       if (filters.isActive !== undefined) {
-        conditions.push('is_active = ?')
+        conditions.push('(remaining_uses > 0 AND revoked_at IS NULL) = ?')
         args.push(filters.isActive)
       }
 
       if (filters.hasBeenUsed !== undefined) {
-        conditions.push('has_been_used = ?')
+        conditions.push('(remaining_uses < total_uses) = ?')
         args.push(filters.hasBeenUsed)
       }
 
@@ -313,7 +319,7 @@ export class TicketsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets
+				SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
 				${whereClause}
 				ORDER BY created_at DESC
 			`
@@ -425,10 +431,10 @@ export class TicketsRepository {
         sql: `
 					SELECT
 						COUNT(*) as total_tickets,
-						SUM(CASE WHEN is_active = TRUE THEN 1 ELSE 0 END) as active_tickets,
-						SUM(CASE WHEN has_been_used = TRUE THEN 1 ELSE 0 END) as used_tickets,
-						SUM(original_credits) as total_credits_original,
-						SUM(credits) as total_credits_remaining
+						SUM(CASE WHEN remaining_uses > 0 AND revoked_at IS NULL THEN 1 ELSE 0 END) as active_tickets,
+						SUM(CASE WHEN remaining_uses < total_uses THEN 1 ELSE 0 END) as used_tickets,
+						SUM(total_uses) as total_credits_original,
+						SUM(remaining_uses) as total_credits_remaining
 					FROM Tickets
 					WHERE creator_username = ?
 				`,
@@ -485,7 +491,7 @@ export class TicketsRepository {
   async countUsed(): Promise<number> {
     try {
       const result = await execute({
-        sql: 'SELECT COUNT(*) as total FROM Tickets WHERE has_been_used = TRUE',
+        sql: 'SELECT COUNT(*) as total FROM Tickets WHERE remaining_uses < total_uses',
         args: [],
       })
 
@@ -506,15 +512,15 @@ export class TicketsRepository {
         throw new Error(`Ticket not found: ${code}`)
       }
 
-      if (ticket.credits <= 0) {
-        throw new Error(`Ticket without available credits: ${code}`)
+      if (ticket.remaining_uses <= 0) {
+        throw new Error(`Ticket without available remaining_uses: ${code}`)
       }
 
       await execute({
         sql: `
 					UPDATE Tickets
-					SET credits = credits - 1, updated_at = CURRENT_TIMESTAMP
-					WHERE code = ?
+						SET remaining_uses = remaining_uses - 1, updated_at = CURRENT_TIMESTAMP
+						WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
 				`,
         args: [code],
       })

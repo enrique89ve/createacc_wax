@@ -53,6 +53,31 @@ export interface DatabaseCreditRow {
   readonly updated_at: string
 }
 
+export const TICKET_KINDS = ['single_use', 'multi_use'] as const
+export type TicketKind = (typeof TICKET_KINDS)[number]
+export const TICKET_STATUSES = [
+  'unused',
+  'partially_used',
+  'exhausted',
+  'revoked',
+] as const
+export type TicketStatus = (typeof TICKET_STATUSES)[number]
+
+export function deriveTicketKind(totalUses: number): TicketKind {
+  return totalUses === 1 ? 'single_use' : 'multi_use'
+}
+
+export function deriveTicketStatus(
+  totalUses: number,
+  remainingUses: number,
+  revokedAt: string | null
+): TicketStatus {
+  if (revokedAt !== null) return 'revoked'
+  if (remainingUses === 0) return 'exhausted'
+  if (remainingUses === totalUses) return 'unused'
+  return 'partially_used'
+}
+
 /**
  * Tickets table - Simplified without type field
  */
@@ -60,11 +85,16 @@ export interface DatabaseTicketRow {
   readonly id: number
   readonly code: string
   readonly description: string | null
-  readonly original_credits: number
-  readonly credits: number
-  readonly is_active: boolean // VIRTUAL: credits > 0
-  readonly has_been_used: boolean // VIRTUAL: original_credits > credits
+  readonly total_uses: number
+  readonly remaining_uses: number
   readonly creator_username: string
+  readonly revoked_at: string | null
+  readonly used_uses: number
+  readonly kind: TicketKind
+  readonly status: TicketStatus
+  /** Derived compatibility fields; never persisted. */
+  readonly is_active: boolean
+  readonly has_been_used: boolean
   readonly created_at: string
   readonly updated_at: string
 }
@@ -199,9 +229,10 @@ export interface UpdateCreditData {
 export interface CreateTicketData {
   readonly code: string
   readonly description?: string | null
-  readonly original_credits: number
-  readonly credits: number
+  readonly total_uses: number
+  readonly remaining_uses: number
   readonly creator_username: string
+  readonly revoked_at?: string | null
 }
 
 /**
@@ -209,8 +240,9 @@ export interface CreateTicketData {
  */
 export interface UpdateTicketData {
   readonly description?: string | null
-  readonly original_credits?: number
-  readonly credits?: number
+  readonly total_uses?: number
+  readonly remaining_uses?: number
+  readonly revoked_at?: string | null
 }
 
 /**
@@ -360,25 +392,14 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
   if (typeof row !== 'object' || row === null) return false
   const r = row as Record<string, unknown>
 
-  // Handle SQLite boolean conversion (can be 0/1 or true/false)
-  const isActiveValue = r.is_active
-  const hasBeenUsedValue = r.has_been_used
-  const isActiveBool =
-    isActiveValue === 1 || isActiveValue === true || isActiveValue === '1'
-  const hasBeenUsedBool =
-    hasBeenUsedValue === 1 ||
-    hasBeenUsedValue === true ||
-    hasBeenUsedValue === '1'
-
   return (
     typeof r.id === 'number' &&
     typeof r.code === 'string' &&
     (r.description === null || typeof r.description === 'string') &&
-    typeof r.original_credits === 'number' &&
-    typeof r.credits === 'number' &&
-    typeof isActiveBool === 'boolean' &&
-    typeof hasBeenUsedBool === 'boolean' &&
+    typeof r.total_uses === 'number' &&
+    typeof r.remaining_uses === 'number' &&
     typeof r.creator_username === 'string' &&
+    (r.revoked_at === null || typeof r.revoked_at === 'string') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )
@@ -454,22 +475,35 @@ export function parseCreditRow(raw: unknown): DatabaseCreditRow | null {
 }
 
 /**
- * Safely converts libsql row to typed ticket row with boolean conversion
+ * Safely converts libsql row to typed ticket row with derived state
  */
 export function parseTicketRow(raw: unknown): DatabaseTicketRow | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 
-  // Convert SQLite boolean values
-  const isActive =
-    r.is_active === 1 || r.is_active === true || r.is_active === '1'
-  const hasBeenUsed =
-    r.has_been_used === 1 || r.has_been_used === true || r.has_been_used === '1'
+  const totalUses = Number(r.total_uses)
+  const remainingUses = Number(r.remaining_uses)
+  const revokedAt =
+    r.revoked_at === null || typeof r.revoked_at === 'string'
+      ? (r.revoked_at as string | null)
+      : null
+  if (!Number.isInteger(totalUses) || !Number.isInteger(remainingUses)) {
+    return null
+  }
+  if (totalUses < 1 || remainingUses < 0 || remainingUses > totalUses) {
+    return null
+  }
 
   const converted = {
     ...r,
-    is_active: isActive,
-    has_been_used: hasBeenUsed,
+    total_uses: totalUses,
+    remaining_uses: remainingUses,
+    revoked_at: revokedAt,
+    used_uses: totalUses - remainingUses,
+    kind: deriveTicketKind(totalUses),
+    status: deriveTicketStatus(totalUses, remainingUses, revokedAt),
+    is_active: remainingUses > 0 && revokedAt === null,
+    has_been_used: remainingUses < totalUses,
   }
 
   if (!isDatabaseTicketRow(converted)) return null
@@ -503,8 +537,15 @@ export function parseAccountRow(raw: unknown): DatabaseAccountRow | null {
 export function parseTicketWithCreatorRow(
   raw: unknown
 ): TicketWithCreator | null {
-  if (!isTicketWithCreator(raw)) return null
-  return raw
+  if (typeof raw !== 'object' || raw === null) return null
+  const row = raw as Record<string, unknown>
+  const ticket = parseTicketRow(raw)
+  if (!ticket) return null
+  if (!(row.creator_role === null || isUserRole(row.creator_role))) return null
+  return {
+    ...ticket,
+    creator_role: row.creator_role as UserRole | null,
+  }
 }
 
 /**
