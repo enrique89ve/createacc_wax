@@ -208,13 +208,27 @@ async function reclaimOpenAttemptForRetry(
       (await recoverReservedHttpRetry(context, session, request)) ?? undefined
     )
   }
-  if (
-    recovered.kind === 'not_found' &&
-    !isAttemptStale(open.updatedAt, RECONCILIATION_CONFIG.ATTEMPT_STALE_MS)
-  ) {
+
+  if (recovered.kind === 'ambiguous' || recovered.kind === 'error') {
+    logger.warn(
+      `[${open.correlationId}] Holding HTTP retry for ${request.username}; Hive evidence is ${recovered.kind}`
+    )
     return creationInProgressResponse(request.username, open.correlationId)
   }
-  await rollbackTicketReservation(session.ticket, open.correlationId)
+
+  if (recovered.kind === 'not_found') {
+    if (
+      !isAttemptStale(open.updatedAt, RECONCILIATION_CONFIG.ATTEMPT_STALE_MS)
+    ) {
+      return creationInProgressResponse(request.username, open.correlationId)
+    }
+    await rollbackTicketReservation(session.ticket, open.correlationId)
+    return
+  }
+
+  if (recovered.kind === 'foreign_account') {
+    await rollbackTicketReservation(session.ticket, open.correlationId)
+  }
 }
 
 // --- Type guard ---

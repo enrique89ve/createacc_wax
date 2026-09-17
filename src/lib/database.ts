@@ -263,7 +263,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		posting_public_key TEXT NOT NULL,
 		memo_public_key TEXT NOT NULL,
 		transaction_id TEXT,
-		execution_mode TEXT NOT NULL DEFAULT '${HIVE_TX_MODE_VALUES.SIMULATE}' CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
+		execution_mode TEXT NOT NULL CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
 		broadcasted INTEGER NOT NULL DEFAULT 0,
 		wax_validated INTEGER NOT NULL DEFAULT 0,
 		wax_on_chain_verified INTEGER NOT NULL DEFAULT 0,

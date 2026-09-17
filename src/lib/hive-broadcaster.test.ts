@@ -5,6 +5,7 @@ import {
   noopHiveBroadcast,
 } from '@/lib/hive-broadcaster'
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
+import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 
 const ORIGINAL_TX = process.env.HIVE_TX_MODE
 
@@ -24,7 +25,11 @@ describe('hive broadcaster', () => {
     process.env.HIVE_TX_MODE = 'simulate'
     const chain = mockChain()
     const tx = {} as IOnlineTransaction
-    const result = await broadcastHiveTransaction(chain, tx)
+    const result = await broadcastHiveTransaction(
+      chain,
+      tx,
+      HIVE_TX_MODE_VALUES.SIMULATE
+    )
     expect(result.broadcasted).toBe(false)
     expect(chain.broadcast).not.toHaveBeenCalled()
   })
@@ -34,7 +39,8 @@ describe('hive broadcaster', () => {
     const chain = mockChain()
     const result = await broadcastHiveTransaction(
       chain,
-      {} as IOnlineTransaction
+      {} as IOnlineTransaction,
+      HIVE_TX_MODE_VALUES.SIMULATE
     )
     expect(result.broadcasted).toBe(false)
     expect(chain.broadcast).not.toHaveBeenCalled()
@@ -52,7 +58,11 @@ describe('hive broadcaster', () => {
     process.env.HIVE_TX_MODE = 'broadcast'
     const chain = mockChain()
     const tx = {} as IOnlineTransaction
-    const result = await broadcastHiveTransaction(chain, tx)
+    const result = await broadcastHiveTransaction(
+      chain,
+      tx,
+      HIVE_TX_MODE_VALUES.BROADCAST
+    )
     expect(result.broadcasted).toBe(true)
     expect(chain.broadcast).toHaveBeenCalledTimes(1)
     expect(chain.broadcast).toHaveBeenCalledWith(tx)
@@ -64,7 +74,11 @@ describe('hive broadcaster', () => {
       broadcast: vi.fn().mockRejectedValue(new Error('network timeout')),
     } as unknown as IHiveChainInterface
     await expect(
-      broadcastHiveTransaction(chain, {} as IOnlineTransaction)
+      broadcastHiveTransaction(
+        chain,
+        {} as IOnlineTransaction,
+        HIVE_TX_MODE_VALUES.BROADCAST
+      )
     ).rejects.toBeInstanceOf(HiveBroadcastAttemptError)
     expect(chain.broadcast).toHaveBeenCalledTimes(1)
   })

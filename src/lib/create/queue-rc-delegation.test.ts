@@ -219,6 +219,38 @@ describe('durable RC worker', () => {
       rcDelegated: 1,
     })
   })
+
+  it('counts a stale recovery and delegation once', async () => {
+    process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.BROADCAST
+    const username = `rcstale${RUN}`
+    await insertUncertain(username, RC_STATUS.PROCESSING)
+    await db.execute({
+      sql: `UPDATE Accounts
+            SET rc_updated_at = datetime('now', '-10 minutes')
+            WHERE username = ?`,
+      args: [username],
+    })
+    delegate.mockResolvedValue({
+      id: 'rc-stale-tx',
+      mode: HIVE_TX_MODE_VALUES.BROADCAST,
+      broadcasted: true,
+      wax: {
+        validated: true,
+        onChainVerified: true,
+        signed: true,
+        authorityVerified: true,
+      },
+      requiredAuthorities: {},
+      signaturePublicKeys: ['STM7public'],
+    })
+
+    expect(await processPendingRcDelegations()).toBe(1)
+    expect(delegate).toHaveBeenCalledTimes(1)
+    expect(await rcRow(username)).toEqual({
+      rcStatus: RC_STATUS.DELEGATED,
+      rcDelegated: 1,
+    })
+  })
 })
 
 describe('RC_DELEGATION_EXISTS', () => {

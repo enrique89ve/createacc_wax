@@ -17,10 +17,7 @@ import {
   parseExecutionMode,
   type PersistedAccountCreation,
 } from '@/lib/account-status'
-import {
-  getHiveExecutionMode,
-  isSimulationMode,
-} from '@/lib/hive-execution-mode'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
 import {
   waxPipelinePassed,
   type HiveTransactionResult,
@@ -211,7 +208,7 @@ export interface ReserveTicketCreditInput {
   readonly correlationId: string
   readonly username: string
   readonly keys: CreationAttemptKeys
-  readonly executionMode?: HiveExecutionMode
+  readonly executionMode: HiveExecutionMode
 }
 
 export async function getAccountCreationState(
@@ -395,7 +392,6 @@ export async function reserveTicketCredit(
 
   try {
     return await withTransaction(async () => {
-      const executionMode = input.executionMode ?? getHiveExecutionMode()
       const updateResult = await execute({
         sql: `UPDATE Tickets
               SET remaining_uses = CASE
@@ -439,7 +435,7 @@ export async function reserveTicketCredit(
         username: cleanUsername,
         ticket: cleanTicketCode,
         keys: input.keys,
-        executionMode,
+        executionMode: input.executionMode,
       })
 
       return { success: true, correlationId }

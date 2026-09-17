@@ -5,6 +5,7 @@ import {
   unblockHiveUsername,
 } from '@/lib/auth/blocked-hive-accounts'
 import { getCreationAttempt } from '@/lib/creation-attempts'
+import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 import {
   markTicketAsUsed,
   reserveTicketCredit,
@@ -25,6 +26,7 @@ const reservation = {
     postingPublicKey: 'STMposting',
     memoPublicKey: 'STMmemo',
   },
+  executionMode: HIVE_TX_MODE_VALUES.SIMULATE,
 }
 
 async function ticketState() {

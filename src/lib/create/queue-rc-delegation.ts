@@ -201,7 +201,7 @@ export async function processPendingRcDelegations(): Promise<number> {
   const executionMode = getHiveExecutionMode()
   if (executionMode !== HIVE_TX_MODE_VALUES.BROADCAST) return 0
 
-  const recovered = await recoverStaleRcProcessing()
+  await recoverStaleRcProcessing()
   const pending = await db.execute({
     sql: `SELECT username FROM Accounts
           WHERE rc_status = ? AND blockchain_status = ?
@@ -209,7 +209,7 @@ export async function processPendingRcDelegations(): Promise<number> {
     args: [RC_STATUS.PENDING, BLOCKCHAIN_STATUS.CONFIRMED],
   })
 
-  let processed = recovered
+  let processed = 0
   for (const row of pending.rows) {
     const username = String(row.username)
     const claimed = await claimAccountRcDelegation(username)

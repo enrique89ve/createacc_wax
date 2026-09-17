@@ -54,12 +54,17 @@ function simulatedTx(id: string): HiveTransactionResult {
   }
 }
 
-function reserveInput(correlationId: string, username: string) {
+function reserveInput(
+  correlationId: string,
+  username: string,
+  executionMode: (typeof HIVE_TX_MODE_VALUES)[keyof typeof HIVE_TX_MODE_VALUES] = HIVE_TX_MODE_VALUES.SIMULATE
+) {
   return {
     ticketCode: TICKET,
     correlationId,
     username,
     keys: keysFor(username),
+    executionMode,
   }
 }
 
@@ -156,9 +161,12 @@ describe('simulation DB completion', () => {
     })
     const username = `liveu${Date.now().toString(36)}`
     const reserved = await reserveTicketCredit(
-      reserveInput('corr-live', username)
+      reserveInput('corr-live', username, HIVE_TX_MODE_VALUES.BROADCAST)
     )
     expect(reserved.success).toBe(true)
+    expect((await getCreationAttempt('corr-live'))?.executionMode).toBe(
+      HIVE_TX_MODE_VALUES.BROADCAST
+    )
     const completed = await completeAccountCreationInDB(
       username,
       TICKET,

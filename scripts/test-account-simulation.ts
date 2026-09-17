@@ -185,6 +185,7 @@ async function reserveFor(
     correlationId: fixture.correlationId,
     username: fixture.username,
     keys: keysFromParams(params),
+    executionMode: HIVE_TX_MODE_VALUES.SIMULATE,
   })
   assert(reserved.success, reserved.error ?? 'reserve failed')
 }

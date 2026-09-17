@@ -1,5 +1,4 @@
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
-import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import {
   HIVE_TX_MODE_VALUES,
   type HiveExecutionMode,
@@ -49,7 +48,7 @@ export async function noopHiveBroadcast(
 export async function broadcastHiveTransaction(
   chain: IHiveChainInterface,
   tx: IOnlineTransaction,
-  executionMode: HiveExecutionMode = getHiveExecutionMode()
+  executionMode: HiveExecutionMode
 ): Promise<HiveBroadcastOutcome> {
   if (executionMode !== HIVE_TX_MODE_VALUES.BROADCAST) {
     return { broadcasted: false }
