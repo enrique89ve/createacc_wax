@@ -115,6 +115,8 @@ No hay GitHub Actions. Las comprobaciones se corren en local:
 
 Blocking a Hive username denies Builder access and consumption of its existing tickets. Unblocking restores ticket usability without resetting credits or history. The atomic reservation checks the denylist even if earlier validation succeeded.
 
+Tickets persist `total_uses`, `remaining_uses`, and optional `revoked_at`. `used_uses`, `kind` (`single_use`/`multi_use`) and lifecycle status are derived from those facts. A revoked ticket retains its remaining uses and can be restored without changing balances.
+
 See [AUTH closure and transaction follow-up](docs/auth-closure.md) for scope and remaining production validation.
 
 ---

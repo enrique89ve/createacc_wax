@@ -121,7 +121,7 @@ describe('stateless builder identity and credit ownership', () => {
     const alice = `${PREFIX}-alice`
     const bob = `${PREFIX}-bob`
     await db.execute({
-      sql: `INSERT INTO Tickets (code, original_credits, credits, creator_username) VALUES (?, 1, 1, ?)`,
+      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 1, 1, ?)`,
       args: [`${PREFIX}-alice-ticket`, alice],
     })
     const owned = await db.execute({

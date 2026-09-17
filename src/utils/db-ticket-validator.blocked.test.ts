@@ -39,7 +39,7 @@ describe('blocked ticket creator', () => {
   beforeAll(async () => {
     expect(await initializeDatabase()).toBe(true)
     await db.execute({
-      sql: 'INSERT INTO Tickets (code, original_credits, credits, creator_username) VALUES (?, 3, 3, ?)',
+      sql: 'INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 3, 3, ?)',
       args: [ticketCode, creator],
     })
   })
@@ -79,7 +79,20 @@ describe('blocked ticket creator', () => {
     expect((await validateTicketInDB(ticketCode)).isValid).toBe(true)
     expect(await ticketState()).toEqual(before)
     expect((await reserveTicketCredit(reservation)).success).toBe(true)
-    expect((await ticketState()).credits).toBe(2)
+    expect((await ticketState()).remaining_uses).toBe(2)
     expect(await getCreationAttempt(correlationId)).not.toBeNull()
+  })
+
+  it('rejects a revoked ticket without changing its remaining uses', async () => {
+    await db.execute({
+      sql: 'UPDATE Tickets SET revoked_at = CURRENT_TIMESTAMP WHERE code = ?',
+      args: [ticketCode],
+    })
+    expect((await validateTicketInDB(ticketCode)).isValid).toBe(false)
+    expect(await ticketState()).toMatchObject({ remaining_uses: 2 })
+    await db.execute({
+      sql: 'UPDATE Tickets SET revoked_at = NULL WHERE code = ?',
+      args: [ticketCode],
+    })
   })
 })

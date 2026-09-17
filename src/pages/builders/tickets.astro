@@ -112,10 +112,10 @@ if (builderUser) {
                       </td>
                       <td class="px-4 py-3 text-center align-middle">
                         <span class="text-foreground font-semibold">
-                          {t.credits}
+                          {t.remaining_uses}
                         </span>
                         <span class="text-muted-foreground">
-                          /{t.original_credits}
+                          /{t.total_uses}
                         </span>
                       </td>
                       <td class="text-muted-foreground px-4 py-3 text-center align-middle">
@@ -147,8 +147,8 @@ if (builderUser) {
                             class="ticket-update-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-400 ring-1 ring-blue-500/20 transition-all hover:bg-blue-500/20"
                             data-ticket-id={t.id}
                             data-ticket-code={t.code}
-                            data-ticket-credits={t.credits}
-                            data-ticket-original={t.original_credits}
+                            data-ticket-credits={t.remaining_uses}
+                            data-ticket-original={t.total_uses}
                             title="Editar créditos"
                           >
                             <svg
@@ -170,8 +170,8 @@ if (builderUser) {
                             class="ticket-delete-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20"
                             data-ticket-id={t.id}
                             data-ticket-code={t.code}
-                            data-ticket-credits={t.credits}
-                            data-ticket-original={t.original_credits}
+                            data-ticket-credits={t.remaining_uses}
+                            data-ticket-original={t.total_uses}
                             title="Eliminar ticket"
                           >
                             <svg
@@ -226,9 +226,9 @@ if (builderUser) {
                         Créditos
                       </span>
                       <div class="text-foreground text-lg font-semibold tabular-nums">
-                        {t.credits}
+                        {t.remaining_uses}
                         <span class="text-muted-foreground text-sm font-normal">
-                          /{t.original_credits}
+                          /{t.total_uses}
                         </span>
                       </div>
                     </div>
@@ -262,8 +262,8 @@ if (builderUser) {
                         class="ticket-update-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-blue-500/10 px-3 py-2 text-xs font-medium text-blue-400 ring-1 ring-blue-500/20 transition-all hover:bg-blue-500/20"
                         data-ticket-id={t.id}
                         data-ticket-code={t.code}
-                        data-ticket-credits={t.credits}
-                        data-ticket-original={t.original_credits}
+                        data-ticket-credits={t.remaining_uses}
+                        data-ticket-original={t.total_uses}
                         title="Actualizar créditos"
                       >
                         <svg
@@ -287,8 +287,8 @@ if (builderUser) {
                         class="ticket-delete-btn inline-flex items-center justify-center gap-1.5 rounded-md bg-red-500/10 px-3 py-2 text-xs font-medium text-red-400 ring-1 ring-red-500/20 transition-all hover:bg-red-500/20"
                         data-ticket-id={t.id}
                         data-ticket-code={t.code}
-                        data-ticket-credits={t.credits}
-                        data-ticket-original={t.original_credits}
+                        data-ticket-credits={t.remaining_uses}
+                        data-ticket-original={t.total_uses}
                         title="Eliminar ticket"
                       >
                         <svg
@@ -691,7 +691,7 @@ if (builderUser) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           code: ticketName,
-          credits: credits,
+          credits,
           description: description || null,
         }),
       })

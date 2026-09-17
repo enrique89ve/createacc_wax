@@ -10,8 +10,8 @@ import { BUILDERS_UI, MAX_TICKET_CREDITS } from '@/consts/constants'
 export interface TicketData {
   id: number
   code: string
-  credits: number
-  original_credits: number
+  remaining_uses: number
+  total_uses: number
 }
 
 type NotifyType = 'success' | 'error' | 'info'
@@ -130,10 +130,10 @@ async function setupSlider(ticket: TicketData) {
   cachedAvailableCredits = availableCredits
 
   // Calculate limits
-  const maxDecrease = ticket.credits - 1 // Minimum 1 credit on the ticket
+  const maxDecrease = ticket.remaining_uses - 1 // Minimum 1 credit on the ticket
   const maxIncrease = Math.min(
     availableCredits,
-    MAX_TICKET_CREDITS - ticket.credits // Do not exceed 100 credits
+    MAX_TICKET_CREDITS - ticket.remaining_uses // Do not exceed 100 credits
   )
 
   // Configure slider attributes
@@ -179,7 +179,7 @@ export async function openUpdateModal(ticket: TicketData) {
   // Populate readonly fields
   if (updateCodeDisplay) updateCodeDisplay.value = ticket.code
   if (updateCreditsDisplay) {
-    updateCreditsDisplay.value = `${ticket.credits} / ${ticket.original_credits}`
+    updateCreditsDisplay.value = `${ticket.remaining_uses} / ${ticket.total_uses}`
   }
 
   // Configure slider with dynamic limits
@@ -210,9 +210,9 @@ export function openDeleteModal(ticket: TicketData) {
   // Populate fields
   if (deleteTicketCode) deleteTicketCode.textContent = ticket.code
   if (deleteTicketCredits)
-    deleteTicketCredits.textContent = String(ticket.original_credits)
+    deleteTicketCredits.textContent = String(ticket.total_uses)
   if (deleteRefundAmount)
-    deleteRefundAmount.textContent = String(ticket.original_credits)
+    deleteRefundAmount.textContent = String(ticket.total_uses)
 
   // Show modal
   ticketActionModal.classList.remove('hidden')
@@ -271,8 +271,8 @@ function setupUpdateModalListeners() {
     }
 
     // Calculate new values
-    const newCredits = currentTicket.credits + delta
-    const newOriginal = currentTicket.original_credits + delta
+    const newCredits = currentTicket.remaining_uses + delta
+    const newOriginal = currentTicket.total_uses + delta
 
     // Validate credit limits
     if (newCredits < 1 || newOriginal < 1) {
@@ -353,7 +353,7 @@ function setupUpdateModalListeners() {
         const deltaText = delta > 0 ? `+${delta}` : String(delta)
         notify(
           'success',
-          `Credits updated: ${currentTicket.credits} → ${currentTicket.credits + delta} (${deltaText})`,
+          `Credits updated: ${currentTicket.remaining_uses} → ${currentTicket.remaining_uses + delta} (${deltaText})`,
           3000
         )
         closeModal()
@@ -429,8 +429,8 @@ function setupTicketButtons() {
       const ticket: TicketData = {
         id: parseInt(target.dataset.ticketId || '0', 10),
         code: target.dataset.ticketCode || '',
-        credits: parseInt(target.dataset.ticketCredits || '0', 10),
-        original_credits: parseInt(target.dataset.ticketOriginal || '0', 10),
+        remaining_uses: parseInt(target.dataset.ticketCredits || '0', 10),
+        total_uses: parseInt(target.dataset.ticketOriginal || '0', 10),
       }
       openUpdateModal(ticket)
     })
@@ -443,8 +443,8 @@ function setupTicketButtons() {
       const ticket: TicketData = {
         id: parseInt(target.dataset.ticketId || '0', 10),
         code: target.dataset.ticketCode || '',
-        credits: parseInt(target.dataset.ticketCredits || '0', 10),
-        original_credits: parseInt(target.dataset.ticketOriginal || '0', 10),
+        remaining_uses: parseInt(target.dataset.ticketCredits || '0', 10),
+        total_uses: parseInt(target.dataset.ticketOriginal || '0', 10),
       }
       openDeleteModal(ticket)
     })

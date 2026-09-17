@@ -177,7 +177,7 @@ try {
                     {formatDate(ticket.created_at)}
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {ticket.credits ?? 1}/{ticket.original_credits ?? 1}
+                    {ticket.remaining_uses ?? 1}/{ticket.total_uses ?? 1}
                   </td>
                   <td class="whitespace-nowrap px-6 py-4">
                     <button

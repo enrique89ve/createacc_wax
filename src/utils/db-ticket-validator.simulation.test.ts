@@ -100,7 +100,7 @@ beforeAll(async () => {
     args: [BUILDER_USERNAME],
   })
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, original_credits, credits, creator_username)
+    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
 			VALUES (?, 'sim', 3, 3, ?)`,
     args: [TICKET, BUILDER_USERNAME],
   })
@@ -134,10 +134,10 @@ describe('simulation DB completion', () => {
     expect(account.rows[0]?.transaction_id).toBe('tx-sim-1')
 
     const ticket = await db.execute({
-      sql: `SELECT credits FROM Tickets WHERE code = ?`,
+      sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
       args: [TICKET],
     })
-    expect(Number(ticket.rows[0]?.credits)).toBe(2)
+    expect(Number(ticket.rows[0]?.remaining_uses)).toBe(2)
   })
 
   it('broadcasted tx is stored as broadcasted, not confirmed', async () => {
@@ -151,7 +151,7 @@ describe('simulation DB completion', () => {
     )
 
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `liveu${Date.now().toString(36)}`
@@ -174,7 +174,7 @@ describe('simulation DB completion', () => {
 
   it('T07 concurrent reservation consumes one credit', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 1 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 1 WHERE code = ?`,
       args: [TICKET],
     })
     const [first, second] = await Promise.all([
@@ -199,7 +199,7 @@ describe('simulation DB completion', () => {
 
   it('T06 simulation DB failure rolls back ticket and skips reconciliation', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `failu${Date.now().toString(36)}`
@@ -226,7 +226,7 @@ describe('simulation DB completion', () => {
 
   it('pipeline failure rolls the reserved ticket credit back', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `waxu${Date.now().toString(36)}`
@@ -235,17 +235,17 @@ describe('simulation DB completion', () => {
     )
     expect(reserved.success).toBe(true)
     const mid = await db.execute({
-      sql: `SELECT credits FROM Tickets WHERE code = ?`,
+      sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
       args: [TICKET],
     })
-    expect(Number(mid.rows[0]?.credits)).toBe(2)
+    expect(Number(mid.rows[0]?.remaining_uses)).toBe(2)
     const rolled = await rollbackTicketReservation(TICKET, 'corr-wax')
     expect(rolled.success).toBe(true)
     const after = await db.execute({
-      sql: `SELECT credits FROM Tickets WHERE code = ?`,
+      sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
       args: [TICKET],
     })
-    expect(Number(after.rows[0]?.credits)).toBe(3)
+    expect(Number(after.rows[0]?.remaining_uses)).toBe(3)
     expect(await getCreationAttempt('corr-wax')).toMatchObject({
       status: 'rolled_back',
     })
@@ -253,7 +253,7 @@ describe('simulation DB completion', () => {
 
   it('duplicate username does not consume a second credit', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `dupu${Date.now().toString(36)}`
@@ -285,15 +285,15 @@ describe('simulation DB completion', () => {
     await rollbackTicketReservation(TICKET, 'corr-dup-2')
 
     const ticket = await db.execute({
-      sql: `SELECT credits FROM Tickets WHERE code = ?`,
+      sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
       args: [TICKET],
     })
-    expect(Number(ticket.rows[0]?.credits)).toBe(2)
+    expect(Number(ticket.rows[0]?.remaining_uses)).toBe(2)
   })
 
   it('Hive confirmation upgrades broadcasted to confirmed from persisted state', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `confu${Date.now().toString(36)}`
@@ -328,7 +328,7 @@ describe('simulation DB completion', () => {
 
   it('Hive-matched recovery persists confirmed even if broadcasted was never saved', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `hivm${Date.now().toString(36)}`
@@ -364,7 +364,7 @@ describe('simulation DB completion', () => {
 
   it('rolls back a stale reserved attempt so a later reserve can proceed', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `stal${Date.now().toString(36)}`
@@ -391,7 +391,7 @@ describe('simulation DB completion', () => {
 
   it('ties a reserved credit to this username and keys, not the ticket counter', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3, original_credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3, total_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const firstUser = `resu${Date.now().toString(36)}`
@@ -439,7 +439,7 @@ describe('simulation DB completion', () => {
 
   it('refuses to mark broadcasting after the attempt lost ownership', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `casu${Date.now().toString(36)}`
@@ -466,7 +466,7 @@ describe('simulation DB completion', () => {
 
   it('keeps the attempt open if Hive-matched DB complete fails', async () => {
     await db.execute({
-      sql: `UPDATE Tickets SET credits = 3 WHERE code = ?`,
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `open${Date.now().toString(36)}`

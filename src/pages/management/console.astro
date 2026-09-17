@@ -122,8 +122,8 @@ try {
                       </p>
                       <p class="text-muted-foreground text-xs">
                         Por {ticket.created_by_username} •{' '}
-                        {ticket.creator_type ?? 'manual'} • {ticket.credits}/
-                        {ticket.original_credits} créditos
+                        {ticket.creator_type ?? 'manual'} •{' '}
+                        {ticket.remaining_uses}/{ticket.total_uses} créditos
                       </p>
                     </div>
                     <div class="text-right">
