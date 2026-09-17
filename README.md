@@ -117,6 +117,8 @@ Blocking a Hive username denies Builder access and consumption of its existing t
 
 Tickets persist `total_uses`, `remaining_uses`, and optional `revoked_at`. `used_uses`, `kind` (`single_use`/`multi_use`) and lifecycle status are derived from those facts. A revoked ticket retains its remaining uses and can be restored without changing balances.
 
+Ticket mutations belong to Builders: their Hive username is the ticket creator and Builder credits are exchanged one-to-one for ticket uses. The management console exposes tickets for inspection only; Admins assign Builder credits but do not create or delete tickets directly.
+
 See [AUTH closure and transaction follow-up](docs/auth-closure.md) for scope and remaining production validation.
 
 ---

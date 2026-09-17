@@ -7,6 +7,7 @@
 - El servidor construye y conserva el mensaje exacto; el cliente lo solicita por POST y lo firma. Se elimina `customMessage` y la generación de mensajes de login en cliente.
 - Relación económica: `Credits[hive_username]`. Ausencia de fila significa saldo cero.
 - Abuso: `BlockedHiveAccounts`. Bloquear conserva saldos e historial, deniega acceso Builder y suspende el consumo de tickets de ese creador.
+- Tickets: los Builders convierten créditos económicos en usos (`total_uses`/`remaining_uses`). La consola Admin solo consulta tickets; no tiene POST ni DELETE de tickets.
 
 El validador devuelve “Ticket temporalmente no disponible”; el endpoint público mantiene su respuesta mínima `{ valid: false }`. La reserva aplica `NOT EXISTS BlockedHiveAccounts` dentro del UPDATE, evitando que una validación anterior al bloqueo permita descontar un crédito. El helper alternativo `markTicketAsUsed` aplica la misma condición. Al desbloquear, el mismo ticket vuelve a funcionar.
 
