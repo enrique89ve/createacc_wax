@@ -42,6 +42,22 @@ export interface ConsistencyCheck {
   readonly difference: number
 }
 
+export type CreditBalanceLedgerBreakdown = CreditBalanceBreakdown['breakdown']
+
+export function calculateExpectedAvailable(
+  breakdown: CreditBalanceLedgerBreakdown
+): number {
+  return (
+    breakdown.claimed +
+    breakdown.granted_available +
+    breakdown.legacy_transfer_in +
+    breakdown.legacy_transfer_out +
+    breakdown.spent_on_tickets +
+    breakdown.refunded_from_tickets +
+    breakdown.admin_adjustments
+  )
+}
+
 function toBalance(
   hiveUsername: string,
   row: {
@@ -136,14 +152,7 @@ export async function checkConsistency(
   }
 
   const breakdown = await calculateBreakdown(hiveUsername)
-  const calculatedAvailable =
-    breakdown.claimed +
-    breakdown.granted_available +
-    breakdown.legacy_transfer_in +
-    breakdown.legacy_transfer_out +
-    breakdown.spent_on_tickets +
-    breakdown.refunded_from_tickets +
-    breakdown.admin_adjustments
+  const calculatedAvailable = calculateExpectedAvailable(breakdown)
 
   const critical_issues: string[] = []
   const warning_issues: string[] = []
@@ -193,11 +202,7 @@ export async function getDetailedBalance(
 ): Promise<CreditBalanceBreakdown> {
   const balance = await getBalance(hiveUsername)
   const breakdown = await calculateBreakdown(hiveUsername)
-  const expectedAvailable =
-    breakdown.claimed +
-    breakdown.spent_on_tickets +
-    breakdown.refunded_from_tickets +
-    breakdown.admin_adjustments
+  const expectedAvailable = calculateExpectedAvailable(breakdown)
 
   return {
     ...balance,

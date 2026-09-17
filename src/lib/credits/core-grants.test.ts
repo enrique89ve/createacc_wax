@@ -69,6 +69,12 @@ describe('Credits core grants and adjustments', () => {
     expect(balance.total_issued).toBe(8)
     expect(balance.is_consistent).toBe(true)
     expect(balance.breakdown.granted_available).toBe(8)
+    expect(balance.discrepancy).toEqual({
+      has_discrepancy: false,
+      expected_available: 8,
+      actual_available: 8,
+      difference: 0,
+    })
   })
 
   it('adjusts pending and available deltas atomically and separately', async () => {
