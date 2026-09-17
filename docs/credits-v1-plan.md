@@ -1,14 +1,16 @@
 # Credits v1: plan de implementación por commits
 
-Estado: planificación; implementación pendiente.
-Base revisada: `d3fa976` (`main`), 2026-09-16.
+Estado: implementado en `main`; la fase inicial y su seguimiento de finalidad
+quedaron cerrados en commits separados.
+Base revisada: `b182834` (`main`), 2026-09-17.
 
 ## Objetivo y alcance
 
-Cerrar Credits v1 con un claim persistente, verificable entre procesos y atómico:
-una prueba válida mueve el importe autorizado una sola vez y genera su auditoría
-en la misma transacción. El core mueve cantidades; los adapters verifican evidencia
-externa; los servicios coordinan; los endpoints validan y traducen resultados HTTP.
+Cerrar Credits v1 con un claim persistente, verificable entre procesos, consciente
+de la finalidad Hive y atómico: una prueba irreversible válida mueve el importe
+autorizado una sola vez y genera su auditoría en la misma transacción. El core
+mueve cantidades; los adapters verifican evidencia externa; los servicios
+coordinan; los endpoints validan y traducen resultados HTTP.
 
 Se mantienen congelados AUTH, Tickets y la relación Credits→Uses. Los cambios en
 fixtures de Tickets por el renombre de una columna no cambian sus reglas. La
@@ -98,12 +100,16 @@ comprobación independiente y autoritativa en el servicio.
 Un txid se valida y normaliza a hex minúscula antes de construir
 `hive:claim:<txid>:<op_index>`. Un timeout/fallo del proveedor se distingue de una
 prueba inválida. El adapter no importa base de datos, Credits Core ni pricing.
-La extracción mantiene el proveedor WAX/HAF actual; los formatos exactos se
-contrastarán con sus tipos instalados y fixtures al implementarla.
+La finalidad se consulta mediante `transaction_status_api.find_transaction`:
+`unknown` y `within_mempool` son estados reintentables,
+`within_reversible_block` devuelve `pending` y
+`within_irreversible_block` es el único estado que produce una prueba válida.
+Los estados expirados o demasiado antiguos son inválidos. La API oficial describe
+estos estados y su semántica en la [referencia de Transaction Status](https://developers.hive.io/apidefinitions/#transaction_status_api.find_transaction).
 
-No se añade espera de irreversibilidad al claim en este refactor: el estado actual
-solo exige inclusión observada. Esta limitación debe figurar en el cierre. La
-irreversibilidad de pagos es requisito separado de la fase HIVE/HBD.
+La interfaz espera un segundo en el cliente después del broadcast para absorber
+la propagación inicial. Luego hace polling con backoff limitado. Esa ventana de
+UX no es evidencia de finalidad y no se implementa como `sleep` en el backend.
 
 ### Servicio y core
 
@@ -146,15 +152,16 @@ No se reconstruyen referencias históricas a partir de `reason`: un txid sin
 La política v1 es **un único efecto**, con replay rechazado; no promete devolver
 el éxito original en cada reintento:
 
-| Situación                                       | Resultado                                   |
-| ----------------------------------------------- | ------------------------------------------- |
-| Primera aplicación correcta                     | 200, créditos movidos y saldo transaccional |
-| Intent inexistente, ajeno o expirado            | 404, sin revelar datos de otro usuario      |
-| Intent ya consumido en una carrera              | 404, sin segundo movimiento                 |
-| Pendiente insuficiente o referencia ya aplicada | 409, rollback completo                      |
-| Body mal formado o prueba inválida              | 400, sin consumir intent                    |
-| Proveedor temporalmente no disponible           | 503, intent reintentable dentro del TTL     |
-| Fallo interno de persistencia                   | 500, rollback completo                      |
+| Situación                                       | Resultado                                       |
+| ----------------------------------------------- | ----------------------------------------------- |
+| Primera aplicación correcta                     | 200, créditos movidos y saldo transaccional     |
+| Intent inexistente, ajeno o expirado            | 404, sin revelar datos de otro usuario          |
+| Intent ya consumido en una carrera              | 404, sin segundo movimiento                     |
+| Pendiente insuficiente o referencia ya aplicada | 409, rollback completo                          |
+| Body mal formado o prueba inválida              | 400, sin consumir intent                        |
+| Proveedor temporalmente no disponible           | 503, intent reintentable dentro del TTL         |
+| Transacción incluida pero aún reversible        | 202, intent intacto y verificación reintentable |
+| Fallo interno de persistencia                   | 500, rollback completo                          |
 
 Si se pierde la respuesta después del commit, consultar saldo/historial permite
 confirmar el resultado; reenviar el intent no acredita otra vez. Una colisión de
@@ -214,6 +221,19 @@ usen dos fuentes de autoridad diferentes.
 Dependencias: 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7. En cada paso se revisará el diff
 antes de crear el commit. No se agruparán cambios ajenos en estos commits.
 
+### Seguimiento de finalidad y consistencia
+
+La fase posterior al cierre inicial se implementó en esta secuencia, manteniendo
+cada commit autocontenido:
+
+| Orden / mensaje                                                           | Alcance                                                                                                      | Criterio de salida                                                                                |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| 8. `fix(credits): model Hive finality and propagation grace`              | Estados del adapter, consulta `transaction_status_api`, HTTP 202, espera inicial de 1 s y polling de cliente | Solo la evidencia irreversible llama a `completeClaim`; estados transitorios no consumen intents  |
+| 9. `test(credits): cover reversible-to-irreversible claim flow`           | Tests del adapter, servicio y polling con límite de intentos                                                 | Reversible → pending → irreversible; replay y fallos transitorios quedan cubiertos                |
+| 10. `refactor(credits): unify balance consistency calculation`            | Función pura compartida por diagnóstico y detalle de balance                                                 | Ambas rutas calculan el mismo `expected_available`, incluyendo grants y transferencias históricas |
+| 11. `refactor(credits): make claim payload timestamp backward-compatible` | Se elimina `timestamp` de nuevos payloads y se aceptan payloads antiguos                                     | El formato nuevo funciona sin romper claims ya firmados                                           |
+| 12. `docs(credits): close finality and consistency phase`                 | Este documento, cierre y contexto de sesión                                                                  | Los resultados y límites reflejan la implementación actual                                        |
+
 ## Matriz de pruebas
 
 1. **Persistencia:** emitir en proceso A y completar en B sobre el mismo archivo
@@ -222,7 +242,8 @@ antes de crear el commit. No se agruparán cambios ajenos en estos commits.
    usuario o app; ninguna combinación produce saldo ni auditoría.
 3. **Adapter:** operación válida en posición distinta de cero; una candidata
    previa inválida no oculta otra válida; payload escalar/null, auth ausente,
-   timestamps inválidos/futuros/antiguos y error RPC fallan de forma tipada.
+   timestamps inválidos/futuros/antiguos, estados Hive no finales y error RPC
+   fallan de forma tipada.
 4. **Concurrencia:** mismo intent enviado dos veces, también con pendiente
    adicional suficiente para ocultar una doble acreditación; exactamente un
    ganador y una auditoría. Dos intents distintos contra pendiente insuficiente
@@ -241,6 +262,9 @@ antes de crear el commit. No se agruparán cambios ajenos en estos commits.
    históricas; sin doble descuento del consumo ni cambios en ownership de Tickets.
 9. **Endpoints:** CSRF, sesión y RBAC conservados; body inválido; errores tipados;
    respuestas del claim compatibles con `creditos.astro`.
+10. **Finalidad y UX:** no hay consulta antes de 1 s; respuestas 202 se reintentan
+    con límite; un estado irreversible completa una sola vez y uno reversible deja
+    el intent persistente.
 
 Los mocks se reservan al borde Hive y a fallos controlados. Atomicidad, UNIQUE,
 rollback y persistencia deben probarse contra SQLite/libSQL real. Pruebas locales
@@ -256,9 +280,13 @@ entre procesos no equivalen a validación de una instalación remota de Turso.
   corregirá el lint de su alcance y comparará el resultado global con la base;
   un freeze que exija `pnpm verify` completamente verde queda pendiente hasta
   resolver también el baseline global. No se ocultarán errores con disables.
+- Estado final de esta fase: `pnpm test` sobre SQLite temporal, **30 archivos /
+  140 tests pasan**; `pnpm exec tsc --noEmit` y `pnpm build` pasan.
+  `pnpm check` mantiene el baseline global de ESLint: 4.359 errores y 1.154
+  warnings; no se introdujeron disables ni se hizo limpieza ajena a Credits.
 - Gestor detectado: `pnpm-lock.yaml`, `packageManager: pnpm@11.22.0`.
 - El shell inicial resuelve pnpm de Windows y no encuentra Node en Linux. Para
-  validar se antepone `/root/.nvm/versions/node/v24.19.0/bin` al PATH del proceso;
+  validar se antepone `/root/.nvm/versions/node/v22.17.0/bin` al PATH del proceso;
   así se usa Node Linux y pnpm 11.22.0, sin modificar configuración global.
 - Por commit funcional: tests focalizados y `pnpm check`; al cierre:
   `pnpm verify` y `pnpm build`.
@@ -280,8 +308,10 @@ entre procesos no equivalen a validación de una instalación remota de Turso.
 
 Credits v1 queda cerrado localmente cuando pasan los checks, la matriz anterior y
 la regresión de AUTH/Tickets; no quedan escrituras de cantidades en controllers o
-admin, ni cache de claims, ni consumers del nombre anterior. El cierre registra
-qué se probó, comandos, resultados y los límites de evidencia.
+admin, ni cache de claims, ni consumers del nombre anterior. La finalidad
+irreversible ya forma parte del contrato del claim; `pending` solo representa una
+transacción todavía no final y nunca mueve el balance. El cierre registra qué se
+probó, comandos, resultados y los límites de evidencia.
 
 El smoke real de Builder + Keychain + proveedor Hive + despliegue sigue siendo
 evidencia independiente. El freeze local no promete pagos listos ni prueba un
