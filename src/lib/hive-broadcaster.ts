@@ -1,5 +1,9 @@
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
-import { isBroadcastEnabled } from '@/lib/hive-execution-mode'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import {
+  HIVE_TX_MODE_VALUES,
+  type HiveExecutionMode,
+} from '@/consts/hive-execution'
 
 export interface HiveBroadcastOutcome {
   readonly broadcasted: boolean
@@ -7,7 +11,8 @@ export interface HiveBroadcastOutcome {
 
 export type HiveBroadcaster = (
   chain: IHiveChainInterface,
-  tx: IOnlineTransaction
+  tx: IOnlineTransaction,
+  executionMode: HiveExecutionMode
 ) => Promise<HiveBroadcastOutcome>
 
 export class HiveBroadcastAttemptError extends Error {
@@ -30,7 +35,8 @@ export function unwrapBroadcastError(error: unknown): unknown {
  */
 export async function noopHiveBroadcast(
   _chain: IHiveChainInterface,
-  _tx: IOnlineTransaction
+  _tx: IOnlineTransaction,
+  _executionMode?: HiveExecutionMode
 ): Promise<HiveBroadcastOutcome> {
   return { broadcasted: false }
 }
@@ -42,9 +48,10 @@ export async function noopHiveBroadcast(
  */
 export async function broadcastHiveTransaction(
   chain: IHiveChainInterface,
-  tx: IOnlineTransaction
+  tx: IOnlineTransaction,
+  executionMode: HiveExecutionMode = getHiveExecutionMode()
 ): Promise<HiveBroadcastOutcome> {
-  if (!isBroadcastEnabled()) {
+  if (executionMode !== HIVE_TX_MODE_VALUES.BROADCAST) {
     return { broadcasted: false }
   }
   try {

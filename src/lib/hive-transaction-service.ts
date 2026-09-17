@@ -13,6 +13,7 @@ import {
   type HiveBroadcaster,
 } from '@/lib/hive-broadcaster'
 import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import type { HiveExecutionMode } from '@/consts/hive-execution'
 import type {
   HiveTransactionResult,
   HiveWaxPipelineStatus,
@@ -43,6 +44,7 @@ export interface ExecuteTransactionOptions {
 export interface HiveTransactionRuntime {
   readonly getChain?: () => Promise<IHiveChainInterface>
   readonly broadcast?: HiveBroadcaster
+  readonly executionMode?: HiveExecutionMode
 }
 
 interface RetryConfig {
@@ -117,10 +119,11 @@ export class HiveTransactionService {
 
   private async dispatchBroadcast(
     chain: IHiveChainInterface,
-    tx: IOnlineTransaction
+    tx: IOnlineTransaction,
+    executionMode: HiveExecutionMode
   ): Promise<boolean> {
     const broadcast = this.runtime.broadcast ?? broadcastHiveTransaction
-    const outcome = await broadcast(chain, tx)
+    const outcome = await broadcast(chain, tx, executionMode)
     return outcome.broadcasted
   }
 
@@ -166,6 +169,7 @@ export class HiveTransactionService {
     operationBuilder: OperationBuilder,
     options: ExecuteTransactionOptions = {}
   ): Promise<HiveTransactionResult> {
+    const executionMode = this.runtime.executionMode ?? getHiveExecutionMode()
     const beekeeperService = BeekeeperService.create({
       privateKey: this.config.privateKey,
       walletName: this.config.walletName,
@@ -192,11 +196,12 @@ export class HiveTransactionService {
       }
       const broadcasted = await this.dispatchBroadcast(
         prepared.chain,
-        prepared.tx
+        prepared.tx,
+        executionMode
       )
       return {
         id: prepared.tx.id,
-        mode: getHiveExecutionMode(),
+        mode: executionMode,
         broadcasted,
         wax: prepared.wax,
         requiredAuthorities: prepared.requiredAuthorities,

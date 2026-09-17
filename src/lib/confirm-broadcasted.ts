@@ -72,8 +72,8 @@ export async function listBroadcastedAccounts(): Promise<
   const result = await db.execute({
     sql: `SELECT username, correlation_id, ticket
 			FROM Accounts
-			WHERE blockchain_status IN (?, ?)`,
-    args: [BLOCKCHAIN_STATUS.BROADCASTED, BLOCKCHAIN_STATUS.FAILED],
+      WHERE blockchain_status = ?`,
+    args: [BLOCKCHAIN_STATUS.BROADCASTED],
   })
   return result.rows.map(row => ({
     username: String(row.username),
@@ -162,14 +162,17 @@ async function recoverStaleAttempt(attempt: CreationAttempt): Promise<void> {
     return
   }
 
-  if (
-    recovered.kind === 'not_found' ||
-    recovered.kind === 'foreign_account' ||
-    recovered.kind === 'ambiguous'
-  ) {
+  if (recovered.kind === 'not_found' || recovered.kind === 'foreign_account') {
     await rollbackTicketReservation(attempt.ticket, attempt.correlationId)
     logger.info(
       `[${attempt.correlationId}] Rolled back stale broadcasting attempt (${recovered.kind}) for ${attempt.username}`
+    )
+    return
+  }
+
+  if (recovered.kind === 'ambiguous' || recovered.kind === 'error') {
+    logger.warn(
+      `[${attempt.correlationId}] Holding stale broadcasting attempt for ${attempt.username}; Hive evidence is ${recovered.kind}`
     )
   }
 }

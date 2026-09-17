@@ -7,7 +7,6 @@ import {
   type HiveExecutionMode,
 } from '@/consts/hive-execution'
 import { parseExecutionMode } from '@/lib/account-status'
-import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import {
   waxPipelinePassed,
   type HiveTransactionResult,
@@ -35,6 +34,7 @@ export interface ReserveCreationAttemptInput {
   readonly username: string
   readonly ticket: string
   readonly keys: CreationAttemptKeys
+  readonly executionMode: HiveExecutionMode
 }
 
 export interface PreparedAttemptSnapshot {
@@ -127,7 +127,7 @@ export async function insertReservedAttempt(
       input.keys.activePublicKey,
       input.keys.postingPublicKey,
       input.keys.memoPublicKey,
-      getHiveExecutionMode(),
+      input.executionMode,
     ],
   })
 }

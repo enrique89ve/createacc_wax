@@ -214,6 +214,42 @@ describe('HiveTransactionService broadcast spy', () => {
     expect(chainBroadcast).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the execution mode captured at the start of the attempt', async () => {
+    process.env.HIVE_TX_MODE = 'broadcast'
+    const tx = createTxMock()
+    const chain = {
+      createTransaction: async () => tx,
+      endpointUrl: 'https://api.hive.blog',
+      broadcast: vi.fn(),
+    } as unknown as IHiveChainInterface
+    const gateway = vi.fn(
+      async (
+        _chain: IHiveChainInterface,
+        _tx: IOnlineTransaction,
+        mode: 'simulate' | 'broadcast'
+      ) => {
+        process.env.HIVE_TX_MODE = 'simulate'
+        return { broadcasted: mode === 'broadcast' }
+      }
+    )
+
+    const service = HiveTransactionService.create(
+      {
+        account: 'creator',
+        privateKey: '5secret',
+        walletName: 'test',
+        maxRetries: 0,
+      },
+      { getChain: async () => chain, broadcast: gateway }
+    )
+
+    const result = await service.executeTransaction(() => {})
+
+    expect(result.mode).toBe('broadcast')
+    expect(result.broadcasted).toBe(true)
+    expect(gateway).toHaveBeenCalledWith(chain, tx, 'broadcast')
+  })
+
   it('persists the prepared snapshot before broadcasting', async () => {
     process.env.HIVE_TX_MODE = 'simulate'
     const tx = createTxMock()

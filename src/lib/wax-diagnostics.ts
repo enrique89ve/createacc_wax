@@ -6,7 +6,10 @@ import {
   getHiveExecutionMode,
   isBroadcastEnabled,
 } from '@/lib/hive-execution-mode'
-import type { HiveExecutionMode } from '@/consts/hive-execution'
+import {
+  HIVE_TX_MODE_VALUES,
+  type HiveExecutionMode,
+} from '@/consts/hive-execution'
 import { HiveKeys } from '@/lib/create/get-keys'
 import { createAccount } from '@/lib/create/create-account'
 import { noopHiveBroadcast } from '@/lib/hive-broadcaster'
@@ -45,6 +48,7 @@ function randomSimUsername(): string {
 
 const SELF_TEST_RUNTIME: HiveTransactionRuntime = {
   broadcast: noopHiveBroadcast,
+  executionMode: HIVE_TX_MODE_VALUES.SIMULATE,
 }
 
 export async function collectWaxDiagnostics(

@@ -185,7 +185,8 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		correlation_id TEXT,
 		wax_status TEXT,
 		rc_delegated INTEGER NOT NULL CHECK (rc_delegated IN (0, 1)),
-		rc_status TEXT NOT NULL CHECK (rc_status IN ('${RC_STATUS.PENDING}', '${RC_STATUS.PROCESSING}', '${RC_STATUS.UNCERTAIN}', '${RC_STATUS.DELEGATED}'))
+		rc_status TEXT NOT NULL CHECK (rc_status IN ('${RC_STATUS.PENDING}', '${RC_STATUS.PROCESSING}', '${RC_STATUS.UNCERTAIN}', '${RC_STATUS.DELEGATED}')),
+		rc_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`,
 
   `CREATE TABLE IF NOT EXISTS TicketAudit (
@@ -262,7 +263,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		posting_public_key TEXT NOT NULL,
 		memo_public_key TEXT NOT NULL,
 		transaction_id TEXT,
-		execution_mode TEXT NOT NULL DEFAULT 'simulate',
+		execution_mode TEXT NOT NULL DEFAULT '${HIVE_TX_MODE_VALUES.SIMULATE}' CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
 		broadcasted INTEGER NOT NULL DEFAULT 0,
 		wax_validated INTEGER NOT NULL DEFAULT 0,
 		wax_on_chain_verified INTEGER NOT NULL DEFAULT 0,

@@ -6,10 +6,7 @@ import {
   HivePreflightError,
   runAccountCreationPreflight,
 } from '@/lib/hive-preflight'
-import {
-  getHiveExecutionMode,
-  isSimulationMode,
-} from '@/lib/hive-execution-mode'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
 import {
   getOpenCreationAttemptByUsername,
@@ -27,6 +24,7 @@ import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
   BLOCKCHAIN_STATUS,
   CREATION_ATTEMPT_STATUS,
+  HIVE_TX_MODE_VALUES,
   type HiveExecutionMode,
 } from '@/consts/hive-execution'
 import {
@@ -80,6 +78,10 @@ import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { unwrapBroadcastError } from '@/lib/hive-broadcaster'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
+import {
+  fetchHiveAccountAuthorities,
+  hiveAuthoritiesMatchExpected,
+} from '@/lib/hive-account-authorities'
 // Side-effect: auto-reconciler (also imported from middleware.ts; ES module imports are idempotent)
 import '@/lib/auto-reconciler'
 
@@ -493,7 +495,8 @@ async function reserveTicket(
   ticketCode: string,
   correlationId: string,
   username: string,
-  keys: CreationAttemptKeys
+  keys: CreationAttemptKeys,
+  executionMode: HiveExecutionMode
 ): Promise<Response | void> {
   const obfuscatedTicket = obfuscateTicket(ticketCode)
   logger.warn(
@@ -505,6 +508,7 @@ async function reserveTicket(
     correlationId,
     username,
     keys,
+    executionMode,
   })
   if (!reservation.success) {
     const isRace = reservation.errorCode === ERROR_CODES.TICKET_RACE_CONDITION
@@ -526,6 +530,7 @@ async function rollbackAfterFailure(
   ticketCode: string,
   correlationId: string,
   username: string,
+  executionMode: HiveExecutionMode,
   reason: 'ambiguous_chain_error' | 'db_completion_failed',
   errorCategory?: string,
   errorMessage?: string,
@@ -537,7 +542,7 @@ async function rollbackAfterFailure(
   )
   if (rollbackResult.success) return true
 
-  if (isSimulationMode()) {
+  if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) {
     logger.error(
       `[${correlationId}] Rollback failed in simulate mode: ${rollbackResult.error}`
     )
@@ -549,6 +554,7 @@ async function rollbackAfterFailure(
     username,
     ticketCode,
     reason,
+    executionMode,
     errorCategory,
     errorMessage: `rollback_failed: ${rollbackResult.error}${errorMessage ? ` / ${errorMessage}` : ''}`,
     transactionId,
@@ -560,31 +566,40 @@ async function createAccountOnChain(
   params: ReturnType<typeof toCreateAccountParams>,
   ticketCode: string,
   correlationId: string,
-  username: string
+  username: string,
+  executionMode: HiveExecutionMode
 ): Promise<Response | HiveTransactionResult> {
   try {
-    const tx = await createAccount(params, undefined, async snapshot => {
-      const persisted = await persistAttemptPreparation(correlationId, snapshot)
-      if (!persisted) {
-        throw new Error('Failed to persist prepared transaction snapshot')
-      }
-      if (!isSimulationMode()) {
-        const marked = await markAttemptBroadcasting(correlationId)
-        if (!marked) {
-          throw new Error('Creation attempt lost ownership before broadcast')
+    const tx = await createAccount(
+      params,
+      { executionMode },
+      async snapshot => {
+        const persisted = await persistAttemptPreparation(
+          correlationId,
+          snapshot
+        )
+        if (!persisted) {
+          throw new Error('Failed to persist prepared transaction snapshot')
+        }
+        if (executionMode !== HIVE_TX_MODE_VALUES.SIMULATE) {
+          const marked = await markAttemptBroadcasting(correlationId)
+          if (!marked) {
+            throw new Error('Creation attempt lost ownership before broadcast')
+          }
         }
       }
-    })
+    )
     await persistAttemptBroadcastOutcome(correlationId, tx)
     return tx
   } catch (chainError) {
     const errorInfo = analyzeWaxError(unwrapBroadcastError(chainError))
 
-    if (isSimulationMode()) {
+    if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) {
       await rollbackAfterFailure(
         ticketCode,
         correlationId,
         username,
+        executionMode,
         'ambiguous_chain_error',
         errorInfo.category,
         errorInfo.message
@@ -597,7 +612,8 @@ async function createAccountOnChain(
         params,
         ticketCode,
         correlationId,
-        username
+        username,
+        executionMode
       )
     }
 
@@ -618,6 +634,7 @@ async function createAccountOnChain(
           username,
           ticketCode,
           reason: 'ambiguous_chain_error',
+          executionMode,
           errorCategory: errorInfo.category,
           errorMessage: `rollback_failed: ${rollbackResult.error}`,
         })
@@ -634,6 +651,7 @@ async function createAccountOnChain(
       username,
       ticketCode,
       reason: 'ambiguous_chain_error',
+      executionMode,
       errorCategory: errorInfo.category,
       errorMessage: errorInfo.message,
     })
@@ -651,6 +669,7 @@ async function completeInDatabase(
   username: string,
   ticketCode: string,
   correlationId: string,
+  executionMode: HiveExecutionMode,
   tx?: HiveTransactionResult
 ): Promise<Response | void> {
   const dbResult = await completeAccountCreationInDB(
@@ -666,11 +685,12 @@ async function completeInDatabase(
     `[${correlationId}] WARNING: Account ${username} pipeline finished (tx: ${transactionId ?? 'none'}) but DB completion failed: ${dbResult.error}. Ticket was already reserved.`
   )
 
-  if (isSimulationMode()) {
+  if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) {
     await rollbackAfterFailure(
       ticketCode,
       correlationId,
       username,
+      executionMode,
       'db_completion_failed',
       undefined,
       dbResult.error,
@@ -696,6 +716,7 @@ async function completeInDatabase(
     username,
     ticketCode,
     reason: 'db_completion_failed',
+    executionMode,
     errorMessage: dbResult.error,
     transactionId,
   })
@@ -725,7 +746,8 @@ function finalizeSession(context: APIContext, session: ValidatedSession): void {
 async function rollbackForeignAccount(
   ticketCode: string,
   correlationId: string,
-  username: string
+  username: string,
+  executionMode: HiveExecutionMode
 ): Promise<Response> {
   const rollbackResult = await rollbackTicketReservation(
     ticketCode,
@@ -737,6 +759,7 @@ async function rollbackForeignAccount(
       username,
       ticketCode,
       reason: 'ambiguous_chain_error',
+      executionMode,
       errorCategory: 'business',
       errorMessage: `rollback_failed_after_foreign_account: ${rollbackResult.error}`,
     })
@@ -754,7 +777,8 @@ async function handleAccountAlreadyExists(
   params: ReturnType<typeof toCreateAccountParams>,
   ticketCode: string,
   correlationId: string,
-  username: string
+  username: string,
+  executionMode: HiveExecutionMode
 ): Promise<Response | HiveTransactionResult> {
   const recovered = await recoverOwnedAccount({
     username,
@@ -791,6 +815,7 @@ async function handleAccountAlreadyExists(
       username,
       ticketCode,
       reason: 'ambiguous_chain_error',
+      executionMode,
       errorCategory: 'api',
       errorMessage:
         recovered.kind === 'error'
@@ -809,7 +834,12 @@ async function handleAccountAlreadyExists(
   logger.warn(
     `[${correlationId}] Account ${username} already exists and is not this attempt. Rolling back.`
   )
-  return rollbackForeignAccount(ticketCode, correlationId, username)
+  return rollbackForeignAccount(
+    ticketCode,
+    correlationId,
+    username,
+    executionMode
+  )
 }
 
 async function recoverReservedHttpRetry(
@@ -831,7 +861,8 @@ async function recoverReservedHttpRetry(
     return rollbackForeignAccount(
       session.ticket,
       recovered.attempt.correlationId,
-      request.username
+      request.username,
+      recovered.attempt.executionMode
     )
   }
 
@@ -847,6 +878,7 @@ async function recoverReservedHttpRetry(
       request.username,
       session.ticket,
       correlationId,
+      recovered.attempt.executionMode,
       recovered.tx ?? undefined
     )
     if (dbResult instanceof Response) return dbResult
@@ -877,7 +909,8 @@ async function recoverReservedHttpRetry(
 
 async function confirmAccountOnHive(
   username: string,
-  correlationId: string
+  correlationId: string,
+  expectedKeys: CreationAttemptKeys
 ): Promise<boolean> {
   const chain = await hiveChain()
   const lookup = await validateHiveAccountExistsWithPolling({
@@ -887,6 +920,17 @@ async function confirmAccountOnHive(
   if (lookup.status !== 'found') {
     logger.warn(
       `[${correlationId}] Account ${username} broadcasted but not confirmed on Hive (${lookup.status})`
+    )
+    return false
+  }
+
+  const authorityLookup = await fetchHiveAccountAuthorities(username, chain)
+  if (
+    authorityLookup.status !== 'found' ||
+    !hiveAuthoritiesMatchExpected(authorityLookup.authorities, expectedKeys)
+  ) {
+    logger.warn(
+      `[${correlationId}] Account ${username} exists on Hive but expected authorities were not confirmed`
     )
     return false
   }
@@ -962,6 +1006,7 @@ export const POST: APIRoute = async context => {
     }
 
     const correlationId = `${requestResult.username}-${Date.now().toString(36)}`
+    const executionMode = getHiveExecutionMode()
 
     if (!acquireCreationLock(requestResult.username)) {
       return failureResponse(
@@ -984,7 +1029,8 @@ export const POST: APIRoute = async context => {
         sessionResult.ticket,
         correlationId,
         requestResult.username,
-        keysFromRequest(requestResult)
+        keysFromRequest(requestResult),
+        executionMode
       )
       if (reserveResult instanceof Response) return reserveResult
 
@@ -992,15 +1038,20 @@ export const POST: APIRoute = async context => {
         params,
         sessionResult.ticket,
         correlationId,
-        requestResult.username
+        requestResult.username,
+        executionMode
       )
       if (txResult instanceof Response) return txResult
 
-      if (isSimulationMode() && !isSimulationSuccess(txResult)) {
+      if (
+        executionMode === HIVE_TX_MODE_VALUES.SIMULATE &&
+        !isSimulationSuccess(txResult)
+      ) {
         await rollbackAfterFailure(
           sessionResult.ticket,
           correlationId,
           requestResult.username,
+          executionMode,
           'ambiguous_chain_error'
         )
         return failureResponse(
@@ -1020,15 +1071,20 @@ export const POST: APIRoute = async context => {
         requestResult.username,
         sessionResult.ticket,
         correlationId,
+        executionMode,
         txResult
       )
       if (dbResult instanceof Response) return dbResult
 
       let chainConfirmed = false
-      if (txResult.broadcasted && !isSimulationMode()) {
+      if (
+        txResult.broadcasted &&
+        executionMode !== HIVE_TX_MODE_VALUES.SIMULATE
+      ) {
         chainConfirmed = await confirmAccountOnHive(
           requestResult.username,
-          correlationId
+          correlationId,
+          keysFromRequest(requestResult)
         )
       }
 

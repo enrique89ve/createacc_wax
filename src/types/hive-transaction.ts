@@ -1,4 +1,7 @@
-import type { HiveExecutionMode } from '@/consts/hive-execution'
+import {
+  HIVE_TX_MODE_VALUES,
+  type HiveExecutionMode,
+} from '@/consts/hive-execution'
 
 export interface HiveWaxPipelineStatus {
   readonly validated: boolean
@@ -27,7 +30,11 @@ export function waxPipelinePassed(wax: HiveWaxPipelineStatus): boolean {
  * Account-creation simulation: all four WAX checks, never broadcast.
  */
 export function isSimulationSuccess(result: HiveTransactionResult): boolean {
-  return result.broadcasted === false && waxPipelinePassed(result.wax)
+  return (
+    result.mode === HIVE_TX_MODE_VALUES.SIMULATE &&
+    result.broadcasted === false &&
+    waxPipelinePassed(result.wax)
+  )
 }
 
 /**
@@ -36,6 +43,7 @@ export function isSimulationSuccess(result: HiveTransactionResult): boolean {
  */
 export function isRcSimulationSuccess(result: HiveTransactionResult): boolean {
   return (
+    result.mode === HIVE_TX_MODE_VALUES.SIMULATE &&
     result.broadcasted === false &&
     result.wax.validated &&
     result.wax.signed &&

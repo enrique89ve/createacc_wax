@@ -10,13 +10,17 @@ import {
   RC_STATUS,
   WAX_STATUS,
   type BlockchainStatus,
+  type HiveExecutionMode,
 } from '@/consts/hive-execution'
 import {
   parseBlockchainStatus,
   parseExecutionMode,
   type PersistedAccountCreation,
 } from '@/lib/account-status'
-import { isSimulationMode } from '@/lib/hive-execution-mode'
+import {
+  getHiveExecutionMode,
+  isSimulationMode,
+} from '@/lib/hive-execution-mode'
 import {
   waxPipelinePassed,
   type HiveTransactionResult,
@@ -207,6 +211,7 @@ export interface ReserveTicketCreditInput {
   readonly correlationId: string
   readonly username: string
   readonly keys: CreationAttemptKeys
+  readonly executionMode?: HiveExecutionMode
 }
 
 export async function getAccountCreationState(
@@ -390,6 +395,7 @@ export async function reserveTicketCredit(
 
   try {
     return await withTransaction(async () => {
+      const executionMode = input.executionMode ?? getHiveExecutionMode()
       const updateResult = await execute({
         sql: `UPDATE Tickets
               SET remaining_uses = CASE
@@ -433,6 +439,7 @@ export async function reserveTicketCredit(
         username: cleanUsername,
         ticket: cleanTicketCode,
         keys: input.keys,
+        executionMode,
       })
 
       return { success: true, correlationId }
@@ -585,28 +592,24 @@ async function accountRowForCompletion(
   }
 
   if (!correlationId) {
-    return withHiveMatchedStatus(
-      {
-        executionMode: HIVE_TX_MODE_VALUES.BROADCAST,
-        blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
-        transactionId: null,
-        waxStatus: null,
-      },
-      hiveMatched
-    )
+    throw new Error('Creation attempt is required to complete an account')
   }
 
   const attempt = await getCreationAttempt(correlationId)
-  if (!attempt || !attempt.transactionId) {
-    return withHiveMatchedStatus(
-      {
-        executionMode: attempt?.executionMode ?? HIVE_TX_MODE_VALUES.BROADCAST,
-        blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
-        transactionId: null,
-        waxStatus: null,
-      },
-      hiveMatched
-    )
+  if (!attempt) {
+    throw new Error('Creation attempt not found')
+  }
+
+  if (!attempt.transactionId) {
+    if (!hiveMatched) {
+      throw new Error('Creation attempt has no prepared transaction')
+    }
+    return {
+      executionMode: attempt.executionMode,
+      blockchainStatus: BLOCKCHAIN_STATUS.CONFIRMED,
+      transactionId: null,
+      waxStatus: waxStatusFromAttempt(attempt),
+    }
   }
 
   const reconstructed: HiveTransactionResult = {
@@ -760,11 +763,24 @@ export async function enqueueReconciliation(params: {
   username: string
   ticketCode: string
   reason: 'ambiguous_chain_error' | 'db_completion_failed'
+  executionMode?: HiveExecutionMode
   errorCategory?: string
   errorMessage?: string
   transactionId?: string
 }): Promise<void> {
-  if (isSimulationMode()) {
+  let attempt: Awaited<ReturnType<typeof getCreationAttempt>> = null
+  try {
+    attempt = await getCreationAttempt(params.correlationId)
+  } catch (error) {
+    logger.warn(
+      `[${params.correlationId}] Could not load creation attempt before reconciliation enqueue: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+  const executionMode = params.executionMode ?? attempt?.executionMode
+  if (
+    executionMode === HIVE_TX_MODE_VALUES.SIMULATE ||
+    (executionMode === undefined && isSimulationMode())
+  ) {
     logger.warn(
       `[${params.correlationId}] Reconciliation skipped in simulate mode for ${params.username}`
     )
