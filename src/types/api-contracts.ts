@@ -54,7 +54,7 @@ export interface UpdateTicketUsesResponse {
 export interface DeleteTicketResponse {
   readonly success: true
   readonly message: string
-  readonly refundedUses: number
+  readonly refundedCredits: number
 }
 
 // ============================================

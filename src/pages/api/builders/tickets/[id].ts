@@ -52,75 +52,70 @@ export const PATCH: APIRoute = async context => {
       const body: UpdateTicketUsesRequest = await context.request.json()
       const { code, delta } = body
 
-      const ticket = await ticketsRepository.findById(ticketId)
+      const mutation = await withTransaction(async () => {
+        const ticket = await ticketsRepository.findById(ticketId)
 
-      if (!ticket) {
-        return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-      }
-
-      if (ticket.creator_username !== session.username) {
-        return apiError(
-          'No tienes permisos para modificar este ticket',
-          HTTP_STATUS.FORBIDDEN
-        )
-      }
-
-      if (ticket.code !== code) {
-        return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
-      }
-
-      if (typeof body.revoked === 'boolean') {
-        const updated = await ticketsRepository.updateOwned(
-          ticketId,
-          session.username,
-          { revoked_at: body.revoked ? new Date().toISOString() : null }
-        )
-        if (!updated)
+        if (!ticket) {
           return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-        return apiSuccess(
-          {
-            success: true,
-            message: body.revoked ? 'Ticket revocado' : 'Ticket restaurado',
-            revoked: body.revoked,
-          },
-          HTTP_STATUS.OK
-        )
-      }
+        }
 
-      if (typeof delta !== 'number') {
-        return apiError(
-          'Debe indicar un cambio de usos',
-          HTTP_STATUS.BAD_REQUEST
-        )
-      }
-
-      const deltaValidation = validateUsesDelta(
-        ticket.remaining_uses,
-        delta,
-        ticket.total_uses
-      )
-      if (!isValidationSuccess(deltaValidation)) {
-        return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
-      }
-
-      const { newUses } = deltaValidation.data
-
-      if (delta > 0) {
-        const validation = await creditBalanceTracker.validateOperation(
-          session.username,
-          'deduct',
-          delta
-        )
-
-        if (!validation.valid) {
+        if (ticket.creator_username !== session.username) {
           return apiError(
-            validation.reason || 'No tienes suficientes créditos disponibles',
+            'No tienes permisos para modificar este ticket',
+            HTTP_STATUS.FORBIDDEN
+          )
+        }
+
+        if (ticket.code !== code) {
+          return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
+        }
+
+        if (typeof body.revoked === 'boolean') {
+          const updated = await ticketsRepository.updateOwned(
+            ticketId,
+            session.username,
+            { revoked_at: body.revoked ? new Date().toISOString() : null }
+          )
+          if (!updated) {
+            return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+          }
+          return {
+            kind: 'revocation' as const,
+            revoked: body.revoked,
+          }
+        }
+
+        if (typeof delta !== 'number') {
+          return apiError(
+            'Debe indicar un cambio de usos',
             HTTP_STATUS.BAD_REQUEST
           )
         }
-      }
 
-      await withTransaction(async () => {
+        const deltaValidation = validateUsesDelta(
+          ticket.remaining_uses,
+          delta,
+          ticket.total_uses
+        )
+        if (!isValidationSuccess(deltaValidation)) {
+          return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+        }
+
+        if (delta > 0) {
+          const validation = await creditBalanceTracker.validateOperation(
+            session.username,
+            'deduct',
+            delta
+          )
+
+          if (!validation.valid) {
+            return apiError(
+              validation.reason || 'No tienes suficientes créditos disponibles',
+              HTTP_STATUS.BAD_REQUEST
+            )
+          }
+        }
+
         if (delta > 0) {
           await creditsService.deductCreditsForTicket(
             session.username,
@@ -137,26 +132,40 @@ export const PATCH: APIRoute = async context => {
           )
         }
 
-        const updated = await ticketsRepository.updateOwned(
+        const updated = await ticketsRepository.updateOwnedUses(
           ticketId,
           session.username,
-          {
-            remaining_uses: ticket.remaining_uses + delta,
-            // Preserve the consumed-use history: total changes by delta,
-            // while remaining uses are updated independently.
-            total_uses: ticket.total_uses + delta,
-          }
+          delta
         )
         if (!updated) {
           throw new Error('Ticket ownership update rejected')
         }
+
+        return {
+          kind: 'uses' as const,
+          oldUses: ticket.remaining_uses,
+          newUses: updated.remaining_uses,
+        }
       })
+
+      if (mutation instanceof Response) return mutation
+
+      if (mutation.kind === 'revocation') {
+        return apiSuccess(
+          {
+            success: true,
+            message: mutation.revoked ? 'Ticket revocado' : 'Ticket restaurado',
+            revoked: mutation.revoked,
+          },
+          HTTP_STATUS.OK
+        )
+      }
 
       const response: UpdateTicketUsesResponse = {
         success: true,
         message: 'Ticket actualizado exitosamente',
-        oldUses: ticket.remaining_uses,
-        newUses,
+        oldUses: mutation.oldUses,
+        newUses: mutation.newUses,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)
@@ -195,24 +204,24 @@ export const DELETE: APIRoute = async context => {
         return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
-      const ticket = await ticketsRepository.findById(ticketId)
+      const mutation = await withTransaction(async () => {
+        const ticket = await ticketsRepository.findById(ticketId)
 
-      if (!ticket) {
-        return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-      }
+        if (!ticket) {
+          return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+        }
 
-      if (ticket.creator_username !== session.username) {
-        return apiError(
-          'No tienes permisos para eliminar este ticket',
-          HTTP_STATUS.FORBIDDEN
-        )
-      }
+        if (ticket.creator_username !== session.username) {
+          return apiError(
+            'No tienes permisos para eliminar este ticket',
+            HTTP_STATUS.FORBIDDEN
+          )
+        }
 
-      const usesToRefund = ticket.has_been_used
-        ? ticket.remaining_uses
-        : ticket.total_uses
+        const usesToRefund = ticket.has_been_used
+          ? ticket.remaining_uses
+          : ticket.total_uses
 
-      await withTransaction(async () => {
         if (usesToRefund > 0) {
           await creditsService.refundCreditsFromTicket(
             session.username,
@@ -228,14 +237,22 @@ export const DELETE: APIRoute = async context => {
         if (!deleted) {
           throw new Error('Ticket ownership delete rejected')
         }
+
+        return {
+          kind: 'deleted' as const,
+          wasUsed: ticket.has_been_used,
+          refundedCredits: usesToRefund,
+        }
       })
+
+      if (mutation instanceof Response) return mutation
 
       const response: DeleteTicketResponse = {
         success: true,
-        message: ticket.has_been_used
-          ? `Ticket eliminado. Se reembolsaron ${usesToRefund} usos restantes.`
+        message: mutation.wasUsed
+          ? `Ticket eliminado. Se reembolsaron ${mutation.refundedCredits} créditos restantes.`
           : 'Ticket eliminado exitosamente',
-        refundedUses: usesToRefund,
+        refundedCredits: mutation.refundedCredits,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)

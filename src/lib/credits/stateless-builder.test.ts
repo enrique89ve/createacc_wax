@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { db, initializeDatabase } from '@/lib/database'
+import { db, initializeDatabase, withTransaction } from '@/lib/database'
 import { assignCredits } from '@/lib/credits/admin'
 import { deductCreditsForTicket } from '@/lib/credits/core'
 import { getBalance } from '@/lib/credit-balance-tracker'
 import { UserRole } from '@/lib/roles'
+import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 
 const PREFIX = `stateless-auth-${Date.now()}`
 
@@ -144,5 +145,30 @@ describe('stateless builder identity and credit ownership', () => {
       args: [`${PREFIX}-alice-ticket`, bob],
     })
     expect(steal.rowsAffected).toBe(0)
+  })
+
+  it('applies concurrent ticket use deltas to the current state', async () => {
+    const username = `${PREFIX}-relative-update`
+    const code = `${PREFIX}-relative-ticket`
+    const ticket = await db.execute({
+      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 10, 10, ?) RETURNING id`,
+      args: [code, username],
+    })
+    const ticketId = Number(ticket.rows[0]?.id)
+
+    await Promise.all([
+      withTransaction(() =>
+        ticketsRepository.updateOwnedUses(ticketId, username, 1)
+      ),
+      withTransaction(() =>
+        ticketsRepository.updateOwnedUses(ticketId, username, 2)
+      ),
+    ])
+
+    const result = await db.execute({
+      sql: 'SELECT total_uses, remaining_uses FROM Tickets WHERE code = ?',
+      args: [code],
+    })
+    expect(result.rows[0]).toMatchObject({ total_uses: 13, remaining_uses: 13 })
   })
 })

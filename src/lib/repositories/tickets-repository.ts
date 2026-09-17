@@ -12,6 +12,7 @@
  */
 
 import { execute } from '@/lib/database'
+import { MAX_TICKET_USES } from '@/consts/constants'
 // Logger removed
 import {
   parseTicketRow,
@@ -182,6 +183,43 @@ export class TicketsRepository {
       args,
     })
     return result.rowsAffected === 1
+  }
+
+  /** Apply a relative use delta against the current owned ticket state. */
+  async updateOwnedUses(
+    id: number,
+    creatorUsername: string,
+    delta: number
+  ): Promise<DatabaseTicketRow | null> {
+    const result = await execute({
+      sql: `
+        UPDATE Tickets
+        SET
+          total_uses = total_uses + ?,
+          remaining_uses = remaining_uses + ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND creator_username = ?
+          AND remaining_uses + ? >= 0
+          AND total_uses + ? >= 1
+          AND total_uses + ? <= ?
+        RETURNING id, code, description, total_uses, remaining_uses,
+          revoked_at, creator_username, created_at, updated_at
+      `,
+      args: [
+        delta,
+        delta,
+        id,
+        creatorUsername,
+        delta,
+        delta,
+        delta,
+        MAX_TICKET_USES,
+      ],
+    })
+
+    if (result.rows.length === 0) return null
+    return parseTicketRow(result.rows[0])
   }
 
   async deleteOwned(id: number, creatorUsername: string): Promise<boolean> {
