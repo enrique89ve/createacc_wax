@@ -68,7 +68,7 @@ export interface BuilderFullStats {
   readonly total_accounts: number
   readonly pending_credits: number
   readonly available_credits: number
-  readonly total_assigned: number
+  readonly total_issued: number
   readonly total_consumed: number
 }
 
@@ -212,7 +212,7 @@ export class DashboardService {
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						COALESCE(c.pending_amount, 0) as pending_credits,
 						COALESCE(c.available_amount, 0) as available_credits,
-						COALESCE(c.total_assigned, 0) as total_assigned,
+						COALESCE(c.total_issued, 0) as total_issued,
 						COALESCE(c.total_consumed, 0) as total_consumed
 					FROM (SELECT 1)
 					LEFT JOIN Tickets t ON t.creator_username = ?
@@ -235,7 +235,7 @@ export class DashboardService {
         total_accounts: Number(row.total_accounts || 0),
         pending_credits: Number(row.pending_credits || 0),
         available_credits: Number(row.available_credits || 0),
-        total_assigned: Number(row.total_assigned || 0),
+        total_issued: Number(row.total_issued || 0),
         total_consumed: Number(row.total_consumed || 0),
       }
     } catch (error) {
@@ -257,12 +257,12 @@ export class DashboardService {
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						c.pending_amount as pending_credits,
 						c.available_amount as available_credits,
-						c.total_assigned,
+						c.total_issued,
 						c.total_consumed
 					FROM Credits c
 					LEFT JOIN Tickets t ON t.creator_username = c.hive_username
 					LEFT JOIN Accounts a ON a.builder_username = c.hive_username
-					GROUP BY c.hive_username, c.pending_amount, c.available_amount, c.total_assigned, c.total_consumed
+					GROUP BY c.hive_username, c.pending_amount, c.available_amount, c.total_issued, c.total_consumed
 					ORDER BY c.created_at DESC
 				`,
         args: [],
@@ -275,7 +275,7 @@ export class DashboardService {
         total_accounts: Number(row.total_accounts || 0),
         pending_credits: Number(row.pending_credits || 0),
         available_credits: Number(row.available_credits || 0),
-        total_assigned: Number(row.total_assigned || 0),
+        total_issued: Number(row.total_issued || 0),
         total_consumed: Number(row.total_consumed || 0),
       }))
     } catch (error) {
@@ -383,7 +383,7 @@ export class DashboardService {
   async getCreditsSummary(): Promise<{
     total_pending: number
     total_available: number
-    total_assigned: number
+    total_issued: number
     total_consumed: number
   }> {
     try {
@@ -392,7 +392,7 @@ export class DashboardService {
 					SELECT
 						SUM(pending_amount) as total_pending,
 						SUM(available_amount) as total_available,
-						SUM(total_assigned) as total_assigned,
+						SUM(total_issued) as total_issued,
 						SUM(total_consumed) as total_consumed
 					FROM Credits
 				`,
@@ -404,7 +404,7 @@ export class DashboardService {
       return {
         total_pending: Number(row.total_pending || 0),
         total_available: Number(row.total_available || 0),
-        total_assigned: Number(row.total_assigned || 0),
+        total_issued: Number(row.total_issued || 0),
         total_consumed: Number(row.total_consumed || 0),
       }
     } catch (error) {

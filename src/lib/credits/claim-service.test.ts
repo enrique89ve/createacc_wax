@@ -27,7 +27,7 @@ function proof(
 async function seedCredits(username: string, pending: number): Promise<void> {
   await db.execute({
     sql: `INSERT INTO Credits
-      (hive_username, pending_amount, available_amount, total_assigned, total_consumed)
+      (hive_username, pending_amount, available_amount, total_issued, total_consumed)
       VALUES (?, ?, 0, ?, 0)`,
     args: [username, pending, pending],
   })

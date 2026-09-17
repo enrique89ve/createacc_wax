@@ -200,7 +200,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		hive_username TEXT PRIMARY KEY NOT NULL,
 		pending_amount INTEGER NOT NULL DEFAULT 0 CHECK (pending_amount >= 0),
 		available_amount INTEGER NOT NULL DEFAULT 0 CHECK (available_amount >= 0),
-		total_assigned INTEGER NOT NULL DEFAULT 0 CHECK (total_assigned >= 0),
+		total_issued INTEGER NOT NULL DEFAULT 0 CHECK (total_issued >= 0),
 		total_consumed INTEGER NOT NULL DEFAULT 0 CHECK (total_consumed >= 0),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

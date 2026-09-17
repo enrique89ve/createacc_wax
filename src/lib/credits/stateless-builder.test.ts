@@ -89,7 +89,7 @@ describe('stateless builder identity and credit ownership', () => {
   it('decreases available credits atomically on ticket creation', async () => {
     const username = `${PREFIX}-spend`
     await db.execute({
-      sql: `INSERT INTO Credits (hive_username, available_amount, total_assigned) VALUES (?, 2, 2)`,
+      sql: `INSERT INTO Credits (hive_username, available_amount, total_issued) VALUES (?, 2, 2)`,
       args: [username],
     })
     await deductCreditsForTicket(username, 1, `${PREFIX}-t1`)
@@ -100,7 +100,7 @@ describe('stateless builder identity and credit ownership', () => {
   it('lets only one of two concurrent spends succeed when balance is 1', async () => {
     const username = `${PREFIX}-race`
     await db.execute({
-      sql: `INSERT INTO Credits (hive_username, available_amount, total_assigned) VALUES (?, 1, 1)`,
+      sql: `INSERT INTO Credits (hive_username, available_amount, total_issued) VALUES (?, 1, 1)`,
       args: [username],
     })
 

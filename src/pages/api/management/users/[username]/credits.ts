@@ -72,7 +72,7 @@ export const PATCH: APIRoute = async context => {
         credits: {
           available: updatedCredits.available_amount,
           pending: updatedCredits.pending_amount,
-          total_assigned: updatedCredits.total_assigned,
+          total_issued: updatedCredits.total_issued,
         },
       })
     } catch (error) {
@@ -153,7 +153,7 @@ export const PUT: APIRoute = async context => {
         credits: {
           available: updatedCredits.available_amount,
           pending: updatedCredits.pending_amount,
-          total_assigned: updatedCredits.total_assigned,
+          total_issued: updatedCredits.total_issued,
           total_consumed: updatedCredits.total_consumed,
         },
       })

@@ -153,7 +153,7 @@ async function cleanupOwnRecords(fixture: IsolationFixture): Promise<void> {
 
 async function insertFixture(fixture: IsolationFixture): Promise<void> {
   await db.execute({
-    sql: `INSERT INTO Credits (hive_username, pending_amount, available_amount, total_assigned, total_consumed)
+    sql: `INSERT INTO Credits (hive_username, pending_amount, available_amount, total_issued, total_consumed)
 			VALUES (?, 0, 10, 10, 0)`,
     args: [fixture.builderUsername],
   })

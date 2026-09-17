@@ -25,11 +25,11 @@ export async function grantPendingCredits(params: {
     await execute({
       sql: `
         INSERT INTO Credits (
-          hive_username, pending_amount, available_amount, total_assigned, total_consumed
+          hive_username, pending_amount, available_amount, total_issued, total_consumed
         ) VALUES (?, ?, 0, ?, 0)
         ON CONFLICT(hive_username) DO UPDATE SET
           pending_amount = pending_amount + excluded.pending_amount,
-          total_assigned = total_assigned + excluded.total_assigned,
+          total_issued = total_issued + excluded.total_issued,
           updated_at = CURRENT_TIMESTAMP
       `,
       args: [params.hiveUsername, params.amount, params.amount],
@@ -57,11 +57,11 @@ export async function grantAvailableCredits(params: {
     await execute({
       sql: `
         INSERT INTO Credits (
-          hive_username, pending_amount, available_amount, total_assigned, total_consumed
+          hive_username, pending_amount, available_amount, total_issued, total_consumed
         ) VALUES (?, 0, ?, ?, 0)
         ON CONFLICT(hive_username) DO UPDATE SET
           available_amount = available_amount + excluded.available_amount,
-          total_assigned = total_assigned + excluded.total_assigned,
+          total_issued = total_issued + excluded.total_issued,
           updated_at = CURRENT_TIMESTAMP
       `,
       args: [params.hiveUsername, params.amount, params.amount],
@@ -218,7 +218,7 @@ export async function adjustCreditBalances(params: {
 
   return withTransaction(async () => {
     const current = await execute({
-      sql: `SELECT pending_amount, available_amount, total_assigned, total_consumed
+      sql: `SELECT pending_amount, available_amount, total_issued, total_consumed
         FROM Credits WHERE hive_username = ?`,
       args: [params.hiveUsername],
     })
@@ -241,7 +241,7 @@ export async function adjustCreditBalances(params: {
         hive_username: params.hiveUsername,
         pending_amount: currentPending,
         available_amount: currentAvailable,
-        total_assigned: Number(row.total_assigned),
+        total_issued: Number(row.total_issued),
         total_consumed: Number(row.total_consumed),
       }
     }
@@ -286,7 +286,7 @@ export async function adjustCreditBalances(params: {
       hive_username: params.hiveUsername,
       pending_amount: params.pendingAmount ?? currentPending,
       available_amount: params.availableAmount ?? currentAvailable,
-      total_assigned: Number(row.total_assigned),
+      total_issued: Number(row.total_issued),
       total_consumed: Number(row.total_consumed),
     }
   })

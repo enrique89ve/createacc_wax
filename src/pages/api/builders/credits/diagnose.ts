@@ -53,7 +53,7 @@ export const GET: APIRoute = async context => {
           balance: {
             pending: balance.pending_amount,
             available: balance.available_amount,
-            total_assigned: balance.total_assigned,
+            total_issued: balance.total_issued,
             total_consumed: balance.total_consumed,
           },
           breakdown: balance.breakdown,

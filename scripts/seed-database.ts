@@ -59,7 +59,7 @@ async function seedBuilderCredits(): Promise<string> {
   }
 
   await db.execute({
-    sql: `INSERT INTO Credits (hive_username, available_amount, total_assigned)
+    sql: `INSERT INTO Credits (hive_username, available_amount, total_issued)
 			  VALUES (?, 10, 10)`,
     args: [SEED_DEFAULTS.BUILDER_USERNAME],
   })

@@ -5,7 +5,7 @@ export interface CreditBalance {
   readonly hive_username: string
   readonly pending_amount: number
   readonly available_amount: number
-  readonly total_assigned: number
+  readonly total_issued: number
   readonly total_consumed: number
   readonly is_consistent: boolean
   readonly calculated_at: string
@@ -47,7 +47,7 @@ function toBalance(
   row: {
     pending_amount: number
     available_amount: number
-    total_assigned: number
+    total_issued: number
     total_consumed: number
   },
   isConsistent: boolean
@@ -56,7 +56,7 @@ function toBalance(
     hive_username: hiveUsername,
     pending_amount: row.pending_amount,
     available_amount: row.available_amount,
-    total_assigned: row.total_assigned,
+    total_issued: row.total_issued,
     total_consumed: row.total_consumed,
     is_consistent: isConsistent,
     calculated_at: new Date().toISOString(),
@@ -101,7 +101,7 @@ async function calculateBreakdown(hiveUsername: string) {
 async function getStoredCredits(hiveUsername: string) {
   const result = await execute({
     sql: `
-			SELECT pending_amount, available_amount, total_assigned, total_consumed
+			SELECT pending_amount, available_amount, total_issued, total_consumed
 			FROM Credits
 			WHERE hive_username = ?
 		`,
@@ -114,7 +114,7 @@ async function getStoredCredits(hiveUsername: string) {
   return {
     pending_amount: Number(row.pending_amount || 0),
     available_amount: Number(row.available_amount || 0),
-    total_assigned: Number(row.total_assigned || 0),
+    total_issued: Number(row.total_issued || 0),
     total_consumed: Number(row.total_consumed || 0),
   }
 }
@@ -156,10 +156,10 @@ export async function checkConsistency(
 
   if (
     breakdown.assigned + breakdown.granted_available !==
-    stored.total_assigned
+    stored.total_issued
   ) {
     warning_issues.push(
-      `inconsistent total_assigned: expected ${breakdown.assigned + breakdown.granted_available}, actual ${stored.total_assigned}`
+      `inconsistent total_issued: expected ${breakdown.assigned + breakdown.granted_available}, actual ${stored.total_issued}`
     )
   }
 

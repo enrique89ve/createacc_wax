@@ -29,12 +29,12 @@ export async function insertCreditAudit(params: {
 export async function selectCreditRow(hiveUsername: string): Promise<{
   pending_amount: number
   available_amount: number
-  total_assigned: number
+  total_issued: number
   total_consumed: number
 } | null> {
   const result = await execute({
     sql: `
-			SELECT pending_amount, available_amount, total_assigned, total_consumed
+			SELECT pending_amount, available_amount, total_issued, total_consumed
 			FROM Credits
 			WHERE hive_username = ?
 		`,
@@ -47,7 +47,7 @@ export async function selectCreditRow(hiveUsername: string): Promise<{
   return {
     pending_amount: Number(row.pending_amount || 0),
     available_amount: Number(row.available_amount || 0),
-    total_assigned: Number(row.total_assigned || 0),
+    total_issued: Number(row.total_issued || 0),
     total_consumed: Number(row.total_consumed || 0),
   }
 }

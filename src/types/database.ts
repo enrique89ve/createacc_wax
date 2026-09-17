@@ -40,14 +40,14 @@ export interface DatabaseUserRow {
  * Credits table - Sistema simplificado (1 fila por builder)
  * pending_amount: Créditos asignados pero no reclamados
  * available_amount: Créditos reclamados y disponibles para crear tickets
- * total_assigned: Total histórico de créditos asignados (solo aumenta)
+ * total_issued: Total histórico de créditos asignados (solo aumenta)
  * total_consumed: Total histórico de créditos consumados al crear cuentas (solo aumenta)
  */
 export interface DatabaseCreditRow {
   readonly hive_username: string
   readonly pending_amount: number
   readonly available_amount: number
-  readonly total_assigned: number
+  readonly total_issued: number
   readonly total_consumed: number
   readonly created_at: string
   readonly updated_at: string
@@ -221,7 +221,7 @@ export interface CreateCreditData {
   readonly hive_username: string
   readonly pending_amount?: number
   readonly available_amount?: number
-  readonly total_assigned?: number
+  readonly total_issued?: number
   readonly total_consumed?: number
 }
 
@@ -231,7 +231,7 @@ export interface CreateCreditData {
 export interface UpdateCreditData {
   readonly pending_amount?: number
   readonly available_amount?: number
-  readonly total_assigned?: number
+  readonly total_issued?: number
   readonly total_consumed?: number
 }
 
@@ -391,7 +391,7 @@ export function isDatabaseCreditRow(row: unknown): row is DatabaseCreditRow {
     typeof r.hive_username === 'string' &&
     typeof r.pending_amount === 'number' &&
     typeof r.available_amount === 'number' &&
-    typeof r.total_assigned === 'number' &&
+    typeof r.total_issued === 'number' &&
     typeof r.total_consumed === 'number' &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
