@@ -181,8 +181,9 @@ function verifyTransactionPayload(
   }
 
   const transactionTime = Date.parse(transaction.timestamp)
-  if (!Number.isFinite(transactionTime))
+  if (!Number.isFinite(transactionTime)) {
     return invalid('Invalid transaction timestamp')
+  }
   if (transactionTime - now > FUTURE_CLOCK_SKEW_MS) {
     return invalid('Transaction timestamp is in the future')
   }
