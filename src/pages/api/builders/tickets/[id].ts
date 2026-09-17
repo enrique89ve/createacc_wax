@@ -69,7 +69,11 @@ export const PATCH: APIRoute = async context => {
         return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
-      const deltaValidation = validateCreditsDelta(ticket.credits, delta)
+      const deltaValidation = validateCreditsDelta(
+        ticket.credits,
+        delta,
+        ticket.original_credits
+      )
       if (!isValidationSuccess(deltaValidation)) {
         return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
@@ -113,7 +117,9 @@ export const PATCH: APIRoute = async context => {
           session.username,
           {
             credits: ticket.credits + delta,
-            original_credits: newCredits,
+            // Preserve the consumed-use history: total changes by delta,
+            // while remaining credits are updated independently.
+            original_credits: ticket.original_credits + delta,
           }
         )
         if (!updated) {

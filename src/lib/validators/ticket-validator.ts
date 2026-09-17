@@ -158,7 +158,8 @@ export function validateTicketCredits(
  */
 export function validateCreditsDelta(
   currentCredits: number,
-  delta: unknown
+  delta: unknown,
+  originalCredits: number = currentCredits
 ): ValidationResult<{ delta: number; newCredits: number }> {
   if (typeof delta !== 'number') {
     return {
@@ -191,6 +192,7 @@ export function validateCreditsDelta(
   }
 
   const newCredits = currentCredits + delta
+  const newOriginalCredits = originalCredits + delta
 
   if (newCredits < MIN_TICKET_CREDITS) {
     return {
@@ -207,6 +209,26 @@ export function validateCreditsDelta(
       success: false,
       error: {
         message: `Los créditos no pueden exceder ${MAX_TICKET_CREDITS}`,
+        field: 'delta',
+      },
+    }
+  }
+
+  if (newOriginalCredits > MAX_TICKET_CREDITS) {
+    return {
+      success: false,
+      error: {
+        message: `El total de créditos no puede exceder ${MAX_TICKET_CREDITS}`,
+        field: 'delta',
+      },
+    }
+  }
+
+  if (newOriginalCredits < newCredits) {
+    return {
+      success: false,
+      error: {
+        message: 'El total de créditos no puede ser menor que los restantes',
         field: 'delta',
       },
     }
