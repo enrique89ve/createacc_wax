@@ -14,10 +14,13 @@ export interface CreditBalance {
 export interface CreditBalanceBreakdown extends CreditBalance {
   readonly breakdown: {
     readonly assigned: number
+    readonly granted_available: number
     readonly claimed: number
     readonly spent_on_tickets: number
     readonly refunded_from_tickets: number
     readonly consumed_on_accounts: number
+    readonly admin_adjustments: number
+    readonly admin_pending_adjustments: number
   }
   readonly discrepancy: {
     readonly has_discrepancy: boolean
@@ -63,11 +66,13 @@ async function calculateBreakdown(hiveUsername: string) {
     sql: `
 			SELECT
 				COALESCE(SUM(CASE WHEN operation = 'assign_credits' THEN amount ELSE 0 END), 0) as assigned,
+				COALESCE(SUM(CASE WHEN operation = 'grant_available_credits' THEN amount ELSE 0 END), 0) as granted_available,
 				COALESCE(SUM(CASE WHEN operation IN ('claim_credits', 'claim_via_blockchain') THEN amount ELSE 0 END), 0) as claimed,
 				COALESCE(SUM(CASE WHEN operation = 'create_ticket' THEN amount ELSE 0 END), 0) as spent_on_tickets,
 				COALESCE(SUM(CASE WHEN operation = 'delete_ticket_refund' THEN amount ELSE 0 END), 0) as refunded_from_tickets,
 				COALESCE(SUM(CASE WHEN operation = 'consume_credits' THEN amount ELSE 0 END), 0) as consumed_on_accounts,
-				COALESCE(SUM(CASE WHEN operation = 'admin_adjustment' THEN amount ELSE 0 END), 0) as admin_adjustments
+				COALESCE(SUM(CASE WHEN operation = 'admin_adjustment' THEN amount ELSE 0 END), 0) as admin_adjustments,
+				COALESCE(SUM(CASE WHEN operation = 'admin_adjust_pending' THEN amount ELSE 0 END), 0) as admin_pending_adjustments
 			FROM CreditAudit
 			WHERE hive_username = ?
 		`,
@@ -77,11 +82,13 @@ async function calculateBreakdown(hiveUsername: string) {
   const row = result.rows[0] as Record<string, unknown>
   return {
     assigned: Number(row.assigned || 0),
+    granted_available: Number(row.granted_available || 0),
     claimed: Number(row.claimed || 0),
     spent_on_tickets: Number(row.spent_on_tickets || 0),
     refunded_from_tickets: Number(row.refunded_from_tickets || 0),
     consumed_on_accounts: Number(row.consumed_on_accounts || 0),
     admin_adjustments: Number(row.admin_adjustments || 0),
+    admin_pending_adjustments: Number(row.admin_pending_adjustments || 0),
   }
 }
 
@@ -125,6 +132,7 @@ export async function checkConsistency(
   const breakdown = await calculateBreakdown(hiveUsername)
   const calculatedAvailable =
     breakdown.claimed +
+    breakdown.granted_available +
     breakdown.spent_on_tickets +
     breakdown.refunded_from_tickets +
     breakdown.admin_adjustments
@@ -138,9 +146,12 @@ export async function checkConsistency(
     )
   }
 
-  if (breakdown.assigned !== stored.total_assigned) {
+  if (
+    breakdown.assigned + breakdown.granted_available !==
+    stored.total_assigned
+  ) {
     warning_issues.push(
-      `inconsistent total_assigned: expected ${breakdown.assigned}, actual ${stored.total_assigned}`
+      `inconsistent total_assigned: expected ${breakdown.assigned + breakdown.granted_available}, actual ${stored.total_assigned}`
     )
   }
 

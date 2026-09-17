@@ -10,6 +10,21 @@ import { creditsService } from '@/lib/credits-service'
 
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 
+function isSafeCreditAmount(value: unknown, maximum: number): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= maximum
+  )
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : null
+}
+
 /**
  * PATCH: Assign pending credits to a builder
  * Credits are added to pending_amount for the builder to claim
@@ -37,19 +52,12 @@ export const PATCH: APIRoute = async context => {
 
       const data = await context.request.json()
 
-      interface CreditsUpdateRequest {
-        readonly amount?: number
-      }
-
-      const { amount } = data as CreditsUpdateRequest
+      const body = asRecord(data)
+      const amount = body?.amount
 
       // Validate amount
-      if (!amount || typeof amount !== 'number' || amount < 1) {
+      if (!isSafeCreditAmount(amount, 10000) || amount < 1) {
         return apiError('La cantidad debe ser mayor a 0', 400)
-      }
-
-      if (amount > 10000) {
-        return apiError('La cantidad máxima es 10000 créditos', 400)
       }
 
       const updatedCredits = await creditsService.assignCredits({
@@ -99,14 +107,10 @@ export const PUT: APIRoute = async context => {
 
       const data = await context.request.json()
 
-      interface CreditsAdjustRequest {
-        readonly pending_amount?: number
-        readonly available_amount?: number
-        readonly reason?: string
-      }
-
-      const { pending_amount, available_amount, reason } =
-        data as CreditsAdjustRequest
+      const body = asRecord(data)
+      const pending_amount = body?.pending_amount
+      const available_amount = body?.available_amount
+      const reason = body?.reason
 
       // Validate that at least one value is provided
       if (pending_amount === undefined && available_amount === undefined) {
@@ -119,26 +123,28 @@ export const PUT: APIRoute = async context => {
       // Validate non-negative values
       if (
         (pending_amount !== undefined &&
-          (typeof pending_amount !== 'number' || pending_amount < 0)) ||
+          !isSafeCreditAmount(pending_amount, 100000)) ||
         (available_amount !== undefined &&
-          (typeof available_amount !== 'number' || available_amount < 0))
+          !isSafeCreditAmount(available_amount, 100000))
       ) {
         return apiError('Los valores de créditos no pueden ser negativos', 400)
       }
 
-      // Maximum security limit
       if (
-        (pending_amount !== undefined && pending_amount > 100000) ||
-        (available_amount !== undefined && available_amount > 100000)
+        reason !== undefined &&
+        (typeof reason !== 'string' || reason.length > 500)
       ) {
-        return apiError('El valor máximo permitido es 100000', 400)
+        return apiError('La razón del ajuste no es válida', 400)
       }
 
       const updatedCredits = await creditsService.adjustCredits({
         hive_username: username.toLowerCase(),
         pending_amount,
         available_amount,
-        reason: reason || 'Ajuste manual por admin',
+        reason:
+          typeof reason === 'string' && reason.trim().length > 0
+            ? reason.trim()
+            : 'Ajuste manual por admin',
         performed_by_admin: session.username,
       })
 

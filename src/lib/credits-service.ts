@@ -1,6 +1,7 @@
 import {
   claimCredits,
   deductCreditsForTicket,
+  grantAvailableCredits,
   markCreditsAsConsumed,
   refundCreditsFromTicket,
 } from './credits/core'
@@ -15,6 +16,7 @@ export type {
 export const creditsService = {
   assignCredits,
   claimCredits,
+  grantAvailableCredits,
   deductCreditsForTicket,
   markCreditsAsConsumed,
   refundCreditsFromTicket,
