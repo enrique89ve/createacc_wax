@@ -55,7 +55,6 @@ export const POST: APIRoute = async context => {
           app: BRAND.CLAIM_APP_ID,
           hash: intent.hash,
           username: session.username,
-          timestamp: intent.createdAt,
           action: 'claim_credits',
         },
       }

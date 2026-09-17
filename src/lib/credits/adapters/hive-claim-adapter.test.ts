@@ -80,6 +80,33 @@ describe('Hive claim adapter', () => {
     if (result.ok) expect(result.claim.operationIndex).toBe(1)
   })
 
+  it('accepts the current payload without timestamp and keeps legacy timestamps valid', () => {
+    const currentPayload = verifyTransactionPayload(
+      transactionWithOperations([
+        claimOperation(claimJson({ timestamp: undefined })),
+      ]),
+      { transactionId: TRANSACTION_ID, hash: HASH, username: USERNAME },
+      NOW
+    )
+    expect(currentPayload).toMatchObject({ ok: true })
+
+    const legacyPayload = verifyTransactionPayload(
+      transactionWithOperations([claimOperation(claimJson())]),
+      { transactionId: TRANSACTION_ID, hash: HASH, username: USERNAME },
+      NOW
+    )
+    expect(legacyPayload).toMatchObject({ ok: true })
+
+    const malformedLegacyPayload = verifyTransactionPayload(
+      transactionWithOperations([
+        claimOperation(claimJson({ timestamp: 'invalid' })),
+      ]),
+      { transactionId: TRANSACTION_ID, hash: HASH, username: USERNAME },
+      NOW
+    )
+    expect(malformedLegacyPayload).toMatchObject({ ok: false, kind: 'invalid' })
+  })
+
   it('rejects malformed identity, timestamps, and payloads', () => {
     const input = {
       transactionId: TRANSACTION_ID,

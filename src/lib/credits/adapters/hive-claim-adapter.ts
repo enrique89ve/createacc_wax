@@ -83,7 +83,7 @@ type ClaimJson = {
   readonly app: string
   readonly hash: string
   readonly username: string
-  readonly timestamp: number
+  readonly timestamp?: number
   readonly action: string
 }
 
@@ -175,9 +175,14 @@ function parseClaimJson(value: unknown): ClaimJson | null {
     typeof app !== 'string' ||
     typeof hash !== 'string' ||
     typeof username !== 'string' ||
-    typeof timestamp !== 'number' ||
-    !Number.isFinite(timestamp) ||
     typeof action !== 'string'
+  ) {
+    return null
+  }
+
+  if (
+    timestamp !== undefined &&
+    (typeof timestamp !== 'number' || !Number.isFinite(timestamp))
   ) {
     return null
   }
