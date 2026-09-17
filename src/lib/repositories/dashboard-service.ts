@@ -31,8 +31,8 @@ export interface DashboardStats {
  */
 export interface RecentTicketInfo {
   readonly code: string
-  readonly original_credits: number
-  readonly credits: number
+  readonly total_uses: number
+  readonly remaining_uses: number
   readonly is_active: boolean
   readonly has_been_used: boolean
   readonly created_at: string
@@ -86,7 +86,7 @@ export class DashboardService {
 					SELECT
 						(SELECT COUNT(*) FROM Credits) as total_builders,
 						(SELECT COUNT(*) FROM Tickets) as total_tickets,
-						(SELECT COUNT(*) FROM Tickets WHERE has_been_used = TRUE) as used_tickets,
+						(SELECT COUNT(*) FROM Tickets WHERE remaining_uses < total_uses) as used_tickets,
 						(SELECT COUNT(*) FROM Accounts) as total_accounts,
 						(SELECT COUNT(*) FROM Accounts WHERE DATE(creation_date) = DATE('now')) as today_accounts
 				`,
@@ -116,10 +116,10 @@ export class DashboardService {
         sql: `
 					SELECT
 						t.code,
-						t.original_credits,
-						t.credits,
-						t.is_active,
-						t.has_been_used,
+						t.total_uses,
+						t.remaining_uses,
+						(t.remaining_uses > 0 AND t.revoked_at IS NULL) as is_active,
+						(t.remaining_uses < t.total_uses) as has_been_used,
 						t.created_at,
 						t.creator_username as created_by_username,
 						'builder' as creator_type
@@ -132,8 +132,8 @@ export class DashboardService {
 
       return result.rows.map((row: Record<string, unknown>) => ({
         code: String(row.code),
-        original_credits: Number(row.original_credits),
-        credits: Number(row.credits),
+        total_uses: Number(row.total_uses),
+        remaining_uses: Number(row.remaining_uses),
         is_active: sqliteToBoolean(row.is_active),
         has_been_used: sqliteToBoolean(row.has_been_used),
         created_at: String(row.created_at),
@@ -197,7 +197,7 @@ export class DashboardService {
   // ===== BUILDER STATISTICS =====
 
   /**
-   * Get complete builder statistics (tickets + accounts + credits)
+   * Get complete builder statistics (tickets + accounts + remaining_uses)
    */
   async getBuilderFullStats(
     builderId: string
@@ -208,7 +208,7 @@ export class DashboardService {
 					SELECT
 						? as hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
-						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
+                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						COALESCE(c.pending_amount, 0) as pending_credits,
 						COALESCE(c.available_amount, 0) as available_credits,
@@ -253,7 +253,7 @@ export class DashboardService {
 					SELECT
 						c.hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
-						COALESCE(SUM(CASE WHEN t.is_active = TRUE THEN 1 ELSE 0 END), 0) as active_tickets,
+                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						c.pending_amount as pending_credits,
 						c.available_amount as available_credits,

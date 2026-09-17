@@ -13,7 +13,7 @@ import { assertCanPerform, unauthorizedResponse } from '@/lib/auth/permissions'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
-import { execute, withTransaction } from '@/lib/database'
+import { withTransaction } from '@/lib/database'
 import { validateCreditsDelta } from '@/lib/validators/ticket-validator'
 import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
@@ -69,10 +69,35 @@ export const PATCH: APIRoute = async context => {
         return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
+      if (typeof body.revoked === 'boolean') {
+        const updated = await ticketsRepository.updateOwned(
+          ticketId,
+          session.username,
+          { revoked_at: body.revoked ? new Date().toISOString() : null }
+        )
+        if (!updated)
+          return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+        return apiSuccess(
+          {
+            success: true,
+            message: body.revoked ? 'Ticket revocado' : 'Ticket restaurado',
+            revoked: body.revoked,
+          },
+          HTTP_STATUS.OK
+        )
+      }
+
+      if (typeof delta !== 'number') {
+        return apiError(
+          'Debe indicar un cambio de usos',
+          HTTP_STATUS.BAD_REQUEST
+        )
+      }
+
       const deltaValidation = validateCreditsDelta(
-        ticket.credits,
+        ticket.remaining_uses,
         delta,
-        ticket.original_credits
+        ticket.total_uses
       )
       if (!isValidationSuccess(deltaValidation)) {
         return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
@@ -116,10 +141,10 @@ export const PATCH: APIRoute = async context => {
           ticketId,
           session.username,
           {
-            credits: ticket.credits + delta,
+            remaining_uses: ticket.remaining_uses + delta,
             // Preserve the consumed-use history: total changes by delta,
             // while remaining credits are updated independently.
-            original_credits: ticket.original_credits + delta,
+            total_uses: ticket.total_uses + delta,
           }
         )
         if (!updated) {
@@ -130,7 +155,7 @@ export const PATCH: APIRoute = async context => {
       const response: UpdateTicketCreditsResponse = {
         success: true,
         message: 'Ticket actualizado exitosamente',
-        oldCredits: ticket.credits,
+        oldCredits: ticket.remaining_uses,
         newCredits: newCredits,
       }
 
@@ -184,8 +209,8 @@ export const DELETE: APIRoute = async context => {
       }
 
       const creditsToRefund = ticket.has_been_used
-        ? ticket.credits
-        : ticket.original_credits
+        ? ticket.remaining_uses
+        : ticket.total_uses
 
       await withTransaction(async () => {
         if (creditsToRefund > 0) {

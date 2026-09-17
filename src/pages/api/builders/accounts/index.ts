@@ -40,8 +40,8 @@ export const GET: APIRoute = async context => {
           creation_date: account.creation_date,
           registered_at: account.registered_at,
           ticket_description: account.ticket_description,
-          ticket_original_credits: account.ticket_original_credits,
-          ticket_remaining_credits: account.ticket_remaining_credits,
+          ticket_total_uses: account.ticket_total_uses,
+          ticket_remaining_uses: account.ticket_remaining_uses,
         })),
         total: accounts.length,
       }

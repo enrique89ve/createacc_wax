@@ -18,8 +18,8 @@ interface CreditHistoryRow {
   readonly id: number
   readonly code: string
   readonly description: string | null
-  readonly original_credits: number
-  readonly credits: number
+  readonly total_uses: number
+  readonly remaining_uses: number
   readonly created_at: string
   readonly action: string | null
   readonly timestamp: string | null
@@ -57,7 +57,7 @@ export const GET: APIRoute = async context => {
         sql: `
 					SELECT
 						t.id, t.code, t.description,
-						t.original_credits, t.credits, t.created_at,
+						t.total_uses, t.remaining_uses, t.created_at,
 						ta.action, ta.timestamp,
 						u.username as created_by_username,
 						u.role as creator_role
@@ -76,8 +76,8 @@ export const GET: APIRoute = async context => {
           id: Number(row.id),
           code: String(row.code),
           description: (row.description as string) ?? null,
-          original_credits: Number(row.original_credits),
-          credits: Number(row.credits),
+          total_uses: Number(row.total_uses),
+          remaining_uses: Number(row.remaining_uses),
           created_at: String(row.created_at),
           action: (row.action as string) ?? null,
           timestamp: (row.timestamp as string) ?? null,
@@ -103,10 +103,10 @@ export const GET: APIRoute = async context => {
           item.type,
           item.code,
           item.description || '',
-          item.original_credits,
-          item.credits,
+          item.total_uses,
+          item.remaining_uses,
           item.action || 'created',
-          item.credits > 0 ? 'Available' : 'Used',
+          item.remaining_uses > 0 ? 'Available' : 'Used',
         ])
 
         const csvContent = [
@@ -137,10 +137,10 @@ export const GET: APIRoute = async context => {
           type: item.type,
           code: item.code,
           description: item.description,
-          originalCredits: item.original_credits,
-          currentCredits: item.credits,
+          originalCredits: item.total_uses,
+          currentCredits: item.remaining_uses,
           action: item.action || 'created',
-          status: item.credits > 0 ? 'Available' : 'Used',
+          status: item.remaining_uses > 0 ? 'Available' : 'Used',
           createdBy: item.created_by_username,
         })),
       }

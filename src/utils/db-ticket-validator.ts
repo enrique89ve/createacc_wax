@@ -118,7 +118,7 @@ export async function validateTicketInDB(
     }
 
     const result = await execute({
-      sql: `SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE code = ?`,
+      sql: `SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
 
@@ -140,7 +140,7 @@ export async function validateTicketInDB(
     }
 
     // Verify that the ticket has available credits
-    if (ticket.credits <= 0) {
+    if (ticket.remaining_uses <= 0) {
       return { isValid: false, error: 'Ticket sin créditos disponibles' }
     }
 
@@ -162,9 +162,9 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
     // is_active and has_been_used are updated automatically
     const updateReturning = await execute({
       sql: `UPDATE Tickets
-            SET credits = CASE WHEN credits > 0 THEN credits - 1 ELSE 0 END,
+            SET remaining_uses = CASE WHEN remaining_uses > 0 THEN remaining_uses - 1 ELSE 0 END,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE code = ? AND is_active = TRUE
+            WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
               AND NOT EXISTS (
                 SELECT 1 FROM BlockedHiveAccounts b
                 WHERE b.hive_username = Tickets.creator_username
@@ -271,14 +271,17 @@ export async function isTicketAlreadyUsed(
     if (!cleanCode) return false
 
     const result = await execute({
-      sql: `SELECT has_been_used FROM Tickets WHERE code = ?`,
+      sql: `SELECT total_uses, remaining_uses FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
 
     if (result.rows.length === 0) return false
 
-    const row = result.rows[0] as { has_been_used?: unknown }
-    return Boolean(row.has_been_used)
+    const row = result.rows[0] as {
+      total_uses?: unknown
+      remaining_uses?: unknown
+    }
+    return Number(row.remaining_uses) < Number(row.total_uses)
   } catch (error) {
     logger.error('[isTicketAlreadyUsed] Failed to check ticket status:', error)
     return false
@@ -389,23 +392,23 @@ export async function reserveTicketCredit(
     return await withTransaction(async () => {
       const updateResult = await execute({
         sql: `UPDATE Tickets
-              SET credits = CASE
-                    WHEN credits > 0 THEN credits - 1
+              SET remaining_uses = CASE
+                    WHEN remaining_uses > 0 THEN remaining_uses - 1
                     ELSE 0
                   END,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE code = ? AND is_active = TRUE AND credits > 0
+              WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
                 AND NOT EXISTS (
                   SELECT 1 FROM BlockedHiveAccounts b
                   WHERE b.hive_username = Tickets.creator_username
                 )
-              RETURNING id, code, credits as remaining_credits`,
+              RETURNING id, code, remaining_uses as remaining_credits`,
         args: [cleanTicketCode],
       })
 
       if (updateResult.rows.length === 0) {
         const checkResult = await execute({
-          sql: `SELECT is_active, credits FROM Tickets WHERE code = ?`,
+          sql: `SELECT revoked_at, remaining_uses FROM Tickets WHERE code = ?`,
           args: [cleanTicketCode],
         })
 
@@ -474,7 +477,7 @@ export async function rollbackTicketReservation(
 
       const result = await execute({
         sql: `UPDATE Tickets
-              SET credits = credits + 1,
+              SET remaining_uses = remaining_uses + 1,
                   updated_at = CURRENT_TIMESTAMP
               WHERE code = ?
               RETURNING id`,
@@ -516,7 +519,7 @@ export async function rollbackTicketReservation(
 /**
  * Complete post-creation DB operations after successful on-chain creation.
  * Ticket credit was already reserved by reserveTicketCredit().
- * This function saves the account record and marks builder credits as consumed.
+ * This function saves the account record and marks builder remaining_uses as consumed.
  */
 export function blockchainStatusFromTransaction(
   transactionResult: HiveTransactionResult

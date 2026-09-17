@@ -76,7 +76,7 @@ async function seedTicket(creatorUsername: string): Promise<void> {
   }
 
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, original_credits, credits, creator_username)
+    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
 			  VALUES (?, 'Demo ticket for development', ?, ?, ?)`,
     args: [
       SEED_DEFAULTS.TICKET_CODE,
@@ -86,7 +86,7 @@ async function seedTicket(creatorUsername: string): Promise<void> {
     ],
   })
   console.log(
-    `  Ticket created: ${SEED_DEFAULTS.TICKET_CODE} (${SEED_DEFAULTS.TICKET_CREDITS} credits)`
+    `  Ticket created: ${SEED_DEFAULTS.TICKET_CODE} (${SEED_DEFAULTS.TICKET_CREDITS} uses)`
   )
 }
 

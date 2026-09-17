@@ -85,7 +85,7 @@ export const POST: APIRoute = async context => {
       }
 
       const cleanCode = codeValidation.data
-      const credits = creditsValidation.data
+      const ticketUses = creditsValidation.data
       const validDescription = descriptionValidation.data ?? ''
 
       // Get user data
@@ -101,9 +101,15 @@ export const POST: APIRoute = async context => {
 
       // Create ticket in database
       const ticketResult = await db.execute({
-        sql: `INSERT INTO Tickets (code, description, original_credits, credits, creator_username)
+        sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
 					VALUES (?, ?, ?, ?, ?) RETURNING id`,
-        args: [cleanCode, validDescription, credits, credits, session.userId],
+        args: [
+          cleanCode,
+          validDescription,
+          ticketUses,
+          ticketUses,
+          session.userId,
+        ],
       })
 
       const ticketId = ticketResult.rows[0]?.id as number
@@ -118,7 +124,7 @@ export const POST: APIRoute = async context => {
             id: ticketId,
             code: cleanCode,
             description: validDescription,
-            original_credits: credits,
+            total_uses: ticketUses,
           },
         },
         201

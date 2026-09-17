@@ -94,10 +94,10 @@ function assert(condition: boolean, message: string): asserts condition {
 
 async function ticketCredits(ticket: string): Promise<number> {
   const result = await db.execute({
-    sql: `SELECT credits FROM Tickets WHERE code = ?`,
+    sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
     args: [ticket],
   })
-  return Number(result.rows[0]?.credits)
+  return Number(result.rows[0]?.remaining_uses)
 }
 
 async function accountFields(username: string): Promise<{
@@ -158,7 +158,7 @@ async function insertFixture(fixture: IsolationFixture): Promise<void> {
     args: [fixture.builderUsername],
   })
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, original_credits, credits, creator_username)
+    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
 			VALUES (?, 'integration sim', 3, 3, ?)`,
     args: [fixture.ticket, fixture.builderUsername],
   })
@@ -205,7 +205,7 @@ async function runCreatePipeline(): Promise<void> {
     const params = keys.toCreateAccountParams(fixture.username)
     assert(
       (await ticketCredits(fixture.ticket)) === 3,
-      'ticket should start at 3 credits'
+      'ticket should start at 3 uses'
     )
 
     await reserveFor(fixture, params)

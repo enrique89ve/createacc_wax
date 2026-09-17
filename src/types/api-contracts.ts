@@ -14,6 +14,7 @@
  */
 export interface CreateTicketRequest {
   readonly code: string
+  /** Kept as the wire name for backwards compatibility; persisted as uses. */
   readonly credits: number
   readonly description?: string
 }
@@ -24,7 +25,8 @@ export interface CreateTicketRequest {
 export interface UpdateTicketCreditsRequest {
   readonly ticketId: number
   readonly code: string
-  readonly delta: number
+  readonly delta?: number
+  readonly revoked?: boolean
 }
 
 // ============================================
@@ -74,8 +76,8 @@ export interface AccountWithTicketResponse {
   readonly creation_date: string
   readonly registered_at: string
   readonly ticket_description: string | null
-  readonly ticket_original_credits: number
-  readonly ticket_remaining_credits: number
+  readonly ticket_total_uses: number
+  readonly ticket_remaining_uses: number
 }
 
 /**

@@ -267,8 +267,8 @@ export class UsersRepository {
 					a.builder_username,
 					a.blockchain_status,
 					t.description as ticket_description,
-					t.original_credits as ticket_original_credits,
-					t.credits as ticket_remaining_credits
+					t.total_uses as ticket_total_uses,
+					t.remaining_uses as ticket_remaining_uses
 				FROM Accounts a
 				LEFT JOIN Tickets t ON a.ticket = t.code
 				WHERE a.builder_username = ?
@@ -283,8 +283,8 @@ export class UsersRepository {
         creation_date: String(row.creation_date),
         registered_at: String(row.registered_at),
         ticket_description: (row.ticket_description as string) || null,
-        ticket_original_credits: Number(row.ticket_original_credits || 0),
-        ticket_remaining_credits: Number(row.ticket_remaining_credits || 0),
+        ticket_total_uses: Number(row.ticket_total_uses || 0),
+        ticket_remaining_uses: Number(row.ticket_remaining_uses || 0),
         blockchain_status: String(row.blockchain_status),
         status_label: toAccountStatusLabel(String(row.blockchain_status)),
       }))
@@ -306,13 +306,13 @@ export class UsersRepository {
 					 WHERE builder_username = ?
 					) as total_accounts,
 					(SELECT COUNT(*) FROM Tickets
-					 WHERE creator_username = ? AND is_active = 1
+					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
 					) as active_tickets,
-					(SELECT COALESCE(SUM(original_credits), 0) FROM Tickets
-					 WHERE creator_username = ? AND is_active = 1
+					(SELECT COALESCE(SUM(total_uses), 0) FROM Tickets
+					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
 					) as total_original,
-					(SELECT COALESCE(SUM(credits), 0) FROM Tickets
-					 WHERE creator_username = ? AND is_active = 1
+					(SELECT COALESCE(SUM(remaining_uses), 0) FROM Tickets
+					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
 					) as total_remaining`,
         args: [builderId, builderId, builderId, builderId],
       })
@@ -359,8 +359,8 @@ export interface AccountWithTicketInfo {
   readonly creation_date: string
   readonly registered_at: string
   readonly ticket_description: string | null
-  readonly ticket_original_credits: number
-  readonly ticket_remaining_credits: number
+  readonly ticket_total_uses: number
+  readonly ticket_remaining_uses: number
   readonly blockchain_status: string
   readonly status_label: string
 }

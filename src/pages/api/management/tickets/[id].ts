@@ -86,7 +86,7 @@ export const DELETE: APIRoute = async context => {
 
       // Obtener ticket
       const ticketResult = await db.execute({
-        sql: 'SELECT id, code, description, original_credits, credits, is_active, has_been_used, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
+        sql: 'SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
         args: [Number(ticketId)],
       })
 
@@ -123,7 +123,7 @@ export const DELETE: APIRoute = async context => {
         if (creatorCredits) {
           await creditsService.refundCreditsFromTicket(
             creatorCredits.hive_username,
-            ticket.original_credits,
+            ticket.total_uses,
             ticket.code
           )
         }
@@ -155,7 +155,7 @@ export const DELETE: APIRoute = async context => {
       return apiSuccess({
         message: API_MESSAGES.SUCCESS.TICKET_DELETED,
         credits_info: {
-          credits_returned: ticket.original_credits,
+          credits_returned: ticket.total_uses,
           new_credits: finalCredits?.available_amount || 0,
         },
       })
