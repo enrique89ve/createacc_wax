@@ -220,6 +220,10 @@ export class AuditRepository {
         amount: Number(row.amount),
         reason: row.reason ? String(row.reason) : null,
         performed_by: row.performed_by ? String(row.performed_by) : null,
+        external_reference:
+          typeof row.external_reference === 'string'
+            ? row.external_reference
+            : null,
         timestamp: String(row.timestamp),
         builder_username: String(row.builder_username),
         performed_by_username: row.performed_by_username
@@ -299,6 +303,10 @@ export class AuditRepository {
         amount: Number(row.amount),
         reason: row.reason ? String(row.reason) : null,
         performed_by: row.performed_by ? String(row.performed_by) : null,
+        external_reference:
+          typeof row.external_reference === 'string'
+            ? row.external_reference
+            : null,
         timestamp: String(row.timestamp),
         builder_username: String(row.builder_username),
         performed_by_username: row.performed_by_username

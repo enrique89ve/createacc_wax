@@ -6,12 +6,14 @@ export async function insertCreditAudit(params: {
   readonly amount: number
   readonly reason: string
   readonly performedBy?: string
+  readonly externalReference?: string
 }): Promise<void> {
   await execute({
     sql: `
 			INSERT INTO CreditAudit (
-				hive_username, operation, amount, reason, performed_by, timestamp
-			) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+				hive_username, operation, amount, reason, performed_by,
+				external_reference, timestamp
+			) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
 		`,
     args: [
       params.hiveUsername,
@@ -19,6 +21,7 @@ export async function insertCreditAudit(params: {
       params.amount,
       params.reason,
       params.performedBy ?? null,
+      params.externalReference ?? null,
     ],
   })
 }

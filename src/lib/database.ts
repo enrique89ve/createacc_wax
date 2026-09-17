@@ -213,7 +213,16 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		amount INTEGER NOT NULL,
 		reason TEXT,
 		performed_by TEXT,
+		external_reference TEXT,
 		timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`,
+
+  `CREATE TABLE IF NOT EXISTS CreditClaimIntents (
+		hash TEXT PRIMARY KEY NOT NULL CHECK (length(hash) = 64),
+		hive_username TEXT NOT NULL CHECK (length(hive_username) > 0),
+		amount INTEGER NOT NULL CHECK (amount > 0),
+		created_at INTEGER NOT NULL,
+		expires_at INTEGER NOT NULL CHECK (expires_at > created_at)
 	)`,
 
   `CREATE TABLE IF NOT EXISTS LoginAttempts (
@@ -288,6 +297,11 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_tickets_creator ON Tickets (creator_username)`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_builder_username ON Accounts (builder_username)`,
   `CREATE INDEX IF NOT EXISTS idx_credit_audit_username ON CreditAudit (hive_username, timestamp DESC)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_credit_audit_external_reference
+		ON CreditAudit (external_reference)
+		WHERE external_reference IS NOT NULL`,
+  `CREATE INDEX IF NOT EXISTS idx_credit_claim_intents_expires
+		ON CreditClaimIntents (expires_at)`,
   `CREATE INDEX IF NOT EXISTS idx_login_attempts_username ON LoginAttempts (username)`,
   `CREATE INDEX IF NOT EXISTS idx_login_attempts_attempted_at ON LoginAttempts (attempted_at)`,
   `CREATE INDEX IF NOT EXISTS idx_login_attempts_failed ON LoginAttempts (success, attempted_at) WHERE success = 0`,

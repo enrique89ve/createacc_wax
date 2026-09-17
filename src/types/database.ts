@@ -139,7 +139,19 @@ export interface DatabaseCreditAuditRow {
   readonly amount: number
   readonly reason: string | null
   readonly performed_by: string | null
+  readonly external_reference: string | null
   readonly timestamp: string
+}
+
+/**
+ * Persisted one-time authorization for a builder credit claim.
+ */
+export interface DatabaseCreditClaimIntentRow {
+  readonly hash: string
+  readonly hive_username: string
+  readonly amount: number
+  readonly created_at: number
+  readonly expires_at: number
 }
 
 /**
@@ -279,6 +291,7 @@ export interface CreateCreditAuditData {
   readonly amount: number
   readonly reason?: string | null
   readonly performed_by?: string | null
+  readonly external_reference?: string | null
 }
 
 /**
