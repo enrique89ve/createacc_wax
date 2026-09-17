@@ -302,10 +302,9 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,
 ]
 
-/** Apply current schema and migrate legacy ticket columns in place. */
+/** Apply the current schema. Structural changes require `pnpm db:reset`. */
 export async function initializeDatabase(): Promise<boolean> {
   try {
-    await migrateTicketsSchema()
     for (const sql of SCHEMA_STATEMENTS) {
       await db.execute(sql)
     }
@@ -314,44 +313,4 @@ export async function initializeDatabase(): Promise<boolean> {
     logger.error('Database initialization error:', error)
     return false
   }
-}
-
-/** Migrate the pre-uses ticket columns without destroying existing data. */
-async function migrateTicketsSchema(): Promise<void> {
-  const result = await db.execute({
-    sql: 'PRAGMA table_info(Tickets)',
-    args: [],
-  })
-  const columns = new Set(
-    result.rows
-      .map(row => String((row as Record<string, unknown>).name ?? ''))
-      .filter(Boolean)
-  )
-  if (columns.size === 0) return
-
-  if (columns.has('original_credits') && !columns.has('total_uses')) {
-    await db.execute(
-      'ALTER TABLE Tickets RENAME COLUMN original_credits TO total_uses'
-    )
-  }
-  if (columns.has('credits') && !columns.has('remaining_uses')) {
-    await db.execute(
-      'ALTER TABLE Tickets RENAME COLUMN credits TO remaining_uses'
-    )
-  }
-  if (!columns.has('revoked_at')) {
-    await db.execute('ALTER TABLE Tickets ADD COLUMN revoked_at DATETIME')
-  }
-  await db.execute(`
-    CREATE TRIGGER IF NOT EXISTS tickets_uses_bounds_insert
-    BEFORE INSERT ON Tickets
-    WHEN NEW.total_uses < 1 OR NEW.remaining_uses < 0 OR NEW.remaining_uses > NEW.total_uses
-    BEGIN SELECT RAISE(ABORT, 'Ticket uses invariant violated'); END
-  `)
-  await db.execute(`
-    CREATE TRIGGER IF NOT EXISTS tickets_uses_bounds_update
-    BEFORE UPDATE OF total_uses, remaining_uses ON Tickets
-    WHEN NEW.total_uses < 1 OR NEW.remaining_uses < 0 OR NEW.remaining_uses > NEW.total_uses
-    BEGIN SELECT RAISE(ABORT, 'Ticket uses invariant violated'); END
-  `)
 }
