@@ -52,3 +52,4 @@ test-results/
 !/docs/auth-closure.md
 !/docs/credits-v1-plan.md
 !/docs/credits-closure.md
+.gstack/
