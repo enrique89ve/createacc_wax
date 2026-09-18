@@ -1,5 +1,5 @@
 import { PdfDocument } from '@/lib/pdf'
-import { I18nManager } from './i18n'
+import { interpolate, publicCopy } from '@/i18n'
 
 export interface KeysData {
   readonly username: string
@@ -20,24 +20,21 @@ export interface KeysData {
   readonly timestamp: string
 }
 
+type KeyRole = keyof KeysData['privateKeys']
+
 export interface KeysContent {
+  readonly username: string
   readonly title: string
-  readonly keys: {
-    readonly active: string
-    readonly owner: string
-    readonly posting: string
-    readonly memo: string
-  }
+  readonly keys: KeysData['privateKeys']
   readonly seed: {
     readonly master: string
   }
-  readonly descriptions: {
-    readonly posting: string
-    readonly active: string
-    readonly owner: string
-    readonly memo: string
-    readonly master: string
-  }
+  readonly descriptions: ReturnType<typeof publicCopy>['keys']['descriptions']
+  readonly roleNames: ReturnType<typeof publicCopy>['keys']['roleNames']
+  readonly pdfMasterPasswordLabel: string
+  readonly pdfRolesHeading: string
+  readonly pdfRoleKeyTitle: string
+  readonly pdfWindowTitle: string
 }
 
 export type DownloadFormat = 'txt' | 'pdf'
@@ -50,48 +47,62 @@ export class KeyDownloadManager {
     return `hive_${username}.${format}`
   }
 
+  private static roleLabel(
+    roleNames: KeysContent['roleNames'],
+    role: KeyRole | 'master'
+  ): string {
+    return roleNames[role as keyof typeof roleNames]
+  }
+
   private static generateTxtContent(data: KeysData): string {
-    const t = I18nManager.getTranslations()
-    return `${t.keys.header.replace('{USERNAME}', data.username.toUpperCase())}
-Generated: ${data.timestamp}
-Keyset ID: ${data.keysetId}
+    const copy = publicCopy()
+    const k = copy.keys
 
-${t.keys.keepSafe}
+    return `${interpolate(k.header, { USERNAME: data.username.toUpperCase() })}
+${k.generatedAtLabel} ${data.timestamp}
+${k.keysetIdLabel} ${data.keysetId}
 
-${t.keys.masterKey}:
+${k.keepSafe}
+
+${k.masterKey}:
 ${data.masterKey}
 
-${t.keys.ownerKey}:
+${k.ownerKey}:
 ${data.privateKeys.owner}
 
-${t.keys.activeKey}:
+${k.activeKey}:
 ${data.privateKeys.active}
 
-${t.keys.postingKey}:
+${k.postingKey}:
 ${data.privateKeys.posting}
 
-${t.keys.memoKey}:
+${k.memoKey}:
 ${data.privateKeys.memo}
 
 ---
-${t.keys.footer}
+${k.footer}
 `
   }
 
   private static generateKeysContent(data: KeysData): KeysContent {
-    const t = I18nManager.getTranslations()
+    const copy = publicCopy()
+    const k = copy.keys
+
     return {
-      title: `Tu usuario: ${data.username}`,
-      keys: {
-        active: data.privateKeys.active,
-        owner: data.privateKeys.owner,
-        posting: data.privateKeys.posting,
-        memo: data.privateKeys.memo,
-      },
+      username: data.username,
+      title: interpolate(k.pdfTitle, { username: data.username }),
+      keys: data.privateKeys,
       seed: {
         master: data.masterKey,
       },
-      descriptions: t.keys.descriptions,
+      descriptions: k.descriptions,
+      roleNames: k.roleNames,
+      pdfMasterPasswordLabel: k.pdfMasterPasswordLabel,
+      pdfRolesHeading: k.pdfRolesHeading,
+      pdfRoleKeyTitle: k.pdfRoleKeyTitle,
+      pdfWindowTitle: interpolate(k.pdfWindowTitle, {
+        username: data.username,
+      }),
     }
   }
 
@@ -118,49 +129,49 @@ ${t.keys.footer}
     const pageWidth = doc.getPageWidth()
     const maxLineWidth = pageWidth - margin * 2
 
-    // Title
     doc.setFontSize(16)
     doc.text(content.title, margin, y)
     y += 12
 
-    // Keys
     doc.setFontSize(12)
-    Object.entries(content.keys).forEach(([type, val]) => {
-      doc.text(`${type.toUpperCase()}: ${val}`, margin, y)
+    ;(Object.keys(content.keys) as KeyRole[]).forEach(role => {
+      const label = KeyDownloadManager.roleLabel(content.roleNames, role)
+      doc.text(`${label}: ${content.keys[role]}`, margin, y)
       y += 6
     })
 
     y += 10
 
-    // Master Key
     doc.setFontSize(14)
-    doc.text('Master Key', margin, y)
+    doc.text(content.pdfMasterPasswordLabel, margin, y)
     y += 8
     doc.setFontSize(12)
     doc.text(content.seed.master, margin, y)
     y += 10
 
-    // Descriptions
     doc.setFontSize(16)
-    doc.text('Roles', margin, y)
+    doc.text(content.pdfRolesHeading, margin, y)
     y += 8
-    Object.entries(content.descriptions).forEach(([role, desc]) => {
-      doc.setFontSize(12)
-      const title = `${role.toUpperCase()} Key:`
-      doc.text(title, margin, y)
-      y += 6
-      const lines = doc.splitTextToSize(desc, maxLineWidth)
-      doc.setFontSize(10)
-      doc.text(lines, margin, y)
-      y += lines.length * 6 + 4
-    })
+
+    ;(Object.keys(content.descriptions) as Array<keyof typeof content.descriptions>).forEach(
+      role => {
+        doc.setFontSize(12)
+        const roleLabel = KeyDownloadManager.roleLabel(content.roleNames, role)
+        const title = interpolate(content.pdfRoleKeyTitle, { role: roleLabel })
+        doc.text(title, margin, y)
+        y += 6
+        const desc = content.descriptions[role]
+        const lines = doc.splitTextToSize(desc, maxLineWidth)
+        doc.setFontSize(10)
+        doc.text(lines, margin, y)
+        y += lines.length * 6 + 4
+      }
+    )
 
     try {
-      // Detect environment
       const isInSandbox = window !== window.parent
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
-      // Download logic depending on environment
       if (isMobile) {
         const blob = doc.toBlob()
         this.downloadBlob(blob, filename)
@@ -168,8 +179,6 @@ ${t.keys.footer}
       }
 
       if (isInSandbox) {
-        // F4 FIX: Use blob URL instead of data URI to avoid
-        // exposing private keys in browser history/URL bar
         const blob = doc.toBlob()
         const blobUrl = URL.createObjectURL(blob)
         try {
@@ -180,7 +189,7 @@ ${t.keys.footer}
 
             const head = newWindow.document.createElement('head')
             const title = newWindow.document.createElement('title')
-            title.textContent = `Claves de ${content.title}`
+            title.textContent = content.pdfWindowTitle
             const viewport = newWindow.document.createElement('meta')
             viewport.name = 'viewport'
             viewport.content = 'width=device-width, initial-scale=1.0'
@@ -208,18 +217,14 @@ ${t.keys.footer}
         } catch (_error) {
           // Error opening window - handled silently
         }
-        // If new window failed, fall back to blob download
         this.downloadBlob(blob, filename)
         URL.revokeObjectURL(blobUrl)
         return
       }
 
-      // Other devices: standard download method
       const blob = doc.toBlob()
       this.downloadBlob(blob, filename)
-    } catch (error) {
-      // F4 FIX: Fallback to blob download instead of data URI
-      // to avoid exposing private keys in browser history
+    } catch (_error) {
       const blob = doc.toBlob()
       this.downloadBlob(blob, filename)
     }
@@ -239,7 +244,9 @@ ${t.keys.footer}
       const content = this.generateKeysContent(data)
       this.generateAndDownloadPDF(content, filename)
     } else {
-      throw new Error(I18nManager.t('messages.unsupportedFormat', { format }))
+      throw new Error(
+        interpolate(publicCopy().messages.unsupportedFormat, { format })
+      )
     }
   }
 }

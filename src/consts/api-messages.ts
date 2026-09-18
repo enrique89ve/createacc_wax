@@ -3,7 +3,7 @@
  *
  * NOTA: Actualmente en español. Preparado para migración futura a i18n.
  * Cuando se implemente i18n en APIs, estos mensajes se moverán a
- * src/utils/i18n.ts siguiendo el patrón existente.
+ * src/i18n/ siguiendo el patrón existente.
  */
 export const API_MESSAGES = {
   ERRORS: {
