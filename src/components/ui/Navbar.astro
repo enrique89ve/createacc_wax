@@ -3,7 +3,9 @@
 // Determine if the current route includes "/success/".
 import { Image } from 'astro:assets'
 import hiveLogo from '@/assets/hive.svg'
+import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
 const currentPath: string = Astro.url.pathname
+const isHome: boolean = currentPath === '/' || currentPath === ''
 const isSuccess: boolean = currentPath.startsWith('/success/')
 ---
 
@@ -19,17 +21,20 @@ const isSuccess: boolean = currentPath.startsWith('/success/')
     >
       <Image src={hiveLogo} alt="Hive" class="h-8 w-auto" />
     </a>
-    {
-      isSuccess && (
-        <a
-          href="https://peakd.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm transition-colors focus:outline-none focus-visible:ring-2"
-        >
-          + Post
-        </a>
-      )
-    }
+    <div class="flex items-center gap-2">
+      {isHome && <LocaleSwitch />}
+      {
+        isSuccess && (
+          <a
+            href="https://peakd.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 inline-flex min-h-11 items-center justify-center rounded-md px-3 text-xs font-semibold shadow-sm transition-colors focus:outline-none focus-visible:ring-2"
+          >
+            + Post
+          </a>
+        )
+      }
+    </div>
   </div>
 </header>

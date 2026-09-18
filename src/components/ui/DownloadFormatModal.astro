@@ -1,8 +1,8 @@
 ---
-import { I18nManager } from '@/utils/i18n'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
-// Ensure translations are available on the client side
-const translations = I18nManager.getTranslations()
+const translations =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <div

@@ -1,10 +1,13 @@
-import { validateAccountName } from '@/utils/validate-username'
+import {
+  validateAccountName,
+  type UsernameFormatCode,
+} from '@/utils/validate-username'
 import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
 import type { HiveChain } from './hive-chain-client'
 
 export type UsernameValidationResult =
   | { readonly status: 'empty' }
-  | { readonly status: 'format_error'; readonly message: string }
+  | { readonly status: 'format_error'; readonly code: UsernameFormatCode }
   | { readonly status: 'suspicious' }
   | { readonly status: 'similar' }
   | { readonly status: 'chain_error' }
@@ -46,7 +49,7 @@ export async function validateUsername(
   if (!username.trim()) return { status: 'empty' }
 
   const formatError = validateAccountName(username)
-  if (formatError) return { status: 'format_error', message: formatError }
+  if (formatError) return { status: 'format_error', code: formatError }
 
   const [isSuspicious, isSimilar] = await Promise.all([
     checkSuspiciousUsername(username),

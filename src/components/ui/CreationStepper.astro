@@ -1,5 +1,10 @@
 ---
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
 const pathname = Astro.url.pathname
+const copy =
+  Astro.locals.messages ??
+  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 
 let current = 1
 let username: string | undefined
@@ -26,9 +31,9 @@ interface StepDef {
 }
 
 const labels = {
-  1: 'Elige un usuario',
-  2: 'Detalles de la cuenta',
-  3: 'Explora a Hive',
+  1: copy.stepper.account,
+  2: copy.stepper.security,
+  3: copy.stepper.ready,
 }
 
 const steps: readonly StepDef[] = [
@@ -50,7 +55,7 @@ function cls(...parts: (string | false | undefined)[]): string {
 }
 ---
 
-<nav aria-label="Progreso de creación de cuenta" class="w-full">
+<nav aria-label={copy.stepper.ariaLabel} class="w-full">
   <div class="mx-auto max-w-4xl px-4">
     <div class="space-y-4 text-center">
       <div
@@ -143,7 +148,7 @@ function cls(...parts: (string | false | undefined)[]): string {
 </nav>
 
 <style>
-  nav[aria-label='Progreso de creación de cuenta'] {
+  nav[aria-label] {
     animation: fadeSlideIn 0.4s ease both;
   }
   @keyframes fadeSlideIn {

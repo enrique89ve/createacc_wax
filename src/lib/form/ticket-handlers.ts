@@ -2,6 +2,7 @@ import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
 import { obtainPowSolution } from '@/utils/pow-solver'
 import { ensureTimingMatured } from '@/utils/timing-maturation'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
+import { publicCopy } from '@/i18n'
 import type { FormElements } from './types'
 
 export function showTicketError(elements: FormElements, message: string): void {
@@ -12,12 +13,12 @@ export function showTicketError(elements: FormElements, message: string): void {
 
 export function setTicketLoadingState(
   elements: FormElements,
-  ticket: string
+  _ticket: string
 ): void {
-  const message = ticket ? 'Validando ticket...' : 'Obteniendo ticket...'
+  const copy = publicCopy()
   elements.ticketInput.disabled = true
   elements.ticketApplyBtn.disabled = true
-  elements.ticketApplyBtn.textContent = message
+  elements.ticketApplyBtn.textContent = copy.accessCode.validating
 }
 
 export function showTicketApplied(
@@ -31,17 +32,19 @@ export function showTicketApplied(
 }
 
 export function resetTicketInput(elements: FormElements): void {
+  const copy = publicCopy()
   elements.ticketInput.disabled = false
-  elements.ticketApplyBtn.textContent = 'Aplicar'
+  elements.ticketApplyBtn.textContent = copy.home.accessCodeVerify
   elements.ticketApplyBtn.disabled = false
 }
 
 export function removeTicket(elements: FormElements): void {
+  const copy = publicCopy()
   elements.ticketChip.classList.add('hidden')
   elements.ticketInputContainer.classList.remove('hidden')
   elements.ticketInput.value = ''
   elements.ticketInput.disabled = false
-  elements.ticketApplyBtn.textContent = 'Aplicar'
+  elements.ticketApplyBtn.textContent = copy.home.accessCodeVerify
   elements.ticketApplyBtn.disabled = true
   elements.ticketError.classList.add('hidden')
   elements.ticketInput.classList.remove('border-red-500')
@@ -85,25 +88,25 @@ export async function applyTicket(
 ): Promise<ApplyTicketResult> {
   const { elements, ensureTicketTimingToken, getTicketTimingTokenFetchedAt } =
     deps
+  const copy = publicCopy()
 
   const ticket = cleanTicket(elements.ticketInput.value)
   const localError = validateTicket(ticket)
   if (localError) {
-    showTicketError(elements, localError)
+    showTicketError(elements, copy.accessCode.format[localError])
     deps.onTicketInvalid()
     return { status: 'invalid' }
   }
 
   setTicketLoadingState(elements, ticket)
 
-  // Resolve timing token + PoW in parallel: overlaps network + CPU time
   const resolved = await Promise.all([
     ensureTicketTimingToken(),
     obtainPowSolution(),
   ]).catch(() => null)
 
   if (!resolved) {
-    showTicketError(elements, 'Error de verificación. Inténtalo de nuevo.')
+    showTicketError(elements, copy.accessCode.verifyError)
     resetTicketInput(elements)
     deps.onTicketInvalid()
     return { status: 'error' }
@@ -111,7 +114,6 @@ export async function applyTicket(
 
   const [resolvedToken, pow] = resolved
 
-  // Reads live value via getter — PoW solving time counts toward maturation
   await ensureTimingMatured(
     getTicketTimingTokenFetchedAt(),
     TIMING_THRESHOLDS.ticket
@@ -131,10 +133,10 @@ export async function applyTicket(
       deps.onTicketValid(ticket)
       return { status: 'applied', ticket }
     }
-    showTicketError(elements, result.error || 'Ticket inválido')
+    showTicketError(elements, copy.accessCode.invalid)
     elements.ticketInput.disabled = false
   } catch {
-    showTicketError(elements, 'Error validando ticket. Inténtalo de nuevo.')
+    showTicketError(elements, copy.accessCode.verifyError)
     elements.ticketInput.disabled = false
   }
 

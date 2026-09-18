@@ -1,26 +1,26 @@
 ---
 import RuntimeStatusBadge from '@/components/ui/RuntimeStatusBadge.astro'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 interface Props {
   readonly ticket?: string
 }
 const { ticket = '' } = Astro.props as Props
+const copy =
+  Astro.locals.messages ??
+  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <section id="formulario" class="mx-auto px-6 py-2">
-  <div class="mx-auto w-full max-w-lg">
+  <div class="mx-auto w-full max-w-md">
     <!-- Card -->
-    <div
-      class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-6 shadow-lg backdrop-blur"
-    >
-      <div class="mb-6 flex flex-col items-center gap-2 text-center">
+    <div class="border-border bg-card rounded-xl border p-6">
+      <div class="mb-8 text-center">
         <h1
-          class="text-foreground text-2xl font-bold tracking-tight sm:text-3xl"
+          class="text-foreground mx-auto max-w-[18ch] text-2xl font-semibold tracking-tight sm:text-3xl"
         >
-          Crea tu cuenta de Hive
+          {copy.home.title}
         </h1>
-        <p class="text-sm text-amber-50">Únete a la Web3</p>
-        <RuntimeStatusBadge />
       </div>
 
       <form id="registro-form" class="space-y-6">
@@ -28,9 +28,9 @@ const { ticket = '' } = Astro.props as Props
         <div class="space-y-2">
           <label
             for="username"
-            class="text-foreground block text-sm font-semibold uppercase tracking-wide"
+            class="text-foreground block text-sm font-medium"
           >
-            Usuario
+            {copy.home.usernameLabel}
           </label>
           <div class="relative flex">
             <span
@@ -47,8 +47,10 @@ const { ticket = '' } = Astro.props as Props
               autocapitalize="none"
               autocorrect="off"
               spellcheck="false"
-              placeholder="ingresa el usuario a crear"
-              class="lowercase-only border-border bg-muted placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 text-foreground w-full rounded-r-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              autocomplete="username"
+              inputmode="text"
+              placeholder=""
+              class="lowercase-only border-border bg-muted placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 text-foreground min-h-12 w-full rounded-r-lg border px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
 
             <div
@@ -79,21 +81,15 @@ const { ticket = '' } = Astro.props as Props
             class="text-destructive hidden text-xs font-medium"
           >
           </div>
-          <p class="text-muted-foreground text-xs leading-relaxed">
-            Elige un nombre de usuario de 3 a 16 caracteres, iniciando con una
-            letra. Puedes usar números y guiones (-). Los puntos (.) crean
-            segmentos, cada uno debe tener mínimo 3 caracteres y seguir las
-            mismas reglas.
-          </p>
         </div>
 
         <!-- Ticket -->
         <div class="space-y-2">
           <label
             for="ticket"
-            class="text-foreground block text-sm font-semibold uppercase tracking-wide"
+            class="text-foreground block text-sm font-medium"
           >
-            Ticket
+            {copy.home.accessCodeLabel}
           </label>
 
           <div id="ticket-input-container" class="flex gap-2">
@@ -103,8 +99,11 @@ const { ticket = '' } = Astro.props as Props
               type="text"
               value={ticket}
               required
-              placeholder="Ingresa el código"
-              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              autocomplete="off"
+              spellcheck="false"
+              inputmode="text"
+              placeholder=""
+              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 min-h-12 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
             <button
               id="ticket-apply-btn"
@@ -112,7 +111,7 @@ const { ticket = '' } = Astro.props as Props
               disabled
               class="bg-muted text-foreground hover:enabled:bg-accent border-border whitespace-nowrap rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Aplicar
+              {copy.home.accessCodeVerify}
             </button>
           </div>
 
@@ -121,15 +120,15 @@ const { ticket = '' } = Astro.props as Props
               class="bg-muted flex items-center gap-2 rounded-lg border border-green-500/40 px-3 py-2"
             >
               <span class="text-sm font-bold text-green-400">✓</span>
-              <span
-                id="ticket-chip-code"
-                class="text-foreground text-sm font-medium uppercase tracking-wide"
-              ></span>
+              <span class="text-foreground text-sm font-medium">
+                {copy.home.accessCodeVerified}
+              </span>
+              <span id="ticket-chip-code" class="hidden"></span>
               <button
                 id="ticket-remove-btn"
                 type="button"
-                class="text-muted-foreground hover:text-foreground ml-auto transition-colors"
-                aria-label="Quitar ticket"
+                class="text-muted-foreground hover:text-foreground ml-auto inline-flex min-h-11 min-w-11 items-center justify-center transition-colors"
+                aria-label={copy.home.accessCodeRemove}
               >
                 ✕
               </button>
@@ -147,10 +146,13 @@ const { ticket = '' } = Astro.props as Props
           id="form-siguiente"
           type="submit"
           disabled
-          class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >Siguiente</button
+          class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 min-h-12 w-full rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+          >{copy.home.continue}</button
         >
       </form>
+      <div class="mt-6 flex justify-center">
+        <RuntimeStatusBadge />
+      </div>
     </div>
   </div>
 </section>
@@ -180,6 +182,7 @@ const { ticket = '' } = Astro.props as Props
     resolveSubmitDependencies,
     createSession,
   } from '@/lib/form/form-submit'
+  import { interpolate, publicCopy } from '@/i18n'
 
   let elements: FormElements | null = null
   let state: FormState = createInitialState()
@@ -233,14 +236,18 @@ const { ticket = '' } = Astro.props as Props
           state.isUsernameValid = false
           break
         case 'format_error':
-          setUsernameFieldState(elements, 'error', result.message)
+          setUsernameFieldState(
+            elements,
+            'error',
+            publicCopy().username.format[result.code]
+          )
           state.isUsernameValid = false
           break
         case 'suspicious':
           setUsernameFieldState(
             elements,
             'error',
-            'Este username no está permitido'
+            publicCopy().username.notAllowed
           )
           state.isUsernameValid = false
           break
@@ -248,7 +255,7 @@ const { ticket = '' } = Astro.props as Props
           setUsernameFieldState(
             elements,
             'error',
-            'Username muy similar a una cuenta reciente'
+            publicCopy().username.tooSimilar
           )
           state.isUsernameValid = false
           break
@@ -256,7 +263,7 @@ const { ticket = '' } = Astro.props as Props
           setUsernameFieldState(
             elements,
             'error',
-            'Error conectando a la red Hive'
+            publicCopy().username.chainError
           )
           state.isUsernameValid = false
           break
@@ -264,12 +271,16 @@ const { ticket = '' } = Astro.props as Props
           setUsernameFieldState(
             elements,
             'error',
-            'Este username ya está en uso'
+            interpolate(publicCopy().username.taken, { username })
           )
           state.isUsernameValid = false
           break
         case 'available':
-          setUsernameFieldState(elements, 'success')
+          setUsernameFieldState(
+            elements,
+            'success',
+            interpolate(publicCopy().username.available, { username })
+          )
           state.isUsernameValid = true
           break
       }
@@ -327,8 +338,8 @@ const { ticket = '' } = Astro.props as Props
 
   function showSubmitError(originalText: string | null): void {
     if (!elements) return
-    notify('error', 'Error al crear la sesión. Inténtalo de nuevo.')
-    elements.submitButton.textContent = 'Error - Inténtalo de nuevo'
+    notify('error', publicCopy().home.continueError)
+    elements.submitButton.textContent = publicCopy().home.continueErrorButton
     elements.submitButton.classList.add('bg-red-600', 'hover:bg-red-700')
     setTimeout(() => restoreSubmitButton(originalText), 3000)
   }
@@ -361,7 +372,7 @@ const { ticket = '' } = Astro.props as Props
     }
 
     const originalText = elements.submitButton.textContent
-    setSubmitLoadingState('Verificando...')
+    setSubmitLoadingState(publicCopy().home.verifying)
 
     const resolved = await resolveSubmitDependencies({
       state,

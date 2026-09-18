@@ -1,0 +1,45 @@
+---
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  LOCALE_LABELS,
+  LOCALE_NAMES,
+  LOCALE_QUERY,
+} from '@/i18n'
+
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages
+const label = copy?.localeSwitch.label ?? 'Idioma'
+
+function hrefFor(next: string): string {
+  const url = new URL(Astro.url)
+  url.searchParams.set(LOCALE_QUERY, next)
+  return `${url.pathname}${url.search}`
+}
+---
+
+<nav aria-label={label} class="flex items-center gap-1">
+  {
+    LOCALES.map(code => {
+      const current = code === locale
+      return (
+        <a
+          href={hrefFor(code)}
+          rel="alternate"
+          hreflang={code}
+          lang={code}
+          aria-current={current ? 'page' : undefined}
+          aria-label={LOCALE_NAMES[code]}
+          class:list={[
+            'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 text-xs font-medium tracking-wide transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+            current
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          ]}
+        >
+          {LOCALE_LABELS[code]}
+        </a>
+      )
+    })
+  }
+</nav>

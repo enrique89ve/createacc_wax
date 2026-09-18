@@ -15,7 +15,7 @@ export const BRAND = {
   NAME: 'HolaHive',
 
   /** Site tagline / default meta description */
-  TAGLINE: 'Crea una cuenta en Hive y comienza una camino innovador en Web3.',
+  TAGLINE: 'Crea tu cuenta en Hive.',
 
   /** Canonical site URL (no trailing slash) */
   URL: 'https://join.holahive.com',

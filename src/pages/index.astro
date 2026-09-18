@@ -2,6 +2,11 @@
 import Form from '@/components/Form.astro'
 import Layout from '@/layouts/Layout.astro'
 import CreationStepper from '@/components/ui/CreationStepper.astro'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ??
+  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 
 const rawTicket = Astro.url.searchParams.get('ticket') ?? ''
 
@@ -17,7 +22,7 @@ function normalizeTicket(raw: string): string {
 const ticketParam = normalizeTicket(rawTicket)
 ---
 
-<Layout>
+<Layout title={copy.home.title} description={copy.home.metaDescription} localizedSeo>
   <div class="pt-6">
     <CreationStepper />
   </div>
