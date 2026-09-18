@@ -1,8 +1,13 @@
 ---
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
 interface Props {
   readonly telegramHref?: string
 }
+
 const { telegramHref = 'https://t.me/hiveblockes' } = Astro.props
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <section class="mx-auto max-w-4xl py-24" id="community">
@@ -12,13 +17,12 @@ const { telegramHref = 'https://t.me/hiveblockes' } = Astro.props
     <h2
       class="text-foreground mb-4 text-3xl font-bold tracking-tight md:text-4xl"
     >
-      ¿Necesitas ayuda? ¡Únete a la comunidad!
+      {copy.success.communityTitle}
     </h2>
     <p
       class="text-muted-foreground mx-auto mb-8 max-w-xl text-sm leading-relaxed md:text-base"
     >
-      Ingresa a nuestro grupo de Telegram para recibir apoyo, compartir ideas y
-      aprender más sobre Hive.
+      {copy.success.communityBody}
     </p>
     <a
       href={telegramHref}
@@ -36,7 +40,7 @@ const { telegramHref = 'https://t.me/hiveblockes' } = Astro.props
           d="M20.665 3.717l-17.73 6.837c-1.21.486-1.203 1.161-.222 1.462l4.552 1.42l10.532-6.645c.498-.303.953-.14.579.192l-8.533 7.701l-.309 4.649c.45 0 .668-.208.925-.458l2.193-2.134l4.556 3.367c.84.462 1.44.217 1.649-.785l2.984-14.059c.306-1.223-.468-1.775-1.303-1.413z"
         ></path>
       </svg>
-      Unirse al Grupo
+      {copy.success.communityCta}
     </a>
   </div>
 </section>

@@ -1,34 +1,63 @@
 type StepState = 'pending' | 'active' | 'completed' | 'error'
 type IconName = 'number' | 'spinner' | 'check' | 'error'
 
-const STEP_CLASSES: Record<
+interface StepStatusLabels {
+  readonly active: string
+  readonly completed: string
+  readonly error: string
+}
+
+const DEFAULT_STATUS_LABELS: StepStatusLabels = {
+  active: 'In progress...',
+  completed: 'Completed',
+  error: 'Error',
+}
+
+function readStatusLabels(container: HTMLElement): StepStatusLabels {
+  const modal = container.matches('#progress-modal')
+    ? container
+    : container.querySelector<HTMLElement>('#progress-modal')
+
+  if (!modal) return DEFAULT_STATUS_LABELS
+
+  return {
+    active: modal.dataset.statusActive ?? DEFAULT_STATUS_LABELS.active,
+    completed:
+      modal.dataset.statusCompleted ?? DEFAULT_STATUS_LABELS.completed,
+    error: modal.dataset.statusError ?? DEFAULT_STATUS_LABELS.error,
+  }
+}
+
+function buildStepClasses(statusLabels: StepStatusLabels): Record<
   StepState,
   { item: string; icon: string; label: string; status: string }
-> = {
-  pending: {
-    item: 'step-pending border-border bg-muted/30 opacity-60',
-    icon: 'bg-muted text-muted-foreground',
-    label: 'text-muted-foreground',
-    status: '',
-  },
-  active: {
-    item: 'step-active border-primary bg-primary/5 shadow-sm',
-    icon: 'bg-primary text-primary-foreground animate-pulse',
-    label: 'text-primary',
-    status: 'En progreso...',
-  },
-  completed: {
-    item: 'step-completed border-green-500 bg-green-50',
-    icon: 'bg-green-500 text-white',
-    label: 'text-green-700',
-    status: 'Completado',
-  },
-  error: {
-    item: 'step-error border-red-500 bg-red-50',
-    icon: 'bg-red-500 text-white',
-    label: 'text-red-700',
-    status: 'Error',
-  },
+> {
+  return {
+    pending: {
+      item: 'step-pending border-border bg-muted/30 opacity-60',
+      icon: 'bg-muted text-muted-foreground',
+      label: 'text-muted-foreground',
+      status: '',
+    },
+    active: {
+      item: 'step-active border-primary bg-primary/5 shadow-sm',
+      icon: 'bg-primary text-primary-foreground animate-pulse',
+      label: 'text-primary',
+      status: statusLabels.active,
+    },
+    completed: {
+      item: 'step-completed border-green-500 bg-green-50',
+      icon: 'bg-green-500 text-white',
+      label: 'text-green-700',
+      status: statusLabels.completed,
+    },
+    error: {
+      item: 'step-error border-red-500 bg-red-50',
+      icon: 'bg-red-500 text-white',
+      label: 'text-red-700',
+      status: statusLabels.error,
+    },
+  }
 }
 
 const STATUS_COLOR: Record<StepState, string> = {
@@ -73,6 +102,8 @@ export function updateStepStates(
   completedSteps: readonly number[],
   errorStep: number
 ): void {
+  const statusLabels = readStatusLabels(container)
+  const stepClasses = buildStepClasses(statusLabels)
   const steps = container.querySelectorAll<HTMLElement>('[data-step-index]')
   const totalSteps = steps.length
 
@@ -87,10 +118,9 @@ export function updateStepStates(
 
     stepEl.setAttribute('data-state', state)
 
-    // Update step item classes
     const baseItemClasses =
       'step-item flex items-center gap-4 p-4 rounded-lg border transition-all duration-500 ease-out'
-    stepEl.className = `${baseItemClasses} ${STEP_CLASSES[state].item}`
+    stepEl.className = `${baseItemClasses} ${stepClasses[state].item}`
     stepEl.style.animationDelay = `${index * 150}ms`
     if (state === 'active') {
       stepEl.setAttribute('aria-current', 'step')
@@ -98,15 +128,13 @@ export function updateStepStates(
       stepEl.removeAttribute('aria-current')
     }
 
-    // Update icon container classes
     const iconContainer = stepEl.querySelector<HTMLElement>('.step-icon')
     if (iconContainer) {
       const baseIconClasses =
         'step-icon flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300'
-      iconContainer.className = `${baseIconClasses} ${STEP_CLASSES[state].icon}`
+      iconContainer.className = `${baseIconClasses} ${stepClasses[state].icon}`
     }
 
-    // Toggle icon visibility
     const visibleIcon = ICON_NAMES[state]
     stepEl.querySelectorAll<HTMLElement>('[data-icon]').forEach(icon => {
       if (icon.getAttribute('data-icon') === visibleIcon) {
@@ -116,16 +144,14 @@ export function updateStepStates(
       }
     })
 
-    // Update label classes
     const label = stepEl.querySelector<HTMLElement>('[data-step-label]')
     if (label) {
-      label.className = `text-sm font-medium transition-colors duration-300 ${STEP_CLASSES[state].label}`
+      label.className = `text-sm font-medium transition-colors duration-300 ${stepClasses[state].label}`
     }
 
-    // Update status text
     const statusEl = stepEl.querySelector<HTMLElement>('[data-step-status]')
     if (statusEl) {
-      const statusText = STEP_CLASSES[state].status
+      const statusText = stepClasses[state].status
       if (statusText) {
         statusEl.textContent = statusText
         statusEl.className = `text-xs mt-1 ${STATUS_COLOR[state]}`
@@ -137,7 +163,6 @@ export function updateStepStates(
     }
   })
 
-  // Update progress bar
   const progressFill = container.querySelector<HTMLElement>(
     '[data-progress-fill]'
   )

@@ -1,5 +1,9 @@
 ---
 import keychainIcon from '@/assets/dapps/keychain.svg'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 
 interface DownloadDef {
   readonly id: string
@@ -13,25 +17,25 @@ const downloads: readonly DownloadDef[] = [
     id: 'chrome',
     label: 'Chrome',
     href: 'https://chrome.google.com/webstore/detail/hive-keychain/jcacnejopjdphbnjgfaaobbfafkihpep?hl=en',
-    badge: 'Extensión',
+    badge: copy.success.keychainBadgeExtension,
   },
   {
     id: 'firefox',
     label: 'Firefox',
     href: 'https://addons.mozilla.org/en-US/firefox/addon/hive-keychain/',
-    badge: 'Extensión',
+    badge: copy.success.keychainBadgeExtension,
   },
   {
     id: 'android',
     label: 'Android',
     href: 'https://play.google.com/store/apps/details?id=com.mobilekeychain',
-    badge: 'Google Play',
+    badge: copy.success.keychainBadgeGooglePlay,
   },
   {
     id: 'ios',
     label: 'iOS',
     href: 'https://apps.apple.com/us/app/hive-keychain/id1552190010',
-    badge: 'App Store',
+    badge: copy.success.keychainBadgeAppStore,
   },
 ]
 
@@ -53,10 +57,10 @@ const iconPath: Record<string, string> = {
     <h2
       class="text-foreground mb-2 text-2xl font-bold tracking-tight md:text-3xl"
     >
-      Descargar Hive Keychain
+      {copy.success.keychainDownloadTitle}
     </h2>
     <p class="text-muted-foreground text-sm">
-      Gestiona tus claves y firma transacciones
+      {copy.success.keychainDownloadBody}
     </p>
   </div>
 

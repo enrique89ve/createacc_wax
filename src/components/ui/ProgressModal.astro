@@ -1,7 +1,15 @@
 ---
 import ProgressStepper from '@/components/ui/ProgressStepper.astro'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
-const steps = ['Verificando información', 'Creando la cuenta', 'Redirigiendo']
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+
+const steps = [
+  copy.progress.stepVerifying,
+  copy.progress.stepCreating,
+  copy.progress.stepRedirecting,
+]
 ---
 
 <div
@@ -10,6 +18,9 @@ const steps = ['Verificando información', 'Creando la cuenta', 'Redirigiendo']
   role="dialog"
   aria-modal="true"
   aria-labelledby="progress-modal-title"
+  data-status-active={copy.progress.statusActive}
+  data-status-completed={copy.progress.statusCompleted}
+  data-status-error={copy.progress.statusError}
 >
   <div
     class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-2xl"
@@ -19,10 +30,10 @@ const steps = ['Verificando información', 'Creando la cuenta', 'Redirigiendo']
         id="progress-modal-title"
         class="text-foreground text-xl font-semibold"
       >
-        Creando tu cuenta
+        {copy.progress.modalTitle}
       </h2>
       <p class="text-muted-foreground mt-2 text-sm">
-        Por favor espera mientras procesamos tu solicitud
+        {copy.progress.modalSubtitle}
       </p>
     </div>
 
@@ -34,14 +45,13 @@ const steps = ['Verificando información', 'Creando la cuenta', 'Redirigiendo']
       className="mb-6"
     />
 
-    <!-- Close button (only visible if there is an error) -->
     <div class="hidden text-center" data-progress-error-actions>
       <button
         type="button"
         id="btn-close-progress"
         class="border-border bg-background text-foreground hover:bg-muted rounded-md border px-4 py-2 text-sm font-medium transition-colors"
       >
-        Cerrar
+        {copy.common.close}
       </button>
     </div>
   </div>

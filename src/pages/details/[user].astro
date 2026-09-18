@@ -5,6 +5,7 @@ import AccountDetails from '@/components/AccountDetails.astro'
 import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
 import { logger } from '@/lib/logger'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 const { user } = Astro.params
 
@@ -30,9 +31,13 @@ if (user !== creationSession.username) {
 if (creationSession.accountCreated) {
   return Astro.redirect(`/success/${encodeURIComponent(user)}`)
 }
+
+const copy =
+  Astro.locals.messages ??
+  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
-<Layout noindex>
+<Layout title={copy.details.title} noindex>
   <div class="pt-6">
     <CreationStepper />
   </div>

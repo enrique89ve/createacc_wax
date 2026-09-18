@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import DownloadFormatModal from '@/components/ui/DownloadFormatModal.astro'
 import ProgressModal from '@/components/ui/ProgressModal.astro'
 import Tooltip from '@/components/ui/Tooltip.astro'
@@ -8,6 +9,9 @@ interface Props {
 }
 
 const { username } = Astro.props
+const copy =
+  Astro.locals.messages ??
+  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <section
@@ -21,13 +25,13 @@ const { username } = Astro.props
         <h1
           class="text-foreground text-2xl font-bold tracking-tight sm:text-3xl"
         >
-          Detalles de la cuenta a crear
+          {copy.details.title}
         </h1>
       </header>
       <div
         class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
       >
-        <p class="text-muted-foreground text-sm font-medium">Cuenta a crear:</p>
+        <p class="text-muted-foreground text-sm font-medium">{copy.details.accountToCreate}</p>
         <span
           class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-lg font-semibold"
           data-username={username}>@{username}</span
@@ -35,7 +39,7 @@ const { username } = Astro.props
       </div>
       <!-- Keys Container (always visible) -->
       <div id="keys-container" class="space-y-5">
-        <p class="text-foreground mb-2 text-xs font-semibold">Master Key:</p>
+        <p class="text-foreground mb-2 text-xs font-semibold">{copy.details.masterPasswordLabel}:</p>
         <div class="group">
           <div
             class="border-border bg-background relative min-h-[2.5rem] overflow-hidden rounded-md border px-4 py-2 text-xs leading-relaxed transition-colors group-hover:border-gray-400"
@@ -60,20 +64,20 @@ const { username } = Astro.props
                     d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
                     fill="currentFill"></path>
                 </svg>
-                <span class="sr-only">Loading...</span>
+                <span class="sr-only">{copy.common.loading}</span>
               </div>
-              <p class="text-foreground text-sm">Generando claves seguras...</p>
+              <p class="text-foreground text-sm">{copy.details.generatingKeys}</p>
             </div>
             <p
               id="master-key-placeholder"
               class="text-muted-foreground hidden min-h-[2rem] items-center font-mono text-[15px] tracking-tight"
             >
-              La Master Key está oculta. Pulsa Mostrar para verla.
+              {copy.details.masterPasswordHidden}
             </p>
             <p
               id="master-key-display"
               class="text-foreground/90 hidden min-h-[2rem] cursor-pointer break-all font-mono text-[15px] tracking-tight"
-              title="Clic para copiar Master Key"
+              title={copy.details.clickToCopy}
             >
             </p>
             <!-- Copy button overlay (appears on hover) -->
@@ -81,7 +85,7 @@ const { username } = Astro.props
               id="master-key-copy-btn"
               type="button"
               class="bg-background/70 text-muted-foreground/80 absolute inset-0 hidden cursor-pointer items-center justify-center gap-2 rounded-md text-[12px] font-semibold opacity-0 backdrop-blur-sm transition-all duration-300 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 group-hover:opacity-100"
-              aria-label="Copiar Master Key"
+              aria-label={copy.details.copyMasterPassword}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -97,7 +101,7 @@ const { username } = Astro.props
                   d="M13.25 5A2.75 2.75 0 0 1 16 7.75v7.5A2.75 2.75 0 0 1 13.25 18h-2.5A2.75 2.75 0 0 1 8 15.25v-1a.75.75 0 0 1 1.5 0v1c0 .69.56 1.25 1.25 1.25h2.5c.69 0 1.25-.56 1.25-1.25v-7.5C14.5 6.56 13.94 6 13.25 6h-1a.75.75 0 0 1 0-1.5h1Z"
                 ></path>
               </svg>
-              <span>Copiar</span>
+              <span>{copy.details.copy}</span>
             </button>
             <!-- Feedback for copy action -->
             <div
@@ -121,13 +125,13 @@ const { username } = Astro.props
                     d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
                     clip-rule="evenodd"></path>
                 </svg>
-                Master Key copiada
+                {copy.details.masterPasswordCopied}
               </span>
             </div>
           </div>
         </div>
         <p class="text-muted-foreground mt-2 text-xs leading-relaxed">
-          Descarga o copia tu Master Key antes de continuar.
+          {copy.details.beforeContinueHelp}
         </p>
       </div>
       <div
@@ -137,27 +141,27 @@ const { username } = Astro.props
           type="button"
           id="btn-download-keys"
           class="border-border inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 py-2 text-[0.9rem] font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
-          aria-label="Descargar claves"
+          aria-label={copy.details.downloadKeysAria}
         >
-          Descargar claves
+          {copy.details.downloadKeys}
           <span aria-hidden="true">🔑</span>
         </button>
         <button
           type="button"
           id="btn-reveal-master"
           class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-          aria-label="Mostrar Master Key"
+          aria-label={copy.details.showMasterPassword}
           aria-pressed="false"
         >
-          Mostrar Master Key
+          {copy.details.showMasterPassword}
         </button>
         <button
           type="button"
           id="btn-copy-master-cta"
           class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-          aria-label="Copiar Master Key"
+          aria-label={copy.details.copyMasterPassword}
         >
-          Copiar Master Key
+          {copy.details.copyMasterPassword}
           <span aria-hidden="true">🗝️</span>
         </button>
       </div>
@@ -186,7 +190,7 @@ const { username } = Astro.props
             <span
               class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
             >
-              He verificado que mis claves están guardadas.
+              {copy.details.keysSavedCheckbox}
             </span>
           </label>
           <label
@@ -212,7 +216,7 @@ const { username } = Astro.props
             <span
               class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
             >
-              Reconozco que si pierdo mis claves, pierdo la cuenta.
+              {copy.details.keysAckCheckbox}
             </span>
           </label>
         </div>
@@ -221,17 +225,17 @@ const { username } = Astro.props
             id="btn-create-account"
             type="submit"
             disabled
-            data-default-label="Crear cuenta"
-            data-loading-label="Creando cuenta..."
+            data-default-label={copy.details.createAccount}
+            data-loading-label={copy.details.creatingAccount}
             data-tooltip-target="tooltip-download-keys"
             data-tooltip-style="light"
             class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 w-full cursor-pointer rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Crear cuenta
+            {copy.details.createAccount}
           </button>
           <Tooltip
             id="tooltip-download-keys"
-            message="¡Debes descargar las claves!"
+            message={copy.details.downloadKeysRequired}
             style="light"
           />
         </div>
@@ -246,6 +250,7 @@ const { username } = Astro.props
   <ProgressModal />
 
   <script>
+    import { interpolate, publicCopy } from '@/i18n'
     import type { DownloadFormat } from '@/utils/key-download-manager'
     import { obtainPowSolution } from '@/utils/pow-solver'
     import type {
@@ -399,7 +404,7 @@ const { username } = Astro.props
           if (isReload && this.extWindow.showToast) {
             this.extWindow.showToast(
               'warning',
-              'Se generaron unas claves nuevas. Debes descargar nuevamente.',
+              publicCopy().details.reloadNewKeys,
               6000
             )
           }
@@ -436,12 +441,10 @@ const { username } = Astro.props
         this.elements.masterKeyPlaceholder?.classList.remove('hidden')
         this.elements.masterKeyPlaceholder?.classList.add('flex')
         if (this.elements.revealBtn) {
-          this.elements.revealBtn.textContent = 'Mostrar Master Key'
+          const copy = publicCopy().details
+          this.elements.revealBtn.textContent = copy.showMasterPassword
           this.elements.revealBtn.setAttribute('aria-pressed', 'false')
-          this.elements.revealBtn.setAttribute(
-            'aria-label',
-            'Mostrar Master Key'
-          )
+          this.elements.revealBtn.setAttribute('aria-label', copy.showMasterPassword)
         }
         this.state.masterKeyRevealed = false
       }
@@ -457,12 +460,10 @@ const { username } = Astro.props
         this.elements.masterKeyDisplay.classList.remove('hidden')
         this.elements.masterKeyDisplay.classList.add('flex', 'items-center')
         if (this.elements.revealBtn) {
-          this.elements.revealBtn.textContent = 'Ocultar Master Key'
+          const copy = publicCopy().details
+          this.elements.revealBtn.textContent = copy.hideMasterPassword
           this.elements.revealBtn.setAttribute('aria-pressed', 'true')
-          this.elements.revealBtn.setAttribute(
-            'aria-label',
-            'Ocultar Master Key'
-          )
+          this.elements.revealBtn.setAttribute('aria-label', copy.hideMasterPassword)
         }
         this.state.masterKeyRevealed = true
       }
@@ -500,7 +501,7 @@ const { username } = Astro.props
         const errorMessage = document.createElement('p')
         errorMessage.className = 'text-sm'
         errorMessage.textContent =
-          'Error al generar claves. Por favor recarga la página.'
+          publicCopy().details.generateKeysError
 
         errorContainer.appendChild(errorIcon)
         errorContainer.appendChild(errorMessage)
@@ -521,7 +522,7 @@ const { username } = Astro.props
           this.hasBackup()
         this.elements.submitBtn.disabled = !ok
         this.elements.submitBtn.title = !this.hasBackup()
-          ? 'You must download the key file first'
+          ? publicCopy().details.submitDisabledTitle
           : ''
 
         if (this.hasBackup()) {
@@ -585,7 +586,7 @@ const { username } = Astro.props
           doneIcon.classList.add('flex')
         }
         if (desc) {
-          desc.textContent = 'Descargado'
+          desc.textContent = publicCopy().details.downloaded
           desc.classList.remove('text-muted-foreground')
           desc.classList.add('text-green-500')
         }
@@ -619,7 +620,7 @@ const { username } = Astro.props
             if (this.extWindow.showToast) {
               this.extWindow.showToast(
                 'success',
-                'Claves descargadas en TXT y PDF'
+                publicCopy().details.keysDownloadedBoth
               )
             }
           }
@@ -635,7 +636,7 @@ const { username } = Astro.props
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
               'error',
-              'Error al descargar las claves. Inténtalo de nuevo.'
+              publicCopy().details.downloadRetryError
             )
           }
         }
@@ -644,7 +645,7 @@ const { username } = Astro.props
       private resetSubmitButton(): void {
         if (!this.elements.submitBtn) return
         this.elements.submitBtn.textContent =
-          this.elements.submitBtn.dataset.defaultLabel ?? 'Create account'
+          this.elements.submitBtn.dataset.defaultLabel ?? publicCopy().details.createAccount
         this.elements.submitBtn.disabled = false
         this.updateSubmitState()
       }
@@ -675,7 +676,7 @@ const { username } = Astro.props
         if (submitBtn) {
           submitBtn.disabled = true
           submitBtn.textContent =
-            submitBtn.dataset.loadingLabel ?? 'Creating account...'
+            submitBtn.dataset.loadingLabel ?? publicCopy().details.creatingAccount
         }
 
         // Resolve PoW + timing token (throws if token unavailable)
@@ -693,7 +694,7 @@ const { username } = Astro.props
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
               'error',
-              'Error de verificación. Inténtalo de nuevo.',
+              publicCopy().details.verificationError,
               6000
             )
           }
@@ -741,11 +742,11 @@ const { username } = Astro.props
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
               'error',
-              `Account creation failed: ${errorMessage}`,
+              interpolate(publicCopy().details.accountCreationFailed, { error: errorMessage }),
               8000
             )
           } else {
-            alert(`Account creation failed: ${errorMessage}`)
+            alert(interpolate(publicCopy().details.accountCreationFailed, { error: errorMessage }))
           }
 
           this.isSubmitting = false
