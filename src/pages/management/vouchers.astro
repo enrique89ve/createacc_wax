@@ -4,12 +4,11 @@ import { formatDate } from '@/utils/date-formatters'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import type { TicketWithCreator } from '@/types/database'
 import { UserRole } from '@/lib/roles'
+import { MAX_TICKET_USES, TICKET_LENGTH } from '@/consts/constants'
 
 // La autenticación ya se maneja en ManagementLayout
 const session = Astro.locals.adminUser as import('@/types/auth').AdminSession
 
-// Admin can inspect all tickets; builders create and manage their own tickets
-// from the builders area, so this management surface is intentionally read-only.
 let tickets: TicketWithCreator[] = []
 
 try {
@@ -25,10 +24,98 @@ try {
     <div>
       <h2 class="text-foreground text-2xl font-bold">Gestión de Tickets</h2>
       <p class="text-muted-foreground mt-1">
-        Consulta todos los tickets del sistema
+        Crea tickets del sistema y consulta todos los tickets
       </p>
     </div>
   </div>
+
+  <!-- Admin-only ticket creation -->
+  <section class="bg-card border-border mb-8 rounded-lg border p-6">
+    <div class="mb-5">
+      <h3 class="text-foreground text-lg font-semibold">Crear ticket</h3>
+      <p class="text-muted-foreground mt-1 text-sm">
+        Los tickets creados por admin no descuentan créditos de ningún Builder.
+      </p>
+    </div>
+
+    <form id="admin-create-ticket-form" class="grid gap-4 md:grid-cols-4">
+      <div class="md:col-span-2">
+        <label
+          for="admin-ticket-code"
+          class="text-foreground mb-2 block text-sm font-medium">Código</label
+        >
+        <input
+          id="admin-ticket-code"
+          name="code"
+          type="text"
+          minlength={TICKET_LENGTH.MIN}
+          maxlength={TICKET_LENGTH.MAX}
+          pattern="[A-Za-z0-9]+"
+          autocomplete="off"
+          required
+          class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 uppercase focus:outline-none focus:ring-1"
+          placeholder="PROMO2025AB"
+          aria-describedby="admin-ticket-code-help"
+        />
+        <p
+          id="admin-ticket-code-help"
+          class="text-muted-foreground mt-1 text-xs"
+        >
+          {TICKET_LENGTH.MIN}-{TICKET_LENGTH.MAX} caracteres alfanuméricos.
+        </p>
+      </div>
+
+      <div>
+        <label
+          for="admin-ticket-uses"
+          class="text-foreground mb-2 block text-sm font-medium">Usos</label
+        >
+        <input
+          id="admin-ticket-uses"
+          name="uses"
+          type="number"
+          min="1"
+          max={MAX_TICKET_USES}
+          value="1"
+          required
+          class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1"
+        />
+      </div>
+
+      <div>
+        <label
+          for="admin-ticket-description"
+          class="text-foreground mb-2 block text-sm font-medium"
+          >Descripción</label
+        >
+        <input
+          id="admin-ticket-description"
+          name="description"
+          type="text"
+          maxlength="200"
+          class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1"
+          placeholder="Opcional"
+        />
+      </div>
+
+      <div
+        class="flex flex-col gap-2 md:col-span-4 md:flex-row md:items-center"
+      >
+        <button
+          type="submit"
+          class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
+          >Crear ticket</button
+        >
+        <p
+          id="admin-ticket-feedback"
+          class="hidden text-sm"
+          role="status"
+          aria-live="polite"
+        >
+        </p>
+      </div>
+    </form>
+  </section>
 
   {/* Quota Warning for Builders */}
   {
@@ -80,7 +167,7 @@ try {
                   Fecha
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Créditos
+                  Usos
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
                   Link
@@ -164,7 +251,9 @@ try {
                     </button>
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    <span class="text-muted-foreground text-xs">Solo lectura</span>
+                    <span class="text-muted-foreground text-xs">
+                      Solo lectura
+                    </span>
                   </td>
                 </tr>
               ))}

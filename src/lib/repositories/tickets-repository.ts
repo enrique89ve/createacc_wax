@@ -383,8 +383,9 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						'builder' as creator_role
+						COALESCE(u.role, 'builder') as creator_role
 					FROM Tickets t
+					LEFT JOIN "user" u ON u.username = t.creator_username
 					ORDER BY t.created_at DESC
 				`,
         args: [],
@@ -408,8 +409,9 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						'builder' as creator_role
+						COALESCE(u.role, 'builder') as creator_role
 					FROM Tickets t
+					LEFT JOIN "user" u ON u.username = t.creator_username
 					WHERE t.creator_username = ?
 					ORDER BY t.created_at DESC
 				`,
@@ -442,8 +444,9 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						'builder' as creator_role
+						COALESCE(u.role, 'builder') as creator_role
 					FROM Tickets t
+					LEFT JOIN "user" u ON u.username = t.creator_username
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,

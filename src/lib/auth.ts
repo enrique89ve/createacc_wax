@@ -23,9 +23,16 @@ export const auth = betterAuth({
       client: db,
     } as ConstructorParameters<typeof LibsqlDialect>[0]),
     type: 'sqlite',
-    casing: 'snake',
   },
   session: {
+    fields: {
+      expiresAt: 'expires_at',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+      ipAddress: 'ip_address',
+      userAgent: 'user_agent',
+      userId: 'user_id',
+    },
     expiresIn: SESSION_MAX_AGE_SECONDS,
     cookieCache: {
       enabled: true,
@@ -33,27 +40,36 @@ export const auth = betterAuth({
     },
   },
   user: {
+    fields: {
+      emailVerified: 'email_verified',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
     additionalFields: {
       username: {
         type: 'string',
         required: true,
         input: false,
+        fieldName: 'username',
       },
       role: {
         type: 'string',
         required: true,
         input: false,
+        fieldName: 'role',
       },
       authMethod: {
         type: 'string',
         required: true,
         input: false,
+        fieldName: 'auth_method',
       },
       isActive: {
         type: 'boolean',
         required: true,
         input: false,
         defaultValue: true,
+        fieldName: 'is_active',
       },
     },
   },

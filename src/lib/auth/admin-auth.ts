@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { getCookies } from 'better-auth/cookies'
+import { makeSignature } from 'better-auth/crypto'
 import { UserRole, isValidRole } from '@/lib/roles'
 import type { AdminSession } from '@/types/auth'
 import { hiveAuthEmail } from '@/lib/auth-user'
@@ -57,15 +58,17 @@ export async function createAdminAuthSession(params: {
   return { token: session.token, userId: existing.user.id }
 }
 
-export function appendAdminSessionCookie(
+export async function appendAdminSessionCookie(
   headers: Headers,
   token: string
-): void {
+): Promise<void> {
   const cookies = getCookies(auth.options)
   const sessionCookie = cookies.sessionToken
   const attributes = sessionCookie.attributes
+  const context = await auth.$context
+  const signedValue = `${token}.${await makeSignature(token, context.secret)}`
   const parts = [
-    `${sessionCookie.name}=${token}`,
+    `${sessionCookie.name}=${encodeURIComponent(signedValue)}`,
     `Path=${attributes.path}`,
     `HttpOnly`,
     `SameSite=${String(attributes.sameSite)}`,

@@ -14,7 +14,23 @@ export type HiveChain = IHiveChainInterface
 const sleep = (ms: number): Promise<void> =>
   new Promise(resolve => setTimeout(resolve, ms))
 
-function sharedChainOptions(apiEndpoint: string) {
+export interface HiveChainOptions {
+  readonly apiEndpoint: string
+  readonly apiTimeout: number
+  readonly waxApiCaller?: string
+}
+
+export function getHiveChainOptions(
+  apiEndpoint: string,
+  isServerRuntime = import.meta.env.SSR
+): HiveChainOptions {
+  if (!isServerRuntime) {
+    return {
+      apiEndpoint,
+      apiTimeout: HIVE_CHAIN_CONFIG.API_TIMEOUT_MS,
+    }
+  }
+
   return {
     apiEndpoint,
     apiTimeout: HIVE_CHAIN_CONFIG.API_TIMEOUT_MS,
@@ -25,7 +41,7 @@ function sharedChainOptions(apiEndpoint: string) {
 async function createChainAt(
   apiEndpoint: string
 ): Promise<IHiveChainInterface> {
-  return await createHiveChain(sharedChainOptions(apiEndpoint))
+  return await createHiveChain(getHiveChainOptions(apiEndpoint))
 }
 
 async function findBestBackup(backups: readonly string[]): Promise<string> {

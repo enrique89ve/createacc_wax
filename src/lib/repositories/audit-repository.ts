@@ -59,6 +59,20 @@ export interface CreditAuditFilters {
 export class AuditRepository {
   // ===== TICKET AUDIT LOGS =====
 
+  async createTicketLog(data: {
+    readonly ticket: string
+    readonly action: 'create' | 'update' | 'delete'
+    readonly performed_by?: string | null
+  }): Promise<void> {
+    await execute({
+      sql: `
+        INSERT INTO TicketAudit (ticket, action, performed_by)
+        VALUES (?, ?, ?)
+      `,
+      args: [data.ticket, data.action, data.performed_by ?? null],
+    })
+  }
+
   /**
    * Get all ticket logs with user information
    */

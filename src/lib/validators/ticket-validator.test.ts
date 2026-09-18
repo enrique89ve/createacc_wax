@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { validateUsesDelta } from './ticket-validator'
+import { validateTicketName, validateUsesDelta } from './ticket-validator'
 import { deriveTicketKind, deriveTicketStatus } from '@/types/database'
 
 describe('validateUsesDelta', () => {
@@ -32,5 +32,17 @@ describe('validateUsesDelta', () => {
     expect(deriveTicketStatus(10, 7, null)).toBe('partially_used')
     expect(deriveTicketStatus(10, 0, null)).toBe('exhausted')
     expect(deriveTicketStatus(10, 7, '2026-09-16')).toBe('revoked')
+  })
+})
+
+describe('validateTicketName', () => {
+  it('rejects non-string boundary input without throwing', () => {
+    expect(validateTicketName({})).toEqual({
+      success: false,
+      error: {
+        message: 'El nombre del ticket no puede estar vacío',
+        field: 'code',
+      },
+    })
   })
 })

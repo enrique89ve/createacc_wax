@@ -24,8 +24,8 @@ const MIN_TICKET_USES = 1
  * @param name - Ticket name to validate
  * @returns ValidationResult with normalized string or error
  */
-export function validateTicketName(name: string): ValidationResult<string> {
-  if (!name || !name.trim()) {
+export function validateTicketName(name: unknown): ValidationResult<string> {
+  if (typeof name !== 'string' || !name.trim()) {
     return {
       success: false,
       error: {
@@ -94,9 +94,7 @@ export function validateTicketName(name: string): ValidationResult<string> {
  * - Between 1 and MAX_TICKET_USES (100)
  * - Must be an integer
  */
-export function validateTicketUses(
-  uses: unknown
-): ValidationResult<number> {
+export function validateTicketUses(uses: unknown): ValidationResult<number> {
   if (typeof uses !== 'number') {
     return {
       success: false,

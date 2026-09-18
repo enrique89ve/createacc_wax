@@ -12,6 +12,7 @@ describe('unified role permissions', () => {
     }
     expect(canPerform(session, Permission.CREATE_TICKET)).toBe(true)
     expect(canPerform(session, Permission.MANAGE_CREDITS)).toBe(false)
+    expect(canPerform(session, Permission.CREATE_ADMIN_TICKET)).toBe(false)
   })
 
   it('prevents builders from accessing admin operations', () => {
@@ -33,6 +34,7 @@ describe('unified role permissions', () => {
       loginTime: Date.now(),
     }
     expect(canPerform(session, Permission.CREATE_TICKET)).toBe(false)
+    expect(canPerform(session, Permission.CREATE_ADMIN_TICKET)).toBe(true)
     expect(canPerform(session, Permission.VIEW_OWN_TICKETS)).toBe(false)
     expect(canPerform(session, Permission.MANAGE_CREDITS)).toBe(true)
   })

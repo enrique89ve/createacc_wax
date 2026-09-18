@@ -236,7 +236,7 @@ export const POST: APIRoute = async context => {
     const headers = new Headers({
       'Content-Type': 'application/json',
     })
-    appendAdminSessionCookie(headers, created.token)
+    await appendAdminSessionCookie(headers, created.token)
 
     return new Response(
       JSON.stringify({
