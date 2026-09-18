@@ -37,7 +37,7 @@ const copy =
   getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
-<Layout title={copy.details.title} noindex>
+<Layout title={copy.details.title} description={copy.details.metaDescription} noindex>
   <div class="pt-6">
     <CreationStepper />
   </div>

@@ -69,6 +69,7 @@ export const pt: Messages = {
   },
   details: {
     title: 'Proteja sua conta',
+    metaDescription: 'Proteja sua conta e guarde sua Master Password.',
     accountToCreate: 'Conta a criar:',
     masterPasswordLabel: 'Master Password',
     generatingKeys: 'Gerando chaves seguras...',

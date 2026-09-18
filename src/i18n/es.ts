@@ -68,6 +68,7 @@ export const es = {
   },
   details: {
     title: 'Protege tu cuenta',
+    metaDescription: 'Protege tu cuenta y guarda tu Master Password.',
     accountToCreate: 'Cuenta a crear:',
     masterPasswordLabel: 'Master Password',
     generatingKeys: 'Generando claves seguras...',

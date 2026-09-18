@@ -67,6 +67,7 @@ export const en: Messages = {
   },
   details: {
     title: 'Protect your account',
+    metaDescription: 'Protect your account and save your Master Password.',
     accountToCreate: 'Account to create:',
     masterPasswordLabel: 'Master Password',
     generatingKeys: 'Generating secure keys...',
