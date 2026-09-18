@@ -13,6 +13,7 @@ import {
 import { isHiveUsernameBlocked } from '@/lib/auth/blocked-hive-accounts'
 import type { APIContext } from 'astro'
 import { logger } from '@/lib/logger'
+import { localeMiddleware } from '@/i18n/middleware'
 
 async function protectManagementRoutes(
   context: APIContext
@@ -226,6 +227,7 @@ const sessionLoaderMiddleware = defineMiddleware(async (context, next) => {
 
 export const onRequest = sequence(
   securityHeadersMiddleware,
+  localeMiddleware,
   managementAuthMiddleware,
   buildersAuthMiddleware,
   sessionLoaderMiddleware

@@ -1,0 +1,223 @@
+import { BRAND } from '@/consts/branding'
+
+export const es = {
+  localeSwitch: {
+    label: 'Idioma',
+  },
+  common: {
+    cancel: 'Cancelar',
+    download: 'Descargar',
+    error: 'Error',
+    success: 'Éxito',
+    loading: 'Cargando...',
+    close: 'Cerrar',
+  },
+  home: {
+    title: 'Crea tu cuenta en Hive',
+    metaDescription: 'Crea tu cuenta en Hive.',
+    usernameLabel: 'Nombre de usuario',
+    accessCodeLabel: 'Código de acceso',
+    accessCodeVerify: 'Verificar',
+    accessCodeVerified: 'Código de acceso verificado',
+    accessCodeRemove: 'Quitar código de acceso',
+    continue: 'Continuar',
+    verifying: 'Verificando...',
+    continueError: 'No se pudo continuar. Inténtalo de nuevo.',
+    continueErrorButton: 'Error — Inténtalo de nuevo',
+  },
+  stepper: {
+    ariaLabel: 'Progreso de creación de cuenta',
+    account: 'Cuenta',
+    security: 'Seguridad',
+    ready: 'Listo',
+  },
+  username: {
+    available: '@{username} está disponible',
+    taken: '@{username} ya está en uso',
+    notAllowed: 'Este nombre de usuario no está permitido',
+    tooSimilar: 'Este nombre de usuario es muy similar a una cuenta reciente',
+    chainError: 'No se pudo conectar con Hive',
+    format: {
+      empty: 'Escribe un nombre de usuario.',
+      tooShort: 'Usa al menos 3 caracteres.',
+      tooLong: 'Usa como máximo 16 caracteres.',
+      startLowercase: 'Debe empezar con una letra minúscula.',
+      onlyAllowed: 'Solo puedes usar letras minúsculas, números o guiones.',
+      endLowerOrDigit: 'Debe terminar con una letra o un número.',
+      segmentStartLowercase:
+        'Cada segmento debe empezar con una letra minúscula.',
+      segmentOnlyAllowed:
+        'Cada segmento solo puede usar letras minúsculas, números o guiones.',
+      segmentEndLowerOrDigit:
+        'Cada segmento debe terminar con una letra o un número.',
+      segmentTooShort: 'Cada segmento debe tener al menos 3 caracteres.',
+    },
+  },
+  accessCode: {
+    validating: 'Validando...',
+    invalid: 'Código de acceso inválido',
+    verifyError: 'No se pudo validar el código. Inténtalo de nuevo.',
+    format: {
+      empty: 'Escribe tu código de acceso.',
+      tooShort: 'El código de acceso es demasiado corto.',
+      tooLong: 'El código de acceso es demasiado largo.',
+      invalidChars: 'El código de acceso solo puede contener letras y números.',
+      onlyNumbers: 'El código de acceso no puede ser solo números.',
+      invalidFormat: 'El código de acceso no es válido.',
+    },
+  },
+  details: {
+    title: 'Protege tu cuenta',
+    accountToCreate: 'Cuenta a crear:',
+    masterPasswordLabel: 'Master Password',
+    generatingKeys: 'Generando claves seguras...',
+    masterPasswordHidden:
+      'La Master Password está oculta. Pulsa Mostrar para verla.',
+    clickToCopy: 'Clic para copiar Master Password',
+    copy: 'Copiar',
+    masterPasswordCopied: 'Master Password copiada',
+    beforeContinueHelp:
+      'Descarga o copia tu Master Password antes de continuar.',
+    masterPasswordHelp:
+      'Tu Master Password controla tu cuenta. Guárdala en un lugar seguro.',
+    masterPasswordPrivacy:
+      'Se genera en tu dispositivo y HolaHive no la almacena.',
+    show: 'Mostrar',
+    hide: 'Ocultar',
+    showMasterPassword: 'Mostrar Master Password',
+    hideMasterPassword: 'Ocultar Master Password',
+    downloadBackup: 'Descargar respaldo',
+    downloadKeys: 'Descargar claves',
+    downloadKeysAria: 'Descargar claves',
+    copyMasterPassword: 'Copiar Master Password',
+    backupDownloaded: 'Respaldo descargado',
+    downloaded: 'Descargado',
+    confirmation:
+      'He guardado mi Master Password y entiendo que HolaHive no puede recuperarla por mí.',
+    keysSavedCheckbox: 'He verificado que mis claves están guardadas.',
+    keysAckCheckbox:
+      'Reconozco que si pierdo mis claves, pierdo la cuenta.',
+    createAccount: 'Crear cuenta',
+    creatingAccount: 'Creando cuenta...',
+    downloadKeysRequired: '¡Debes descargar las claves!',
+    generateKeysError:
+      'Error al generar claves. Por favor recarga la página.',
+    reloadNewKeys:
+      'Se generaron unas claves nuevas. Debes descargar nuevamente.',
+    keysDownloadedBoth: 'Claves descargadas en TXT y PDF',
+    downloadRetryError:
+      'Error al descargar las claves. Inténtalo de nuevo.',
+    verificationError: 'Error de verificación. Inténtalo de nuevo.',
+    submitDisabledTitle: 'Debes descargar el archivo de claves primero',
+    accountCreationFailed: 'Error al crear la cuenta: {error}',
+    createPrefix: 'Crear',
+    advancedKeys: 'Ver claves avanzadas',
+  },
+  progress: {
+    modalTitle: 'Creando tu cuenta',
+    modalSubtitle: 'Por favor espera mientras procesamos tu solicitud',
+    stepVerifying: 'Verificando información',
+    stepCreating: 'Creando la cuenta',
+    stepRedirecting: 'Redirigiendo',
+    statusActive: 'En progreso...',
+    statusCompleted: 'Completado',
+    statusError: 'Error',
+    creatingPrefix: 'Creando',
+    preparing: 'Preparando tu cuenta',
+    creatingOnHive: 'Creando en Hive',
+    confirming: 'Confirmando',
+    created: 'Cuenta creada',
+  },
+  success: {
+    title: 'Tu cuenta está lista',
+    metaDescription: 'Tu cuenta en Hive está lista.',
+    welcomeTitle: '¡Bienvenido a Hive!',
+    accountCreatedLead: 'Felicidades, la cuenta',
+    accountCreatedTail: 'ha sido creada exitosamente.',
+    body: 'Ya puedes usar tu cuenta en Hive.',
+    readySubtitle: 'Tu cuenta está lista para acceder a Hive.',
+    activeBody: 'ya está activo en Hive.',
+    keychainCta: 'Descargar Keychain',
+    keychainTitle: 'Configura Hive Keychain',
+    keychainDownloadTitle: 'Descargar Hive Keychain',
+    keychainDownloadBody: 'Gestiona tus claves y firma transacciones',
+    keychainBody:
+      'Usa tu usuario y el Master Password que acabas de guardar para agregar tu cuenta.',
+    keychainInstall: 'Instalar Hive Keychain',
+    keychainBadgeExtension: 'Extensión',
+    keychainBadgeGooglePlay: 'Google Play',
+    keychainBadgeAppStore: 'App Store',
+    exploreTitle: 'Aplicaciones del ecosistema',
+    exploreBody:
+      'Explora y comienza a interactuar con la comunidad usando estas DApps.',
+    favoriteBadge: 'Favorita',
+    appIconAlt: 'Icono',
+    communityTitle: '¿Necesitas ayuda? ¡Únete a la comunidad!',
+    communityBody:
+      'Ingresa a nuestro grupo de Telegram para recibir apoyo, compartir ideas y aprender más sobre Hive.',
+    communityCta: 'Unirse al Grupo',
+    apps: {
+      peakd: 'Plataforma social avanzada',
+      hiveblog: 'Portal social clásico',
+      threespeak: 'Video descentralizado',
+      ecency: 'Social + mobile',
+      inleo: 'Microblogging & finance',
+      liketu: 'Fotos y lifestyle',
+    },
+  },
+  keys: {
+    header: 'CLAVES DE CUENTA HIVE - {USERNAME}',
+    footer: `Generado con ${BRAND.NAME} - ${BRAND.URL}`,
+    keepSafe: '⚠️  GUARDA ESTAS CLAVES SEGURAS - NUNCA LAS COMPARTAS ⚠️',
+    masterKey: 'CLAVE MASTER',
+    ownerKey: 'CLAVE PRIVADA OWNER',
+    activeKey: 'CLAVE PRIVADA ACTIVE',
+    postingKey: 'CLAVE PRIVADA POSTING',
+    memoKey: 'CLAVE PRIVADA MEMO',
+    generatedAtLabel: 'Generado:',
+    keysetIdLabel: 'ID del lote:',
+    pdfTitle: 'Tu usuario: {username}',
+    pdfMasterPasswordLabel: 'Master Password',
+    pdfRolesHeading: 'Roles',
+    pdfRoleKeyTitle: '{role} Key:',
+    pdfWindowTitle: 'Claves de {username}',
+    roleNames: {
+      owner: 'OWNER',
+      active: 'ACTIVE',
+      posting: 'POSTING',
+      memo: 'MEMO',
+      master: 'MASTER',
+    },
+    descriptions: {
+      posting:
+        'Esta clave se utiliza para actividades sociales (publicar, comentar y votar). Esta clave tiene un conjunto limitado de permisos y no se puede utilizar para acciones monetarias. Por lo tanto, no puedes perder dinero si alguien más accede a esta clave.',
+      active:
+        'Esta clave tiene permisos adicionales para acciones relacionadas con el dinero más sensibles, como transferir e intercambiar monedas.',
+      owner:
+        'La clave del propietario es necesaria para cambiar las otras claves. Esta clave tiene permisos adicionales para recuperar tu cuenta o cambiar tus otras claves.',
+      memo: 'Lo único que puede hacer la clave Memo es cifrar y descifrar mensajes privados que se envían a través de la cadena de bloques.',
+      master:
+        'Es la clave principal de la cual se derivan todas las otras claves de una cuenta, se utiliza solo en situaciones críticas para garantizar la máxima seguridad.',
+    },
+  },
+  downloadModal: {
+    title: 'Seleccionar formato de descarga',
+    subtitle: 'Elige cómo quieres guardar tus claves',
+    formats: {
+      txt: {
+        title: 'Archivo de texto (.txt)',
+        description: 'Formato simple y universal',
+      },
+      pdf: {
+        title: 'Documento PDF (.pdf)',
+        description: 'Formato profesional con descripciones',
+      },
+    },
+  },
+  messages: {
+    keysDownloaded: 'Claves descargadas en formato {format}',
+    downloadError: 'Error al descargar las claves',
+    pdfGenerationFailed: 'Error al generar el PDF.',
+    unsupportedFormat: 'Formato no soportado: {format}',
+  },
+}
