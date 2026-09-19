@@ -31,25 +31,29 @@ async function notifyServerKeysDownloaded(
   const body = JSON.stringify(publicKeys)
   const headers = { 'Content-Type': 'application/json' }
 
-  try {
-    let res = await fetch('/api/create/keys-hash', {
+  let res = await fetch('/api/create/keys-hash', {
+    method: 'POST',
+    headers,
+    body,
+  })
+
+  if (res.status === 401) {
+    const ok = await recoverSession()
+    if (!ok) {
+      throw new Error('Session expired — could not confirm key download')
+    }
+    res = await fetch('/api/create/keys-hash', {
       method: 'POST',
       headers,
       body,
     })
+  }
 
-    if (res.status === 401) {
-      const ok = await recoverSession()
-      if (ok) {
-        res = await fetch('/api/create/keys-hash', {
-          method: 'POST',
-          headers,
-          body,
-        })
-      }
-    }
-  } catch {
-    // Non-critical: server notification is best-effort; keys are already saved locally
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    throw new Error(
+      detail.trim() || `Server rejected key download confirmation (${res.status})`
+    )
   }
 }
 
