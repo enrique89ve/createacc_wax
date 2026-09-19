@@ -22,7 +22,7 @@ export interface HiveChainOptions {
 
 export function getHiveChainOptions(
   apiEndpoint: string,
-  isServerRuntime = import.meta.env.SSR
+  isServerRuntime = import.meta.env?.SSR ?? typeof window === 'undefined'
 ): HiveChainOptions {
   if (!isServerRuntime) {
     return {

@@ -10,6 +10,8 @@ import { resolve } from 'node:path'
 if (typeof import.meta.env === 'undefined') {
   // @ts-expect-error — import.meta.env is read-only in Vite but writable in Node
   import.meta.env = { DEV: true, PROD: false, SSR: true, MODE: 'development' }
+} else if (import.meta.env.SSR === undefined) {
+  Object.assign(import.meta.env, { SSR: true })
 }
 
 function loadEnvFile(filename: string): void {
