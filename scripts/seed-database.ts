@@ -5,7 +5,7 @@ import { UserRole } from '../src/lib/roles'
 const SEED_DEFAULTS = {
   ADMIN_USERNAME: process.env.SEED_ADMIN_USERNAME || 'admin',
   BUILDER_USERNAME: process.env.SEED_BUILDER_USERNAME || 'builder-demo',
-  TICKET_CODE: process.env.SEED_TICKET_CODE || 'DEMO-TICKET',
+  TICKET_CODE: process.env.SEED_TICKET_CODE || 'DEMOTICKET',
   TICKET_CREDITS: 5,
 } as const
 

@@ -11,6 +11,7 @@ import {
 import { resolveClientIp } from '@/lib/client-ip'
 import { validatePowSolution, validateTimingToken } from '@/lib/pow'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
+import { validateTicketInDB } from '@/utils/db-ticket-validator'
 
 interface Body {
   readonly username?: string
@@ -57,7 +58,7 @@ export const POST: APIRoute = async context => {
     if (ticket && ticket.trim()) {
       if (
         !data.timingTokenId ||
-        !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.session)
+        !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.flow)
       ) {
         return apiError(
           'Timing validation failed',
@@ -85,28 +86,48 @@ export const POST: APIRoute = async context => {
     // Check if a session already exists
     const existingSession = sessionManager.get()
 
+    const normalizedTicket = ticket?.trim().toUpperCase() ?? ''
+
     if (existingSession && existingSession.username === username) {
-      // If the request has NO ticket, preserve the complete session as is
-      if (!ticket || !ticket.trim()) {
+      if (!normalizedTicket) {
         return apiSuccess({ username }, HTTP_STATUS.OK, { noCache: true })
       }
 
-      // If the request HAS a ticket, update session while preserving other fields
+      const ticketValidation = await validateTicketInDB(normalizedTicket)
+      if (!ticketValidation.isValid) {
+        return apiError(
+          ticketValidation.error ?? VALIDATION_ERROR_MESSAGES.TICKET_INVALID,
+          HTTP_STATUS.BAD_REQUEST,
+          undefined,
+          { noCache: true }
+        )
+      }
+
       const updatedSession: CreationSession = {
         ...existingSession,
-        ticket: ticket.trim().toUpperCase(),
+        ticket: normalizedTicket,
       }
       sessionManager.set(updatedSession)
 
       return apiSuccess({ username }, HTTP_STATUS.OK, { noCache: true })
     }
 
-    // If no session exists, create a new one
+    if (normalizedTicket) {
+      const ticketValidation = await validateTicketInDB(normalizedTicket)
+      if (!ticketValidation.isValid) {
+        return apiError(
+          ticketValidation.error ?? VALIDATION_ERROR_MESSAGES.TICKET_INVALID,
+          HTTP_STATUS.BAD_REQUEST,
+          undefined,
+          { noCache: true }
+        )
+      }
+    }
+
     const sessionData: CreationSession = {
       username,
       confirmedDownload: false,
-      // Only add ticket if it's not empty
-      ...(ticket && ticket.trim() && { ticket: ticket.trim().toUpperCase() }),
+      ...(normalizedTicket && { ticket: normalizedTicket }),
     }
 
     sessionManager.set(sessionData)

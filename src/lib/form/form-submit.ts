@@ -36,13 +36,13 @@ export type ResolvedSubmitData =
 
 export interface SubmitDeps {
   readonly state: FormState
-  readonly ensureSessionTimingToken: () => Promise<string>
+  readonly ensureFlowTimingToken: () => Promise<string>
 }
 
 export async function resolveSubmitDependencies(
   deps: SubmitDeps
 ): Promise<ResolvedSubmitData> {
-  const { state, ensureSessionTimingToken } = deps
+  const { state, ensureFlowTimingToken } = deps
 
   const isPowFresh =
     state.preSolvedPow && Date.now() - state.preSolvedPowAt < POW_MAX_AGE_MS
@@ -57,14 +57,14 @@ export async function resolveSubmitDependencies(
 
   let timingTokenId: string
   try {
-    timingTokenId = await ensureSessionTimingToken()
+    timingTokenId = await ensureFlowTimingToken()
   } catch {
     return { status: 'timing_error' }
   }
 
   await ensureTimingMatured(
-    state.sessionTimingTokenFetchedAt,
-    TIMING_THRESHOLDS.session
+    state.flowTimingTokenFetchedAt,
+    TIMING_THRESHOLDS.flow
   )
 
   return { status: 'resolved', pow, timingTokenId }

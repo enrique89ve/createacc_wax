@@ -1,7 +1,4 @@
 import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
-import { obtainPowSolution } from '@/utils/pow-solver'
-import { ensureTimingMatured } from '@/utils/timing-maturation'
-import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { publicCopy } from '@/i18n'
 import type { FormElements } from './types'
 
@@ -72,8 +69,6 @@ export function handleTicketInputChange(elements: FormElements): boolean {
 
 export interface ApplyTicketDeps {
   readonly elements: FormElements
-  readonly ensureTicketTimingToken: () => Promise<string>
-  readonly getTicketTimingTokenFetchedAt: () => number
   readonly onTicketValid: (ticket: string) => void
   readonly onTicketInvalid: () => void
 }
@@ -81,13 +76,12 @@ export interface ApplyTicketDeps {
 export type ApplyTicketResult =
   | { readonly status: 'applied'; readonly ticket: string }
   | { readonly status: 'invalid' }
-  | { readonly status: 'error' }
 
+/** Local format check only — DB validation happens in POST /api/create/session. */
 export async function applyTicket(
   deps: ApplyTicketDeps
 ): Promise<ApplyTicketResult> {
-  const { elements, ensureTicketTimingToken, getTicketTimingTokenFetchedAt } =
-    deps
+  const { elements } = deps
   const copy = publicCopy()
 
   const ticket = cleanTicket(elements.ticketInput.value)
@@ -99,48 +93,10 @@ export async function applyTicket(
   }
 
   setTicketLoadingState(elements, ticket)
+  await Promise.resolve()
 
-  const resolved = await Promise.all([
-    ensureTicketTimingToken(),
-    obtainPowSolution(),
-  ]).catch(() => null)
-
-  if (!resolved) {
-    showTicketError(elements, copy.accessCode.verifyError)
-    resetTicketInput(elements)
-    deps.onTicketInvalid()
-    return { status: 'error' }
-  }
-
-  const [resolvedToken, pow] = resolved
-
-  await ensureTimingMatured(
-    getTicketTimingTokenFetchedAt(),
-    TIMING_THRESHOLDS.ticket
-  )
-
-  elements.ticketApplyBtn.textContent = '...'
-
-  try {
-    const response = await fetch('/api/validate/ticket', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticket, pow, timingTokenId: resolvedToken }),
-    })
-    const result = await response.json()
-    if (response.ok && result.valid) {
-      showTicketApplied(elements, ticket)
-      deps.onTicketValid(ticket)
-      return { status: 'applied', ticket }
-    }
-    showTicketError(elements, copy.accessCode.invalid)
-    elements.ticketInput.disabled = false
-  } catch {
-    showTicketError(elements, copy.accessCode.verifyError)
-    elements.ticketInput.disabled = false
-  }
-
-  deps.onTicketInvalid()
+  showTicketApplied(elements, ticket)
+  deps.onTicketValid(ticket)
   resetTicketInput(elements)
-  return { status: 'invalid' }
+  return { status: 'applied', ticket }
 }

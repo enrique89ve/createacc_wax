@@ -22,9 +22,14 @@ export const MAX_STORE_ENTRIES = 50_000
  * Each key maps to an endpoint that requires timing validation.
  */
 export const TIMING_THRESHOLDS = {
-  ticket: 3_000,
-  session: 5_000,
+  /** Single wait for form → create/session (replaces separate ticket+session waits). */
+  flow: 5_000,
+  /** Details page → create/account (usually overlapped by key download UX). */
   account: 1_000,
+  /** @deprecated Legacy endpoint /api/validate/ticket */
+  ticket: 3_000,
+  /** @deprecated Use flow for create/session */
+  session: 5_000,
 } as const
 
 /** Timing token validity window in milliseconds (10 minutes). */

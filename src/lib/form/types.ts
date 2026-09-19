@@ -90,10 +90,8 @@ export interface FormState {
   isSubmitting: boolean
   preSolvedPow: Promise<PowSolution | null> | null
   preSolvedPowAt: number
-  ticketTimingToken: string | undefined
-  sessionTimingToken: string | undefined
-  ticketTimingTokenFetchedAt: number
-  sessionTimingTokenFetchedAt: number
+  flowTimingToken: string | undefined
+  flowTimingTokenFetchedAt: number
 }
 
 export function createInitialState(): FormState {
@@ -103,9 +101,7 @@ export function createInitialState(): FormState {
     isSubmitting: false,
     preSolvedPow: null,
     preSolvedPowAt: 0,
-    ticketTimingToken: undefined,
-    sessionTimingToken: undefined,
-    ticketTimingTokenFetchedAt: 0,
-    sessionTimingTokenFetchedAt: 0,
+    flowTimingToken: undefined,
+    flowTimingTokenFetchedAt: 0,
   }
 }

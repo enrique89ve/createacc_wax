@@ -188,29 +188,21 @@ const copy =
   let state: FormState = createInitialState()
   let debounceTimer: ReturnType<typeof setTimeout>
 
-  function ensureTimingToken(
-    tokenKey: 'ticketTimingToken' | 'sessionTimingToken',
-    fetchedAtKey: 'ticketTimingTokenFetchedAt' | 'sessionTimingTokenFetchedAt'
-  ): () => Promise<string> {
-    return async () => {
-      if (state[tokenKey]) return state[tokenKey]
-      const id = await fetchTimingToken()
-      state[tokenKey] = id
-      state[fetchedAtKey] = Date.now()
-      return id
-    }
+  async function ensureFlowTimingToken(): Promise<string> {
+    if (state.flowTimingToken) return state.flowTimingToken
+    const id = await fetchTimingToken()
+    state.flowTimingToken = id
+    state.flowTimingTokenFetchedAt = Date.now()
+    return id
   }
 
-  function refetchTimingToken(
-    tokenKey: 'ticketTimingToken' | 'sessionTimingToken',
-    fetchedAtKey: 'ticketTimingTokenFetchedAt' | 'sessionTimingTokenFetchedAt'
-  ): void {
-    state[tokenKey] = undefined
-    state[fetchedAtKey] = 0
+  function refetchFlowTimingToken(): void {
+    state.flowTimingToken = undefined
+    state.flowTimingTokenFetchedAt = 0
     fetchTimingToken()
       .then(id => {
-        state[tokenKey] = id
-        state[fetchedAtKey] = Date.now()
+        state.flowTimingToken = id
+        state.flowTimingTokenFetchedAt = Date.now()
       })
       .catch(() => {})
   }
@@ -301,13 +293,8 @@ const copy =
   async function handleApplyTicket(): Promise<void> {
     if (!elements) return
 
-    const result = await applyTicket({
+    await applyTicket({
       elements,
-      ensureTicketTimingToken: ensureTimingToken(
-        'ticketTimingToken',
-        'ticketTimingTokenFetchedAt'
-      ),
-      getTicketTimingTokenFetchedAt: () => state.ticketTimingTokenFetchedAt,
       onTicketValid: () => {
         state.isTicketValid = true
         sync()
@@ -317,10 +304,6 @@ const copy =
         sync()
       },
     })
-
-    // Token is consumed on the server regardless of success/failure — always refetch
-    // so it's ready if the user removes and re-applies the ticket
-    refetchTimingToken('ticketTimingToken', 'ticketTimingTokenFetchedAt')
   }
 
   function handleRemoveTicket(): void {
@@ -376,10 +359,7 @@ const copy =
 
     const resolved = await resolveSubmitDependencies({
       state,
-      ensureSessionTimingToken: ensureTimingToken(
-        'sessionTimingToken',
-        'sessionTimingTokenFetchedAt'
-      ),
+      ensureFlowTimingToken,
     })
 
     if (resolved.status === 'pow_error') {
@@ -407,7 +387,7 @@ const copy =
     } else {
       state.isSubmitting = false
       showSubmitError(originalText)
-      refetchTimingToken('sessionTimingToken', 'sessionTimingTokenFetchedAt')
+      refetchFlowTimingToken()
     }
   }
 
@@ -421,23 +401,12 @@ const copy =
     state = createInitialState()
     sync()
 
-    Promise.all([
-      fetchTimingToken()
-        .then(id => {
-          state.ticketTimingTokenFetchedAt = Date.now()
-          return id
-        })
-        .catch(() => undefined),
-      fetchTimingToken()
-        .then(id => {
-          state.sessionTimingTokenFetchedAt = Date.now()
-          return id
-        })
-        .catch(() => undefined),
-    ]).then(([t1, t2]) => {
-      state.ticketTimingToken = t1
-      state.sessionTimingToken = t2
-    })
+    fetchTimingToken()
+      .then(id => {
+        state.flowTimingToken = id
+        state.flowTimingTokenFetchedAt = Date.now()
+      })
+      .catch(() => {})
 
     elements.usernameInput.addEventListener('input', handleUsernameInput)
     elements.ticketInput.addEventListener('input', handleTicketInput)
