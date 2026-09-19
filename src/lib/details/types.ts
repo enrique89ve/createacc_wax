@@ -43,6 +43,7 @@ export interface AppState {
   masterKeyRevealed: boolean
   copyFeedbackTimeout: number | undefined
   username: string
+  ticket?: string
   preSolvedBundle: Promise<PreSolvedBundle | null> | null
 }
 

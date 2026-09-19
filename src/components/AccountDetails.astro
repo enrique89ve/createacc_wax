@@ -6,9 +6,10 @@ import Tooltip from '@/components/ui/Tooltip.astro'
 
 interface Props {
   readonly username: string
+  readonly ticket?: string
 }
 
-const { username } = Astro.props
+const { username, ticket } = Astro.props
 const copy =
   Astro.locals.messages ??
   getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
@@ -34,7 +35,8 @@ const copy =
         <p class="text-muted-foreground text-sm font-medium">{copy.details.accountToCreate}</p>
         <span
           class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-lg font-semibold"
-          data-username={username}>@{username}</span
+          data-username={username}
+          data-ticket={ticket ?? ''}>@{username}</span
         >
       </div>
       <!-- Keys Container (always visible) -->
@@ -341,12 +343,15 @@ const copy =
         const usernameEl =
           document.querySelector<HTMLElement>('[data-username]')
         const username = usernameEl?.getAttribute('data-username') || ''
+        const ticketAttr = usernameEl?.getAttribute('data-ticket')?.trim()
+        const ticket = ticketAttr ? ticketAttr : undefined
 
         return {
           keySession: null,
           masterKeyRevealed: false,
           copyFeedbackTimeout: undefined,
           username,
+          ticket,
           preSolvedBundle: null,
         }
       }
@@ -364,10 +369,15 @@ const copy =
           try {
             if (!this.state.username) return false
             const pow = await obtainPowSolution()
+            const payload: Record<string, unknown> = {
+              username: this.state.username,
+              pow,
+            }
+            if (this.state.ticket) payload.ticket = this.state.ticket
             const res = await fetch('/api/create/session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ username: this.state.username, pow }),
+              body: JSON.stringify(payload),
             })
             return res.ok
           } catch {
