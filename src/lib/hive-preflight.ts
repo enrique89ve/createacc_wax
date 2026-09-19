@@ -6,6 +6,7 @@ import {
 } from '@/consts/hive-execution'
 import { ENV_KEYS } from '@/consts/constants'
 import { getRequiredEnvString } from '@/lib/env'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
 import { hiveChain } from '@/lib/hiveservice'
 import { safeCheckAccountOnChain } from '@/utils/validate-hiveuser'
 import {
@@ -167,15 +168,18 @@ export async function runAccountCreationPreflight(
   }
 
   const rpc = pass('Hive RPC available', chain.endpointUrl)
-  const creatorLookup = await lookupCreator(chain, creator)
+
+  const [creatorLookup, usernameLookup] = await Promise.all([
+    lookupCreator(chain, creator),
+    safeCheckAccountOnChain({
+      chain,
+      accountName: params.username,
+    }),
+  ])
+
   const creatorCheck = creatorLookup.exists
     ? pass('Creator account exists', creator)
     : fail('Creator account does not exist', creator)
-
-  const usernameLookup = await safeCheckAccountOnChain({
-    chain,
-    accountName: params.username,
-  })
   let usernameCheck: PreflightCheck
   if (usernameLookup.status === 'error') {
     usernameCheck = fail(usernameLookup.message)
@@ -185,25 +189,31 @@ export async function runAccountCreationPreflight(
     usernameCheck = pass('Username available on Hive')
   }
 
+  const simulation = isSimulationMode()
   const claimedCount = creatorLookup.claimedAccounts
   const claimedCheck = !creatorLookup.exists
     ? fail('Skipped')
     : claimedCount > 0
       ? pass('Pending claimed accounts available', claimedCount)
-      : fail(NO_CLAIMED_ACCOUNTS_MESSAGE, claimedCount)
+      : simulation
+        ? warn(
+            `${NO_CLAIMED_ACCOUNTS_MESSAGE} (ignored in simulate mode)`,
+            claimedCount
+          )
+        : fail(NO_CLAIMED_ACCOUNTS_MESSAGE, claimedCount)
 
-  const rcPercent = creatorLookup.exists
-    ? await lookupRcPercent(chain, creator)
-    : undefined
+  const [rcPercent, waxChecks] = creatorLookup.exists
+    ? await Promise.all([
+        lookupRcPercent(chain, creator),
+        checkWaxOperation(chain, params, creator),
+      ])
+    : [undefined, { wax: fail('Skipped'), authority: fail('Skipped') } as const]
+
   const rcCheck = !creatorLookup.exists
     ? fail('Skipped')
     : rcPercent === undefined
       ? warn('Could not read creator RC')
       : rcStatusFromPercent(rcPercent)
-
-  const waxChecks = creatorLookup.exists
-    ? await checkWaxOperation(chain, params, creator)
-    : { wax: fail('Skipped'), authority: fail('Skipped') }
 
   const blocking = [
     rpc,
