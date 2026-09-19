@@ -71,32 +71,44 @@ export function isTruthyProcessEnv(name: string): boolean {
  * Validates that all required environment variables are present
  * @throws Error if any required variable is missing
  */
-export function validateEnvironment(): void {
-  const required: EnvName[] = [
-    ENV_KEYS.HIVE_CREATOR_ACCOUNT,
-    ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
-    ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
-    ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
-    ENV_KEYS.SESSION_SECRET,
-    ENV_KEYS.BEEKEEPER_WALLET_PASSWORD,
-  ]
+const PUBLIC_CREATION_REQUIRED: EnvName[] = [
+  ENV_KEYS.HIVE_CREATOR_ACCOUNT,
+  ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
+  ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,
+  ENV_KEYS.HIVE_DELEGATOR_POSTING_KEY,
+  ENV_KEYS.SESSION_SECRET,
+  ENV_KEYS.BEEKEEPER_WALLET_PASSWORD,
+]
 
-  for (const key of required) {
-    getRequiredEnvString(key)
-  }
-
-  // SESSION_SECRET must be at least 32 characters for HMAC-SHA256 security
+function assertSessionSecretLength(): void {
   const sessionSecret = getEnvString(ENV_KEYS.SESSION_SECRET)
   if (sessionSecret.length < 32) {
     throw new Error(
       'SESSION_SECRET must be at least 32 characters for secure HMAC-SHA256 signing'
     )
   }
+}
 
+/** Env required for public account creation (home, details, create APIs). */
+export function validatePublicCreationEnvironment(): void {
+  for (const key of PUBLIC_CREATION_REQUIRED) {
+    getRequiredEnvString(key)
+  }
+  assertSessionSecretLength()
+}
+
+/** Env required for admin/builder consoles (Better Auth). */
+export function validateAdminEnvironment(): void {
+  validatePublicCreationEnvironment()
   const authSecret = process.env.AUTH_SECRET?.trim() ?? ''
   if (authSecret.length < 32) {
     throw new Error(
       'AUTH_SECRET must be at least 32 characters for Better Auth'
     )
   }
+}
+
+/** @deprecated Prefer scoped validators above. */
+export function validateEnvironment(): void {
+  validateAdminEnvironment()
 }

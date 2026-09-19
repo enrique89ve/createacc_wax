@@ -14,6 +14,10 @@ import { isHiveUsernameBlocked } from '@/lib/auth/blocked-hive-accounts'
 import type { APIContext } from 'astro'
 import { logger } from '@/lib/logger'
 import { localeMiddleware } from '@/i18n/middleware'
+import {
+  ensureAdminValidation,
+  ensurePublicCreationValidation,
+} from '@/lib/startup-validation'
 
 async function protectManagementRoutes(
   context: APIContext
@@ -219,6 +223,18 @@ const buildersAuthMiddleware = defineMiddleware(async (context, next) => {
 
 const sessionLoaderMiddleware = defineMiddleware(async (context, next) => {
   if (context.isPrerendered) return next()
+
+  const { pathname } = context.url
+  const needsAdminEnv =
+    pathname.startsWith('/management') ||
+    pathname.startsWith('/builders') ||
+    pathname.startsWith('/api/auth')
+
+  if (needsAdminEnv) {
+    ensureAdminValidation()
+  } else {
+    ensurePublicCreationValidation()
+  }
 
   await loadCreationSession(context)
 
