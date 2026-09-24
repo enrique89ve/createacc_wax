@@ -14,7 +14,7 @@
 import { execute } from '@/lib/database'
 
 const ACCOUNT_COLUMNS =
-  'id, username, creation_date, ticket, builder_username, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
+	'id, username, creation_date, ticket, ticket_id, builder_username, registered_at, execution_mode, blockchain_status, transaction_id, correlation_id, wax_status, rc_status, rc_delegated'
 // Logger removed
 import {
   parseAccountRow,
@@ -41,7 +41,7 @@ export interface AccountFilters {
   readonly usernamePattern?: string
   readonly dateFrom?: string
   readonly dateTo?: string
-  readonly builderId?: number
+  readonly builderUsername?: string
 }
 
 export class AccountsRepository {
@@ -55,17 +55,18 @@ export class AccountsRepository {
       const result = await execute({
         sql: `
 					INSERT INTO Accounts (
-						username, ticket, builder_username, creation_date, registered_at,
+						username, ticket, ticket_id, builder_username, creation_date, registered_at,
 						execution_mode, blockchain_status, transaction_id, correlation_id,
 						wax_status, rc_status, rc_delegated
 					)
-					VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
+					VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
 					RETURNING *
 				`,
         args: [
           data.username,
           data.ticket,
-          data.builder_username ?? '',
+          data.ticket_id,
+          data.builder_username,
           new Date().toISOString(),
           data.execution_mode,
           data.blockchain_status,
@@ -298,11 +299,9 @@ export class AccountsRepository {
       }
 
       // If filtering by builder, we need a JOIN with Tickets
-      if (filters.builderId) {
-        conditions.push(
-          'EXISTS (SELECT 1 FROM Tickets WHERE Tickets.code = Accounts.ticket AND Tickets.creator_username = ?)'
-        )
-        args.push(filters.builderId)
+      if (filters.builderUsername) {
+        conditions.push('Accounts.builder_username = ?')
+        args.push(filters.builderUsername)
       }
 
       const whereClause =
@@ -393,16 +392,16 @@ export class AccountsRepository {
   /**
    * Get count of accounts by builder
    */
-  async countByBuilder(builderId: number): Promise<number> {
+  async countByBuilder(builderUsername: string): Promise<number> {
     try {
       const result = await execute({
         sql: `
 					SELECT COUNT(*) as total
 					FROM Accounts a
-					JOIN Tickets t ON a.ticket = t.code
-					WHERE t.creator_username = ?
+					JOIN Tickets t ON a.ticket_id = t.id
+					WHERE t.owner_builder_username = ? AND t.funding_source = 'builder_credits'
 				`,
-        args: [builderId],
+        args: [builderUsername],
       })
 
       return Number(result.rows[0]?.total || 0)

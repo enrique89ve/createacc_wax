@@ -20,6 +20,7 @@ export interface CreationAttempt {
   readonly correlationId: string
   readonly username: string
   readonly ticket: string
+  readonly ticketId: number
   readonly status: CreationAttemptStatus
   readonly keys: CreationAttemptKeys
   readonly transactionId: string | null
@@ -33,6 +34,7 @@ export interface ReserveCreationAttemptInput {
   readonly correlationId: string
   readonly username: string
   readonly ticket: string
+  readonly ticketId: number
   readonly keys: CreationAttemptKeys
   readonly executionMode: HiveExecutionMode
 }
@@ -82,6 +84,7 @@ function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
     correlationId: String(row.correlation_id),
     username: String(row.username),
     ticket: String(row.ticket),
+    ticketId: Number(row.ticket_id),
     status: parseAttemptStatus(row.status),
     keys: {
       ownerPublicKey: String(row.owner_public_key),
@@ -103,7 +106,7 @@ function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
   }
 }
 
-const ATTEMPT_SELECT = `correlation_id, username, ticket, status,
+const ATTEMPT_SELECT = `correlation_id, username, ticket, ticket_id, status,
 			owner_public_key, active_public_key, posting_public_key, memo_public_key,
 			transaction_id, execution_mode, broadcasted,
 			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified,
@@ -114,14 +117,15 @@ export async function insertReservedAttempt(
 ): Promise<void> {
   await execute({
     sql: `INSERT INTO CreationAttempts (
-			correlation_id, username, ticket, status,
+			correlation_id, username, ticket, ticket_id, status,
 			owner_public_key, active_public_key, posting_public_key, memo_public_key,
 			execution_mode
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       input.correlationId,
       input.username,
       normalizeAttemptTicket(input.ticket),
+      input.ticketId,
       CREATION_ATTEMPT_STATUS.RESERVED,
       input.keys.ownerPublicKey,
       input.keys.activePublicKey,

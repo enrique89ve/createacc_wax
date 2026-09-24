@@ -75,9 +75,10 @@ export class TicketsRepository {
       const result = await execute({
         sql: `
 					INSERT INTO Tickets (
-						code, description, total_uses, remaining_uses, creator_username
+						code, description, total_uses, remaining_uses, creator_username,
+						funding_source, owner_builder_username, issuer_admin_id
 					)
-					VALUES (?, ?, ?, ?, ?)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					RETURNING id, code, description, total_uses, remaining_uses
 				`,
         args: [
@@ -86,6 +87,11 @@ export class TicketsRepository {
           data.total_uses,
           data.remaining_uses,
           data.creator_username ?? null,
+          data.funding_source,
+          data.funding_source === 'builder_credits'
+            ? data.owner_builder_username
+            : null,
+          data.funding_source === 'system' ? data.issuer_admin_id : null,
         ],
       })
 
@@ -113,7 +119,7 @@ export class TicketsRepository {
   async findById(id: number): Promise<DatabaseTicketRow | null> {
     try {
       const result = await execute({
-        sql: 'SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE id = ?',
+        sql: 'SELECT * FROM Tickets WHERE id = ?',
         args: [id],
       })
 
@@ -133,7 +139,7 @@ export class TicketsRepository {
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
     try {
       const result = await execute({
-        sql: 'SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE code = ?',
+        sql: 'SELECT * FROM Tickets WHERE code = ?',
         args: [code],
       })
 
@@ -179,7 +185,7 @@ export class TicketsRepository {
     updates.push('updated_at = CURRENT_TIMESTAMP')
     args.push(id, creatorUsername)
     const result = await execute({
-      sql: `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ? AND creator_username = ?`,
+      sql: `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ? AND funding_source = 'builder_credits' AND owner_builder_username = ? AND archived_at IS NULL`,
       args,
     })
     return result.rowsAffected === 1
@@ -199,12 +205,13 @@ export class TicketsRepository {
           remaining_uses = remaining_uses + ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
-          AND creator_username = ?
+          AND funding_source = 'builder_credits'
+          AND owner_builder_username = ?
+          AND archived_at IS NULL
           AND remaining_uses + ? >= 0
           AND total_uses + ? >= 1
           AND total_uses + ? <= ?
-        RETURNING id, code, description, total_uses, remaining_uses,
-          revoked_at, creator_username, created_at, updated_at
+        RETURNING *
       `,
       args: [
         delta,
@@ -224,7 +231,7 @@ export class TicketsRepository {
 
   async deleteOwned(id: number, creatorUsername: string): Promise<boolean> {
     const result = await execute({
-      sql: 'DELETE FROM Tickets WHERE id = ? AND creator_username = ?',
+      sql: `DELETE FROM Tickets WHERE id = ? AND funding_source = 'builder_credits' AND owner_builder_username = ?`,
       args: [id, creatorUsername],
     })
     return result.rowsAffected === 1
@@ -293,7 +300,7 @@ export class TicketsRepository {
     try {
       const result = await execute({
         sql: `
-					SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
+					SELECT * FROM Tickets
 					WHERE creator_username = ?
 					ORDER BY created_at DESC
 				`,
@@ -315,8 +322,8 @@ export class TicketsRepository {
     try {
       const result = await execute({
         sql: `
-					SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
-					WHERE remaining_uses > 0 AND revoked_at IS NULL
+					SELECT * FROM Tickets
+					WHERE remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 					ORDER BY created_at DESC
 				`,
         args: [],
@@ -339,17 +346,17 @@ export class TicketsRepository {
       const args: (string | number | boolean)[] = []
 
       if (filters.createdBy !== undefined) {
-        conditions.push('creator_username = ?')
+                conditions.push('owner_builder_username = ?')
         args.push(filters.createdBy)
       }
 
       if (filters.isActive !== undefined) {
-        conditions.push('(remaining_uses > 0 AND revoked_at IS NULL) = ?')
+        conditions.push('(remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL) = ?')
         args.push(filters.isActive)
       }
 
       if (filters.hasBeenUsed !== undefined) {
-        conditions.push('(remaining_uses < total_uses) = ?')
+        conditions.push('(remaining_uses < total_uses - retired_uses) = ?')
         args.push(filters.hasBeenUsed)
       }
 
@@ -357,7 +364,7 @@ export class TicketsRepository {
         conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
       const sql = `
-				SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets
+				SELECT * FROM Tickets
 				${whereClause}
 				ORDER BY created_at DESC
 			`
@@ -383,9 +390,8 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						COALESCE(u.role, 'builder') as creator_role
+						CASE WHEN t.funding_source = 'system' THEN 'admin' ELSE 'builder' END as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON u.username = t.creator_username
 					ORDER BY t.created_at DESC
 				`,
         args: [],
@@ -409,10 +415,10 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						COALESCE(u.role, 'builder') as creator_role
+						CASE WHEN t.funding_source = 'system' THEN 'admin' ELSE 'builder' END as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON u.username = t.creator_username
-					WHERE t.creator_username = ?
+					WHERE t.funding_source = 'builder_credits'
+					  AND t.owner_builder_username = ?
 					ORDER BY t.created_at DESC
 				`,
         args: [userId],
@@ -444,9 +450,8 @@ export class TicketsRepository {
 					SELECT
 						t.*,
 						t.creator_username,
-						COALESCE(u.role, 'builder') as creator_role
+						CASE WHEN t.funding_source = 'system' THEN 'admin' ELSE 'builder' END as creator_role
 					FROM Tickets t
-					LEFT JOIN "user" u ON u.username = t.creator_username
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
@@ -477,7 +482,7 @@ export class TicketsRepository {
 						SUM(total_uses) as total_credits_original,
 						SUM(remaining_uses) as total_credits_remaining
 					FROM Tickets
-					WHERE creator_username = ?
+					WHERE owner_builder_username = ? AND funding_source = 'builder_credits'
 				`,
         args: [userId],
       })
@@ -561,7 +566,7 @@ export class TicketsRepository {
         sql: `
 					UPDATE Tickets
 						SET remaining_uses = remaining_uses - 1, updated_at = CURRENT_TIMESTAMP
-						WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
+						WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 				`,
         args: [code],
       })

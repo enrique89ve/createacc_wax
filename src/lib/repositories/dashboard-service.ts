@@ -118,11 +118,11 @@ export class DashboardService {
 						t.code,
 						t.total_uses,
 						t.remaining_uses,
-						(t.remaining_uses > 0 AND t.revoked_at IS NULL) as is_active,
-						(t.remaining_uses < t.total_uses) as has_been_used,
+						(t.remaining_uses > 0 AND t.revoked_at IS NULL AND t.archived_at IS NULL) as is_active,
+						(t.remaining_uses < t.total_uses - t.retired_uses) as has_been_used,
 						t.created_at,
 						t.creator_username as created_by_username,
-						'builder' as creator_type
+						CASE WHEN t.funding_source = 'system' THEN 'admin' ELSE 'builder' END as creator_type
 					FROM Tickets t
 					ORDER BY t.created_at DESC
 					LIMIT ?
@@ -208,14 +208,14 @@ export class DashboardService {
 					SELECT
 						? as hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
-                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
+                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL AND t.archived_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						COALESCE(c.pending_amount, 0) as pending_credits,
 						COALESCE(c.available_amount, 0) as available_credits,
 						COALESCE(c.total_issued, 0) as total_issued,
 						COALESCE(c.total_consumed, 0) as total_consumed
 					FROM (SELECT 1)
-					LEFT JOIN Tickets t ON t.creator_username = ?
+					LEFT JOIN Tickets t ON t.owner_builder_username = ? AND t.funding_source = 'builder_credits'
 					LEFT JOIN Accounts a ON a.builder_username = ?
 					LEFT JOIN Credits c ON c.hive_username = ?
 				`,
@@ -253,14 +253,14 @@ export class DashboardService {
 					SELECT
 						c.hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
-                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
+                        COALESCE(SUM(CASE WHEN t.remaining_uses > 0 AND t.revoked_at IS NULL AND t.archived_at IS NULL THEN 1 ELSE 0 END), 0) as active_tickets,
 						COALESCE(COUNT(DISTINCT a.id), 0) as total_accounts,
 						c.pending_amount as pending_credits,
 						c.available_amount as available_credits,
 						c.total_issued,
 						c.total_consumed
 					FROM Credits c
-					LEFT JOIN Tickets t ON t.creator_username = c.hive_username
+					LEFT JOIN Tickets t ON t.owner_builder_username = c.hive_username AND t.funding_source = 'builder_credits'
 					LEFT JOIN Accounts a ON a.builder_username = c.hive_username
 					GROUP BY c.hive_username, c.pending_amount, c.available_amount, c.total_issued, c.total_consumed
 					ORDER BY c.created_at DESC
@@ -359,7 +359,7 @@ export class DashboardService {
 						COUNT(DISTINCT a.id) as total_accounts,
 						COUNT(DISTINCT t.id) as total_tickets
 					FROM Accounts a
-					LEFT JOIN Tickets t ON t.creator_username = a.builder_username
+					LEFT JOIN Tickets t ON t.owner_builder_username = a.builder_username AND t.funding_source = 'builder_credits'
 					GROUP BY a.builder_username
 					ORDER BY total_accounts DESC
 					LIMIT ?

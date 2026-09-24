@@ -167,9 +167,18 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		total_uses INTEGER NOT NULL DEFAULT 1 CHECK (total_uses >= 1),
 		remaining_uses INTEGER NOT NULL DEFAULT 1 CHECK (remaining_uses >= 0 AND remaining_uses <= total_uses),
 		creator_username TEXT NOT NULL,
+		funding_source TEXT NOT NULL CHECK (funding_source IN ('builder_credits', 'system')),
+		owner_builder_username TEXT,
+		issuer_admin_id TEXT REFERENCES "user" (id) ON DELETE RESTRICT,
+		archived_at DATETIME,
+		retired_uses INTEGER NOT NULL DEFAULT 0 CHECK (retired_uses >= 0 AND retired_uses + remaining_uses <= total_uses),
 		revoked_at DATETIME,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		CHECK (
+			(funding_source = 'builder_credits' AND owner_builder_username IS NOT NULL AND issuer_admin_id IS NULL)
+			OR (funding_source = 'system' AND owner_builder_username IS NULL AND issuer_admin_id IS NOT NULL)
+		)
 	)`,
 
   `CREATE TABLE IF NOT EXISTS Accounts (
@@ -177,7 +186,8 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		username TEXT UNIQUE NOT NULL,
 		creation_date DATETIME DEFAULT CURRENT_TIMESTAMP,
 		ticket TEXT NOT NULL,
-		builder_username TEXT NOT NULL,
+		ticket_id INTEGER NOT NULL REFERENCES Tickets (id) ON DELETE RESTRICT,
+		builder_username TEXT,
 		registered_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		execution_mode TEXT NOT NULL CHECK (execution_mode IN ('${HIVE_TX_MODE_VALUES.SIMULATE}', '${HIVE_TX_MODE_VALUES.BROADCAST}')),
 		blockchain_status TEXT NOT NULL CHECK (blockchain_status IN ('${BLOCKCHAIN_STATUS.SIMULATED}', '${BLOCKCHAIN_STATUS.BROADCASTED}', '${BLOCKCHAIN_STATUS.CONFIRMED}', '${BLOCKCHAIN_STATUS.FAILED}')),
@@ -257,6 +267,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		correlation_id TEXT NOT NULL UNIQUE,
 		username TEXT NOT NULL,
 		ticket TEXT NOT NULL,
+		ticket_id INTEGER NOT NULL REFERENCES Tickets (id) ON DELETE RESTRICT,
 		status TEXT NOT NULL CHECK (status IN ('reserved', 'prepared', 'broadcasting', 'completed', 'rolled_back')),
 		owner_public_key TEXT NOT NULL,
 		active_public_key TEXT NOT NULL,

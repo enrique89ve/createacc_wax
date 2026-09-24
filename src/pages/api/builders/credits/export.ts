@@ -60,11 +60,11 @@ export const GET: APIRoute = async context => {
 						t.total_uses, t.remaining_uses, t.created_at,
 						ta.action, ta.timestamp,
 						u.username as created_by_username,
-						u.role as creator_role
+						CASE WHEN t.funding_source = 'system' THEN 'admin' ELSE 'builder' END as creator_role
 					FROM Tickets t
 					LEFT JOIN TicketAudit ta ON t.code = ta.ticket
-					LEFT JOIN "user" u ON t.creator_username = u.username
-					WHERE t.creator_username = ?
+					WHERE t.funding_source = 'builder_credits'
+					  AND t.owner_builder_username = ?
 					ORDER BY COALESCE(ta.timestamp, t.created_at) DESC
 					LIMIT ?
 				`,

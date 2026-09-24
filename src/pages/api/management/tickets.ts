@@ -118,6 +118,8 @@ export const POST: APIRoute = async context => {
           total_uses: usesValidation.data,
           remaining_uses: usesValidation.data,
           creator_username: session.username,
+          funding_source: 'system',
+          issuer_admin_id: session.userId,
         })
 
         await auditRepository.createTicketLog({

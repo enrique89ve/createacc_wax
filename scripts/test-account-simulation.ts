@@ -158,9 +158,11 @@ async function insertFixture(fixture: IsolationFixture): Promise<void> {
     args: [fixture.builderUsername],
   })
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
-			VALUES (?, 'integration sim', 3, 3, ?)`,
-    args: [fixture.ticket, fixture.builderUsername],
+    sql: `INSERT INTO Tickets (
+        code, description, total_uses, remaining_uses, creator_username,
+        funding_source, owner_builder_username
+      ) VALUES (?, 'integration sim', 3, 3, ?, 'builder_credits', ?)`,
+    args: [fixture.ticket, fixture.builderUsername, fixture.builderUsername],
   })
 }
 

@@ -41,8 +41,9 @@ describe('blocked ticket creator', () => {
   beforeAll(async () => {
     expect(await initializeDatabase()).toBe(true)
     await db.execute({
-      sql: 'INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 3, 3, ?)',
-      args: [ticketCode, creator],
+      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username, funding_source, owner_builder_username)
+        VALUES (?, 3, 3, ?, 'builder_credits', ?)`,
+      args: [ticketCode, creator, creator],
     })
   })
 

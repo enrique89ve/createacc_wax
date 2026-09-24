@@ -186,7 +186,7 @@ export class UsersRepository {
 						c.pending_amount as pending_credits,
 						CASE WHEN b.hive_username IS NULL THEN 0 ELSE 1 END as is_blocked
 					FROM Credits c
-					LEFT JOIN Tickets t ON t.creator_username = c.hive_username
+					LEFT JOIN Tickets t ON t.owner_builder_username = c.hive_username AND t.funding_source = 'builder_credits'
 					LEFT JOIN BlockedHiveAccounts b ON b.hive_username = c.hive_username
 					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount, b.hive_username
 					ORDER BY c.created_at DESC
@@ -270,7 +270,7 @@ export class UsersRepository {
 					t.total_uses as ticket_total_uses,
 					t.remaining_uses as ticket_remaining_uses
 				FROM Accounts a
-				LEFT JOIN Tickets t ON a.ticket = t.code
+				LEFT JOIN Tickets t ON a.ticket_id = t.id
 				WHERE a.builder_username = ?
 				ORDER BY a.creation_date DESC`,
         args: [builderId],
@@ -306,13 +306,13 @@ export class UsersRepository {
 					 WHERE builder_username = ?
 					) as total_accounts,
 					(SELECT COUNT(*) FROM Tickets
-					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
+					 WHERE owner_builder_username = ? AND funding_source = 'builder_credits' AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 					) as active_tickets,
 					(SELECT COALESCE(SUM(total_uses), 0) FROM Tickets
-					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
+					 WHERE owner_builder_username = ? AND funding_source = 'builder_credits' AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 					) as total_original,
 					(SELECT COALESCE(SUM(remaining_uses), 0) FROM Tickets
-					 WHERE creator_username = ? AND remaining_uses > 0 AND revoked_at IS NULL
+					 WHERE owner_builder_username = ? AND funding_source = 'builder_credits' AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 					) as total_remaining`,
         args: [builderId, builderId, builderId, builderId],
       })

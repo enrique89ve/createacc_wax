@@ -122,15 +122,15 @@ describe('stateless builder identity and credit ownership', () => {
     const alice = `${PREFIX}-alice`
     const bob = `${PREFIX}-bob`
     await db.execute({
-      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 1, 1, ?)`,
-      args: [`${PREFIX}-alice-ticket`, alice],
+      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username, funding_source, owner_builder_username) VALUES (?, 1, 1, ?, 'builder_credits', ?)`,
+      args: [`${PREFIX}-alice-ticket`, alice, alice],
     })
     const owned = await db.execute({
-      sql: `SELECT COUNT(*) as count FROM Tickets WHERE creator_username = ?`,
+      sql: `SELECT COUNT(*) as count FROM Tickets WHERE owner_builder_username = ? AND funding_source = 'builder_credits'`,
       args: [alice],
     })
     const foreign = await db.execute({
-      sql: `SELECT COUNT(*) as count FROM Tickets WHERE creator_username = ?`,
+      sql: `SELECT COUNT(*) as count FROM Tickets WHERE owner_builder_username = ? AND funding_source = 'builder_credits'`,
       args: [bob],
     })
     expect(Number((owned.rows[0] as unknown as { count: number }).count)).toBe(
@@ -141,7 +141,7 @@ describe('stateless builder identity and credit ownership', () => {
     ).toBe(0)
 
     const steal = await db.execute({
-      sql: `UPDATE Tickets SET description = 'stolen' WHERE code = ? AND creator_username = ?`,
+      sql: `UPDATE Tickets SET description = 'stolen' WHERE code = ? AND owner_builder_username = ? AND funding_source = 'builder_credits'`,
       args: [`${PREFIX}-alice-ticket`, bob],
     })
     expect(steal.rowsAffected).toBe(0)
@@ -151,8 +151,8 @@ describe('stateless builder identity and credit ownership', () => {
     const username = `${PREFIX}-relative-update`
     const code = `${PREFIX}-relative-ticket`
     const ticket = await db.execute({
-      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username) VALUES (?, 10, 10, ?) RETURNING id`,
-      args: [code, username],
+      sql: `INSERT INTO Tickets (code, total_uses, remaining_uses, creator_username, funding_source, owner_builder_username) VALUES (?, 10, 10, ?, 'builder_credits', ?) RETURNING id`,
+      args: [code, username, username],
     })
     const ticketId = Number(ticket.rows[0]?.id)
 

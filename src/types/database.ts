@@ -60,8 +60,11 @@ export const TICKET_STATUSES = [
   'partially_used',
   'exhausted',
   'revoked',
+  'archived',
 ] as const
 export type TicketStatus = (typeof TICKET_STATUSES)[number]
+export const TICKET_FUNDING_SOURCES = ['builder_credits', 'system'] as const
+export type TicketFundingSource = (typeof TICKET_FUNDING_SOURCES)[number]
 
 export function deriveTicketKind(totalUses: number): TicketKind {
   return totalUses === 1 ? 'single_use' : 'multi_use'
@@ -70,8 +73,10 @@ export function deriveTicketKind(totalUses: number): TicketKind {
 export function deriveTicketStatus(
   totalUses: number,
   remainingUses: number,
-  revokedAt: string | null
+  revokedAt: string | null,
+  archivedAt: string | null = null
 ): TicketStatus {
+  if (archivedAt !== null) return 'archived'
   if (revokedAt !== null) return 'revoked'
   if (remainingUses === 0) return 'exhausted'
   if (remainingUses === totalUses) return 'unused'
@@ -88,6 +93,11 @@ export interface DatabaseTicketRow {
   readonly total_uses: number
   readonly remaining_uses: number
   readonly creator_username: string
+  readonly funding_source: TicketFundingSource
+  readonly owner_builder_username: string | null
+  readonly issuer_admin_id: string | null
+  readonly archived_at: string | null
+  readonly retired_uses: number
   readonly revoked_at: string | null
   readonly used_uses: number
   readonly kind: TicketKind
@@ -107,7 +117,8 @@ export interface DatabaseAccountRow {
   readonly username: string
   readonly creation_date: string
   readonly ticket: string
-  readonly builder_username: string
+  readonly ticket_id: number
+  readonly builder_username: string | null
   readonly registered_at: string
   readonly execution_mode: string
   readonly blockchain_status: string
@@ -238,7 +249,7 @@ export interface UpdateCreditData {
 /**
  * Data required to create a new ticket
  */
-export interface CreateTicketData {
+interface CreateTicketBase {
   readonly code: string
   readonly description?: string | null
   readonly total_uses: number
@@ -246,6 +257,20 @@ export interface CreateTicketData {
   readonly creator_username: string
   readonly revoked_at?: string | null
 }
+
+export type CreateTicketData = CreateTicketBase &
+  (
+    | {
+        readonly funding_source: 'builder_credits'
+        readonly owner_builder_username: string
+        readonly issuer_admin_id?: null
+      }
+    | {
+        readonly funding_source: 'system'
+        readonly owner_builder_username?: null
+        readonly issuer_admin_id: string
+      }
+  )
 
 /**
  * Data allowed to update for a ticket
@@ -263,7 +288,8 @@ export interface UpdateTicketData {
 export interface CreateAccountData {
   readonly username: string
   readonly ticket: string
-  readonly builder_username?: string
+  readonly ticket_id: number
+  readonly builder_username: string | null
   readonly execution_mode: string
   readonly blockchain_status: string
   readonly rc_status: string
@@ -412,6 +438,11 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
     typeof r.total_uses === 'number' &&
     typeof r.remaining_uses === 'number' &&
     typeof r.creator_username === 'string' &&
+    (r.funding_source === 'builder_credits' || r.funding_source === 'system') &&
+    (r.owner_builder_username === null || typeof r.owner_builder_username === 'string') &&
+    (r.issuer_admin_id === null || typeof r.issuer_admin_id === 'string') &&
+    (r.archived_at === null || typeof r.archived_at === 'string') &&
+    typeof r.retired_uses === 'number' &&
     (r.revoked_at === null || typeof r.revoked_at === 'string') &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
@@ -430,7 +461,9 @@ export function isDatabaseAccountRow(row: unknown): row is DatabaseAccountRow {
     typeof r.username === 'string' &&
     typeof r.creation_date === 'string' &&
     typeof r.ticket === 'string' &&
-    typeof r.builder_username === 'string' &&
+    typeof r.ticket_id === 'number' &&
+    Number.isSafeInteger(r.ticket_id) &&
+    (r.builder_username === null || typeof r.builder_username === 'string') &&
     typeof r.registered_at === 'string' &&
     typeof r.execution_mode === 'string' &&
     typeof r.blockchain_status === 'string' &&
@@ -500,10 +533,21 @@ export function parseTicketRow(raw: unknown): DatabaseTicketRow | null {
     r.revoked_at === null || typeof r.revoked_at === 'string'
       ? (r.revoked_at as string | null)
       : null
+  const archivedAt =
+    r.archived_at === null || typeof r.archived_at === 'string'
+      ? (r.archived_at as string | null)
+      : null
+  const retiredUses = Number(r.retired_uses)
   if (!Number.isInteger(totalUses) || !Number.isInteger(remainingUses)) {
     return null
   }
-  if (totalUses < 1 || remainingUses < 0 || remainingUses > totalUses) {
+  if (
+    !Number.isInteger(retiredUses) ||
+    totalUses < 1 ||
+    remainingUses < 0 ||
+    retiredUses < 0 ||
+    remainingUses + retiredUses > totalUses
+  ) {
     return null
   }
 
@@ -511,12 +555,14 @@ export function parseTicketRow(raw: unknown): DatabaseTicketRow | null {
     ...r,
     total_uses: totalUses,
     remaining_uses: remainingUses,
+    retired_uses: retiredUses,
+    archived_at: archivedAt,
     revoked_at: revokedAt,
-    used_uses: totalUses - remainingUses,
+    used_uses: totalUses - remainingUses - retiredUses,
     kind: deriveTicketKind(totalUses),
-    status: deriveTicketStatus(totalUses, remainingUses, revokedAt),
-    is_active: remainingUses > 0 && revokedAt === null,
-    has_been_used: remainingUses < totalUses,
+    status: deriveTicketStatus(totalUses, remainingUses, revokedAt, archivedAt),
+    is_active: remainingUses > 0 && revokedAt === null && archivedAt === null,
+    has_been_used: totalUses - remainingUses - retiredUses > 0,
   }
 
   if (!isDatabaseTicketRow(converted)) return null
@@ -531,8 +577,9 @@ export function parseAccountRow(raw: unknown): DatabaseAccountRow | null {
   const r = raw as Record<string, unknown>
   const converted = {
     ...r,
+    ticket_id: Number(r.ticket_id),
     builder_username:
-      typeof r.builder_username === 'string' ? r.builder_username : '',
+      typeof r.builder_username === 'string' ? r.builder_username : null,
     transaction_id:
       typeof r.transaction_id === 'string' ? r.transaction_id : null,
     correlation_id:

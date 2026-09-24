@@ -36,19 +36,21 @@ const fetchLookup = vi.mocked(fetchRcDelegationExists)
 const delegate = vi.mocked(delegateResourceCredits)
 const RUN = crypto.randomUUID().replace(/-/g, '').slice(0, 8)
 const TICKET = `RCUT${RUN.toUpperCase()}`
+let ticketId = 0
 
 async function insertUncertain(
   username: string,
   rcStatus: (typeof RC_STATUS)[keyof typeof RC_STATUS] = RC_STATUS.UNCERTAIN
 ): Promise<void> {
-  await db.execute({
-    sql: `INSERT INTO Accounts (
-			username, ticket, builder_username, execution_mode, blockchain_status, rc_status, rc_delegated
-		) VALUES (?, ?, ?, ?, ?, ?, 0)`,
-    args: [
-      username,
-      TICKET,
-      'sim-builder',
+	await db.execute({
+		sql: `INSERT INTO Accounts (
+			username, ticket, ticket_id, builder_username, execution_mode, blockchain_status, rc_status, rc_delegated
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+		args: [
+			username,
+			TICKET,
+			ticketId,
+			'sim-builder',
       HIVE_TX_MODE_VALUES.BROADCAST,
       BLOCKCHAIN_STATUS.CONFIRMED,
       rcStatus,
@@ -73,6 +75,17 @@ async function rcRow(username: string): Promise<{
 beforeAll(async () => {
   expect(await initializeDatabase()).toBe(true)
   await db.execute({
+    sql: `INSERT INTO Tickets (
+      code, total_uses, remaining_uses, creator_username, funding_source, owner_builder_username
+    ) VALUES (?, 1, 1, 'sim-builder', 'builder_credits', 'sim-builder')`,
+    args: [TICKET],
+  })
+  const ticket = await db.execute({
+    sql: 'SELECT id FROM Tickets WHERE code = ?',
+    args: [TICKET],
+  })
+  ticketId = Number(ticket.rows[0]?.id)
+  await db.execute({
     sql: `DELETE FROM Accounts WHERE ticket = ?`,
     args: [TICKET],
   })
@@ -81,6 +94,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await db.execute({
     sql: `DELETE FROM Accounts WHERE ticket = ?`,
+    args: [TICKET],
+  })
+  await db.execute({
+    sql: 'DELETE FROM Tickets WHERE code = ?',
     args: [TICKET],
   })
 })

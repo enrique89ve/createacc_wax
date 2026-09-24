@@ -139,6 +139,8 @@ export const POST: APIRoute = async context => {
           total_uses: ticketUses,
           remaining_uses: ticketUses,
           creator_username: session.username,
+          funding_source: 'builder_credits',
+          owner_builder_username: session.username,
         })
       })
 

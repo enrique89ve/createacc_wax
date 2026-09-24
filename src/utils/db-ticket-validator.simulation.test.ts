@@ -105,9 +105,11 @@ beforeAll(async () => {
     args: [BUILDER_USERNAME],
   })
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
-			VALUES (?, 'sim', 3, 3, ?)`,
-    args: [TICKET, BUILDER_USERNAME],
+    sql: `INSERT INTO Tickets (
+      code, description, total_uses, remaining_uses, creator_username,
+      funding_source, owner_builder_username
+    ) VALUES (?, 'sim', 3, 3, ?, 'builder_credits', ?)`,
+    args: [TICKET, BUILDER_USERNAME, BUILDER_USERNAME],
   })
 })
 

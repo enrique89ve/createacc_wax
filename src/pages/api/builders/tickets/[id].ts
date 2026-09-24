@@ -59,7 +59,10 @@ export const PATCH: APIRoute = async context => {
           return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
         }
 
-        if (ticket.creator_username !== session.username) {
+        if (
+          ticket.funding_source !== 'builder_credits' ||
+          ticket.owner_builder_username !== session.username
+        ) {
           return apiError(
             'No tienes permisos para modificar este ticket',
             HTTP_STATUS.FORBIDDEN
@@ -211,7 +214,10 @@ export const DELETE: APIRoute = async context => {
           return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
         }
 
-        if (ticket.creator_username !== session.username) {
+        if (
+          ticket.funding_source !== 'builder_credits' ||
+          ticket.owner_builder_username !== session.username
+        ) {
           return apiError(
             'No tienes permisos para eliminar este ticket',
             HTTP_STATUS.FORBIDDEN

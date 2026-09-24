@@ -119,7 +119,7 @@ export async function validateTicketInDB(
     }
 
     const result = await execute({
-      sql: `SELECT id, code, description, total_uses, remaining_uses, revoked_at, creator_username, created_at, updated_at FROM Tickets WHERE code = ?`,
+      sql: `SELECT * FROM Tickets WHERE code = ?`,
       args: [cleanCode],
     })
 
@@ -132,7 +132,11 @@ export async function validateTicketInDB(
       return { isValid: false, error: 'Formato de ticket inválido' }
     }
 
-    if (await isHiveUsernameBlocked(ticket.creator_username)) {
+    if (
+      ticket.funding_source === 'builder_credits' &&
+      ticket.owner_builder_username &&
+      (await isHiveUsernameBlocked(ticket.owner_builder_username))
+    ) {
       return { isValid: false, error: 'Ticket temporalmente no disponible' }
     }
 
@@ -166,9 +170,10 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
             SET remaining_uses = CASE WHEN remaining_uses > 0 THEN remaining_uses - 1 ELSE 0 END,
                 updated_at = CURRENT_TIMESTAMP
             WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
+              AND archived_at IS NULL
               AND NOT EXISTS (
                 SELECT 1 FROM BlockedHiveAccounts b
-                WHERE b.hive_username = Tickets.creator_username
+                WHERE b.hive_username = Tickets.owner_builder_username
               )
             RETURNING id, code`,
       args: [cleanCode],
@@ -399,18 +404,18 @@ export async function reserveTicketCredit(
                     ELSE 0
                   END,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL
+              WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
                 AND NOT EXISTS (
                   SELECT 1 FROM BlockedHiveAccounts b
-                  WHERE b.hive_username = Tickets.creator_username
+                  WHERE b.hive_username = Tickets.owner_builder_username
                 )
-              RETURNING id, code, remaining_uses`,
+              RETURNING *`,
         args: [cleanTicketCode],
       })
 
       if (updateResult.rows.length === 0) {
         const checkResult = await execute({
-          sql: `SELECT revoked_at, remaining_uses FROM Tickets WHERE code = ?`,
+          sql: `SELECT * FROM Tickets WHERE code = ?`,
           args: [cleanTicketCode],
         })
 
@@ -434,6 +439,7 @@ export async function reserveTicketCredit(
         correlationId,
         username: cleanUsername,
         ticket: cleanTicketCode,
+        ticketId: Number(updateResult.rows[0].id),
         keys: input.keys,
         executionMode: input.executionMode,
       })
@@ -654,18 +660,29 @@ export async function completeAccountCreationInDB(
 
   try {
     await withTransaction(async () => {
+      const attempt = correlationId
+        ? await getCreationAttempt(correlationId)
+        : null
+      if (
+        correlationId &&
+        (attempt?.ticket !== cleanTicketCode ||
+          attempt.username !== cleanUsername)
+      ) {
+        throw new Error('ATTEMPT_TICKET_MISMATCH')
+      }
       const ticketInfo = await execute({
-        sql: `SELECT creator_username FROM Tickets WHERE code = ?`,
-        args: [cleanTicketCode],
+        sql: `SELECT id, code, funding_source, owner_builder_username FROM Tickets WHERE ${attempt ? 'id = ?' : 'code = ?'}`,
+        args: [attempt ? attempt.ticketId : cleanTicketCode],
       })
 
+      const ticket = ticketInfo.rows[0]
+      if (!ticket || ticket.code !== cleanTicketCode) {
+        throw new Error('TICKET_NOT_FOUND')
+      }
       const creatorUsername =
-        ticketInfo.rows.length > 0
-          ? (ticketInfo.rows[0].creator_username as string | null)
-          : null
-      const createdBy =
-        ticketInfo.rows.length > 0
-          ? (ticketInfo.rows[0].creator_username as string | null)
+        ticket.funding_source === 'builder_credits' &&
+        typeof ticket.owner_builder_username === 'string'
+          ? ticket.owner_builder_username
           : null
 
       const accountMeta = await accountRowForCompletion(
@@ -677,14 +694,15 @@ export async function completeAccountCreationInDB(
       try {
         await execute({
           sql: `INSERT INTO Accounts (
-                  username, ticket, builder_username, creation_date, registered_at,
+                  username, ticket, ticket_id, builder_username, creation_date, registered_at,
                   execution_mode, blockchain_status, transaction_id, correlation_id, wax_status,
                   rc_status, rc_delegated
                 )
-                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
             cleanUsername,
             cleanTicketCode,
+            Number(ticket.id),
             creatorUsername,
             accountMeta.executionMode,
             accountMeta.blockchainStatus,
@@ -705,8 +723,12 @@ export async function completeAccountCreationInDB(
         throw accountError
       }
 
-      if (createdBy) {
-        await creditsService.markCreditsAsConsumed(createdBy, 1, cleanUsername)
+      if (creatorUsername) {
+        await creditsService.markCreditsAsConsumed(
+          creatorUsername,
+          1,
+          cleanUsername
+        )
       }
 
       if (correlationId) {
@@ -723,6 +745,15 @@ export async function completeAccountCreationInDB(
         success: false,
         error: 'Account already exists in database',
         errorCode: BLOCKCHAIN_ERROR_CODES.ACCOUNT_ALREADY_EXISTS,
+        correlationId,
+      }
+    }
+
+    if (errorMessage === 'ATTEMPT_TICKET_MISMATCH') {
+      return {
+        success: false,
+        error: 'Creation attempt does not match the requested ticket',
+        errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
         correlationId,
       }
     }

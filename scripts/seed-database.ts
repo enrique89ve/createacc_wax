@@ -76,12 +76,15 @@ async function seedTicket(creatorUsername: string): Promise<void> {
   }
 
   await db.execute({
-    sql: `INSERT INTO Tickets (code, description, total_uses, remaining_uses, creator_username)
-			  VALUES (?, 'Demo ticket for development', ?, ?, ?)`,
+    sql: `INSERT INTO Tickets (
+        code, description, total_uses, remaining_uses, creator_username,
+        funding_source, owner_builder_username
+      ) VALUES (?, 'Demo ticket for development', ?, ?, ?, 'builder_credits', ?)`,
     args: [
       SEED_DEFAULTS.TICKET_CODE,
       SEED_DEFAULTS.TICKET_CREDITS,
       SEED_DEFAULTS.TICKET_CREDITS,
+      creatorUsername,
       creatorUsername,
     ],
   })
