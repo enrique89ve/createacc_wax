@@ -1,6 +1,6 @@
 # Tickets, DB y orquestación: plan de corrección
 
-Estado: propuesto, pendiente de implementación.
+Estado: implementación local validada; no desplegada.
 Base revisada: `0bf79cc`, 2026-09-24.
 
 ## Objetivo y alcance
@@ -10,8 +10,10 @@ diagnóstico y coordinación encontrados en la auditoría. Conservar creación g
 desde Admin, financiación Credits → Uses desde Builder, simulación y creación real.
 
 SQLite local es el modo predeterminado y una configuración completa de producción.
-Turso online y las réplicas embebidas son opcionales: no se requieren credenciales,
-conectividad ni recursos Turso para implementar, probar o desplegar el modo local.
+Turso remoto directo es opcional: no se requieren credenciales, conectividad ni
+recursos Turso para implementar, probar o desplegar el modo local. Las réplicas
+embebidas quedan deshabilitadas hasta implementar y probar una ruta autoritativa
+para las escrituras de negocio.
 La conexión a Hive para creación real es independiente del proveedor de base de datos.
 
 La serie modifica contratos, esquema, servicios, endpoints, consultas y sus
@@ -23,7 +25,7 @@ Se aplica `typescript-pro`: contratos discriminados, validación desde `unknown`
 funciones pequeñas para servicios nuevos y coherencia con los repositorios existentes.
 No se reescriben clases existentes por estilo ni se agregan dependencias sin necesidad.
 
-## Decisiones de diseño propuestas
+## Decisiones aplicadas
 
 ### 1. Propiedad y financiación explícitas
 
@@ -120,8 +122,25 @@ distinguiendo simulated, broadcasted y confirmed.
 - La compensación automática post-broadcast solo se habilita con evidencia de no
   ejecución definitiva validada contra el contrato real del proveedor y sus pruebas.
   Si el proveedor no permite demostrarla, pasar a revisión manual conservando el uso;
-  no liberar por antigüedad ni por agotar reintentos. El CLI debe soportar resolución
-  explícita con evidencia y auditoría, nunca una devolución forzada sin verificación.
+  no liberar por antigüedad ni por agotar reintentos. El CLI ofrece una revisión
+  explícita por correlation ID (`--review`) con identidad de operador obligatoria en
+  modo escritura; vuelve a consultar la misma evidencia y nunca fuerza una devolución.
+  Una revisión inconclusa queda en `manual_review` y no vuelve a la cola automática.
+  Inspección sin reclamar ni mutar:
+
+  ```sh
+  pnpm reconcile:pending -- --dry-run --review <correlation-id>
+  ```
+
+  Revisión con escritura y auditoría del actor:
+
+  ```sh
+  pnpm reconcile:pending -- --review <correlation-id> --operator <operator-id>
+  ```
+
+  El actor queda en `resolved_by` y el efecto terminal conserva sus propias
+  auditorías.
+
 - Matching de claves actuales no sustituye prueba histórica cuando hay evidencia de
   que la creación sí se incluyó: una cuenta puede cambiar autoridades. Una cuenta
   ajena solo autoriza devolver con evidencia suficiente de que este intento no creó.
@@ -168,21 +187,14 @@ distinguiendo simulated, broadcasted y confirmed.
 - SQLite local: un archivo compartido real y persistente; mutex local no promete
   exclusión entre procesos. Probar dos procesos y contención con escrituras externas.
   La propia base local es autoritativa y no necesita sincronización con Turso.
-- Turso remoto, solo si se configura: escrituras y decisiones autoritativas mediante transacciones remotas;
-  comprobar pérdida de conexión, retry y restricciones en una DB desechable remota.
-- Embedded replica, solo si se configura: sync inicial, intervalo explícito, estado de sincronización y
-  límites de antigüedad. Las decisiones de propiedad, bloqueo, saldo y reserva usan
-  el primario autoritativo; las lecturas de réplica son para vistas que toleran retraso.
-  En este modo, no permitir consumo/crédito desconectado de su primario ni creer que
-  sync periódico evita carreras. Esa restricción no aplica a SQLite local autónomo.
-- Documentar cada modo y rechazar combinaciones incompletas únicamente cuando se
-  haya elegido un modo remoto. Sin configuración Turso, iniciar SQLite local sin
-  conexiones remotas, tareas de sync ni advertencias por credenciales ausentes.
-  La versión instalada
-  de @libsql/client ya expone syncInterval; la
-  [referencia oficial del cliente](https://tursodatabase.github.io/libsql-client-ts/)
-  muestra su configuración. Validar implementación contra la versión del lockfile,
-  sin actualizar dependencias como parte de esta corrección.
+- Turso remoto directo es opcional y usa transacciones contra la URL remota elegida.
+  No se ejecutó validación contra una cuenta o base remota desechable; ese modo no
+  forma parte de la evidencia local de cierre.
+- Embedded replica falla al iniciar con un mensaje explícito. La app aún no dirige
+  todas las escrituras al primario remoto ni demuestra decisiones seguras sin red.
+  Esa opción queda fuera de los modos habilitados; SQLite autónomo no depende de ella.
+- Sin configuración remota, iniciar SQLite local sin conexiones remotas, tareas de
+  sync ni avisos por credenciales Turso ausentes.
 
 ### 7. HTTP, auditoría y diagnóstico
 
@@ -243,7 +255,7 @@ en un commit independiente ni dividir cambios de contrato inseparables.
 | 3. fix(creation): make completion and compensation mutually exclusive      | Servicio común de transiciones, filas afectadas, referencias terminales       | Fallos parciales revierten todo; cierre vs rollback tiene un único ganador                       |
 | 4. fix(creation): fence recovery with persistent ownership and evidence    | Versiones, leases, snapshot de txid/expiración, evaluador Hive y handler HTTP | Worker obsoleto no autoriza otro broadcast ni cierra; incertidumbre conserva reserva             |
 | 5. refactor(reconciliation): share durable recovery across workers and CLI | Motor, cola única, backoff, scheduler y coordinación RC                       | HTTP, dos workers y CLI convergen; errores de una fase no bloquean otras                         |
-| 6. fix(database): coordinate writes and authoritative reads                | Executor, snapshots y contención local; modos remotos opcionales              | SQLite autónomo entre procesos; verificar primario/réplica solo si se activa ese modo            |
+| 6. fix(database): coordinate writes and authoritative reads                | Executor, snapshots, preflight/versionado y contención local                  | SQLite autónomo entre procesos; réplica falla explícitamente; remoto directo queda opcional      |
 | 7. fix(api): validate ticket contracts and persist lifecycle audit         | Validación runtime, HTTP, auditoría completa, exportación, consumidor de 202  | Matriz HTTP y eventos exactos, sin errores SQL expuestos                                         |
 | 8. feat(diagnostics): reconcile credits tickets attempts and accounts      | Tracker y diagnose con snapshot e invariantes                                 | Los fallos reproducidos dejan de ser declarados consistentes                                     |
 | 9. test: validate ticket lifecycle across processes and failures           | Pruebas integradas, crash/restart y contratos completos                       | Todos los escenarios de aceptación pasan con DB real temporal                                    |
@@ -268,7 +280,7 @@ consumidor manteniendo la intención del commit y documentándolo.
 | Cola y RC           | Enqueue fallido recuperado por barrido, duplicados, backoff/review, fase fallida aislada, RC uncertain sin reenvío ciego                   |
 | Lecturas            | Saldo/auditoría en snapshot, colisión de nombres y cierre tardío detectados, historiales tras archivado                                    |
 | HTTP                | Auth/CSRF, JSON escalar/null/array, ID decimal/negativo/infinito, 409 en carreras, 202 recuperable, replay tras respuesta perdida          |
-| Modos DB            | SQLite entre procesos y arranque sin variables Turso obligatorios; pruebas remotas/réplica solo para el modo opcional elegido              |
+| Modos DB            | SQLite entre procesos y arranque sin variables Turso; remoto no se afirma probado; réplica embebida se rechaza explícitamente              |
 | Simulación          | Mismos invariantes contables; cero broadcasts/delegaciones reales                                                                          |
 
 Mocks solo en borde Hive y fallos controlados. Usar SQLite/libSQL real para atomicidad,
@@ -277,14 +289,16 @@ arbitrarios. Los tests entre procesos deben evitar que el mutex JS oculte el pro
 
 ## Aplicación de esquema y datos existentes
 
-El repo actualmente prescribe esquema limpio y no tiene migraciones incrementales.
-Se mantiene initializeDatabase sin migraciones implícitas. Los nuevos esquemas se
+El repo no tiene migraciones incrementales. `DatabaseSchemaMetadata` identifica la
+versión 1; un esquema con tablas de aplicación sin metadatos, columnas requeridas
+o versión coincidente se rechaza antes de aplicar DDL. Los esquemas nuevos se
 desarrollan y prueban exclusivamente sobre bases temporales.
 
 Antes de aplicar a una instalación existente:
 
-1. Preflight de versión/esquema, modo DB, reservas abiertas y consistencia; producir
-   informe sin modificar datos. La app debe rechazar escrituras sobre esquema incompatible.
+1. `pnpm db:diagnose` inspecciona versión/esquema, modo DB, reservas abiertas y
+   consistencia, y produce informe sin modificar datos. `db:init` y el servidor
+   rechazan un esquema incompatible antes de aplicar DDL.
 2. Preparar parada coordinada de emisores/workers y respaldo consistente verificable.
    No ejecutar db:reset sobre la base del usuario como parte de pruebas.
 3. Si se conservan datos: conversión offline específica en una copia, nunca en runtime.
@@ -320,4 +334,29 @@ La definición de este procedimiento no ejecuta un despliegue ni modifica la DB 
   no aplicables, no pendientes. Solo si se elige Turso/remoto o réplica se exige su
   validación específica antes de declarar listo ese modo.
 
-Este turno crea el plan; no implementa correcciones ni crea commits de código.
+## Resultado de implementación
+
+La implementación local de los pasos 1–10 está aplicada sobre el esquema nuevo y
+validada con bases SQLite temporales. Los commits previos de los pasos 0–3 son
+`8b7fd58`, `242da57`, `7d98f17` y `0c70a82`. El cierre de código y pruebas para los
+pasos 4–9 quedó en `fd3beb5`; este commit documenta operación, verificación y límites.
+
+El acceso a Turso remoto no se necesitó ni se probó. SQLite local queda como modo
+predeterminado completo; el modo remoto directo es opcional y la réplica embebida
+rechaza el arranque. No se desplegó la aplicación, no se convirtió ninguna base
+existente y no se transmitieron operaciones reales a Hive como parte de esta serie.
+
+Evidencia local de cierre:
+
+- `pnpm test`: 43 archivos y 190 pruebas pasaron con SQLite temporal.
+- `pnpm build`: pasó.
+- `pnpm test:simulation`: 2/2 escenarios pasaron; `pnpm db:diagnose` informó
+  esquema v1 compatible, foreign keys activas, cero intentos abiertos y cero
+  discrepancias sobre la base temporal de simulación.
+- `pnpm check`: Astro check informó 0 errores y 0 warnings (2 hints), y
+  `tsc --noEmit` pasó. ESLint global conserva 5.503 hallazgos (4.349 errores,
+  1.154 warnings), el mismo total del gate previo a esta última revisión y 10 menos
+  que la medición inicial de 5.513; por eso el comando global sigue saliendo con error.
+- Prettier en todos los archivos modificados y `git diff --check`: pasaron.
+- Los smoke tests previos confirmaron arranque/parada del reconciliador en los
+  wrappers local de desarrollo y de producción. No prueban despliegue remoto.

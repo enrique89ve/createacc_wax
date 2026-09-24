@@ -50,7 +50,11 @@ BEEKEEPER_WALLET_PASSWORD=
 HIVE_TX_MODE=simulate   # or broadcast for live mainnet transmission
 ```
 
-Optional Turso:
+Local SQLite is the default and works without Turso credentials, network access,
+or a sync process. Use a remote database only when the deployment explicitly
+chooses it.
+
+Optional Turso remote:
 
 ```bash
 DATABASE_URL=libsql://your-database-org.turso.io
@@ -59,15 +63,15 @@ TURSO_AUTH_TOKEN=
 
 Default DB is local SQLite (`file:holahive.db`). One database for simulate and live. Tickets have no execution mode — only Accounts records how a creation ran.
 
-Schema is defined in `src/lib/database.ts`. There are no incremental migrations. After a structural change:
-
-```bash
-pnpm db:reset
-SEED_ADMIN_PASSWORD="..." pnpm db:seed   # optional admin/test data
-```
+Schema is defined in `src/lib/database.ts`. There are no incremental migrations.
+Before pointing a deployment at an existing database, run `pnpm db:diagnose`.
+`pnpm db:init` is for an empty database or an already compatible schema; it does
+not migrate old table layouts. `pnpm db:reset` deletes the local database and is
+only for disposable development data.
 
 ```bash
 pnpm db:init
+SEED_ADMIN_PASSWORD="..." pnpm db:seed   # optional, on a fresh local DB only
 pnpm admin:create      # or ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create
 pnpm dev               # runs db:init, then astro dev
 ```
@@ -78,18 +82,19 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 
 ## Commands
 
-| Command              |                                                |
-| -------------------- | ---------------------------------------------- |
-| `pnpm dev`           | Dev server                                     |
-| `pnpm build`         | Production build                               |
-| `pnpm preview`       | Preview production build                       |
-| `pnpm db:init`       | Apply current schema (`CREATE IF NOT EXISTS`)  |
-| `pnpm db:reset`      | Drop local DB and recreate schema from scratch |
-| `pnpm db:seed`       | Test data (`SEED_ADMIN_PASSWORD` required)     |
-| `pnpm db:quickstart` | Reset + seed                                   |
-| `pnpm admin:create`  | Create admin                                   |
-| `pnpm admin:reset`   | Rotate admin password                          |
-| `pnpm admin:check`   | Admin status                                   |
+| Command              |                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `pnpm dev`           | Dev server                                                                                  |
+| `pnpm build`         | Production build                                                                            |
+| `pnpm preview`       | Preview production build                                                                    |
+| `pnpm db:init`       | Apply current schema (`CREATE IF NOT EXISTS`)                                               |
+| `pnpm db:diagnose`   | Read-only schema/version preflight and consistency report; exits nonzero on critical issues |
+| `pnpm db:reset`      | Delete local DB and recreate schema; disposable development data only                       |
+| `pnpm db:seed`       | Test data (`SEED_ADMIN_PASSWORD` required)                                                  |
+| `pnpm db:quickstart` | Reset + seed                                                                                |
+| `pnpm admin:create`  | Create admin                                                                                |
+| `pnpm admin:reset`   | Rotate admin password                                                                       |
+| `pnpm admin:check`   | Admin status                                                                                |
 
 ## Validaciones internas
 
@@ -125,7 +130,7 @@ See [AUTH closure and transaction follow-up](docs/auth-closure.md) for scope and
 
 ## Layout
 
-```
+```text
 src/
   components/    UI
   consts/        Brand, SEO, config
