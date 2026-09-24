@@ -52,4 +52,5 @@ test-results/
 !/docs/auth-closure.md
 !/docs/credits-v1-plan.md
 !/docs/credits-closure.md
+!/docs/tickets-db-consistency-plan.md
 .gstack/
