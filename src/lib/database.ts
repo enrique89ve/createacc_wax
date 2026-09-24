@@ -199,6 +199,9 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		rc_updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`,
 
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_correlation_unique
+		ON Accounts (correlation_id) WHERE correlation_id IS NOT NULL`,
+
   `CREATE TABLE IF NOT EXISTS TicketAudit (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		ticket TEXT NOT NULL,
@@ -268,6 +271,8 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		username TEXT NOT NULL,
 		ticket TEXT NOT NULL,
 		ticket_id INTEGER NOT NULL REFERENCES Tickets (id) ON DELETE RESTRICT,
+		funding_source TEXT NOT NULL CHECK (funding_source IN ('builder_credits', 'system')),
+		owner_builder_username TEXT,
 		status TEXT NOT NULL CHECK (status IN ('reserved', 'prepared', 'broadcasting', 'completed', 'rolled_back')),
 		owner_public_key TEXT NOT NULL,
 		active_public_key TEXT NOT NULL,
@@ -281,7 +286,11 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		wax_signed INTEGER NOT NULL DEFAULT 0,
 		wax_authority_verified INTEGER NOT NULL DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		CHECK (
+			(funding_source = 'builder_credits' AND owner_builder_username IS NOT NULL)
+			OR (funding_source = 'system' AND owner_builder_username IS NULL)
+		)
 	)`,
 
   `CREATE TABLE IF NOT EXISTS ReconciliationQueue (
@@ -322,7 +331,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_notifications_all ON Notifications (hive_username, created_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_reconciliation_pending ON ReconciliationQueue (resolved, created_at DESC) WHERE resolved = FALSE`,
   `CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable ON ReconciliationQueue (status, created_at)`,
-  `CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket, username)`,
+  `CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket_id, username)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
 		ON CreationAttempts (username) WHERE status IN ('reserved', 'prepared', 'broadcasting')`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,

@@ -85,7 +85,7 @@ describe('archiveOwnedTicket', () => {
     })
 
     expect(
-      (await rollbackTicketReservation(TICKET, OPEN_CORRELATION)).success
+      (await rollbackTicketReservation(OPEN_CORRELATION)).success
     ).toBe(true)
     await db.execute({
       sql: 'UPDATE Tickets SET remaining_uses = 3 WHERE id = ?',

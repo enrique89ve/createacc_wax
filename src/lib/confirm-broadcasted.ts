@@ -10,7 +10,6 @@ import {
   hiveTransactionFromRecoveredAttempt,
   isAttemptStale,
   listOpenCreationAttempts,
-  markAttemptRecoveredOnChain,
   normalizeAttemptTicket,
   type CreationAttempt,
 } from '@/lib/creation-attempts'
@@ -20,10 +19,9 @@ import {
 } from '@/lib/hive-account-authorities'
 import { recoverOwnedAccount } from '@/lib/recover-owned-account'
 import {
-  accountExistsInDB,
+  confirmCompletedAttemptAccount,
   completeAccountCreationInDB,
   rollbackTicketReservation,
-  updateAccountBlockchainStatus,
 } from '@/utils/db-ticket-validator'
 import { claimAndQueueConfirmedRc } from '@/lib/create/queue-rc-delegation'
 
@@ -33,36 +31,26 @@ export interface BroadcastedAccountRow {
   readonly ticket: string
 }
 
-export async function persistHiveMatchedAccount(params: {
-  readonly username: string
-  readonly ticket: string
-  readonly correlationId: string
-  readonly attempt: CreationAttempt
-}): Promise<boolean> {
-  const exists = await accountExistsInDB(params.username)
-  if (!exists) {
-    const dbResult = await completeAccountCreationInDB(
-      params.username,
-      params.ticket,
-      params.correlationId,
-      hiveTransactionFromRecoveredAttempt(params.attempt) ?? undefined,
-      { hiveMatched: true }
+export async function persistHiveMatchedAccount(
+  attempt: CreationAttempt
+): Promise<boolean> {
+  const dbResult = await completeAccountCreationInDB(
+    attempt.correlationId,
+    hiveTransactionFromRecoveredAttempt(attempt) ?? undefined,
+    { hiveMatched: true }
+  )
+  if (!dbResult.success) {
+    logger.error(
+      `[${attempt.correlationId}] Hive-matched complete failed for ${attempt.username}: ${dbResult.error}`
     )
-    if (!dbResult.success) {
-      logger.error(
-        `[${params.correlationId}] Hive-matched complete failed for ${params.username}: ${dbResult.error}`
-      )
-      return false
-    }
+    return false
   }
 
-  const confirmed = await updateAccountBlockchainStatus(
-    params.username,
-    BLOCKCHAIN_STATUS.CONFIRMED
-  )
-  if (!confirmed) return false
-  await markAttemptRecoveredOnChain(params.correlationId)
-  await claimAndQueueConfirmedRc(params.username)
+  if (!(await confirmCompletedAttemptAccount(attempt.correlationId))) {
+    return false
+  }
+
+  await claimAndQueueConfirmedRc(attempt.username)
   return true
 }
 
@@ -100,6 +88,12 @@ export async function confirmBroadcastedAccount(
     )
     return false
   }
+  if (attempt.username !== account.username || attempt.ticket !== account.ticket) {
+    logger.warn(
+      `[${account.correlationId}] Broadcasted account does not match its persisted creation attempt`
+    )
+    return false
+  }
 
   const lookup = await fetchHiveAccountAuthorities(account.username)
   if (lookup.status !== 'found') {
@@ -116,12 +110,7 @@ export async function confirmBroadcastedAccount(
     return false
   }
 
-  return persistHiveMatchedAccount({
-    username: account.username,
-    ticket: account.ticket,
-    correlationId: account.correlationId,
-    attempt,
-  })
+  return persistHiveMatchedAccount(attempt)
 }
 
 export async function confirmPendingBroadcastedAccounts(): Promise<number> {
@@ -138,7 +127,7 @@ async function recoverStaleAttempt(attempt: CreationAttempt): Promise<void> {
     attempt.status === CREATION_ATTEMPT_STATUS.RESERVED ||
     attempt.status === CREATION_ATTEMPT_STATUS.PREPARED
   ) {
-    await rollbackTicketReservation(attempt.ticket, attempt.correlationId)
+    await rollbackTicketReservation(attempt.correlationId)
     logger.info(
       `[${attempt.correlationId}] Rolled back stale ${attempt.status} attempt for ${attempt.username}`
     )
@@ -153,17 +142,12 @@ async function recoverStaleAttempt(attempt: CreationAttempt): Promise<void> {
   })
 
   if (recovered.kind === 'recovered') {
-    await persistHiveMatchedAccount({
-      username: attempt.username,
-      ticket: attempt.ticket,
-      correlationId: attempt.correlationId,
-      attempt,
-    })
+    await persistHiveMatchedAccount(attempt)
     return
   }
 
   if (recovered.kind === 'not_found' || recovered.kind === 'foreign_account') {
-    await rollbackTicketReservation(attempt.ticket, attempt.correlationId)
+    await rollbackTicketReservation(attempt.correlationId)
     logger.info(
       `[${attempt.correlationId}] Rolled back stale broadcasting attempt (${recovered.kind}) for ${attempt.username}`
     )

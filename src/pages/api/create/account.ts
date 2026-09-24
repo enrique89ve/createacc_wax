@@ -22,7 +22,6 @@ import {
 } from '@/lib/confirm-broadcasted'
 import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
-  BLOCKCHAIN_STATUS,
   CREATION_ATTEMPT_STATUS,
   HIVE_TX_MODE_VALUES,
   type HiveExecutionMode,
@@ -47,7 +46,7 @@ import {
   obfuscateTicket,
   ERROR_CODES,
   getAccountCreationState,
-  updateAccountBlockchainStatus,
+  confirmCompletedAttemptAccount,
   enqueueReconciliation,
 } from '@/utils/db-ticket-validator'
 type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
@@ -193,7 +192,7 @@ async function reclaimOpenAttemptForRetry(
     ) {
       return creationInProgressResponse(request.username, open.correlationId)
     }
-    await rollbackTicketReservation(session.ticket, open.correlationId)
+    await rollbackTicketReservation(open.correlationId)
     return
   }
 
@@ -222,12 +221,12 @@ async function reclaimOpenAttemptForRetry(
     ) {
       return creationInProgressResponse(request.username, open.correlationId)
     }
-    await rollbackTicketReservation(session.ticket, open.correlationId)
+    await rollbackTicketReservation(open.correlationId)
     return
   }
 
   if (recovered.kind === 'foreign_account') {
-    await rollbackTicketReservation(session.ticket, open.correlationId)
+    await rollbackTicketReservation(open.correlationId)
   }
 }
 
@@ -550,10 +549,7 @@ async function rollbackAfterFailure(
   errorMessage?: string,
   transactionId?: string
 ): Promise<boolean> {
-  const rollbackResult = await rollbackTicketReservation(
-    ticketCode,
-    correlationId
-  )
+  const rollbackResult = await rollbackTicketReservation(correlationId)
   if (rollbackResult.success) return true
 
   if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) {
@@ -636,7 +632,6 @@ async function createAccountOnChain(
         `[${correlationId}] On-chain failed (business): ${errorInfo.message}`
       )
       const rollbackResult = await rollbackTicketReservation(
-        ticketCode,
         correlationId
       )
       if (!rollbackResult.success) {
@@ -687,8 +682,6 @@ async function completeInDatabase(
   tx?: HiveTransactionResult
 ): Promise<Response | void> {
   const dbResult = await completeAccountCreationInDB(
-    username,
-    ticketCode,
     correlationId,
     tx
   )
@@ -763,10 +756,7 @@ async function rollbackForeignAccount(
   username: string,
   executionMode: HiveExecutionMode
 ): Promise<Response> {
-  const rollbackResult = await rollbackTicketReservation(
-    ticketCode,
-    correlationId
-  )
+  const rollbackResult = await rollbackTicketReservation(correlationId)
   if (!rollbackResult.success) {
     await enqueueReconciliation({
       correlationId,
@@ -810,12 +800,7 @@ async function handleAccountAlreadyExists(
     logger.info(
       `[${correlationId}] Account ${username} on Hive matches this attempt. Recovering without rollback.`
     )
-    await persistHiveMatchedAccount({
-      username,
-      ticket: ticketCode,
-      correlationId,
-      attempt: recovered.attempt,
-    })
+    await persistHiveMatchedAccount(recovered.attempt)
     const account = await getAccountCreationState(username)
     return idempotentSuccessResponse(
       `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
@@ -881,12 +866,7 @@ async function recoverReservedHttpRetry(
   }
 
   const correlationId = recovered.attempt.correlationId
-  const persisted = await persistHiveMatchedAccount({
-    username: request.username,
-    ticket: session.ticket,
-    correlationId,
-    attempt: recovered.attempt,
-  })
+  const persisted = await persistHiveMatchedAccount(recovered.attempt)
   if (!persisted) {
     const dbResult = await completeInDatabase(
       request.username,
@@ -949,10 +929,7 @@ async function confirmAccountOnHive(
     return false
   }
 
-  const updated = await updateAccountBlockchainStatus(
-    username,
-    BLOCKCHAIN_STATUS.CONFIRMED
-  )
+  const updated = await confirmCompletedAttemptAccount(correlationId)
   if (!updated) {
     logger.error(
       `[${correlationId}] Hive confirmed ${username} but DB status update failed`

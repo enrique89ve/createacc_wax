@@ -1,6 +1,7 @@
 import { execute } from '@/lib/database'
 import {
   CREATION_ATTEMPT_STATUS,
+  HIVE_TX_MODE_VALUES,
   OPEN_CREATION_ATTEMPT_STATUSES,
   WAX_STATUS,
   type CreationAttemptStatus,
@@ -13,6 +14,7 @@ import {
   type HiveWaxPipelineStatus,
 } from '@/types/hive-transaction'
 import type { ExpectedAccountKeys } from '@/lib/hive-account-authorities'
+import type { TicketFundingSource } from '@/types/database'
 
 export interface CreationAttemptKeys extends ExpectedAccountKeys {}
 
@@ -21,6 +23,8 @@ export interface CreationAttempt {
   readonly username: string
   readonly ticket: string
   readonly ticketId: number
+  readonly fundingSource: TicketFundingSource
+  readonly ownerBuilderUsername: string | null
   readonly status: CreationAttemptStatus
   readonly keys: CreationAttemptKeys
   readonly transactionId: string | null
@@ -35,6 +39,8 @@ export interface ReserveCreationAttemptInput {
   readonly username: string
   readonly ticket: string
   readonly ticketId: number
+  readonly fundingSource: TicketFundingSource
+  readonly ownerBuilderUsername: string | null
   readonly keys: CreationAttemptKeys
   readonly executionMode: HiveExecutionMode
 }
@@ -45,7 +51,9 @@ export interface PreparedAttemptSnapshot {
 }
 
 function sqliteBool(value: unknown): boolean {
-  return value === 1 || value === true || value === '1'
+  if (value === 1 || value === true || value === '1') return true
+  if (value === 0 || value === false || value === '0') return false
+  throw new Error('Invalid SQLite boolean on creation attempt')
 }
 
 function parseAttemptStatus(value: unknown): CreationAttemptStatus {
@@ -57,7 +65,16 @@ function parseAttemptStatus(value: unknown): CreationAttemptStatus {
     return CREATION_ATTEMPT_STATUS.COMPLETED
   if (value === CREATION_ATTEMPT_STATUS.ROLLED_BACK)
     return CREATION_ATTEMPT_STATUS.ROLLED_BACK
-  return CREATION_ATTEMPT_STATUS.RESERVED
+  if (value === CREATION_ATTEMPT_STATUS.RESERVED)
+    return CREATION_ATTEMPT_STATUS.RESERVED
+  throw new Error('Invalid status on creation attempt')
+}
+
+function requiredAttemptText(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Invalid ${field} on creation attempt`)
+  }
+  return value
 }
 
 export function normalizeAttemptTicket(ticket: string): string {
@@ -80,21 +97,70 @@ export function isAttemptStale(updatedAt: string, staleMs: number): boolean {
 }
 
 function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
+  const correlationId = requiredAttemptText(
+    row.correlation_id,
+    'correlation_id'
+  )
+  const username = requiredAttemptText(row.username, 'username')
+  const ticket = requiredAttemptText(row.ticket, 'ticket')
+  const ticketId = Number(row.ticket_id)
+  const executionMode = row.execution_mode
+  const transactionId =
+    typeof row.transaction_id === 'string' ? row.transaction_id : null
+  const keys: CreationAttemptKeys = {
+    ownerPublicKey: requiredAttemptText(
+      row.owner_public_key,
+      'owner_public_key'
+    ),
+    activePublicKey: requiredAttemptText(
+      row.active_public_key,
+      'active_public_key'
+    ),
+    postingPublicKey: requiredAttemptText(
+      row.posting_public_key,
+      'posting_public_key'
+    ),
+    memoPublicKey: requiredAttemptText(row.memo_public_key, 'memo_public_key'),
+  }
+  const updatedAt = requiredAttemptText(row.updated_at, 'updated_at')
+  if (!Number.isSafeInteger(ticketId) || ticketId < 1) {
+    throw new Error('Invalid ticket_id on creation attempt')
+  }
+  if (
+    executionMode !== HIVE_TX_MODE_VALUES.SIMULATE &&
+    executionMode !== HIVE_TX_MODE_VALUES.BROADCAST
+  ) {
+    throw new Error('Invalid execution_mode on creation attempt')
+  }
+  if (row.transaction_id !== null && typeof row.transaction_id !== 'string') {
+    throw new Error('Invalid transaction_id on creation attempt')
+  }
+
+  const fundingSource = row.funding_source
+  const ownerBuilderUsername =
+    typeof row.owner_builder_username === 'string'
+      ? row.owner_builder_username
+      : null
+  if (
+    (fundingSource !== 'builder_credits' && fundingSource !== 'system') ||
+    (fundingSource === 'builder_credits' &&
+      (!ownerBuilderUsername || ownerBuilderUsername.trim().length === 0)) ||
+    (fundingSource === 'system' && ownerBuilderUsername !== null)
+  ) {
+    throw new Error('Invalid ticket funding snapshot on creation attempt')
+  }
+
   return {
-    correlationId: String(row.correlation_id),
-    username: String(row.username),
-    ticket: String(row.ticket),
-    ticketId: Number(row.ticket_id),
+    correlationId,
+    username,
+    ticket,
+    ticketId,
+    fundingSource,
+    ownerBuilderUsername,
     status: parseAttemptStatus(row.status),
-    keys: {
-      ownerPublicKey: String(row.owner_public_key),
-      activePublicKey: String(row.active_public_key),
-      postingPublicKey: String(row.posting_public_key),
-      memoPublicKey: String(row.memo_public_key),
-    },
-    transactionId:
-      typeof row.transaction_id === 'string' ? row.transaction_id : null,
-    executionMode: parseExecutionMode(row.execution_mode),
+    keys,
+    transactionId,
+    executionMode: parseExecutionMode(executionMode),
     broadcasted: sqliteBool(row.broadcasted),
     wax: {
       validated: sqliteBool(row.wax_validated),
@@ -102,11 +168,12 @@ function parseAttemptRow(row: Record<string, unknown>): CreationAttempt {
       signed: sqliteBool(row.wax_signed),
       authorityVerified: sqliteBool(row.wax_authority_verified),
     },
-    updatedAt: typeof row.updated_at === 'string' ? row.updated_at : '',
+    updatedAt,
   }
 }
 
-const ATTEMPT_SELECT = `correlation_id, username, ticket, ticket_id, status,
+const ATTEMPT_SELECT = `correlation_id, username, ticket, ticket_id,
+			funding_source, owner_builder_username, status,
 			owner_public_key, active_public_key, posting_public_key, memo_public_key,
 			transaction_id, execution_mode, broadcasted,
 			wax_validated, wax_on_chain_verified, wax_signed, wax_authority_verified,
@@ -118,15 +185,18 @@ export async function insertReservedAttempt(
   await execute({
     sql: `INSERT INTO CreationAttempts (
 			correlation_id, username, ticket, ticket_id, status,
+			funding_source, owner_builder_username,
 			owner_public_key, active_public_key, posting_public_key, memo_public_key,
 			execution_mode
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     args: [
       input.correlationId,
       input.username,
       normalizeAttemptTicket(input.ticket),
       input.ticketId,
       CREATION_ATTEMPT_STATUS.RESERVED,
+      input.fundingSource,
+      input.ownerBuilderUsername,
       input.keys.ownerPublicKey,
       input.keys.activePublicKey,
       input.keys.postingPublicKey,
@@ -262,30 +332,19 @@ export async function markAttemptBroadcasting(
 
 export async function markAttemptCompleted(
   correlationId: string
-): Promise<void> {
-  await execute({
-    sql: `UPDATE CreationAttempts
+): Promise<boolean> {
+  const result = await execute({
+		sql: `UPDATE CreationAttempts
 			SET status = ?, updated_at = CURRENT_TIMESTAMP
-			WHERE correlation_id = ? AND status IN (?, ?, ?)`,
+			WHERE correlation_id = ? AND status IN (?, ?, ?)
+			RETURNING correlation_id`,
     args: [
       CREATION_ATTEMPT_STATUS.COMPLETED,
       correlationId,
       ...OPEN_CREATION_ATTEMPT_STATUSES,
     ],
   })
-}
-
-export async function markAttemptRecoveredOnChain(
-  correlationId: string
-): Promise<void> {
-  await execute({
-    sql: `UPDATE CreationAttempts
-			SET broadcasted = 1,
-			    status = ?,
-			    updated_at = CURRENT_TIMESTAMP
-			WHERE correlation_id = ?`,
-    args: [CREATION_ATTEMPT_STATUS.COMPLETED, correlationId],
-  })
+  return result.rows.length === 1
 }
 
 export async function markAttemptRolledBack(

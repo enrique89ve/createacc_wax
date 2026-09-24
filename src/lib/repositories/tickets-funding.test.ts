@@ -120,8 +120,6 @@ describe('ticket funding and ownership', () => {
     expect(reserved.success).toBe(true)
 
     const completed = await completeAccountCreationInDB(
-      ACCOUNT_USERNAME,
-      SYSTEM_TICKET,
       CORRELATION_ID,
       simulatedTransaction
     )

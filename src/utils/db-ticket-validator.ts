@@ -6,6 +6,7 @@ import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
 import {
   BLOCKCHAIN_STATUS,
+  CREATION_ATTEMPT_STATUS,
   HIVE_TX_MODE_VALUES,
   RC_STATUS,
   WAX_STATUS,
@@ -28,6 +29,7 @@ import {
   markAttemptCompleted,
   markAttemptRolledBack,
   waxStatusFromAttempt,
+  type CreationAttempt,
   type CreationAttemptKeys,
 } from '@/lib/creation-attempts'
 import {
@@ -245,22 +247,42 @@ export async function getAccountCreationState(
   }
 }
 
-export async function updateAccountBlockchainStatus(
-  username: string,
-  status: BlockchainStatus
+export async function confirmCompletedAttemptAccount(
+  correlationId: string
 ): Promise<boolean> {
   try {
-    const cleanUsername = sanitizeUsername(username)
-    if (!cleanUsername) return false
+    return await withTransaction(async () => {
+      const attempt = await getCreationAttempt(correlationId)
+      if (
+        !attempt ||
+        attempt.status !== CREATION_ATTEMPT_STATUS.COMPLETED ||
+        attempt.executionMode !== HIVE_TX_MODE_VALUES.BROADCAST
+      ) {
+        return false
+      }
 
-    const result = await execute({
-      sql: `UPDATE Accounts SET blockchain_status = ? WHERE username = ? RETURNING username`,
-      args: [status, cleanUsername],
+      const result = await execute({
+        sql: `UPDATE Accounts
+              SET blockchain_status = ?
+              WHERE correlation_id = ?
+                AND username = ?
+                AND ticket_id = ?
+                AND blockchain_status IN (?, ?)
+              RETURNING username`,
+        args: [
+          BLOCKCHAIN_STATUS.CONFIRMED,
+          attempt.correlationId,
+          attempt.username,
+          attempt.ticketId,
+          BLOCKCHAIN_STATUS.BROADCASTED,
+          BLOCKCHAIN_STATUS.CONFIRMED,
+        ],
+      })
+      return result.rows.length === 1
     })
-    return result.rows.length > 0
   } catch (error) {
     logger.error(
-      '[updateAccountBlockchainStatus] Failed to update status:',
+      '[confirmCompletedAttemptAccount] Failed to update status:',
       error
     )
     return false
@@ -435,11 +457,18 @@ export async function reserveTicketCredit(
         }
       }
 
+      const reservedTicket = parseTicketRow(updateResult.rows[0])
+      if (!reservedTicket) {
+        throw new Error('Reserved ticket row has an invalid funding snapshot')
+      }
+
       await insertReservedAttempt({
         correlationId,
         username: cleanUsername,
         ticket: cleanTicketCode,
-        ticketId: Number(updateResult.rows[0].id),
+        ticketId: reservedTicket.id,
+        fundingSource: reservedTicket.funding_source,
+        ownerBuilderUsername: reservedTicket.owner_builder_username,
         keys: input.keys,
         executionMode: input.executionMode,
       })
@@ -463,14 +492,12 @@ export async function reserveTicketCredit(
  * Restores the credit that was previously deducted by reserveTicketCredit().
  */
 export async function rollbackTicketReservation(
-  ticketCode: string,
   correlationId: string
 ): Promise<DBOperationResult> {
-  const cleanTicketCode = sanitizeTicketCode(ticketCode)
-  if (!cleanTicketCode) {
+  if (typeof correlationId !== 'string' || correlationId.length === 0) {
     return {
       success: false,
-      error: 'Invalid ticket format',
+      error: 'Creation attempt ID is required',
       errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
       correlationId,
     }
@@ -478,41 +505,74 @@ export async function rollbackTicketReservation(
 
   try {
     return await withTransaction(async () => {
+      const attempt = await getCreationAttempt(correlationId)
+      if (!attempt) {
+        return {
+          success: false,
+          error: 'Creation attempt not found',
+          errorCode: DATABASE_ERROR_CODES.NOT_FOUND,
+          correlationId,
+        }
+      }
+      if (attempt.status === CREATION_ATTEMPT_STATUS.ROLLED_BACK) {
+        return { success: true, correlationId }
+      }
+      if (attempt.status === CREATION_ATTEMPT_STATUS.COMPLETED) {
+        return {
+          success: false,
+          error: 'Creation attempt is already completed',
+          errorCode: DATABASE_ERROR_CODES.RACE_CONDITION,
+          correlationId,
+        }
+      }
+
       const marked = await markAttemptRolledBack(correlationId)
       if (!marked) {
-        logger.warn(`[${correlationId}] Rollback skipped: attempt is not open`)
-        return { success: true, correlationId }
+        throw new Error('ATTEMPT_TRANSITION_LOST')
       }
 
       const result = await execute({
         sql: `UPDATE Tickets
               SET remaining_uses = remaining_uses + 1,
                   updated_at = CURRENT_TIMESTAMP
-              WHERE code = ?
+              WHERE id = ?
+                AND code = ?
+                AND funding_source = ?
+                AND owner_builder_username IS ?
+                AND archived_at IS NULL
+                AND remaining_uses < total_uses - retired_uses
               RETURNING id`,
-        args: [cleanTicketCode],
+        args: [
+          attempt.ticketId,
+          attempt.ticket,
+          attempt.fundingSource,
+          attempt.ownerBuilderUsername,
+        ],
       })
 
-      if (result.rows.length === 0) {
-        logger.error(
-          `[${correlationId}] CRITICAL: Failed to rollback ticket ${cleanTicketCode} - not found`
-        )
-        return {
-          success: false,
-          error: 'Ticket not found for rollback',
-          errorCode: VALIDATION_ERROR_CODES.TICKET_NOT_FOUND,
-          correlationId,
-        }
+      if (result.rows.length !== 1) {
+        throw new Error('TICKET_RESTORE_CONFLICT')
       }
 
       logger.warn(
-        `[${correlationId}] Ticket ${obfuscateTicket(ticketCode)} credit rolled back for this attempt`
+        `[${correlationId}] Ticket ${obfuscateTicket(attempt.ticket)} use restored for this attempt`
       )
       return { success: true, correlationId }
     })
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
+    if (
+      errorMessage === 'ATTEMPT_TRANSITION_LOST' ||
+      errorMessage === 'TICKET_RESTORE_CONFLICT'
+    ) {
+      return {
+        success: false,
+        error: 'Creation attempt lost the rollback transition race',
+        errorCode: DATABASE_ERROR_CODES.RACE_CONDITION,
+        correlationId,
+      }
+    }
     logger.error(
       `[${correlationId}] CRITICAL: Ticket rollback failed: ${errorMessage}`
     )
@@ -577,7 +637,7 @@ function withHiveMatchedStatus(
 
 async function accountRowForCompletion(
   transactionResult: HiveTransactionResult | undefined,
-  correlationId: string | undefined,
+  attempt: CreationAttempt,
   options?: CompleteAccountOptions
 ): Promise<{
   executionMode: string
@@ -587,19 +647,19 @@ async function accountRowForCompletion(
 }> {
   const hiveMatched = options?.hiveMatched
   if (transactionResult) {
+    if (transactionResult.mode !== attempt.executionMode) {
+      throw new Error('TRANSACTION_MODE_MISMATCH')
+    }
+    if (
+      attempt.transactionId !== null &&
+      transactionResult.id !== attempt.transactionId
+    ) {
+      throw new Error('TRANSACTION_ID_MISMATCH')
+    }
     return withHiveMatchedStatus(
       accountRowFromTransaction(transactionResult),
       hiveMatched
     )
-  }
-
-  if (!correlationId) {
-    throw new Error('Creation attempt is required to complete an account')
-  }
-
-  const attempt = await getCreationAttempt(correlationId)
-  if (!attempt) {
-    throw new Error('Creation attempt not found')
   }
 
   if (!attempt.transactionId) {
@@ -632,62 +692,92 @@ async function accountRowForCompletion(
 }
 
 export async function completeAccountCreationInDB(
-  username: string,
-  ticketCode: string,
-  correlationId?: string,
+  correlationId: string,
   transactionResult?: HiveTransactionResult,
   options?: CompleteAccountOptions
 ): Promise<DBOperationResult> {
-  const cleanUsername = sanitizeUsername(username)
-  if (!cleanUsername) {
+  if (typeof correlationId !== 'string' || correlationId.length === 0) {
     return {
       success: false,
-      error: 'Invalid username format',
-      errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
-      correlationId,
-    }
-  }
-
-  const cleanTicketCode = sanitizeTicketCode(ticketCode)
-  if (!cleanTicketCode) {
-    return {
-      success: false,
-      error: 'Invalid ticket format',
+      error: 'Creation attempt ID is required',
       errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
       correlationId,
     }
   }
 
   try {
-    await withTransaction(async () => {
-      const attempt = correlationId
-        ? await getCreationAttempt(correlationId)
-        : null
-      if (
-        correlationId &&
-        (attempt?.ticket !== cleanTicketCode ||
-          attempt.username !== cleanUsername)
-      ) {
-        throw new Error('ATTEMPT_TICKET_MISMATCH')
+    return await withTransaction(async () => {
+      const attempt = await getCreationAttempt(correlationId)
+      if (!attempt) throw new Error('ATTEMPT_NOT_FOUND')
+
+      if (attempt.status === CREATION_ATTEMPT_STATUS.COMPLETED) {
+        const completedAccount = await execute({
+          sql: `SELECT username, ticket, ticket_id, builder_username,
+                       execution_mode, blockchain_status, transaction_id
+                FROM Accounts WHERE correlation_id = ?`,
+          args: [correlationId],
+        })
+        const row = completedAccount.rows[0]
+        const expectedTransactionId =
+          transactionResult?.id ?? attempt.transactionId
+        const expectedStatus = options?.hiveMatched
+          ? BLOCKCHAIN_STATUS.CONFIRMED
+          : transactionResult
+            ? blockchainStatusFromTransaction(transactionResult)
+            : attempt.executionMode === HIVE_TX_MODE_VALUES.SIMULATE
+              ? BLOCKCHAIN_STATUS.SIMULATED
+              : attempt.broadcasted
+                ? BLOCKCHAIN_STATUS.BROADCASTED
+                : BLOCKCHAIN_STATUS.FAILED
+        const statusMatches =
+          row?.blockchain_status === expectedStatus ||
+          (options?.hiveMatched === true &&
+            (row?.blockchain_status === BLOCKCHAIN_STATUS.BROADCASTED ||
+              row?.blockchain_status === BLOCKCHAIN_STATUS.CONFIRMED))
+        if (
+          completedAccount.rows.length === 1 &&
+          row.username === attempt.username &&
+          row.ticket === attempt.ticket &&
+          Number(row.ticket_id) === attempt.ticketId &&
+          (typeof row.builder_username === 'string'
+            ? row.builder_username
+            : null) === attempt.ownerBuilderUsername &&
+          row.execution_mode === attempt.executionMode &&
+          statusMatches &&
+          (typeof row.transaction_id === 'string' ? row.transaction_id : null) ===
+            expectedTransactionId
+        ) {
+          return { success: true, correlationId }
+        }
+        throw new Error('COMPLETED_ATTEMPT_ACCOUNT_MISSING')
       }
+      if (attempt.status === CREATION_ATTEMPT_STATUS.ROLLED_BACK) {
+        throw new Error('ATTEMPT_ALREADY_ROLLED_BACK')
+      }
+
       const ticketInfo = await execute({
-        sql: `SELECT id, code, funding_source, owner_builder_username FROM Tickets WHERE ${attempt ? 'id = ?' : 'code = ?'}`,
-        args: [attempt ? attempt.ticketId : cleanTicketCode],
+        sql: `SELECT id, code, funding_source, owner_builder_username FROM Tickets WHERE id = ?`,
+        args: [attempt.ticketId],
       })
 
       const ticket = ticketInfo.rows[0]
-      if (!ticket || ticket.code !== cleanTicketCode) {
-        throw new Error('TICKET_NOT_FOUND')
-      }
-      const creatorUsername =
-        ticket.funding_source === 'builder_credits' &&
-        typeof ticket.owner_builder_username === 'string'
+      if (
+        !ticket ||
+        ticket.code !== attempt.ticket ||
+        ticket.funding_source !== attempt.fundingSource ||
+        (typeof ticket.owner_builder_username === 'string'
           ? ticket.owner_builder_username
-          : null
+          : null) !== attempt.ownerBuilderUsername
+      ) {
+        throw new Error('ATTEMPT_TICKET_SNAPSHOT_MISMATCH')
+      }
+
+      const transitioned = await markAttemptCompleted(correlationId)
+      if (!transitioned) throw new Error('ATTEMPT_TRANSITION_LOST')
 
       const accountMeta = await accountRowForCompletion(
         transactionResult,
-        correlationId,
+        attempt,
         options
       )
 
@@ -700,14 +790,14 @@ export async function completeAccountCreationInDB(
                 )
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
           args: [
-            cleanUsername,
-            cleanTicketCode,
-            Number(ticket.id),
-            creatorUsername,
+            attempt.username,
+            attempt.ticket,
+            attempt.ticketId,
+            attempt.ownerBuilderUsername,
             accountMeta.executionMode,
             accountMeta.blockchainStatus,
             accountMeta.transactionId,
-            correlationId ?? null,
+            correlationId,
             accountMeta.waxStatus,
             RC_STATUS.PENDING,
             0,
@@ -723,19 +813,16 @@ export async function completeAccountCreationInDB(
         throw accountError
       }
 
-      if (creatorUsername) {
+      if (attempt.ownerBuilderUsername) {
         await creditsService.markCreditsAsConsumed(
-          creatorUsername,
+          attempt.ownerBuilderUsername,
           1,
-          cleanUsername
+          attempt.username
         )
       }
 
-      if (correlationId) {
-        await markAttemptCompleted(correlationId)
-      }
+      return { success: true, correlationId }
     })
-    return { success: true, correlationId }
   } catch (error) {
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error'
@@ -749,11 +836,27 @@ export async function completeAccountCreationInDB(
       }
     }
 
-    if (errorMessage === 'ATTEMPT_TICKET_MISMATCH') {
+    if (errorMessage === 'ATTEMPT_NOT_FOUND') {
       return {
         success: false,
-        error: 'Creation attempt does not match the requested ticket',
-        errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+        error: 'Creation attempt not found',
+        errorCode: DATABASE_ERROR_CODES.NOT_FOUND,
+        correlationId,
+      }
+    }
+
+    if (
+      errorMessage === 'ATTEMPT_ALREADY_ROLLED_BACK' ||
+      errorMessage === 'ATTEMPT_TRANSITION_LOST' ||
+      errorMessage === 'ATTEMPT_TICKET_SNAPSHOT_MISMATCH' ||
+      errorMessage === 'TRANSACTION_MODE_MISMATCH' ||
+      errorMessage === 'TRANSACTION_ID_MISMATCH' ||
+      errorMessage === 'COMPLETED_ATTEMPT_ACCOUNT_MISSING'
+    ) {
+      return {
+        success: false,
+        error: 'Creation attempt cannot be completed in its current state',
+        errorCode: DATABASE_ERROR_CODES.RACE_CONDITION,
         correlationId,
       }
     }

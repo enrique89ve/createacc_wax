@@ -3,13 +3,14 @@ import { initializeDatabase, db } from '@/lib/database'
 import { hiveAuthEmail } from '@/lib/auth-user'
 import {
   blockchainStatusFromTransaction,
+  accountExistsInDB,
+  confirmCompletedAttemptAccount,
   completeAccountCreationInDB,
   enqueueReconciliation,
   getAccountCreationState,
   getPendingReconciliations,
   reserveTicketCredit,
   rollbackTicketReservation,
-  updateAccountBlockchainStatus,
 } from '@/utils/db-ticket-validator'
 import {
   findOpenCreationAttempt,
@@ -124,8 +125,6 @@ describe('simulation DB completion', () => {
     expect(reserved.success).toBe(true)
 
     const completed = await completeAccountCreationInDB(
-      username,
-      TICKET,
       'corr-1',
       simulatedTx('tx-sim-1')
     )
@@ -170,8 +169,6 @@ describe('simulation DB completion', () => {
       HIVE_TX_MODE_VALUES.BROADCAST
     )
     const completed = await completeAccountCreationInDB(
-      username,
-      TICKET,
       'corr-live',
       liveTx
     )
@@ -199,11 +196,11 @@ describe('simulation DB completion', () => {
     expect(successes).toHaveLength(1)
     const failed = [first, second].find(result => !result.success)
     if (failed?.correlationId) {
-      await rollbackTicketReservation(TICKET, failed.correlationId)
+      await rollbackTicketReservation(failed.correlationId)
     }
     const winner = successes[0]
     if (winner?.correlationId) {
-      await rollbackTicketReservation(TICKET, winner.correlationId)
+      await rollbackTicketReservation(winner.correlationId)
     }
   })
 
@@ -215,13 +212,18 @@ describe('simulation DB completion', () => {
     const username = `failu${Date.now().toString(36)}`
     await reserveTicketCredit(reserveInput('corr-fail', username))
     const completed = await completeAccountCreationInDB(
-      '',
-      TICKET,
       'corr-fail',
-      simulatedTx('tx-fail')
+      {
+        ...simulatedTx('tx-fail'),
+        mode: HIVE_TX_MODE_VALUES.BROADCAST,
+        broadcasted: true,
+      }
     )
     expect(completed.success).toBe(false)
-    await rollbackTicketReservation(TICKET, 'corr-fail')
+    expect(await getCreationAttempt('corr-fail')).toMatchObject({
+      status: 'reserved',
+    })
+    await rollbackTicketReservation('corr-fail')
     await enqueueReconciliation({
       correlationId: 'corr-fail',
       username: 'nobody',
@@ -249,7 +251,7 @@ describe('simulation DB completion', () => {
       args: [TICKET],
     })
     expect(Number(mid.rows[0]?.remaining_uses)).toBe(2)
-    const rolled = await rollbackTicketReservation(TICKET, 'corr-wax')
+    const rolled = await rollbackTicketReservation('corr-wax')
     expect(rolled.success).toBe(true)
     const after = await db.execute({
       sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
@@ -261,7 +263,7 @@ describe('simulation DB completion', () => {
     })
   })
 
-  it('duplicate username does not consume a second credit', async () => {
+  it('completion replay returns the original result without a second credit consumption', async () => {
     await db.execute({
       sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
@@ -270,35 +272,110 @@ describe('simulation DB completion', () => {
     expect(
       (await reserveTicketCredit(reserveInput('corr-dup-1', username))).success
     ).toBe(true)
+    const first = await completeAccountCreationInDB(
+      'corr-dup-1',
+      simulatedTx('tx-dup-1')
+    )
+    expect(first.success).toBe(true)
+    const replay = await completeAccountCreationInDB(
+      'corr-dup-1',
+      simulatedTx('tx-dup-1')
+    )
+    expect(replay.success).toBe(true)
     expect(
       (
         await completeAccountCreationInDB(
-          username,
-          TICKET,
           'corr-dup-1',
-          simulatedTx('tx-dup-1')
+          simulatedTx('tx-dup-other')
         )
       ).success
-    ).toBe(true)
+    ).toBe(false)
+    expect((await rollbackTicketReservation('corr-dup-1')).success).toBe(false)
 
-    const other = `dupo${Date.now().toString(36)}`
-    expect(
-      (await reserveTicketCredit(reserveInput('corr-dup-2', other))).success
-    ).toBe(true)
-    const second = await completeAccountCreationInDB(
-      username,
-      TICKET,
-      'corr-dup-2',
-      simulatedTx('tx-dup-2')
-    )
-    expect(second.success).toBe(false)
-    await rollbackTicketReservation(TICKET, 'corr-dup-2')
+    const accounts = await db.execute({
+      sql: 'SELECT COUNT(*) AS count FROM Accounts WHERE correlation_id = ?',
+      args: ['corr-dup-1'],
+    })
+    expect(Number(accounts.rows[0]?.count)).toBe(1)
+    const credits = await db.execute({
+      sql: 'SELECT total_consumed FROM Credits WHERE hive_username = ?',
+      args: [BUILDER_USERNAME],
+    })
+    expect(Number(credits.rows[0]?.total_consumed)).toBeGreaterThan(0)
 
     const ticket = await db.execute({
       sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,
       args: [TICKET],
     })
     expect(Number(ticket.rows[0]?.remaining_uses)).toBe(2)
+  })
+
+  it('completion and rollback race produce exactly one terminal result', async () => {
+    await db.execute({
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
+      args: [TICKET],
+    })
+    const username = `race${Date.now().toString(36)}`
+    expect(
+      (await reserveTicketCredit(reserveInput('corr-race', username))).success
+    ).toBe(true)
+
+    const [completed, rolledBack] = await Promise.all([
+      completeAccountCreationInDB('corr-race', simulatedTx('tx-race')),
+      rollbackTicketReservation('corr-race'),
+    ])
+    expect([completed.success, rolledBack.success].filter(Boolean)).toHaveLength(
+      1
+    )
+
+    const attempt = await getCreationAttempt('corr-race')
+    const account = await db.execute({
+      sql: 'SELECT COUNT(*) AS count FROM Accounts WHERE correlation_id = ?',
+      args: ['corr-race'],
+    })
+    const ticket = await db.execute({
+      sql: 'SELECT remaining_uses FROM Tickets WHERE code = ?',
+      args: [TICKET],
+    })
+    if (attempt?.status === 'completed') {
+      expect(completed.success).toBe(true)
+      expect(rolledBack.success).toBe(false)
+      expect(Number(account.rows[0]?.count)).toBe(1)
+      expect(Number(ticket.rows[0]?.remaining_uses)).toBe(2)
+    } else {
+      expect(attempt?.status).toBe('rolled_back')
+      expect(completed.success).toBe(false)
+      expect(rolledBack.success).toBe(true)
+      expect(Number(account.rows[0]?.count)).toBe(0)
+      expect(Number(ticket.rows[0]?.remaining_uses)).toBe(3)
+    }
+  })
+
+  it('a late completion cannot reverse a prior rollback', async () => {
+    await db.execute({
+      sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
+      args: [TICKET],
+    })
+    const username = `late${Date.now().toString(36)}`
+    expect(
+      (await reserveTicketCredit(reserveInput('corr-late', username))).success
+    ).toBe(true)
+    expect((await rollbackTicketReservation('corr-late')).success).toBe(true)
+
+    const lateCompletion = await completeAccountCreationInDB(
+      'corr-late',
+      simulatedTx('tx-late')
+    )
+    expect(lateCompletion.success).toBe(false)
+    expect(await getCreationAttempt('corr-late')).toMatchObject({
+      status: 'rolled_back',
+    })
+    expect(await accountExistsInDB(username)).toBe(false)
+    const ticket = await db.execute({
+      sql: 'SELECT remaining_uses FROM Tickets WHERE code = ?',
+      args: [TICKET],
+    })
+    expect(Number(ticket.rows[0]?.remaining_uses)).toBe(3)
   })
 
   it('Hive confirmation upgrades broadcasted to confirmed from persisted state', async () => {
@@ -308,7 +385,11 @@ describe('simulation DB completion', () => {
     })
     const username = `confu${Date.now().toString(36)}`
     expect(
-      (await reserveTicketCredit(reserveInput('corr-conf', username))).success
+      (
+        await reserveTicketCredit(
+          reserveInput('corr-conf', username, HIVE_TX_MODE_VALUES.BROADCAST)
+        )
+      ).success
     ).toBe(true)
     const liveTx: HiveTransactionResult = {
       ...simulatedTx('tx-conf-1'),
@@ -316,15 +397,14 @@ describe('simulation DB completion', () => {
       broadcasted: true,
     }
     expect(
-      (await completeAccountCreationInDB(username, TICKET, 'corr-conf', liveTx))
-        .success
+      (await completeAccountCreationInDB('corr-conf', liveTx)).success
     ).toBe(true)
     expect((await getAccountCreationState(username))?.blockchainStatus).toBe(
       BLOCKCHAIN_STATUS.BROADCASTED
     )
 
     expect(
-      await updateAccountBlockchainStatus(username, BLOCKCHAIN_STATUS.CONFIRMED)
+      await confirmCompletedAttemptAccount('corr-conf')
     ).toBe(true)
     const persisted = await getAccountCreationState(username)
     expect(persisted?.blockchainStatus).toBe(BLOCKCHAIN_STATUS.CONFIRMED)
@@ -343,8 +423,15 @@ describe('simulation DB completion', () => {
     })
     const username = `hivm${Date.now().toString(36)}`
     expect(
-      (await reserveTicketCredit(reserveInput('corr-hive-match', username)))
-        .success
+      (
+        await reserveTicketCredit(
+          reserveInput(
+            'corr-hive-match',
+            username,
+            HIVE_TX_MODE_VALUES.BROADCAST
+          )
+        )
+      ).success
     ).toBe(true)
     await persistAttemptPreparation('corr-hive-match', {
       id: 'tx-timeout-1',
@@ -356,8 +443,6 @@ describe('simulation DB completion', () => {
       },
     })
     const completed = await completeAccountCreationInDB(
-      username,
-      TICKET,
       'corr-hive-match',
       {
         ...simulatedTx('tx-timeout-1'),
@@ -396,7 +481,7 @@ describe('simulation DB completion', () => {
       (await reserveTicketCredit(reserveInput('corr-stale-2', username)))
         .success
     ).toBe(true)
-    await rollbackTicketReservation(TICKET, 'corr-stale-2')
+    await rollbackTicketReservation('corr-stale-2')
   })
 
   it('ties a reserved credit to this username and keys, not the ticket counter', async () => {
@@ -444,7 +529,7 @@ describe('simulation DB completion', () => {
     })
     const attempt = await getCreationAttempt('corr-reserved')
     expect(attempt?.transactionId).toBe('prepared-tx-1')
-    await rollbackTicketReservation(TICKET, 'corr-reserved')
+    await rollbackTicketReservation('corr-reserved')
   })
 
   it('refuses to mark broadcasting after the attempt lost ownership', async () => {
@@ -465,7 +550,7 @@ describe('simulation DB completion', () => {
         authorityVerified: true,
       },
     })
-    expect((await rollbackTicketReservation(TICKET, 'corr-cas')).success).toBe(
+    expect((await rollbackTicketReservation('corr-cas')).success).toBe(
       true
     )
     expect(await markAttemptBroadcasting('corr-cas')).toBe(false)
@@ -474,31 +559,33 @@ describe('simulation DB completion', () => {
     })
   })
 
-  it('keeps the attempt open if Hive-matched DB complete fails', async () => {
+  it('persists Hive-matched completion using the attempt identity', async () => {
     await db.execute({
       sql: `UPDATE Tickets SET remaining_uses = 3 WHERE code = ?`,
       args: [TICKET],
     })
     const username = `open${Date.now().toString(36)}`
     expect(
-      (await reserveTicketCredit(reserveInput('corr-open', username))).success
+      (
+        await reserveTicketCredit(
+          reserveInput('corr-open', username, HIVE_TX_MODE_VALUES.BROADCAST)
+        )
+      ).success
     ).toBe(true)
     const { persistHiveMatchedAccount } = await import(
       '@/lib/confirm-broadcasted'
     )
     const attempt = await getCreationAttempt('corr-open')
     expect(attempt).not.toBeNull()
-    expect(
-      await persistHiveMatchedAccount({
-        username: '',
-        ticket: TICKET,
-        correlationId: 'corr-open',
-        attempt: attempt!,
-      })
-    ).toBe(false)
+    expect(await persistHiveMatchedAccount(attempt!)).toBe(true)
     expect(await getCreationAttempt('corr-open')).toMatchObject({
-      status: 'reserved',
+      status: 'completed',
     })
-    await rollbackTicketReservation(TICKET, 'corr-open')
+    const account = await db.execute({
+      sql: 'SELECT username, ticket_id FROM Accounts WHERE correlation_id = ?',
+      args: ['corr-open'],
+    })
+    expect(account.rows[0]?.username).toBe(username)
+    expect(Number(account.rows[0]?.ticket_id)).toBe(attempt?.ticketId)
   })
 })

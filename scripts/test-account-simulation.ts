@@ -253,8 +253,6 @@ async function runCreatePipeline(): Promise<void> {
     )
 
     const dbResult = await completeAccountCreationInDB(
-      fixture.username,
-      fixture.ticket,
       fixture.correlationId,
       tx
     )
@@ -319,10 +317,7 @@ async function runWaxFailureRollback(): Promise<void> {
       'failed WAX must leave the attempt reserved'
     )
 
-    const rolled = await rollbackTicketReservation(
-      fixture.ticket,
-      fixture.correlationId
-    )
+    const rolled = await rollbackTicketReservation(fixture.correlationId)
     assert(rolled.success, rolled.error ?? 'rollback failed')
     assert(
       (await ticketUses(fixture.ticket)) === 3,

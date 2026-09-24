@@ -123,7 +123,6 @@ async function reconcileEntry(
       if (recovered.kind !== 'recovered') {
         if (recovered.kind === 'foreign_account') {
           const rollbackResult = await rollbackTicketReservation(
-            ticketCode,
             correlationId
           )
           if (!rollbackResult.success) {
@@ -143,12 +142,7 @@ async function reconcileEntry(
         return
       }
 
-      const persisted = await persistHiveMatchedAccount({
-        username,
-        ticket: ticketCode,
-        correlationId,
-        attempt,
-      })
+      const persisted = await persistHiveMatchedAccount(attempt)
       if (!persisted) {
         await markReconciliationFailed(id, 'Hive-matched persist failed')
         return
@@ -162,7 +156,6 @@ async function reconcileEntry(
 
     // 5. status='not_found' is the only branch allowed to rollback credits
     const rollbackResult = await rollbackTicketReservation(
-      ticketCode,
       correlationId
     )
     if (!rollbackResult.success) {
