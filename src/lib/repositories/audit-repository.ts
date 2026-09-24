@@ -11,11 +11,14 @@
  * - Activity statistics
  */
 
-import { execute } from '@/lib/database'
+import { execute, executeWrite } from '@/lib/database'
 import type {
+  AuditAction,
+  CreateTicketAuditData,
   DatabaseTicketAuditRow,
   DatabaseCreditAuditRow,
 } from '@/types/database'
+import { isAuditAction, isAuditActorType } from '@/types/database'
 
 /**
  * Ticket audit log with information about the user who performed the action
@@ -34,12 +37,51 @@ export interface CreditAuditLog extends DatabaseCreditAuditRow {
   readonly performed_by_role: string | null
 }
 
+function nullableNumber(value: unknown): number | null {
+  return value === null || value === undefined ? null : Number(value)
+}
+
+function mapTicketAuditLog(row: Record<string, unknown>): TicketAuditLog {
+  if (!isAuditAction(row.action) || !isAuditActorType(row.actor_type)) {
+    throw new Error('Invalid ticket audit row contract')
+  }
+  const actorId = String(row.actor_id)
+  return {
+    id: Number(row.id),
+    ticket: String(row.ticket),
+    ticket_id: Number(row.ticket_id),
+    action: row.action,
+    actor_type: row.actor_type,
+    actor_id: actorId,
+    delta: nullableNumber(row.delta),
+    before_uses: nullableNumber(row.before_uses),
+    after_uses: nullableNumber(row.after_uses),
+    before_state:
+      typeof row.before_state === 'string' ? row.before_state : null,
+    after_state: typeof row.after_state === 'string' ? row.after_state : null,
+    operation_reference: String(row.operation_reference),
+    performed_by:
+      typeof row.performed_by === 'string' ? row.performed_by : null,
+    timestamp: String(row.timestamp),
+    performed_by_username:
+      typeof row.performed_by_username === 'string'
+        ? row.performed_by_username
+        : row.actor_type === 'builder'
+          ? actorId
+          : null,
+    performed_by_role:
+      typeof row.performed_by_role === 'string'
+        ? row.performed_by_role
+        : row.actor_type,
+  }
+}
+
 /**
  * Filters for ticket logs search
  */
 export interface TicketAuditFilters {
   readonly ticket?: string
-  readonly action?: 'create' | 'update' | 'delete'
+  readonly action?: AuditAction
   readonly performedBy?: string
   readonly dateFrom?: string
   readonly dateTo?: string
@@ -59,17 +101,35 @@ export interface CreditAuditFilters {
 export class AuditRepository {
   // ===== TICKET AUDIT LOGS =====
 
-  async createTicketLog(data: {
-    readonly ticket: string
-    readonly action: 'create' | 'update' | 'delete'
-    readonly performed_by?: string | null
-  }): Promise<void> {
-    await execute({
+  async createTicketLog(data: CreateTicketAuditData): Promise<void> {
+    if (!Number.isSafeInteger(data.ticketId) || data.ticketId < 1) {
+      throw new Error('Ticket audit requires a valid ticket ID')
+    }
+    if (!data.operationReference.trim()) {
+      throw new Error('Ticket audit requires an operation reference')
+    }
+    await executeWrite({
       sql: `
-        INSERT INTO TicketAudit (ticket, action, performed_by)
-        VALUES (?, ?, ?)
+        INSERT INTO TicketAudit (
+          ticket, ticket_id, action, actor_type, actor_id, delta,
+          before_uses, after_uses, before_state, after_state,
+          operation_reference, performed_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
-      args: [data.ticket, data.action, data.performed_by ?? null],
+      args: [
+        data.ticket,
+        data.ticketId,
+        data.action,
+        data.actorType,
+        data.actorId,
+        data.delta ?? null,
+        data.beforeUses ?? null,
+        data.afterUses ?? null,
+        data.beforeState ? JSON.stringify(data.beforeState) : null,
+        data.afterState ? JSON.stringify(data.afterState) : null,
+        data.operationReference,
+        data.performedBy ?? (data.actorType === 'admin' ? data.actorId : null),
+      ],
     })
   }
 
@@ -95,19 +155,9 @@ export class AuditRepository {
 
       const result = await execute({ sql, args })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        ticket: String(row.ticket),
-        action: row.action as 'create' | 'update' | 'delete',
-        performed_by: row.performed_by ? String(row.performed_by) : null,
-        timestamp: String(row.timestamp),
-        performed_by_username: row.performed_by_username
-          ? String(row.performed_by_username)
-          : null,
-        performed_by_role: row.performed_by_role
-          ? String(row.performed_by_role)
-          : null,
-      }))
+      return result.rows.map(row =>
+        mapTicketAuditLog(row as Record<string, unknown>)
+      )
     } catch (error) {
       throw error
     }
@@ -169,19 +219,9 @@ export class AuditRepository {
 
       const result = await execute({ sql, args })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        ticket: String(row.ticket),
-        action: row.action as 'create' | 'update' | 'delete',
-        performed_by: row.performed_by ? String(row.performed_by) : null,
-        timestamp: String(row.timestamp),
-        performed_by_username: row.performed_by_username
-          ? String(row.performed_by_username)
-          : null,
-        performed_by_role: row.performed_by_role
-          ? String(row.performed_by_role)
-          : null,
-      }))
+      return result.rows.map(row =>
+        mapTicketAuditLog(row as Record<string, unknown>)
+      )
     } catch (error) {
       throw error
     }
@@ -347,9 +387,7 @@ export class AuditRepository {
   /**
    * Get count of actions by type (tickets)
    */
-  async getTicketActionStats(): Promise<
-    Record<'create' | 'update' | 'delete', number>
-  > {
+  async getTicketActionStats(): Promise<Record<AuditAction, number>> {
     try {
       const result = await execute({
         sql: `
@@ -366,11 +404,14 @@ export class AuditRepository {
         create: 0,
         update: 0,
         delete: 0,
+        uses_adjusted: 0,
+        revoked: 0,
+        restored: 0,
+        archived: 0,
       }
 
       for (const row of result.rows) {
-        const action = row.action as 'create' | 'update' | 'delete'
-        stats[action] = Number(row.count)
+        if (isAuditAction(row.action)) stats[row.action] = Number(row.count)
       }
 
       return stats

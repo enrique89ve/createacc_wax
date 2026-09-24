@@ -57,13 +57,30 @@ export async function archiveOwnedTicket(
       await creditsService.refundCreditsFromTicket(
         ownerBuilderUsername,
         archived.retired_uses,
-        archived.code
+        archived.code,
+        `ticket:${archived.id}:archive-refund`
       )
     }
     await auditRepository.createTicketLog({
+      ticketId: archived.id,
       ticket: archived.code,
-      action: 'delete',
-      performed_by: ownerBuilderUsername,
+      action: 'archived',
+      actorType: 'builder',
+      actorId: ownerBuilderUsername,
+      delta: -archived.retired_uses,
+      beforeUses: ticket.remaining_uses,
+      afterUses: 0,
+      beforeState: {
+        archivedAt: null,
+        remainingUses: ticket.remaining_uses,
+        retiredUses: ticket.retired_uses,
+      },
+      afterState: {
+        archivedAt: archived.archived_at,
+        remainingUses: archived.remaining_uses,
+        retiredUses: archived.retired_uses,
+      },
+      operationReference: `ticket:${archived.id}:archive`,
     })
 
     return { kind: 'archived', ticket: archived }

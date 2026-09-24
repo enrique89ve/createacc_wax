@@ -3,11 +3,13 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "npm run db:init && astro dev",
+    "dev": "tsx scripts/start-dev-server.ts",
     "build": "astro build",
-    "preview": "astro preview",
+    "start": "tsx scripts/start-server.ts",
+    "preview": "pnpm start",
     "astro": "astro",
     "db:init": "tsx scripts/init-database.ts",
+    "db:diagnose": "tsx scripts/diagnose-database.ts",
     "db:reset": "rm -f holahive.db && pnpm run db:init",
     "db:seed": "tsx scripts/seed-database.ts",
     "db:quickstart": "pnpm run db:reset && pnpm run db:seed",
@@ -40,7 +42,8 @@
     "bcryptjs": "^3.0.2",
     "better-auth": "1.7.1",
     "tailwindcss": "^4.1.12",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "tsx": "^4.20.4"
   },
   "devDependencies": {
     "@types/set-cookie-parser": "^2.4.10",
@@ -52,7 +55,6 @@
     "prettier": "^3.6.2",
     "prettier-plugin-astro": "^0.14.1",
     "prettier-plugin-tailwindcss": "^0.6.14",
-    "tsx": "^4.20.4",
     "vitest": "^5.0.0"
   },
   "packageManager": "pnpm@11.22.0"

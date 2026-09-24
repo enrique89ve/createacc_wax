@@ -96,21 +96,20 @@ export const es = {
     confirmation:
       'He guardado mi Master Password y entiendo que HolaHive no puede recuperarla por mí.',
     keysSavedCheckbox: 'He verificado que mis claves están guardadas.',
-    keysAckCheckbox:
-      'Reconozco que si pierdo mis claves, pierdo la cuenta.',
+    keysAckCheckbox: 'Reconozco que si pierdo mis claves, pierdo la cuenta.',
     createAccount: 'Crear cuenta',
     creatingAccount: 'Creando cuenta...',
     downloadKeysRequired: '¡Debes descargar las claves!',
-    generateKeysError:
-      'Error al generar claves. Por favor recarga la página.',
+    generateKeysError: 'Error al generar claves. Por favor recarga la página.',
     reloadNewKeys:
       'Se generaron unas claves nuevas. Debes descargar nuevamente.',
     keysDownloadedBoth: 'Claves descargadas en TXT y PDF',
-    downloadRetryError:
-      'Error al descargar las claves. Inténtalo de nuevo.',
+    downloadRetryError: 'Error al descargar las claves. Inténtalo de nuevo.',
     verificationError: 'Error de verificación. Inténtalo de nuevo.',
     submitDisabledTitle: 'Debes descargar el archivo de claves primero',
     accountCreationFailed: 'Error al crear la cuenta: {error}',
+    creationPending:
+      'Hive aún no confirma el resultado final. Conserva esta página y las claves descargadas; vuelve a intentarlo más tarde. Referencia: {correlationId}. {error}',
     createPrefix: 'Crear',
     advancedKeys: 'Ver claves avanzadas',
   },

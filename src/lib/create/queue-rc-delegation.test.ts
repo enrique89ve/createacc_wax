@@ -17,8 +17,11 @@ import { RC_DELEGATION_AMOUNT } from '@/consts/constants'
 import { fetchRcDelegationExists } from '@/lib/hive-rc-lookup'
 import {
   applyUncertainRcLookup,
+  claimAccountRcDelegation,
   confirmExistingRcDelegation,
   processPendingRcDelegations,
+  queueRcDelegation,
+  recoverStaleRcProcessing,
   reconcileUncertainRcDelegations,
 } from '@/lib/create/queue-rc-delegation'
 import { delegateResourceCredits } from '@/lib/create/delegate-rc'
@@ -42,15 +45,16 @@ async function insertUncertain(
   username: string,
   rcStatus: (typeof RC_STATUS)[keyof typeof RC_STATUS] = RC_STATUS.UNCERTAIN
 ): Promise<void> {
-	await db.execute({
-		sql: `INSERT INTO Accounts (
+  await db.execute({
+    sql: `INSERT INTO Accounts (
 			username, ticket, ticket_id, builder_username, execution_mode, blockchain_status, rc_status, rc_delegated
-		) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-		args: [
-			username,
-			TICKET,
-			ticketId,
-			'sim-builder',
+			, rc_lease_token, rc_lease_expires_at, rc_lease_generation
+		) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ${rcStatus === RC_STATUS.PROCESSING ? `'test-lease-${username}'` : 'NULL'}, ${rcStatus === RC_STATUS.PROCESSING ? `datetime('now', '+120 seconds')` : 'NULL'}, ${rcStatus === RC_STATUS.PROCESSING ? '1' : '0'})`,
+    args: [
+      username,
+      TICKET,
+      ticketId,
+      'sim-builder',
       HIVE_TX_MODE_VALUES.BROADCAST,
       BLOCKCHAIN_STATUS.CONFIRMED,
       rcStatus,
@@ -128,14 +132,14 @@ describe('uncertain RC recovery', () => {
     })
   })
 
-  it('absent delegation returns to pending for retry', async () => {
+  it('absent delegation remains uncertain and does not authorize a retry', async () => {
     const username = `rcuab${RUN}`
     await insertUncertain(username)
     expect(
       await applyUncertainRcLookup(username, { status: 'not_found' })
-    ).toBe('retry')
+    ).toBe('hold')
     expect(await rcRow(username)).toEqual({
-      rcStatus: RC_STATUS.PENDING,
+      rcStatus: RC_STATUS.UNCERTAIN,
       rcDelegated: 0,
     })
   })
@@ -189,7 +193,7 @@ describe('uncertain RC recovery', () => {
     })
 
     const resolved = await reconcileUncertainRcDelegations()
-    expect(resolved).toBeGreaterThanOrEqual(2)
+    expect(resolved).toBe(1)
     expect(await rcRow(exact)).toMatchObject({ rcStatus: RC_STATUS.DELEGATED })
     expect(await rcRow(mismatch)).toMatchObject({
       rcStatus: RC_STATUS.UNCERTAIN,
@@ -198,9 +202,7 @@ describe('uncertain RC recovery', () => {
       rcStatus: RC_STATUS.UNCERTAIN,
     })
     const absentRow = await rcRow(absent)
-    expect([RC_STATUS.PENDING, RC_STATUS.PROCESSING]).toContain(
-      absentRow.rcStatus
-    )
+    expect(absentRow.rcStatus).toBe(RC_STATUS.UNCERTAIN)
   })
 })
 
@@ -237,43 +239,66 @@ describe('durable RC worker', () => {
     })
   })
 
-  it('counts a stale recovery and delegation once', async () => {
+  it('moves expired processing to uncertain without a blind second broadcast', async () => {
     process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.BROADCAST
     const username = `rcstale${RUN}`
     await insertUncertain(username, RC_STATUS.PROCESSING)
     await db.execute({
       sql: `UPDATE Accounts
-            SET rc_updated_at = datetime('now', '-10 minutes')
+            SET rc_lease_expires_at = datetime('now', '-10 minutes')
             WHERE username = ?`,
       args: [username],
     })
-    delegate.mockResolvedValue({
-      id: 'rc-stale-tx',
-      mode: HIVE_TX_MODE_VALUES.BROADCAST,
-      broadcasted: true,
-      wax: {
-        validated: true,
-        onChainVerified: true,
-        signed: true,
-        authorityVerified: true,
-      },
-      requiredAuthorities: {},
-      signaturePublicKeys: ['STM7public'],
+
+    expect(await processPendingRcDelegations()).toBe(0)
+    expect(delegate).not.toHaveBeenCalled()
+    expect(await rcRow(username)).toEqual({
+      rcStatus: RC_STATUS.UNCERTAIN,
+      rcDelegated: 0,
+    })
+  })
+
+  it('a stale worker cannot mark a newer RC lease delegated', async () => {
+    process.env.HIVE_TX_MODE = HIVE_TX_MODE_VALUES.BROADCAST
+    const username = `rcfence${RUN}`
+    await insertUncertain(username, RC_STATUS.PENDING)
+    const lease = await claimAccountRcDelegation(username)
+    expect(lease).not.toBeNull()
+    delegate.mockImplementation(async () => {
+      await db.execute({
+        sql: `UPDATE Accounts SET rc_lease_expires_at = datetime('now', '-1 second') WHERE username = ?`,
+        args: [username],
+      })
+      expect(await recoverStaleRcProcessing()).toBe(1)
+      return {
+        id: 'rc-late-tx',
+        mode: HIVE_TX_MODE_VALUES.BROADCAST,
+        broadcasted: true,
+        wax: {
+          validated: true,
+          onChainVerified: true,
+          signed: true,
+          authorityVerified: true,
+        },
+        requiredAuthorities: {},
+        signaturePublicKeys: ['STM7public'],
+      }
     })
 
-    expect(await processPendingRcDelegations()).toBe(1)
-    expect(delegate).toHaveBeenCalledTimes(1)
+    await queueRcDelegation(username, HIVE_TX_MODE_VALUES.BROADCAST, lease!)
     expect(await rcRow(username)).toEqual({
-      rcStatus: RC_STATUS.DELEGATED,
-      rcDelegated: 1,
+      rcStatus: RC_STATUS.UNCERTAIN,
+      rcDelegated: 0,
     })
+    expect(await processPendingRcDelegations()).toBe(0)
+    expect(delegate).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('RC_DELEGATION_EXISTS', () => {
   it('marks delegated only when Hive amount is exact', async () => {
     const username = `rcex${RUN}`
-    await insertUncertain(username, RC_STATUS.PROCESSING)
+    await insertUncertain(username)
     fetchLookup.mockResolvedValue({
       status: 'found',
       delegatedRc: BigInt(RC_DELEGATION_AMOUNT),
@@ -287,7 +312,7 @@ describe('RC_DELEGATION_EXISTS', () => {
 
   it('keeps uncertain when Hive amount mismatches', async () => {
     const username = `rcmm${RUN}`
-    await insertUncertain(username, RC_STATUS.PROCESSING)
+    await insertUncertain(username)
     fetchLookup.mockResolvedValue({ status: 'mismatch', delegatedRc: 1n })
     await confirmExistingRcDelegation(username)
     expect(await rcRow(username)).toEqual({

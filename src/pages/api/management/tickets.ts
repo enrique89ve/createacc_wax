@@ -20,10 +20,8 @@ import type { CreateTicketResponse } from '@/types/api-contracts'
 import { logger } from '@/lib/logger'
 import { auditRepository } from '@/lib/repositories/audit-repository'
 import { withTransaction } from '@/lib/database'
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
+import { isUniqueConstraintViolation } from '@/lib/database-errors'
+import { parseJsonObject } from '@/utils/http-input'
 
 // GET: List tickets (admin sees all)
 export const GET: APIRoute = async context => {
@@ -71,29 +69,25 @@ export const POST: APIRoute = async context => {
     }
 
     try {
-      let payload: unknown
-      try {
-        payload = await context.request.json()
-      } catch {
+      const body = await parseJsonObject(context.request)
+      if (!body) {
         return apiError(
           API_MESSAGES.ERRORS.INVALID_REQUEST,
           HTTP_STATUS.BAD_REQUEST
         )
       }
 
-      const body = isRecord(payload) ? payload : null
-
-      const codeValidation = validateTicketName(body?.code)
+      const codeValidation = validateTicketName(body.code)
       if (!isValidationSuccess(codeValidation)) {
         return apiError(codeValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
 
-      const usesValidation = validateTicketUses(body?.uses)
+      const usesValidation = validateTicketUses(body.uses)
       if (!isValidationSuccess(usesValidation)) {
         return apiError(usesValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
 
-      const descriptionValidation = validateTicketDescription(body?.description)
+      const descriptionValidation = validateTicketDescription(body.description)
       if (!isValidationSuccess(descriptionValidation)) {
         return apiError(
           descriptionValidation.error.message,
@@ -123,9 +117,19 @@ export const POST: APIRoute = async context => {
         })
 
         await auditRepository.createTicketLog({
+          ticketId: ticket.id,
           ticket: ticket.code,
           action: 'create',
-          performed_by: session.userId,
+          actorType: 'admin',
+          actorId: session.userId,
+          afterUses: ticket.remaining_uses,
+          afterState: {
+            fundingSource: 'system',
+            ownerBuilderUsername: null,
+            issuerAdminId: session.userId,
+          },
+          operationReference: `ticket:${ticket.id}:create`,
+          performedBy: session.userId,
         })
 
         return ticket
@@ -140,7 +144,7 @@ export const POST: APIRoute = async context => {
 
       return apiSuccess(response, HTTP_STATUS.CREATED)
     } catch (error) {
-      if (error instanceof Error && /unique constraint/i.test(error.message)) {
+      if (isUniqueConstraintViolation(error)) {
         return apiError(
           API_MESSAGES.ERRORS.TICKET_ALREADY_EXISTS,
           HTTP_STATUS.CONFLICT

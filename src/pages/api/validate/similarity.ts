@@ -1,5 +1,5 @@
 import type { APIRoute } from 'astro'
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import {
   findSimilarUsernames,
   isWithinTimeRange,
@@ -52,7 +52,7 @@ export const POST: APIRoute = async context => {
     )
     const timeLimitStr = timeLimit.toISOString().slice(0, 19).replace('T', ' ')
 
-    const result = await db.execute({
+    const result = await execute({
       sql: `
 				SELECT username, creation_date
 				FROM Accounts

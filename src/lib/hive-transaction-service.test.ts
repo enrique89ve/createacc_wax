@@ -38,6 +38,7 @@ function createTxMock(): IOnlineTransaction {
     addSignature: vi.fn(),
     isSigned: () => true,
     signatureKeys: ['STM7public'],
+    transaction: { expiration: '2030-01-01T00:00:00' },
     generateAuthorityVerificationTrace: vi.fn().mockResolvedValue({
       verificationStatus: { entryAccepted: true, isOpenAuthority: false },
     }),

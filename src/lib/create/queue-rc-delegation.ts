@@ -11,8 +11,12 @@ import {
   HiveBroadcastAttemptError,
   unwrapBroadcastError,
 } from '@/lib/hive-broadcaster'
-import { RC_DELEGATION_AMOUNT, RC_DELEGATION_CONFIG } from '@/consts/constants'
-import { db } from '@/lib/database'
+import {
+  RC_DELEGATION_AMOUNT,
+  RC_DELEGATION_CONFIG,
+  RECONCILIATION_CONFIG,
+} from '@/consts/constants'
+import { execute } from '@/lib/database'
 import {
   BLOCKCHAIN_STATUS,
   HIVE_TX_MODE_VALUES,
@@ -26,81 +30,140 @@ import {
   type RcDelegationLookup,
 } from '@/lib/hive-rc-lookup'
 
-async function markRcDelegated(username: string): Promise<void> {
-  await db.execute({
+export interface RcDelegationLease {
+  readonly username: string
+  readonly token: string
+  readonly generation: number
+}
+
+const RC_LEASE_DURATION_SECONDS = Math.max(
+  1,
+  Math.floor(RC_DELEGATION_CONFIG.PROCESSING_STALE_MS / 1000)
+)
+
+async function markRcDelegated(lease: RcDelegationLease): Promise<boolean> {
+  const result = await execute({
     sql: `UPDATE Accounts
-			SET rc_status = ?, rc_delegated = 1, rc_updated_at = CURRENT_TIMESTAMP
-			WHERE username = ? AND rc_status IN (?, ?)`,
+          SET rc_status = ?, rc_delegated = 1, rc_updated_at = CURRENT_TIMESTAMP,
+              rc_lease_token = NULL, rc_lease_expires_at = NULL
+          WHERE username = ? AND rc_status = ? AND rc_lease_token = ?
+            AND rc_lease_generation = ? AND rc_lease_expires_at > CURRENT_TIMESTAMP
+          RETURNING username`,
     args: [
       RC_STATUS.DELEGATED,
-      username,
+      lease.username,
       RC_STATUS.PROCESSING,
-      RC_STATUS.UNCERTAIN,
+      lease.token,
+      lease.generation,
     ],
   })
+  return result.rows.length === 1
 }
 
-async function releaseRcProcessing(username: string): Promise<void> {
-  await db.execute({
+async function releaseRcProcessing(lease: RcDelegationLease): Promise<boolean> {
+  const result = await execute({
     sql: `UPDATE Accounts
-			SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP
-			WHERE username = ? AND rc_status = ?`,
-    args: [RC_STATUS.PENDING, username, RC_STATUS.PROCESSING],
+          SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP,
+              rc_lease_token = NULL, rc_lease_expires_at = NULL
+          WHERE username = ? AND rc_status = ? AND rc_lease_token = ?
+            AND rc_lease_generation = ? AND rc_lease_expires_at > CURRENT_TIMESTAMP
+          RETURNING username`,
+    args: [
+      RC_STATUS.PENDING,
+      lease.username,
+      RC_STATUS.PROCESSING,
+      lease.token,
+      lease.generation,
+    ],
   })
+  return result.rows.length === 1
 }
 
-async function markRcUncertain(username: string): Promise<void> {
-  await db.execute({
+async function markRcUncertain(lease: RcDelegationLease): Promise<boolean> {
+  const result = await execute({
     sql: `UPDATE Accounts
-			SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP
-			WHERE username = ? AND rc_status = ?`,
-    args: [RC_STATUS.UNCERTAIN, username, RC_STATUS.PROCESSING],
+          SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP,
+              rc_lease_token = NULL, rc_lease_expires_at = NULL
+          WHERE username = ? AND rc_status = ? AND rc_lease_token = ?
+            AND rc_lease_generation = ? AND rc_lease_expires_at > CURRENT_TIMESTAMP
+          RETURNING username`,
+    args: [
+      RC_STATUS.UNCERTAIN,
+      lease.username,
+      RC_STATUS.PROCESSING,
+      lease.token,
+      lease.generation,
+    ],
   })
+  return result.rows.length === 1
+}
+
+async function markObservedRcDelegated(username: string): Promise<boolean> {
+  const result = await execute({
+    sql: `UPDATE Accounts
+          SET rc_status = ?, rc_delegated = 1, rc_updated_at = CURRENT_TIMESTAMP
+          WHERE username = ? AND rc_status = ? AND rc_lease_token IS NULL
+          RETURNING username`,
+    args: [RC_STATUS.DELEGATED, username, RC_STATUS.UNCERTAIN],
+  })
+  return result.rows.length === 1
 }
 
 async function processClaimedRcDelegation(
-  username: string,
+  lease: RcDelegationLease,
   executionMode: HiveExecutionMode
 ): Promise<void> {
   try {
     const result = await delegateResourceCredits(
       {
-        delegatee: username,
+        delegatee: lease.username,
         maxRc: RC_DELEGATION_AMOUNT,
       },
       executionMode
     )
-    await markRcDelegated(username)
+    if (!(await markRcDelegated(lease))) {
+      logger.warn(
+        `[rc-delegation] Stale lease could not close completed Hive operation for ${lease.username}; reconciliation will inspect Hive.`
+      )
+      return
+    }
     logger.info(
-      `[rc-delegation] Delegated RC to ${username} broadcast=${result.broadcasted} tx=${result.id}`
+      `[rc-delegation] Delegated RC to ${lease.username} broadcast=${result.broadcasted} tx=${result.id}`
     )
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : 'Unknown error'
     const analyzed = analyzeWaxError(unwrapBroadcastError(error))
     if (analyzed.code === AppErrorCode.RC_DELEGATION_EXISTS) {
-      await confirmExistingRcDelegation(username)
+      await confirmExistingRcDelegation(lease.username, lease)
       return
     }
     if (error instanceof HiveBroadcastAttemptError) {
-      await markRcUncertain(username)
+      const marked = await markRcUncertain(lease)
       logger.warn(
-        `[rc-delegation] Broadcast already attempted for ${username}: ${errMsg}. Marked uncertain.`
+        `[rc-delegation] Broadcast already attempted for ${lease.username}; uncertain=${marked}: ${errMsg}`
       )
       return
     }
-    await releaseRcProcessing(username)
+    const released = await releaseRcProcessing(lease)
     logger.error(
-      `[rc-delegation] Delegation for ${username} remains pending: ${errMsg}`
+      `[rc-delegation] Delegation for ${lease.username} remains ${released ? 'pending' : 'owned by a newer worker'}: ${errMsg}`
     )
   }
 }
 
 export async function queueRcDelegation(
   username: string,
-  executionMode: HiveExecutionMode = getHiveExecutionMode()
+  executionMode: HiveExecutionMode = getHiveExecutionMode(),
+  lease?: RcDelegationLease
 ): Promise<void> {
   if (executionMode === HIVE_TX_MODE_VALUES.BROADCAST) {
-    await processClaimedRcDelegation(username, executionMode)
+    if (!lease || lease.username !== username) {
+      logger.error(
+        `[rc-delegation] Refusing broadcast without a matching database lease for ${username}`
+      )
+      return
+    }
+    await processClaimedRcDelegation(lease, executionMode)
     return
   }
   try {
@@ -114,60 +177,61 @@ export async function queueRcDelegation(
 }
 
 export async function confirmExistingRcDelegation(
-  username: string
+  username: string,
+  lease?: RcDelegationLease
 ): Promise<void> {
   const lookup = await fetchRcDelegationExists(username)
   if (lookup.status === 'found') {
-    await markRcDelegated(username)
+    const marked = lease
+      ? await markRcDelegated(lease)
+      : await markObservedRcDelegated(username)
     logger.info(
-      `[rc-delegation] Hive RC matches expected amount for ${username} (${lookup.delegatedRc.toString()})`
+      `[rc-delegation] Hive RC matches expected amount for ${username} (${lookup.delegatedRc.toString()}); persisted=${marked}`
     )
     return
   }
-  await markRcUncertain(username)
+  if (lease) await markRcUncertain(lease)
   logger.warn(
-    `[rc-delegation] RC exists on Hive but is not the expected amount for ${username}: ${lookup.status}`
+    `[rc-delegation] RC is not confirmed at the expected amount for ${username}: ${lookup.status}`
   )
 }
 
 export async function applyUncertainRcLookup(
   username: string,
   lookup: RcDelegationLookup
-): Promise<'delegated' | 'retry' | 'hold'> {
-  if (lookup.status === 'found') {
-    await markRcDelegated(username)
-    return 'delegated'
-  }
-  if (lookup.status === 'not_found') {
-    await db.execute({
-      sql: `UPDATE Accounts
-            SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP
-            WHERE username = ? AND rc_status = ?`,
-      args: [RC_STATUS.PENDING, username, RC_STATUS.UNCERTAIN],
-    })
-    return 'retry'
-  }
-  return 'hold'
+): Promise<'delegated' | 'hold'> {
+  if (lookup.status !== 'found') return 'hold'
+  return (await markObservedRcDelegated(username)) ? 'delegated' : 'hold'
 }
 
 export async function claimAccountRcDelegation(
   username: string
-): Promise<boolean> {
-  const result = await db.execute({
+): Promise<RcDelegationLease | null> {
+  const token = crypto.randomUUID()
+  const result = await execute({
     sql: `UPDATE Accounts
-			SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP
-			WHERE username = ?
-			  AND rc_status = ?
-			  AND blockchain_status = ?
-			RETURNING username`,
+          SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP,
+              rc_lease_token = ?,
+              rc_lease_expires_at = datetime('now', '+' || ? || ' seconds'),
+              rc_lease_generation = rc_lease_generation + 1
+          WHERE username = ? AND rc_status = ? AND blockchain_status = ?
+          RETURNING username, rc_lease_generation`,
     args: [
       RC_STATUS.PROCESSING,
+      token,
+      RC_LEASE_DURATION_SECONDS,
       username,
       RC_STATUS.PENDING,
       BLOCKCHAIN_STATUS.CONFIRMED,
     ],
   })
-  return result.rows.length > 0
+  const row = result.rows[0]
+  if (!row || typeof row.username !== 'string') return null
+  const generation = Number(row.rc_lease_generation)
+  if (!Number.isSafeInteger(generation) || generation < 1) {
+    throw new Error('Invalid claimed RC delegation lease')
+  }
+  return { username: row.username, token, generation }
 }
 
 export async function claimAndQueueConfirmedRc(
@@ -175,24 +239,20 @@ export async function claimAndQueueConfirmedRc(
   executionMode: HiveExecutionMode = getHiveExecutionMode()
 ): Promise<boolean> {
   if (executionMode !== HIVE_TX_MODE_VALUES.BROADCAST) return false
-  const claimed = await claimAccountRcDelegation(username)
-  if (!claimed) return false
-  await queueRcDelegation(username, executionMode)
+  const lease = await claimAccountRcDelegation(username)
+  if (!lease) return false
+  await queueRcDelegation(username, executionMode, lease)
   return true
 }
 
 export async function recoverStaleRcProcessing(): Promise<number> {
-  const staleSeconds = Math.max(
-    1,
-    Math.floor(RC_DELEGATION_CONFIG.PROCESSING_STALE_MS / 1000)
-  )
-  const result = await db.execute({
+  const result = await execute({
     sql: `UPDATE Accounts
-          SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP
-          WHERE rc_status = ?
-            AND rc_updated_at <= datetime('now', '-' || ? || ' seconds')
+          SET rc_status = ?, rc_updated_at = CURRENT_TIMESTAMP,
+              rc_lease_token = NULL, rc_lease_expires_at = NULL
+          WHERE rc_status = ? AND rc_lease_expires_at <= CURRENT_TIMESTAMP
           RETURNING username`,
-    args: [RC_STATUS.PENDING, RC_STATUS.PROCESSING, staleSeconds],
+    args: [RC_STATUS.UNCERTAIN, RC_STATUS.PROCESSING],
   })
   return result.rows.length
 }
@@ -202,48 +262,52 @@ export async function processPendingRcDelegations(): Promise<number> {
   if (executionMode !== HIVE_TX_MODE_VALUES.BROADCAST) return 0
 
   await recoverStaleRcProcessing()
-  const pending = await db.execute({
+  const pending = await execute({
     sql: `SELECT username FROM Accounts
           WHERE rc_status = ? AND blockchain_status = ?
-          ORDER BY rc_updated_at ASC`,
-    args: [RC_STATUS.PENDING, BLOCKCHAIN_STATUS.CONFIRMED],
+          ORDER BY rc_updated_at ASC, id ASC
+          LIMIT ?`,
+    args: [
+      RC_STATUS.PENDING,
+      BLOCKCHAIN_STATUS.CONFIRMED,
+      RECONCILIATION_CONFIG.BATCH_SIZE,
+    ],
   })
 
   let processed = 0
   for (const row of pending.rows) {
     const username = String(row.username)
-    const claimed = await claimAccountRcDelegation(username)
-    if (!claimed) continue
-    await queueRcDelegation(username, executionMode)
+    const lease = await claimAccountRcDelegation(username)
+    if (!lease) continue
+    await queueRcDelegation(username, executionMode, lease)
     processed += 1
   }
   return processed
 }
 
 export async function listUncertainRcUsernames(): Promise<string[]> {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT username FROM Accounts
-			WHERE rc_status = ? AND blockchain_status = ?`,
-    args: [RC_STATUS.UNCERTAIN, BLOCKCHAIN_STATUS.CONFIRMED],
+          WHERE rc_status = ? AND blockchain_status = ?
+          ORDER BY rc_updated_at ASC, id ASC
+          LIMIT ?`,
+    args: [
+      RC_STATUS.UNCERTAIN,
+      BLOCKCHAIN_STATUS.CONFIRMED,
+      RECONCILIATION_CONFIG.BATCH_SIZE,
+    ],
   })
   return result.rows.map(row => String(row.username))
 }
 
 export async function reconcileUncertainRcDelegations(): Promise<number> {
-  const executionMode = getHiveExecutionMode()
+  await recoverStaleRcProcessing()
   const usernames = await listUncertainRcUsernames()
   let resolved = 0
   for (const username of usernames) {
     const lookup = await fetchRcDelegationExists(username)
     const outcome = await applyUncertainRcLookup(username, lookup)
-    if (outcome === 'hold') continue
-    if (
-      outcome === 'retry' &&
-      executionMode === HIVE_TX_MODE_VALUES.BROADCAST
-    ) {
-      await claimAndQueueConfirmedRc(username, executionMode)
-    }
-    resolved += 1
+    if (outcome === 'delegated') resolved += 1
   }
   return resolved
 }

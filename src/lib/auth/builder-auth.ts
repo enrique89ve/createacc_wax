@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import { UserRole } from '@/lib/roles'
 import { BRAND } from '@/consts/branding'
 import { quickVerifySignature } from '@/lib/admin/auth/hive-signature-verifier'
@@ -118,7 +118,7 @@ export function checkChallengeRateLimit(clientIp: string): boolean {
 }
 
 async function isAdminUsername(username: string): Promise<boolean> {
-  const result = await db.execute({
+  const result = await execute({
     sql: 'SELECT 1 FROM "user" WHERE username = ? AND role = ? LIMIT 1',
     args: [username, UserRole.Admin],
   })
@@ -155,12 +155,12 @@ export async function createBuilderChallenge(usernameInput: string): Promise<
     nonce,
   })
 
-  await db.execute({
+  await execute({
     sql: 'DELETE FROM BuilderAuthChallenges WHERE expires_at <= ?',
     args: [Date.now()],
   })
 
-  await db.execute({
+  await execute({
     sql: `
 			INSERT INTO BuilderAuthChallenges (username, nonce_hash, message, expires_at)
 			VALUES (?, ?, ?, ?)
@@ -182,7 +182,7 @@ export async function consumeBuilderChallenge(
   usernameInput: string
 ): Promise<string | null> {
   const username = normalizeHiveUsername(usernameInput)
-  const result = await db.execute({
+  const result = await execute({
     sql: `
 			DELETE FROM BuilderAuthChallenges
 			WHERE username = ? AND expires_at > ?

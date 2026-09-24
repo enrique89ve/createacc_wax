@@ -48,4 +48,36 @@ describe('submitAccountCreation', () => {
       expect(Object.prototype.hasOwnProperty.call(parsed, field)).toBe(false)
     }
   })
+
+  it('preserves the reconciliation reference and pending outcome for HTTP 202', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              error: 'The Hive result is still pending',
+              requiresReconciliation: true,
+              correlationId: 'create-attempt-123',
+            }),
+            { status: 202 }
+          )
+      )
+    )
+
+    await expect(
+      submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+    ).resolves.toEqual({
+      success: false,
+      error: 'The Hive result is still pending',
+      requiresReconciliation: true,
+      correlationId: 'create-attempt-123',
+    })
+  })
 })

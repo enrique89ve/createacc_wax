@@ -14,6 +14,8 @@ import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditsService } from '@/lib/credits-service'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
 import { withTransaction } from '@/lib/database'
+import { isUniqueConstraintViolation } from '@/lib/database-errors'
+import { auditRepository } from '@/lib/repositories/audit-repository'
 import {
   validateTicketName,
   validateTicketUses,
@@ -22,10 +24,8 @@ import {
 import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { requireValidOrigin } from '@/utils/csrf-protection'
-import type {
-  CreateTicketRequest,
-  CreateTicketResponse,
-} from '@/types/api-contracts'
+import { parseJsonObject } from '@/utils/http-input'
+import type { CreateTicketResponse } from '@/types/api-contracts'
 
 /**
  * GET /api/builders/tickets
@@ -77,7 +77,10 @@ export const POST: APIRoute = async context => {
     }
 
     try {
-      const body: CreateTicketRequest = await context.request.json()
+      const body = await parseJsonObject(context.request)
+      if (!body) {
+        return apiError('Solicitud JSON inválida', HTTP_STATUS.BAD_REQUEST)
+      }
       const { code, uses, description } = body
 
       const codeValidation = validateTicketName(code)
@@ -87,10 +90,7 @@ export const POST: APIRoute = async context => {
 
       const usesValidation = validateTicketUses(uses)
       if (!isValidationSuccess(usesValidation)) {
-        return apiError(
-          usesValidation.error.message,
-          HTTP_STATUS.BAD_REQUEST
-        )
+        return apiError(usesValidation.error.message, HTTP_STATUS.BAD_REQUEST)
       }
 
       const descriptionValidation = validateTicketDescription(description)
@@ -127,13 +127,7 @@ export const POST: APIRoute = async context => {
       }
 
       const createdTicket = await withTransaction(async () => {
-        await creditsService.deductCreditsForTicket(
-          session.username,
-          ticketUses,
-          ticketCode
-        )
-
-        return ticketsRepository.create({
+        const ticket = await ticketsRepository.create({
           code: ticketCode,
           description: ticketDescription,
           total_uses: ticketUses,
@@ -142,6 +136,27 @@ export const POST: APIRoute = async context => {
           funding_source: 'builder_credits',
           owner_builder_username: session.username,
         })
+        const operationReference = `ticket:${ticket.id}:create`
+        await creditsService.deductCreditsForTicket(
+          session.username,
+          ticketUses,
+          ticketCode,
+          operationReference
+        )
+        await auditRepository.createTicketLog({
+          ticketId: ticket.id,
+          ticket: ticket.code,
+          action: 'create',
+          actorType: 'builder',
+          actorId: session.username,
+          afterUses: ticket.remaining_uses,
+          afterState: {
+            fundingSource: 'builder_credits',
+            ownerBuilderUsername: session.username,
+          },
+          operationReference,
+        })
+        return ticket
       })
 
       const response: CreateTicketResponse = {
@@ -151,8 +166,14 @@ export const POST: APIRoute = async context => {
         uses: createdTicket.remaining_uses,
       }
 
-      return apiSuccess(response, HTTP_STATUS.OK)
+      return apiSuccess(response, HTTP_STATUS.CREATED)
     } catch (error) {
+      if (isUniqueConstraintViolation(error)) {
+        return apiError(
+          'Ya existe un ticket con ese código',
+          HTTP_STATUS.CONFLICT
+        )
+      }
       logger.error('Error creating ticket:', error)
       return apiError(
         'Error interno del servidor',

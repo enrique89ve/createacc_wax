@@ -1,4 +1,4 @@
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import { parseTicketRow } from '@/types/database'
 
 export interface UpdateTicketUsesResultSuccess {
@@ -33,7 +33,7 @@ export async function updateTicketUses(options: {
     }
 
     // Intentar update con chequeo de no negativo
-    const result = await db.execute({
+    const result = await execute({
       sql: `UPDATE Tickets
 			      SET remaining_uses = remaining_uses + ?,
 			          total_uses = total_uses + ?,
@@ -59,7 +59,7 @@ export async function updateTicketUses(options: {
     const newUses = ticket.remaining_uses
     const oldUses = newUses - delta
 
-    await db.execute({
+    await execute({
       sql: `INSERT INTO TicketAudit (ticket, action, performed_by)
 			      VALUES (?, 'update', ?)`,
       args: [

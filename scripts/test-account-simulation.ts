@@ -14,9 +14,11 @@ import {
   rollbackTicketReservation,
 } from '@/utils/db-ticket-validator'
 import {
+  claimCreationAttempt,
   getCreationAttempt,
   persistAttemptBroadcastOutcome,
   persistAttemptPreparation,
+  type CreationAttemptLease,
 } from '@/lib/creation-attempts'
 import { HiveKeys } from '@/lib/create/get-keys'
 import {
@@ -35,7 +37,6 @@ import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 interface IsolationFixture {
   readonly ticket: string
   readonly username: string
-  readonly builderId: string
   readonly builderUsername: string
   readonly builderEmail: string
   readonly correlationId: string
@@ -53,7 +54,6 @@ function isolationIds(): IsolationFixture {
   return {
     ticket: `INTSIM${suffix.toUpperCase()}`,
     username,
-    builderId: crypto.randomUUID(),
     builderUsername,
     builderEmail: hiveAuthEmail(builderUsername),
     correlationId: `corr-${username}`,
@@ -131,7 +131,11 @@ async function cleanupOwnRecords(fixture: IsolationFixture): Promise<void> {
   })
   await db.execute({
     sql: `DELETE FROM CreditAudit WHERE hive_username = ?`,
-    args: [fixture.builderId],
+    args: [fixture.builderUsername],
+  })
+  await db.execute({
+    sql: `DELETE FROM CreationAttemptEvents WHERE ticket_id IN (SELECT id FROM Tickets WHERE code = ?)`,
+    args: [fixture.ticket],
   })
   await db.execute({
     sql: `DELETE FROM CreationAttempts WHERE ticket = ?`,
@@ -222,12 +226,13 @@ async function runCreatePipeline(): Promise<void> {
       'reserve should consume one credit'
     )
 
+    const claimedLease = await claimCreationAttempt(fixture.correlationId)
+    assert(claimedLease !== null, 'Failed to claim reserved attempt')
+    let lease: CreationAttemptLease = claimedLease
     const tx = await createAccount(params, undefined, async snapshot => {
-      const persisted = await persistAttemptPreparation(
-        fixture.correlationId,
-        snapshot
-      )
-      assert(persisted, 'Failed to persist prepared snapshot')
+      const persisted = await persistAttemptPreparation(lease, snapshot)
+      assert(persisted !== null, 'Failed to persist prepared snapshot')
+      lease = persisted
     })
     assertSimulationTx(tx)
 
@@ -245,7 +250,9 @@ async function runCreatePipeline(): Promise<void> {
       'prepared attempt must not be marked broadcasted'
     )
 
-    await persistAttemptBroadcastOutcome(fixture.correlationId, tx)
+    const persistedOutcome = await persistAttemptBroadcastOutcome(lease, tx)
+    assert(persistedOutcome !== null, 'Failed to persist transaction outcome')
+    lease = persistedOutcome
     assert(
       (await getCreationAttempt(fixture.correlationId))?.status ===
         CREATION_ATTEMPT_STATUS.PREPARED,
@@ -254,7 +261,9 @@ async function runCreatePipeline(): Promise<void> {
 
     const dbResult = await completeAccountCreationInDB(
       fixture.correlationId,
-      tx
+      tx,
+      undefined,
+      lease
     )
     assert(dbResult.success, dbResult.error ?? 'DB complete failed')
 
@@ -317,7 +326,9 @@ async function runWaxFailureRollback(): Promise<void> {
       'failed WAX must leave the attempt reserved'
     )
 
-    const rolled = await rollbackTicketReservation(fixture.correlationId)
+    const lease = await claimCreationAttempt(fixture.correlationId)
+    assert(lease !== null, 'Failed to claim failed creation attempt')
+    const rolled = await rollbackTicketReservation(fixture.correlationId, lease)
     assert(rolled.success, rolled.error ?? 'rollback failed')
     assert(
       (await ticketUses(fixture.ticket)) === 3,

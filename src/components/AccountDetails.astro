@@ -11,8 +11,7 @@ interface Props {
 
 const { username, ticket } = Astro.props
 const copy =
-  Astro.locals.messages ??
-  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <section
@@ -32,7 +31,9 @@ const copy =
       <div
         class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
       >
-        <p class="text-muted-foreground text-sm font-medium">{copy.details.accountToCreate}</p>
+        <p class="text-muted-foreground text-sm font-medium">
+          {copy.details.accountToCreate}
+        </p>
         <span
           class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-lg font-semibold"
           data-username={username}
@@ -41,7 +42,9 @@ const copy =
       </div>
       <!-- Keys Container (always visible) -->
       <div id="keys-container" class="space-y-5">
-        <p class="text-foreground mb-2 text-xs font-semibold">{copy.details.masterPasswordLabel}:</p>
+        <p class="text-foreground mb-2 text-xs font-semibold">
+          {copy.details.masterPasswordLabel}:
+        </p>
         <div class="group">
           <div
             class="border-border bg-background relative min-h-[2.5rem] overflow-hidden rounded-md border px-4 py-2 text-xs leading-relaxed transition-colors group-hover:border-gray-400"
@@ -68,7 +71,9 @@ const copy =
                 </svg>
                 <span class="sr-only">{copy.common.loading}</span>
               </div>
-              <p class="text-foreground text-sm">{copy.details.generatingKeys}</p>
+              <p class="text-foreground text-sm">
+                {copy.details.generatingKeys}
+              </p>
             </div>
             <p
               id="master-key-placeholder"
@@ -454,7 +459,10 @@ const copy =
           const copy = publicCopy().details
           this.elements.revealBtn.textContent = copy.showMasterPassword
           this.elements.revealBtn.setAttribute('aria-pressed', 'false')
-          this.elements.revealBtn.setAttribute('aria-label', copy.showMasterPassword)
+          this.elements.revealBtn.setAttribute(
+            'aria-label',
+            copy.showMasterPassword
+          )
         }
         this.state.masterKeyRevealed = false
       }
@@ -473,7 +481,10 @@ const copy =
           const copy = publicCopy().details
           this.elements.revealBtn.textContent = copy.hideMasterPassword
           this.elements.revealBtn.setAttribute('aria-pressed', 'true')
-          this.elements.revealBtn.setAttribute('aria-label', copy.hideMasterPassword)
+          this.elements.revealBtn.setAttribute(
+            'aria-label',
+            copy.hideMasterPassword
+          )
         }
         this.state.masterKeyRevealed = true
       }
@@ -510,8 +521,7 @@ const copy =
 
         const errorMessage = document.createElement('p')
         errorMessage.className = 'text-sm'
-        errorMessage.textContent =
-          publicCopy().details.generateKeysError
+        errorMessage.textContent = publicCopy().details.generateKeysError
 
         errorContainer.appendChild(errorIcon)
         errorContainer.appendChild(errorMessage)
@@ -655,7 +665,8 @@ const copy =
       private resetSubmitButton(): void {
         if (!this.elements.submitBtn) return
         this.elements.submitBtn.textContent =
-          this.elements.submitBtn.dataset.defaultLabel ?? publicCopy().details.createAccount
+          this.elements.submitBtn.dataset.defaultLabel ??
+          publicCopy().details.createAccount
         this.elements.submitBtn.disabled = false
         this.updateSubmitState()
       }
@@ -686,7 +697,8 @@ const copy =
         if (submitBtn) {
           submitBtn.disabled = true
           submitBtn.textContent =
-            submitBtn.dataset.loadingLabel ?? publicCopy().details.creatingAccount
+            submitBtn.dataset.loadingLabel ??
+            publicCopy().details.creatingAccount
         }
 
         // Resolve PoW + timing token (throws if token unavailable)
@@ -741,7 +753,13 @@ const copy =
             this.teardownSecrets()
             window.location.href = `/success/${this.state.username}`
           } else {
-            throw new Error(result.error)
+            const errorMessage = result.requiresReconciliation
+              ? interpolate(publicCopy().details.creationPending, {
+                  correlationId: result.correlationId ?? 'unavailable',
+                  error: result.error,
+                })
+              : result.error
+            throw new Error(errorMessage)
           }
         } catch (error) {
           updateStepStates(progressModal, -1, [0], 1)
@@ -752,11 +770,17 @@ const copy =
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
               'error',
-              interpolate(publicCopy().details.accountCreationFailed, { error: errorMessage }),
+              interpolate(publicCopy().details.accountCreationFailed, {
+                error: errorMessage,
+              }),
               8000
             )
           } else {
-            alert(interpolate(publicCopy().details.accountCreationFailed, { error: errorMessage }))
+            alert(
+              interpolate(publicCopy().details.accountCreationFailed, {
+                error: errorMessage,
+              })
+            )
           }
 
           this.isSubmitting = false

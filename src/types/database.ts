@@ -10,8 +10,18 @@ export { UserRole }
 
 // ===== CORE DATABASE ENUMS =====
 
-export const AUDIT_ACTIONS = ['create', 'update', 'delete'] as const
+export const AUDIT_ACTIONS = [
+  'create',
+  'update',
+  'delete',
+  'uses_adjusted',
+  'revoked',
+  'restored',
+  'archived',
+] as const
 export type AuditAction = (typeof AUDIT_ACTIONS)[number]
+export type AuditActorType = 'builder' | 'admin' | 'system'
+export type TicketAuditStateValue = string | number | boolean | null
 
 export const NOTIFICATION_TYPES = [
   'pending_credits',
@@ -135,7 +145,16 @@ export interface DatabaseAccountRow {
 export interface DatabaseTicketAuditRow {
   readonly id: number
   readonly ticket: string
+  readonly ticket_id: number
   readonly action: AuditAction
+  readonly actor_type: AuditActorType
+  readonly actor_id: string
+  readonly delta: number | null
+  readonly before_uses: number | null
+  readonly after_uses: number | null
+  readonly before_state: string | null
+  readonly after_state: string | null
+  readonly operation_reference: string
   readonly performed_by: string | null
   readonly timestamp: string
 }
@@ -303,9 +322,18 @@ export interface CreateAccountData {
  * Data required to create ticket audit entry
  */
 export interface CreateTicketAuditData {
+  readonly ticketId: number
   readonly ticket: string
   readonly action: AuditAction
-  readonly performed_by?: string | null
+  readonly actorType: AuditActorType
+  readonly actorId: string
+  readonly delta?: number | null
+  readonly beforeUses?: number | null
+  readonly afterUses?: number | null
+  readonly beforeState?: Readonly<Record<string, TicketAuditStateValue>>
+  readonly afterState?: Readonly<Record<string, TicketAuditStateValue>>
+  readonly operationReference: string
+  readonly performedBy?: string | null
 }
 
 /**
@@ -371,6 +399,10 @@ export function isAuditAction(value: unknown): value is AuditAction {
   return (
     typeof value === 'string' && AUDIT_ACTIONS.includes(value as AuditAction)
   )
+}
+
+export function isAuditActorType(value: unknown): value is AuditActorType {
+  return value === 'builder' || value === 'admin' || value === 'system'
 }
 
 /**
@@ -439,7 +471,8 @@ export function isDatabaseTicketRow(row: unknown): row is DatabaseTicketRow {
     typeof r.remaining_uses === 'number' &&
     typeof r.creator_username === 'string' &&
     (r.funding_source === 'builder_credits' || r.funding_source === 'system') &&
-    (r.owner_builder_username === null || typeof r.owner_builder_username === 'string') &&
+    (r.owner_builder_username === null ||
+      typeof r.owner_builder_username === 'string') &&
     (r.issuer_admin_id === null || typeof r.issuer_admin_id === 'string') &&
     (r.archived_at === null || typeof r.archived_at === 'string') &&
     typeof r.retired_uses === 'number' &&

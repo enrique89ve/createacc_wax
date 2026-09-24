@@ -7,7 +7,7 @@
  * - Keep auditable login attempt history
  */
 
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 
 interface RateWindowStats {
   readonly failedCount: number
@@ -97,7 +97,7 @@ async function getFailedAttemptsStats(
     throw new Error(`Invalid LoginAttempts field: ${field}`)
   }
 
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT
 				COUNT(*) as failed_count,
 				MIN(strftime('%s', attempted_at)) as oldest_attempt_unix
@@ -201,7 +201,7 @@ export async function recordLoginAttempt(
 
   const role = toSafeString(input.role ?? '', MAX_USERNAME_LENGTH, 'admin')
 
-  await db.execute({
+  await execute({
     sql: `INSERT INTO LoginAttempts (
 				username,
 				role,

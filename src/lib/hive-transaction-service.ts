@@ -31,6 +31,7 @@ export type OperationBuilder = (tx: IOnlineTransaction, account: string) => void
 
 export interface PreparedTransactionSnapshot {
   readonly id: string
+  readonly expiration: string
   readonly wax: HiveWaxPipelineStatus
   readonly requiredAuthorities: unknown
   readonly signaturePublicKeys: string[]
@@ -189,6 +190,7 @@ export class HiveTransactionService {
       if (options.onPrepared) {
         await options.onPrepared({
           id: prepared.tx.id,
+          expiration: prepared.tx.transaction.expiration,
           wax: prepared.wax,
           requiredAuthorities: prepared.requiredAuthorities,
           signaturePublicKeys: prepared.signaturePublicKeys,

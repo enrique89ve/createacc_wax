@@ -1,29 +1,21 @@
 import { logger } from '@/lib/logger'
-import {
-  BLOCKCHAIN_STATUS,
-  CREATION_ATTEMPT_STATUS,
-} from '@/consts/hive-execution'
+import { BLOCKCHAIN_STATUS } from '@/consts/hive-execution'
 import { RECONCILIATION_CONFIG } from '@/consts/constants'
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import {
   getCreationAttempt,
-  hiveTransactionFromRecoveredAttempt,
   isAttemptStale,
   listOpenCreationAttempts,
   normalizeAttemptTicket,
   type CreationAttempt,
 } from '@/lib/creation-attempts'
+import { inspectHiveCreationEvidence } from '@/lib/creation-evidence'
 import {
-  fetchHiveAccountAuthorities,
-  hiveAuthoritiesMatchExpected,
-} from '@/lib/hive-account-authorities'
-import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import {
-  confirmCompletedAttemptAccount,
-  completeAccountCreationInDB,
-  rollbackTicketReservation,
-} from '@/utils/db-ticket-validator'
-import { claimAndQueueConfirmedRc } from '@/lib/create/queue-rc-delegation'
+  persistHiveMatchedAccount,
+  reconcileCreationAttempt,
+} from '@/lib/creation-reconciler'
+
+export { persistHiveMatchedAccount } from '@/lib/creation-reconciler'
 
 export interface BroadcastedAccountRow {
   readonly username: string
@@ -31,33 +23,10 @@ export interface BroadcastedAccountRow {
   readonly ticket: string
 }
 
-export async function persistHiveMatchedAccount(
-  attempt: CreationAttempt
-): Promise<boolean> {
-  const dbResult = await completeAccountCreationInDB(
-    attempt.correlationId,
-    hiveTransactionFromRecoveredAttempt(attempt) ?? undefined,
-    { hiveMatched: true }
-  )
-  if (!dbResult.success) {
-    logger.error(
-      `[${attempt.correlationId}] Hive-matched complete failed for ${attempt.username}: ${dbResult.error}`
-    )
-    return false
-  }
-
-  if (!(await confirmCompletedAttemptAccount(attempt.correlationId))) {
-    return false
-  }
-
-  await claimAndQueueConfirmedRc(attempt.username)
-  return true
-}
-
 export async function listBroadcastedAccounts(): Promise<
   BroadcastedAccountRow[]
 > {
-  const result = await db.execute({
+  const result = await execute({
     sql: `SELECT username, correlation_id, ticket
 			FROM Accounts
       WHERE blockchain_status = ?`,
@@ -88,29 +57,25 @@ export async function confirmBroadcastedAccount(
     )
     return false
   }
-  if (attempt.username !== account.username || attempt.ticket !== account.ticket) {
+  if (
+    attempt.username !== account.username ||
+    attempt.ticket !== account.ticket
+  ) {
     logger.warn(
       `[${account.correlationId}] Broadcasted account does not match its persisted creation attempt`
     )
     return false
   }
 
-  const lookup = await fetchHiveAccountAuthorities(account.username)
-  if (lookup.status !== 'found') {
+  const evidence = await inspectHiveCreationEvidence(attempt)
+  if (evidence.kind !== 'created') {
     logger.warn(
-      `[${account.correlationId}] Hive lookup for ${account.username} was ${lookup.status}`
+      `[${account.correlationId}] ${account.username} creation evidence is ${evidence.kind}`
     )
     return false
   }
 
-  if (!hiveAuthoritiesMatchExpected(lookup.authorities, attempt.keys)) {
-    logger.warn(
-      `[${account.correlationId}] ${account.username} exists with different authorities`
-    )
-    return false
-  }
-
-  return persistHiveMatchedAccount(attempt)
+  return persistHiveMatchedAccount(attempt, evidence)
 }
 
 export async function confirmPendingBroadcastedAccounts(): Promise<number> {
@@ -123,40 +88,18 @@ export async function confirmPendingBroadcastedAccounts(): Promise<number> {
 }
 
 async function recoverStaleAttempt(attempt: CreationAttempt): Promise<void> {
-  if (
-    attempt.status === CREATION_ATTEMPT_STATUS.RESERVED ||
-    attempt.status === CREATION_ATTEMPT_STATUS.PREPARED
+  const result = await reconcileCreationAttempt(attempt.correlationId)
+  if (result.kind === 'rolled_back' || result.kind === 'completed') {
+    logger.info(
+      `[${attempt.correlationId}] Reconciled stale attempt as ${result.kind} for ${attempt.username}`
+    )
+  } else if (
+    result.kind === 'pending' ||
+    result.kind === 'review' ||
+    result.kind === 'failed'
   ) {
-    await rollbackTicketReservation(attempt.correlationId)
-    logger.info(
-      `[${attempt.correlationId}] Rolled back stale ${attempt.status} attempt for ${attempt.username}`
-    )
-    return
-  }
-
-  const recovered = await recoverOwnedAccount({
-    username: attempt.username,
-    ticket: attempt.ticket,
-    keys: attempt.keys,
-    correlationId: attempt.correlationId,
-  })
-
-  if (recovered.kind === 'recovered') {
-    await persistHiveMatchedAccount(attempt)
-    return
-  }
-
-  if (recovered.kind === 'not_found' || recovered.kind === 'foreign_account') {
-    await rollbackTicketReservation(attempt.correlationId)
-    logger.info(
-      `[${attempt.correlationId}] Rolled back stale broadcasting attempt (${recovered.kind}) for ${attempt.username}`
-    )
-    return
-  }
-
-  if (recovered.kind === 'ambiguous' || recovered.kind === 'error') {
     logger.warn(
-      `[${attempt.correlationId}] Holding stale broadcasting attempt for ${attempt.username}; Hive evidence is ${recovered.kind}`
+      `[${attempt.correlationId}] Holding stale attempt for ${attempt.username}: ${result.reason}`
     )
   }
 }

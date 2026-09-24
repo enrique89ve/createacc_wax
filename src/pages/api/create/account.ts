@@ -9,17 +9,18 @@ import {
 import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
 import {
+  getCreationAttempt,
   getOpenCreationAttemptByUsername,
   isAttemptStale,
+  claimCreationAttempt,
   markAttemptBroadcasting,
   persistAttemptBroadcastOutcome,
   persistAttemptPreparation,
+  type CreationAttemptLease,
 } from '@/lib/creation-attempts'
 import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import {
-  persistHiveMatchedAccount,
-  sameAttemptIdentity,
-} from '@/lib/confirm-broadcasted'
+import { inspectHiveCreationEvidence } from '@/lib/creation-evidence'
+import { sameAttemptIdentity } from '@/lib/confirm-broadcasted'
 import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
   CREATION_ATTEMPT_STATUS,
@@ -30,8 +31,6 @@ import {
   creationFlagsFromPersistedAccount,
   type PersistedAccountCreation,
 } from '@/lib/account-status'
-import { hiveChain } from '@/lib/hiveservice'
-import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
 import {
   isSimulationSuccess,
   type HiveTransactionResult,
@@ -49,6 +48,7 @@ import {
   confirmCompletedAttemptAccount,
   enqueueReconciliation,
 } from '@/utils/db-ticket-validator'
+import { reconcileCreationAttempt } from '@/lib/creation-reconciler'
 type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
 import { createJsonResponse } from '@/utils/errorResponse'
 import {
@@ -77,12 +77,6 @@ import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { unwrapBroadcastError } from '@/lib/hive-broadcaster'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
-import {
-  fetchHiveAccountAuthorities,
-  hiveAuthoritiesMatchExpected,
-} from '@/lib/hive-account-authorities'
-// Side-effect: auto-reconciler (also imported from middleware.ts; ES module imports are idempotent)
-import '@/lib/auto-reconciler'
 
 export type AccountCreationSuccessResponse = {
   readonly success: true
@@ -192,7 +186,8 @@ async function reclaimOpenAttemptForRetry(
     ) {
       return creationInProgressResponse(request.username, open.correlationId)
     }
-    await rollbackTicketReservation(open.correlationId)
+    const lease = await claimCreationAttempt(open.correlationId)
+    if (lease) await rollbackTicketReservation(open.correlationId, lease)
     return
   }
 
@@ -216,17 +211,38 @@ async function reclaimOpenAttemptForRetry(
   }
 
   if (recovered.kind === 'not_found') {
-    if (
-      !isAttemptStale(open.updatedAt, RECONCILIATION_CONFIG.ATTEMPT_STALE_MS)
-    ) {
-      return creationInProgressResponse(request.username, open.correlationId)
+    const evidence = await inspectHiveCreationEvidence(open)
+    if (evidence.kind === 'not_executed') {
+      const lease = await claimCreationAttempt(open.correlationId)
+      if (lease) {
+        const rolledBack = await rollbackTicketReservation(
+          open.correlationId,
+          lease
+        )
+        if (rolledBack.success) return
+      }
     }
-    await rollbackTicketReservation(open.correlationId)
-    return
+    if (evidence.kind === 'created') {
+      return (
+        (await recoverReservedHttpRetry(context, session, request)) ?? undefined
+      )
+    }
+    return failureResponse(
+      'Account creation is still being reconciled',
+      'Hive has not provided final evidence for the existing broadcast; its ticket use remains reserved.',
+      ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+      HTTP_STATUS.ACCEPTED,
+      { requiresReconciliation: true, correlationId: open.correlationId }
+    )
   }
 
   if (recovered.kind === 'foreign_account') {
-    await rollbackTicketReservation(open.correlationId)
+    return rollbackForeignAccount(
+      session.ticket,
+      open.correlationId,
+      request.username,
+      open.executionMode
+    )
   }
 }
 
@@ -544,12 +560,13 @@ async function rollbackAfterFailure(
   correlationId: string,
   username: string,
   executionMode: HiveExecutionMode,
+  lease: CreationAttemptLease,
   reason: 'ambiguous_chain_error' | 'db_completion_failed',
   errorCategory?: string,
   errorMessage?: string,
   transactionId?: string
 ): Promise<boolean> {
-  const rollbackResult = await rollbackTicketReservation(correlationId)
+  const rollbackResult = await rollbackTicketReservation(correlationId, lease)
   if (rollbackResult.success) return true
 
   if (executionMode === HIVE_TX_MODE_VALUES.SIMULATE) {
@@ -578,29 +595,39 @@ async function createAccountOnChain(
   correlationId: string,
   username: string,
   executionMode: HiveExecutionMode
-): Promise<Response | HiveTransactionResult> {
+): Promise<
+  | Response
+  | { readonly tx: HiveTransactionResult; readonly lease: CreationAttemptLease }
+> {
+  const claimedLease = await claimCreationAttempt(correlationId)
+  if (!claimedLease) return creationInProgressResponse(username, correlationId)
+  let lease: CreationAttemptLease = claimedLease
+
   try {
     const tx = await createAccount(
       params,
       { executionMode },
       async snapshot => {
-        const persisted = await persistAttemptPreparation(
-          correlationId,
-          snapshot
-        )
+        const persisted = await persistAttemptPreparation(lease, snapshot)
         if (!persisted) {
           throw new Error('Failed to persist prepared transaction snapshot')
         }
+        lease = persisted
         if (executionMode !== HIVE_TX_MODE_VALUES.SIMULATE) {
-          const marked = await markAttemptBroadcasting(correlationId)
+          const marked = await markAttemptBroadcasting(lease)
           if (!marked) {
             throw new Error('Creation attempt lost ownership before broadcast')
           }
+          lease = marked
         }
       }
     )
-    await persistAttemptBroadcastOutcome(correlationId, tx)
-    return tx
+    const persisted = await persistAttemptBroadcastOutcome(lease, tx)
+    if (!persisted) {
+      throw new Error('Creation attempt lost ownership after broadcast')
+    }
+    lease = persisted
+    return { tx, lease }
   } catch (chainError) {
     const errorInfo = analyzeWaxError(unwrapBroadcastError(chainError))
 
@@ -610,6 +637,7 @@ async function createAccountOnChain(
         correlationId,
         username,
         executionMode,
+        lease,
         'ambiguous_chain_error',
         errorInfo.category,
         errorInfo.message
@@ -623,7 +651,8 @@ async function createAccountOnChain(
         ticketCode,
         correlationId,
         username,
-        executionMode
+        executionMode,
+        lease
       )
     }
 
@@ -631,24 +660,48 @@ async function createAccountOnChain(
       logger.error(
         `[${correlationId}] On-chain failed (business): ${errorInfo.message}`
       )
-      const rollbackResult = await rollbackTicketReservation(
-        correlationId
-      )
-      if (!rollbackResult.success) {
-        logger.error(
-          `[${correlationId}] Rollback failed after business error: ${rollbackResult.error}. Enqueueing reconciliation.`
-        )
-        await enqueueReconciliation({
-          correlationId,
-          username,
-          ticketCode,
-          reason: 'ambiguous_chain_error',
-          executionMode,
-          errorCategory: errorInfo.category,
-          errorMessage: `rollback_failed: ${rollbackResult.error}`,
-        })
+      const resolution = await reconcileCreationAttempt(correlationId, {
+        lease,
+      })
+      if (
+        resolution.kind === 'rolled_back' ||
+        (resolution.kind === 'already_terminal' &&
+          resolution.status === 'rolled_back')
+      ) {
+        throw chainError
       }
-      throw chainError
+      if (
+        resolution.kind === 'completed' ||
+        (resolution.kind === 'already_terminal' &&
+          resolution.status === 'completed')
+      ) {
+        return idempotentSuccessResponse(
+          `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+          await getAccountCreationState(username)
+        )
+      }
+      const reason =
+        resolution.kind === 'pending' ||
+        resolution.kind === 'review' ||
+        resolution.kind === 'failed'
+          ? resolution.reason
+          : `Creation reconciliation result: ${resolution.kind}`
+      await enqueueReconciliation({
+        correlationId,
+        username,
+        ticketCode,
+        reason: 'ambiguous_chain_error',
+        executionMode,
+        errorCategory: errorInfo.category,
+        errorMessage: reason,
+      })
+      return failureResponse(
+        'Account creation is still being reconciled',
+        'Hive has not provided enough final evidence to close this attempt safely.',
+        ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+        HTTP_STATUS.ACCEPTED,
+        { requiresReconciliation: true, correlationId }
+      )
     }
 
     // Ambiguous (network/api/unknown): account MIGHT have been created, do NOT rollback
@@ -679,11 +732,14 @@ async function completeInDatabase(
   ticketCode: string,
   correlationId: string,
   executionMode: HiveExecutionMode,
-  tx?: HiveTransactionResult
+  tx: HiveTransactionResult | undefined,
+  lease: CreationAttemptLease
 ): Promise<Response | void> {
   const dbResult = await completeAccountCreationInDB(
     correlationId,
-    tx
+    tx,
+    undefined,
+    lease
   )
   if (dbResult.success) return
 
@@ -698,6 +754,7 @@ async function completeInDatabase(
       correlationId,
       username,
       executionMode,
+      lease,
       'db_completion_failed',
       undefined,
       dbResult.error,
@@ -754,10 +811,16 @@ async function rollbackForeignAccount(
   ticketCode: string,
   correlationId: string,
   username: string,
-  executionMode: HiveExecutionMode
+  executionMode: HiveExecutionMode,
+  existingLease?: CreationAttemptLease
 ): Promise<Response> {
-  const rollbackResult = await rollbackTicketReservation(correlationId)
-  if (!rollbackResult.success) {
+  const result = await reconcileCreationAttempt(correlationId, {
+    lease: existingLease,
+  })
+  if (
+    result.kind !== 'rolled_back' &&
+    !(result.kind === 'already_terminal' && result.status === 'rolled_back')
+  ) {
     await enqueueReconciliation({
       correlationId,
       username,
@@ -765,15 +828,36 @@ async function rollbackForeignAccount(
       reason: 'ambiguous_chain_error',
       executionMode,
       errorCategory: 'business',
-      errorMessage: `rollback_failed_after_foreign_account: ${rollbackResult.error}`,
+      errorMessage:
+        result.kind === 'pending' ||
+        result.kind === 'review' ||
+        result.kind === 'failed'
+          ? result.reason
+          : `Creation reconciliation result: ${result.kind}`,
     })
   }
+  if (
+    result.kind === 'completed' ||
+    (result.kind === 'already_terminal' && result.status === 'completed')
+  ) {
+    return idempotentSuccessResponse(
+      `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
+      await getAccountCreationState(username)
+    )
+  }
+  const rolledBack =
+    result.kind === 'rolled_back' ||
+    (result.kind === 'already_terminal' && result.status === 'rolled_back')
   return failureResponse(
-    'Account already exists on Hive',
-    'Account already exists with different authorities',
+    rolledBack
+      ? 'Account already exists on Hive'
+      : 'Account creation requires reconciliation',
+    rolledBack
+      ? 'Account already exists with different authorities'
+      : 'Current Hive state does not prove this attempt failed; its ticket use remains reserved.',
     ERROR_CODES.ACCOUNT_ALREADY_EXISTS,
-    HTTP_STATUS.CONFLICT,
-    { requiresReconciliation: !rollbackResult.success, correlationId }
+    rolledBack ? HTTP_STATUS.CONFLICT : HTTP_STATUS.ACCEPTED,
+    { requiresReconciliation: !rolledBack, correlationId }
   )
 }
 
@@ -782,8 +866,9 @@ async function handleAccountAlreadyExists(
   ticketCode: string,
   correlationId: string,
   username: string,
-  executionMode: HiveExecutionMode
-): Promise<Response | HiveTransactionResult> {
+  executionMode: HiveExecutionMode,
+  lease: CreationAttemptLease
+): Promise<Response> {
   const recovered = await recoverOwnedAccount({
     username,
     ticket: ticketCode,
@@ -800,7 +885,35 @@ async function handleAccountAlreadyExists(
     logger.info(
       `[${correlationId}] Account ${username} on Hive matches this attempt. Recovering without rollback.`
     )
-    await persistHiveMatchedAccount(recovered.attempt)
+    const reconciled = await reconcileCreationAttempt(correlationId, { lease })
+    if (
+      reconciled.kind !== 'completed' &&
+      !(
+        reconciled.kind === 'already_terminal' &&
+        reconciled.status === 'completed'
+      )
+    ) {
+      await enqueueReconciliation({
+        correlationId,
+        username,
+        ticketCode,
+        reason: 'ambiguous_chain_error',
+        executionMode,
+        errorMessage:
+          reconciled.kind === 'pending' ||
+          reconciled.kind === 'review' ||
+          reconciled.kind === 'failed'
+            ? reconciled.reason
+            : `Creation reconciliation result: ${reconciled.kind}`,
+      })
+      return failureResponse(
+        'Account creation is still being reconciled',
+        'Hive has not provided enough final evidence to close this attempt safely.',
+        ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+        HTTP_STATUS.ACCEPTED,
+        { requiresReconciliation: true, correlationId }
+      )
+    }
     const account = await getAccountCreationState(username)
     return idempotentSuccessResponse(
       `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
@@ -831,13 +944,14 @@ async function handleAccountAlreadyExists(
   }
 
   logger.warn(
-    `[${correlationId}] Account ${username} already exists and is not this attempt. Rolling back.`
+    `[${correlationId}] Account ${username} already exists; reconciling persisted transaction evidence.`
   )
   return rollbackForeignAccount(
     ticketCode,
     correlationId,
     username,
-    executionMode
+    executionMode,
+    lease
   )
 }
 
@@ -852,35 +966,49 @@ async function recoverReservedHttpRetry(
     keys: keysFromRequest(request),
   })
 
-  if (recovered.kind === 'no_attempt' || recovered.kind === 'not_found')
+  if (recovered.kind === 'no_attempt' || recovered.kind === 'not_found') {
     return null
-  if (recovered.kind === 'error' || recovered.kind === 'ambiguous') return null
-
-  if (recovered.kind === 'foreign_account') {
-    return rollbackForeignAccount(
-      session.ticket,
-      recovered.attempt.correlationId,
-      request.username,
-      recovered.attempt.executionMode
-    )
+  }
+  if (recovered.kind === 'error' || recovered.kind === 'ambiguous') {
+    return null
   }
 
   const correlationId = recovered.attempt.correlationId
-  const persisted = await persistHiveMatchedAccount(recovered.attempt)
-  if (!persisted) {
-    const dbResult = await completeInDatabase(
-      request.username,
-      session.ticket,
-      correlationId,
-      recovered.attempt.executionMode,
-      recovered.tx ?? undefined
+  const reconciled = await reconcileCreationAttempt(correlationId)
+  if (
+    reconciled.kind !== 'completed' &&
+    !(
+      reconciled.kind === 'already_terminal' &&
+      reconciled.status === 'completed'
     )
-    if (dbResult instanceof Response) return dbResult
+  ) {
+    const reason =
+      reconciled.kind === 'pending' ||
+      reconciled.kind === 'review' ||
+      reconciled.kind === 'failed'
+        ? reconciled.reason
+        : `Creation reconciliation result: ${reconciled.kind}`
+    await enqueueReconciliation({
+      correlationId,
+      username: request.username,
+      ticketCode: session.ticket,
+      reason: 'ambiguous_chain_error',
+      executionMode: recovered.attempt.executionMode,
+      errorMessage: reason,
+      transactionId: recovered.attempt.transactionId ?? undefined,
+    })
+    return failureResponse(
+      'Account creation is still being reconciled',
+      'Hive has not provided enough final evidence to close this attempt safely.',
+      ERROR_CODES.CHAIN_VERIFICATION_FAILED,
+      HTTP_STATUS.ACCEPTED,
+      { requiresReconciliation: true, correlationId }
+    )
   }
   finalizeSession(context, session)
   const chainConfirmed = true
 
-  if (recovered.tx) {
+  if (recovered.kind === 'recovered' && recovered.tx) {
     logCreationOutcome(correlationId, request.username, recovered.tx, true)
     return successResponse(
       `Account ${request.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
@@ -903,28 +1031,14 @@ async function recoverReservedHttpRetry(
 
 async function confirmAccountOnHive(
   username: string,
-  correlationId: string,
-  expectedKeys: CreationAttemptKeys
+  correlationId: string
 ): Promise<boolean> {
-  const chain = await hiveChain()
-  const lookup = await validateHiveAccountExistsWithPolling({
-    chain,
-    accountName: username,
-  })
-  if (lookup.status !== 'found') {
+  const attempt = await getCreationAttempt(correlationId)
+  if (!attempt) return false
+  const evidence = await inspectHiveCreationEvidence(attempt)
+  if (evidence.kind !== 'created') {
     logger.warn(
-      `[${correlationId}] Account ${username} broadcasted but not confirmed on Hive (${lookup.status})`
-    )
-    return false
-  }
-
-  const authorityLookup = await fetchHiveAccountAuthorities(username, chain)
-  if (
-    authorityLookup.status !== 'found' ||
-    !hiveAuthoritiesMatchExpected(authorityLookup.authorities, expectedKeys)
-  ) {
-    logger.warn(
-      `[${correlationId}] Account ${username} exists on Hive but expected authorities were not confirmed`
+      `[${correlationId}] Hive creation evidence for ${username} is ${evidence.kind}`
     )
     return false
   }
@@ -945,8 +1059,9 @@ export const POST: APIRoute = async context => {
   try {
     const clientIp = resolveClientIp(context)
     const rateLimit = checkCreationRateLimit('account', clientIp)
-    if (!rateLimit.allowed)
+    if (!rateLimit.allowed) {
       return createRateLimitResponse(rateLimit.retryAfterMs)
+    }
 
     let body: unknown
     try {
@@ -1025,14 +1140,15 @@ export const POST: APIRoute = async context => {
       )
       if (reserveResult instanceof Response) return reserveResult
 
-      const txResult = await createAccountOnChain(
+      const creation = await createAccountOnChain(
         params,
         sessionResult.ticket,
         correlationId,
         requestResult.username,
         executionMode
       )
-      if (txResult instanceof Response) return txResult
+      if (creation instanceof Response) return creation
+      const { tx: txResult, lease } = creation
 
       if (
         executionMode === HIVE_TX_MODE_VALUES.SIMULATE &&
@@ -1043,6 +1159,7 @@ export const POST: APIRoute = async context => {
           correlationId,
           requestResult.username,
           executionMode,
+          lease,
           'ambiguous_chain_error'
         )
         return failureResponse(
@@ -1063,7 +1180,8 @@ export const POST: APIRoute = async context => {
         sessionResult.ticket,
         correlationId,
         executionMode,
-        txResult
+        txResult,
+        lease
       )
       if (dbResult instanceof Response) return dbResult
 
@@ -1074,8 +1192,7 @@ export const POST: APIRoute = async context => {
       ) {
         chainConfirmed = await confirmAccountOnHive(
           requestResult.username,
-          correlationId,
-          keysFromRequest(requestResult)
+          correlationId
         )
       }
 

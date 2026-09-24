@@ -7,6 +7,7 @@ import { TIMING_FLOOR_MS } from '@/consts/pow'
 import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
 import type { PublicKeySet } from '@/types/keys'
 import type { PreSolvedBundle } from './types'
+import { isJsonObject } from '@/utils/http-input'
 
 interface ResolvedPow {
   readonly pow: PowSolution
@@ -57,7 +58,12 @@ export async function resolvePow(
 
 export type AccountCreationResult =
   | { readonly success: true; readonly transactionId: string }
-  | { readonly success: false; readonly error: string }
+  | {
+      readonly success: false
+      readonly error: string
+      readonly requiresReconciliation: boolean
+      readonly correlationId?: string
+    }
 
 /**
  * Call the account creation API endpoint.
@@ -79,11 +85,32 @@ export async function submitAccountCreation(
     }),
   })
 
-  const result = await response.json()
+  let payload: unknown
+  try {
+    payload = await response.json()
+  } catch {
+    payload = null
+  }
+  const result = isJsonObject(payload) ? payload : null
 
-  if (response.ok && result.success) {
-    return { success: true, transactionId: result.transactionId ?? '' }
+  if (response.ok && result?.success === true) {
+    return {
+      success: true,
+      transactionId:
+        typeof result.transactionId === 'string' ? result.transactionId : '',
+    }
   }
 
-  return { success: false, error: result.error || 'Error al crear la cuenta' }
+  const requiresReconciliation = result?.requiresReconciliation === true
+  return {
+    success: false,
+    error:
+      typeof result?.error === 'string'
+        ? result.error
+        : 'Error al crear la cuenta',
+    requiresReconciliation,
+    ...(requiresReconciliation && typeof result?.correlationId === 'string'
+      ? { correlationId: result.correlationId }
+      : {}),
+  }
 }

@@ -1,4 +1,4 @@
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 
 const BLOCKED_MESSAGE = 'This Hive account is blocked'
 
@@ -16,7 +16,7 @@ export async function isHiveUsernameBlocked(
   const hiveUsername = normalizeBlockedUsername(username)
   if (hiveUsername.length < 3) return false
 
-  const result = await db.execute({
+  const result = await execute({
     sql: 'SELECT 1 FROM BlockedHiveAccounts WHERE hive_username = ? LIMIT 1',
     args: [hiveUsername],
   })
@@ -33,7 +33,7 @@ export async function blockHiveUsername(params: {
     throw new Error('Hive username must be at least 3 characters')
   }
 
-  await db.execute({
+  await execute({
     sql: `
 			INSERT INTO BlockedHiveAccounts (hive_username, reason, blocked_by)
 			VALUES (?, ?, ?)
@@ -54,7 +54,7 @@ export async function unblockHiveUsername(
   const hiveUsername = normalizeBlockedUsername(username)
   if (hiveUsername.length < 3) return null
 
-  const result = await db.execute({
+  const result = await execute({
     sql: 'DELETE FROM BlockedHiveAccounts WHERE hive_username = ?',
     args: [hiveUsername],
   })

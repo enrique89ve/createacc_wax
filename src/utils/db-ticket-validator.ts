@@ -31,6 +31,7 @@ import {
   waxStatusFromAttempt,
   type CreationAttempt,
   type CreationAttemptKeys,
+  type CreationAttemptLease,
 } from '@/lib/creation-attempts'
 import {
   ALL_ERROR_CODES,
@@ -40,8 +41,10 @@ import {
   type UnifiedErrorCode,
 } from '@/consts/unified-errors'
 import {
+  RECONCILIATION_CONFIG,
   RECONCILIATION_STATUS,
   type ActionableReconciliationStatus,
+  type ReconciliationStatus,
 } from '@/consts/constants'
 
 /**
@@ -492,7 +495,8 @@ export async function reserveTicketCredit(
  * Restores the credit that was previously deducted by reserveTicketCredit().
  */
 export async function rollbackTicketReservation(
-  correlationId: string
+  correlationId: string,
+  lease?: CreationAttemptLease
 ): Promise<DBOperationResult> {
   if (typeof correlationId !== 'string' || correlationId.length === 0) {
     return {
@@ -526,7 +530,16 @@ export async function rollbackTicketReservation(
         }
       }
 
-      const marked = await markAttemptRolledBack(correlationId)
+      if (!lease || lease.correlationId !== correlationId) {
+        return {
+          success: false,
+          error: 'A current creation-attempt lease is required for rollback',
+          errorCode: DATABASE_ERROR_CODES.RACE_CONDITION,
+          correlationId,
+        }
+      }
+
+      const marked = await markAttemptRolledBack(lease)
       if (!marked) {
         throw new Error('ATTEMPT_TRANSITION_LOST')
       }
@@ -694,7 +707,8 @@ async function accountRowForCompletion(
 export async function completeAccountCreationInDB(
   correlationId: string,
   transactionResult?: HiveTransactionResult,
-  options?: CompleteAccountOptions
+  options?: CompleteAccountOptions,
+  lease?: CreationAttemptLease
 ): Promise<DBOperationResult> {
   if (typeof correlationId !== 'string' || correlationId.length === 0) {
     return {
@@ -744,8 +758,9 @@ export async function completeAccountCreationInDB(
             : null) === attempt.ownerBuilderUsername &&
           row.execution_mode === attempt.executionMode &&
           statusMatches &&
-          (typeof row.transaction_id === 'string' ? row.transaction_id : null) ===
-            expectedTransactionId
+          (typeof row.transaction_id === 'string'
+            ? row.transaction_id
+            : null) === expectedTransactionId
         ) {
           return { success: true, correlationId }
         }
@@ -753,6 +768,10 @@ export async function completeAccountCreationInDB(
       }
       if (attempt.status === CREATION_ATTEMPT_STATUS.ROLLED_BACK) {
         throw new Error('ATTEMPT_ALREADY_ROLLED_BACK')
+      }
+
+      if (!lease || lease.correlationId !== correlationId) {
+        throw new Error('ATTEMPT_LEASE_REQUIRED')
       }
 
       const ticketInfo = await execute({
@@ -772,7 +791,7 @@ export async function completeAccountCreationInDB(
         throw new Error('ATTEMPT_TICKET_SNAPSHOT_MISMATCH')
       }
 
-      const transitioned = await markAttemptCompleted(correlationId)
+      const transitioned = await markAttemptCompleted(lease)
       if (!transitioned) throw new Error('ATTEMPT_TRANSITION_LOST')
 
       const accountMeta = await accountRowForCompletion(
@@ -817,7 +836,8 @@ export async function completeAccountCreationInDB(
         await creditsService.markCreditsAsConsumed(
           attempt.ownerBuilderUsername,
           1,
-          attempt.username
+          attempt.username,
+          `creation:${correlationId}:consume`
         )
       }
 
@@ -932,7 +952,13 @@ export async function enqueueReconciliation(params: {
     await execute({
       sql: `INSERT INTO ReconciliationQueue
             (correlation_id, username, ticket_code, reason, error_category, error_message, transaction_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(correlation_id) DO UPDATE SET
+              error_category = COALESCE(excluded.error_category, ReconciliationQueue.error_category),
+              error_message = COALESCE(excluded.error_message, ReconciliationQueue.error_message),
+              transaction_id = COALESCE(excluded.transaction_id, ReconciliationQueue.transaction_id),
+              last_error = COALESCE(excluded.error_message, ReconciliationQueue.last_error)
+            WHERE ReconciliationQueue.status NOT IN (?, ?)`,
       args: [
         params.correlationId.slice(0, RECONCILIATION_MAX_TEXT_LENGTH),
         cleanUsername,
@@ -941,6 +967,8 @@ export async function enqueueReconciliation(params: {
         truncateText(params.errorCategory),
         truncateText(params.errorMessage),
         truncateText(params.transactionId),
+        RECONCILIATION_STATUS.RESOLVED,
+        RECONCILIATION_STATUS.MANUAL_REVIEW,
       ],
     })
   } catch (error) {
@@ -964,12 +992,46 @@ export interface ReconciliationEntry {
   readonly errorMessage: string | null
   readonly transactionId: string | null
   readonly createdAt: string
-  readonly status: ActionableReconciliationStatus
+  readonly status: ReconciliationStatus
+  readonly attemptCount: number
+  readonly nextAttemptAt: string
+}
+
+export interface ReconciliationLease {
+  readonly id: number
+  readonly token: string
+  readonly generation: number
   readonly attemptCount: number
 }
 
+function parseReconciliationLease(
+  row: Record<string, unknown> | undefined
+): ReconciliationLease | null {
+  if (!row) return null
+  const id = Number(row.id)
+  const generation = Number(row.lease_generation)
+  const attemptCount = Number(row.attempt_count)
+  if (
+    !Number.isSafeInteger(id) ||
+    id < 1 ||
+    typeof row.lease_token !== 'string' ||
+    !Number.isSafeInteger(generation) ||
+    generation < 1 ||
+    !Number.isSafeInteger(attemptCount) ||
+    attemptCount < 1
+  ) {
+    throw new Error('Invalid claimed reconciliation lease')
+  }
+  return {
+    id,
+    token: row.lease_token,
+    generation,
+    attemptCount,
+  }
+}
+
 /**
- * Fetch all actionable reconciliation entries (pending or failed).
+ * Fetch a bounded, fair batch that is due or has an expired worker lease.
  */
 export async function getPendingReconciliations(): Promise<
   ReconciliationEntry[]
@@ -977,11 +1039,21 @@ export async function getPendingReconciliations(): Promise<
   const result = await execute({
     sql: `SELECT id, correlation_id, username, ticket_code, reason,
                   error_category, error_message, transaction_id, created_at,
-                  status, attempt_count
+                  status, attempt_count, next_attempt_at
            FROM ReconciliationQueue
-           WHERE status IN (?, ?)
-           ORDER BY created_at ASC`,
-    args: [RECONCILIATION_STATUS.PENDING, RECONCILIATION_STATUS.FAILED],
+           WHERE (
+             status IN (?, ?) AND next_attempt_at <= CURRENT_TIMESTAMP
+           ) OR (
+             status = ? AND lease_expires_at <= CURRENT_TIMESTAMP
+           )
+           ORDER BY next_attempt_at ASC, id ASC
+           LIMIT ?`,
+    args: [
+      RECONCILIATION_STATUS.PENDING,
+      RECONCILIATION_STATUS.FAILED,
+      RECONCILIATION_STATUS.PROCESSING,
+      RECONCILIATION_CONFIG.BATCH_SIZE,
+    ],
   })
 
   return result.rows.map(row => ({
@@ -998,47 +1070,146 @@ export async function getPendingReconciliations(): Promise<
       (row.status as ActionableReconciliationStatus) ||
       RECONCILIATION_STATUS.PENDING,
     attemptCount: (row.attempt_count as number) || 0,
+    nextAttemptAt: row.next_attempt_at as string,
   }))
 }
 
 /**
- * @deprecated Broken after status-enum migration — always returns false
- * unless the entry is already in 'processing' state (requires prior claim).
- * Use claimReconciliationEntry + markReconciliationResolved instead.
+ * Fetch one unresolved item that requires an explicit operator evidence review.
+ */
+export async function getManualReviewReconciliation(
+  correlationId: string
+): Promise<ReconciliationEntry | null> {
+  const result = await execute({
+    sql: `SELECT id, correlation_id, username, ticket_code, reason,
+                 error_category, error_message, transaction_id, created_at,
+                 status, attempt_count, next_attempt_at
+          FROM ReconciliationQueue
+          WHERE correlation_id = ? AND status = ? AND resolved = FALSE
+          LIMIT 1`,
+    args: [correlationId, RECONCILIATION_STATUS.MANUAL_REVIEW],
+  })
+  const row = result.rows[0]
+  if (!row) return null
+  if (row.status !== RECONCILIATION_STATUS.MANUAL_REVIEW) {
+    throw new Error('Invalid manual review reconciliation status')
+  }
+  return {
+    id: row.id as number,
+    correlationId: row.correlation_id as string,
+    username: row.username as string,
+    ticketCode: row.ticket_code as string,
+    reason: row.reason as ReconciliationEntry['reason'],
+    errorCategory: row.error_category as string | null,
+    errorMessage: row.error_message as string | null,
+    transactionId: row.transaction_id as string | null,
+    createdAt: row.created_at as string,
+    status: RECONCILIATION_STATUS.MANUAL_REVIEW,
+    attemptCount: (row.attempt_count as number) || 0,
+    nextAttemptAt: row.next_attempt_at as string,
+  }
+}
+
+/**
+ * @deprecated Use claimReconciliationEntry and markReconciliationResolved.
  */
 export async function resolveReconciliationEntry(
   entryId: number,
   resolvedBy: string
 ): Promise<boolean> {
-  return markReconciliationResolved(entryId, resolvedBy)
+  const lease = await claimReconciliationEntry(entryId, resolvedBy)
+  return lease ? markReconciliationResolved(lease, resolvedBy) : false
 }
 
 /**
- * Atomically claim a reconciliation entry for processing.
- * Only one worker wins the claim (pending/failed → processing).
- * Increments attempt_count and records processing_since timestamp.
+ * Atomically claim due work or take over an expired lease. Every subsequent
+ * write is fenced by this token and generation.
  */
 export async function claimReconciliationEntry(
   entryId: number,
   claimedBy: string
-): Promise<boolean> {
+): Promise<ReconciliationLease | null> {
+  const token = crypto.randomUUID()
   const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
               attempt_count = attempt_count + 1,
               processing_since = CURRENT_TIMESTAMP,
-              resolved_by = ?
-          WHERE id = ? AND status IN (?, ?)
-          RETURNING id`,
+              resolved_by = ?,
+              lease_token = ?,
+              lease_expires_at = datetime('now', '+${RECONCILIATION_CONFIG.LEASE_DURATION_SECONDS} seconds'),
+              lease_generation = lease_generation + 1
+          WHERE id = ? AND (
+            (status IN (?, ?) AND next_attempt_at <= CURRENT_TIMESTAMP)
+            OR (status = ? AND lease_expires_at <= CURRENT_TIMESTAMP)
+          )
+          RETURNING id, lease_token, lease_generation, attempt_count`,
     args: [
       RECONCILIATION_STATUS.PROCESSING,
       claimedBy,
+      token,
       entryId,
       RECONCILIATION_STATUS.PENDING,
       RECONCILIATION_STATUS.FAILED,
+      RECONCILIATION_STATUS.PROCESSING,
     ],
   })
-  return result.rows.length > 0
+  return parseReconciliationLease(
+    result.rows[0] as Record<string, unknown> | undefined
+  )
+}
+
+/**
+ * Claim a manual-review item for an operator-triggered evidence recheck.
+ * The operator identity is retained in resolved_by for the eventual outcome.
+ */
+export async function claimManualReviewReconciliation(
+  entryId: number,
+  operatorId: string
+): Promise<ReconciliationLease | null> {
+  const normalizedOperatorId = operatorId.trim()
+  if (!normalizedOperatorId || normalizedOperatorId.length > 128) {
+    throw new Error('A valid operator identity is required for manual review')
+  }
+  const token = crypto.randomUUID()
+  const result = await execute({
+    sql: `UPDATE ReconciliationQueue
+          SET status = ?,
+              attempt_count = attempt_count + 1,
+              processing_since = CURRENT_TIMESTAMP,
+              resolved_by = ?,
+              lease_token = ?,
+              lease_expires_at = datetime('now', '+${RECONCILIATION_CONFIG.LEASE_DURATION_SECONDS} seconds'),
+              lease_generation = lease_generation + 1
+          WHERE id = ? AND status = ? AND resolved = FALSE
+          RETURNING id, lease_token, lease_generation, attempt_count`,
+    args: [
+      RECONCILIATION_STATUS.PROCESSING,
+      normalizedOperatorId,
+      token,
+      entryId,
+      RECONCILIATION_STATUS.MANUAL_REVIEW,
+    ],
+  })
+  return parseReconciliationLease(
+    result.rows[0] as Record<string, unknown> | undefined
+  )
+}
+
+function reconciliationLeasePredicate(lease: ReconciliationLease): {
+  readonly sql: string
+  readonly args: readonly (number | string)[]
+} {
+  return {
+    sql: `id = ? AND status = ? AND lease_token = ?
+          AND lease_generation = ? AND lease_expires_at > CURRENT_TIMESTAMP`,
+    args: [
+      lease.id,
+      RECONCILIATION_STATUS.PROCESSING,
+      lease.token,
+      lease.generation,
+    ],
+  }
 }
 
 /**
@@ -1046,9 +1217,10 @@ export async function claimReconciliationEntry(
  * Sets both status='resolved' and resolved=TRUE for backward compatibility.
  */
 export async function markReconciliationResolved(
-  entryId: number,
+  lease: ReconciliationLease,
   resolvedBy: string
 ): Promise<boolean> {
+  const predicate = reconciliationLeasePredicate(lease)
   const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
@@ -1056,15 +1228,12 @@ export async function markReconciliationResolved(
               resolved_at = CURRENT_TIMESTAMP,
               resolved_by = ?,
               last_error = NULL,
-              processing_since = NULL
-          WHERE id = ? AND status = ?
+              processing_since = NULL,
+              lease_token = NULL,
+              lease_expires_at = NULL
+          WHERE ${predicate.sql}
           RETURNING id`,
-    args: [
-      RECONCILIATION_STATUS.RESOLVED,
-      resolvedBy,
-      entryId,
-      RECONCILIATION_STATUS.PROCESSING,
-    ],
+    args: [RECONCILIATION_STATUS.RESOLVED, resolvedBy, ...predicate.args],
   })
   return result.rows.length > 0
 }
@@ -1074,78 +1243,68 @@ export async function markReconciliationResolved(
  * The entry becomes retryable in the next reconciliation cycle.
  */
 export async function markReconciliationFailed(
-  entryId: number,
+  lease: ReconciliationLease,
   errorMessage: string
 ): Promise<boolean> {
+  const predicate = reconciliationLeasePredicate(lease)
+  const exhausted = lease.attemptCount >= RECONCILIATION_CONFIG.MAX_ATTEMPTS
+  const backoffMs = Math.min(
+    RECONCILIATION_CONFIG.MAX_BACKOFF_MS,
+    RECONCILIATION_CONFIG.BASE_BACKOFF_MS *
+      2 ** Math.max(0, lease.attemptCount - 1)
+  )
+  const delaySeconds = Math.ceil(backoffMs / 1000)
   const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
+              resolved = FALSE,
               last_error = ?,
-              processing_since = NULL
-          WHERE id = ? AND status = ?
+              processing_since = NULL,
+              next_attempt_at = CASE WHEN ? = 1 THEN next_attempt_at
+                ELSE datetime('now', '+' || ? || ' seconds') END,
+              lease_token = NULL,
+              lease_expires_at = NULL
+          WHERE ${predicate.sql}
           RETURNING id`,
     args: [
-      RECONCILIATION_STATUS.FAILED,
+      exhausted
+        ? RECONCILIATION_STATUS.MANUAL_REVIEW
+        : RECONCILIATION_STATUS.FAILED,
       errorMessage.slice(0, 512),
-      entryId,
-      RECONCILIATION_STATUS.PROCESSING,
+      exhausted ? 1 : 0,
+      delaySeconds,
+      ...predicate.args,
     ],
   })
   return result.rows.length > 0
 }
 
 /**
- * Mark a claimed entry as abandoned after exceeding retry budget.
- * Terminal state: removed from actionable queue and requires manual review.
+ * Return an inconclusive operator evidence recheck to manual review without
+ * making it eligible for automatic retry.
  */
-export async function markReconciliationAbandoned(
-  entryId: number,
-  errorMessage: string
+export async function releaseManualReviewReconciliation(
+  lease: ReconciliationLease,
+  detail: string
 ): Promise<boolean> {
+  const predicate = reconciliationLeasePredicate(lease)
   const result = await execute({
     sql: `UPDATE ReconciliationQueue
           SET status = ?,
-              resolved = TRUE,
-              resolved_at = CURRENT_TIMESTAMP,
+              resolved = FALSE,
               last_error = ?,
-              processing_since = NULL
-          WHERE id = ? AND status = ?
+              processing_since = NULL,
+              lease_token = NULL,
+              lease_expires_at = NULL
+          WHERE ${predicate.sql}
           RETURNING id`,
     args: [
-      RECONCILIATION_STATUS.ABANDONED,
-      errorMessage.slice(0, 512),
-      entryId,
-      RECONCILIATION_STATUS.PROCESSING,
+      RECONCILIATION_STATUS.MANUAL_REVIEW,
+      detail.slice(0, 512),
+      ...predicate.args,
     ],
   })
   return result.rows.length > 0
-}
-
-/**
- * Reset entries stuck in 'processing' for longer than timeoutMs.
- * Called at the start of each reconciliation cycle to recover from
- * worker crashes or hangs.
- */
-export async function resetStuckProcessingEntries(
-  timeoutMs: number
-): Promise<number> {
-  const timeoutSeconds = Math.floor(timeoutMs / 1000)
-  const result = await execute({
-    sql: `UPDATE ReconciliationQueue
-          SET status = ?,
-              last_error = 'Stuck in processing (timeout)',
-              processing_since = NULL
-          WHERE status = ?
-            AND processing_since IS NOT NULL
-            AND datetime(processing_since, '+' || ? || ' seconds') <= datetime('now')
-          RETURNING id`,
-    args: [
-      RECONCILIATION_STATUS.FAILED,
-      RECONCILIATION_STATUS.PROCESSING,
-      timeoutSeconds,
-    ],
-  })
-  return result.rows.length
 }
 
 /**

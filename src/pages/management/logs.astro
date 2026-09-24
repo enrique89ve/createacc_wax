@@ -6,6 +6,7 @@ import type {
   TicketAuditLog,
   CreditAuditLog,
 } from '@/lib/repositories/audit-repository'
+import { isAuditAction } from '@/types/database'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -35,9 +36,9 @@ try {
 
   if (logType === 'tickets') {
     // Logs de tickets
-    if (actionFilter) {
+    if (isAuditAction(actionFilter)) {
       ticketLogs = await auditRepository.getTicketLogsWithFilters({
-        action: actionFilter as 'create' | 'update' | 'delete',
+        action: actionFilter,
       })
     } else {
       ticketLogs = await auditRepository.getAllTicketLogs()
@@ -101,6 +102,30 @@ function getActionBadge(action: string): {
         class: 'bg-red-500/20 text-red-400 border-red-500/30',
         label: 'Eliminado',
         icon: '🗑️',
+      }
+    case 'uses_adjusted':
+      return {
+        class: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+        label: 'Usos ajustados',
+        icon: '✏️',
+      }
+    case 'revoked':
+      return {
+        class: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+        label: 'Revocado',
+        icon: '⏸️',
+      }
+    case 'restored':
+      return {
+        class: 'bg-green-500/20 text-green-400 border-green-500/30',
+        label: 'Restaurado',
+        icon: '▶️',
+      }
+    case 'archived':
+      return {
+        class: 'bg-red-500/20 text-red-400 border-red-500/30',
+        label: 'Archivado',
+        icon: '📦',
       }
     default:
       return {

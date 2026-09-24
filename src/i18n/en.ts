@@ -48,7 +48,8 @@ export const en: Messages = {
       segmentStartLowercase: 'Each segment must start with a lowercase letter.',
       segmentOnlyAllowed:
         'Each segment can only use lowercase letters, numbers, or hyphens.',
-      segmentEndLowerOrDigit: 'Each segment must end with a letter or a number.',
+      segmentEndLowerOrDigit:
+        'Each segment must end with a letter or a number.',
       segmentTooShort: 'Each segment must have at least 3 characters.',
     },
   },
@@ -95,8 +96,7 @@ export const en: Messages = {
     confirmation:
       'I have saved my Master Password and I understand that HolaHive cannot recover it for me.',
     keysSavedCheckbox: 'I have verified that my keys are saved.',
-    keysAckCheckbox:
-      'I understand that if I lose my keys, I lose the account.',
+    keysAckCheckbox: 'I understand that if I lose my keys, I lose the account.',
     createAccount: 'Create account',
     creatingAccount: 'Creating account...',
     downloadKeysRequired: 'You must download the keys first!',
@@ -107,6 +107,8 @@ export const en: Messages = {
     verificationError: 'Verification failed. Please try again.',
     submitDisabledTitle: 'You must download the key file first',
     accountCreationFailed: 'Account creation failed: {error}',
+    creationPending:
+      'Hive has not confirmed the final status. Keep this page and your downloaded keys, then retry later. Reference: {correlationId}. {error}',
     createPrefix: 'Create',
     advancedKeys: 'View advanced keys',
   },

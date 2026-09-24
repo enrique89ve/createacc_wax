@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
+import { claimCreationAttempt } from '@/lib/creation-attempts'
 import {
   rollbackTicketReservation,
   reserveTicketCredit,
@@ -14,6 +15,10 @@ const TICKET = `ARCH${RUN.toUpperCase()}`
 const OPEN_CORRELATION = `archive-open-${RUN}`
 
 async function cleanup(): Promise<void> {
+  await db.execute({
+    sql: 'DELETE FROM CreationAttemptEvents WHERE correlation_id = ?',
+    args: [OPEN_CORRELATION],
+  })
   await db.execute({
     sql: 'DELETE FROM CreationAttempts WHERE correlation_id = ?',
     args: [OPEN_CORRELATION],
@@ -84,8 +89,10 @@ describe('archiveOwnedTicket', () => {
       archived_at: null,
     })
 
+    const lease = await claimCreationAttempt(OPEN_CORRELATION)
+    expect(lease).not.toBeNull()
     expect(
-      (await rollbackTicketReservation(OPEN_CORRELATION)).success
+      (await rollbackTicketReservation(OPEN_CORRELATION, lease!)).success
     ).toBe(true)
     await db.execute({
       sql: 'UPDATE Tickets SET remaining_uses = 3 WHERE id = ?',
@@ -140,11 +147,31 @@ describe('archiveOwnedTicket', () => {
     })
     expect(Number(credits.rows[0]?.available_amount)).toBe(13)
     const refunds = await db.execute({
-      sql: `SELECT COUNT(*) AS count FROM CreditAudit
+      sql: `SELECT COUNT(*) AS count, MAX(external_reference) AS external_reference FROM CreditAudit
             WHERE hive_username = ? AND operation = 'delete_ticket_refund'`,
       args: [BUILDER],
     })
     expect(Number(refunds.rows[0]?.count)).toBe(1)
+    expect(refunds.rows[0]?.external_reference).toBe(
+      `ticket:${ticket.id}:archive-refund`
+    )
+    const archiveAudit = await db.execute({
+      sql: `SELECT ticket_id, action, actor_type, actor_id, delta,
+                   before_uses, after_uses, operation_reference
+            FROM TicketAudit WHERE ticket_id = ?`,
+      args: [ticket.id],
+    })
+    expect(archiveAudit.rows).toHaveLength(1)
+    expect(archiveAudit.rows[0]).toMatchObject({
+      ticket_id: ticket.id,
+      action: 'archived',
+      actor_type: 'builder',
+      actor_id: BUILDER,
+      delta: -3,
+      before_uses: 3,
+      after_uses: 0,
+      operation_reference: `ticket:${ticket.id}:archive`,
+    })
 
     await expect(
       ticketsRepository.create({

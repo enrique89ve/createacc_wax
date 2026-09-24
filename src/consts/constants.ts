@@ -153,8 +153,11 @@ export const RECONCILIATION_CONFIG = {
   RATE_LIMIT_DELAY_MS: 100,
   AUTO_CHECK_INTERVAL_MS: 5 * 60 * 1000, // 5 minutes
   MIN_ENTRY_AGE_MS: 2 * 60 * 1000, // Only process entries >2 min old
-  MAX_ATTEMPTS: 10, // Max retry attempts before abandoning entry
-  PROCESSING_TIMEOUT_MS: 5 * 60 * 1000, // 5 min — stuck entries reset to 'failed'
+  MAX_ATTEMPTS: 10, // After this, unresolved work requires manual review
+  BATCH_SIZE: 50,
+  BASE_BACKOFF_MS: 30 * 1000,
+  MAX_BACKOFF_MS: 30 * 60 * 1000,
+  LEASE_DURATION_SECONDS: 5 * 60,
   ATTEMPT_STALE_MS: 2 * 60 * 1000, // reserved/prepared/broadcasting older than this can be reclaimed
 } as const
 
@@ -163,7 +166,7 @@ export const RECONCILIATION_STATUS = {
   PROCESSING: 'processing',
   RESOLVED: 'resolved',
   FAILED: 'failed',
-  ABANDONED: 'abandoned',
+  MANUAL_REVIEW: 'manual_review',
 } as const
 
 export type ReconciliationStatus =
@@ -173,6 +176,7 @@ export type ReconciliationStatus =
 export type ActionableReconciliationStatus =
   | typeof RECONCILIATION_STATUS.PENDING
   | typeof RECONCILIATION_STATUS.FAILED
+  | typeof RECONCILIATION_STATUS.PROCESSING
 
 export const ENV_KEYS = {
   HIVE_CREATOR_ACCOUNT: 'HIVE_CREATOR_ACCOUNT',

@@ -97,20 +97,19 @@ export const pt: Messages = {
     confirmation:
       'Guardei minha Master Password e entendo que a HolaHive não pode recuperá-la por mim.',
     keysSavedCheckbox: 'Verifiquei que minhas chaves estão guardadas.',
-    keysAckCheckbox:
-      'Reconheço que se perder minhas chaves, perco a conta.',
+    keysAckCheckbox: 'Reconheço que se perder minhas chaves, perco a conta.',
     createAccount: 'Criar conta',
     creatingAccount: 'Criando conta...',
     downloadKeysRequired: 'Você deve baixar as chaves primeiro!',
-    generateKeysError:
-      'Erro ao gerar chaves. Por favor, recarregue a página.',
-    reloadNewKeys:
-      'Novas chaves foram geradas. Você deve baixá-las novamente.',
+    generateKeysError: 'Erro ao gerar chaves. Por favor, recarregue a página.',
+    reloadNewKeys: 'Novas chaves foram geradas. Você deve baixá-las novamente.',
     keysDownloadedBoth: 'Chaves baixadas em TXT e PDF',
     downloadRetryError: 'Erro ao baixar as chaves. Tente novamente.',
     verificationError: 'Erro de verificação. Tente novamente.',
     submitDisabledTitle: 'Você deve baixar o arquivo de chaves primeiro',
     accountCreationFailed: 'Erro ao criar a conta: {error}',
+    creationPending:
+      'A Hive ainda não confirmou o resultado final. Mantenha esta página e as chaves baixadas; tente novamente mais tarde. Referência: {correlationId}. {error}',
     createPrefix: 'Criar',
     advancedKeys: 'Ver chaves avançadas',
   },

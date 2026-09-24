@@ -49,6 +49,10 @@ describe('blocked ticket creator', () => {
 
   afterAll(async () => {
     await db.execute({
+      sql: 'DELETE FROM CreationAttemptEvents WHERE correlation_id = ?',
+      args: [correlationId],
+    })
+    await db.execute({
       sql: 'DELETE FROM CreationAttempts WHERE ticket = ?',
       args: [ticketCode],
     })

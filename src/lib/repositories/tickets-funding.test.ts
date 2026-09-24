@@ -8,6 +8,7 @@ import {
 } from '@/utils/db-ticket-validator'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
 import { archiveOwnedTicket } from '@/lib/tickets/archive-ticket'
+import { claimCreationAttempt } from '@/lib/creation-attempts'
 
 const RUN = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
 const SHARED_USERNAME = `builder${RUN}`
@@ -41,12 +42,20 @@ const simulatedTransaction: HiveTransactionResult = {
 
 async function cleanup(): Promise<void> {
   await db.execute({
+    sql: 'DELETE FROM CreationAttemptEvents WHERE correlation_id = ?',
+    args: [CORRELATION_ID],
+  })
+  await db.execute({
     sql: 'DELETE FROM CreationAttempts WHERE correlation_id = ?',
     args: [CORRELATION_ID],
   })
   await db.execute({
     sql: 'DELETE FROM Accounts WHERE username = ?',
     args: [ACCOUNT_USERNAME],
+  })
+  await db.execute({
+    sql: 'DELETE FROM TicketAudit WHERE ticket_id IN (SELECT id FROM Tickets WHERE code IN (?, ?))',
+    args: [BUILDER_TICKET, SYSTEM_TICKET],
   })
   await db.execute({
     sql: 'DELETE FROM Tickets WHERE code IN (?, ?)',
@@ -119,9 +128,13 @@ describe('ticket funding and ownership', () => {
     })
     expect(reserved.success).toBe(true)
 
+    const lease = await claimCreationAttempt(CORRELATION_ID)
+    expect(lease).not.toBeNull()
     const completed = await completeAccountCreationInDB(
       CORRELATION_ID,
-      simulatedTransaction
+      simulatedTransaction,
+      undefined,
+      lease!
     )
     expect(completed.success).toBe(true)
 

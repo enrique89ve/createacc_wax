@@ -12,28 +12,41 @@
  * Usage:
  *   pnpm tsx scripts/reconcile-pending.ts
  *   pnpm tsx scripts/reconcile-pending.ts --dry-run
+ *   pnpm tsx scripts/reconcile-pending.ts --review <correlation-id> --operator <id>
+ *   pnpm tsx scripts/reconcile-pending.ts --dry-run --review <correlation-id>
  */
 
 import { initializeDatabase } from '@/lib/database'
 import {
   getPendingReconciliations,
   claimReconciliationEntry,
+  getManualReviewReconciliation,
+  claimManualReviewReconciliation,
   markReconciliationResolved,
   markReconciliationFailed,
-  markReconciliationAbandoned,
-  resetStuckProcessingEntries,
-  rollbackTicketReservation,
+  releaseManualReviewReconciliation,
   obfuscateTicket,
+  type ReconciliationEntry,
 } from '@/utils/db-ticket-validator'
-import { hiveChain } from '@/lib/hiveservice'
-import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
-import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import { getCreationAttempt } from '@/lib/creation-attempts'
-import { persistHiveMatchedAccount } from '@/lib/confirm-broadcasted'
+import { reconcileCreationAttempt } from '@/lib/creation-reconciler'
 import { RECONCILIATION_CONFIG } from '@/consts/constants'
 
 const RESOLVER_ID = 'reconcile-script'
-const isDryRun = process.argv.includes('--dry-run')
+const cliArguments = process.argv.slice(2)
+const isDryRun = cliArguments.includes('--dry-run')
+
+function readOption(option: string): string | undefined {
+  const index = cliArguments.indexOf(option)
+  if (index === -1) return undefined
+  const value = cliArguments[index + 1]
+  if (!value || value.startsWith('--')) {
+    throw new Error(`Missing value for ${option}`)
+  }
+  return value
+}
+
+const reviewCorrelationId = readOption('--review')
+const operatorId = readOption('--operator')
 
 interface ReconciliationResult {
   readonly entryId: number
@@ -43,264 +56,210 @@ interface ReconciliationResult {
     | 'completed_db'
     | 'rolled_back'
     | 'already_consistent'
-    | 'abandoned'
+    | 'manual_review'
     | 'error'
   readonly detail: string
 }
 
 async function reconcileEntry(
-  entry: Awaited<ReturnType<typeof getPendingReconciliations>>[number],
-  chain: Awaited<ReturnType<typeof hiveChain>>
+  entry: ReconciliationEntry,
+  options: { readonly manualReview: boolean; readonly operatorId?: string }
 ): Promise<ReconciliationResult> {
-  const { id, correlationId, username, ticketCode, reason, attemptCount } =
-    entry
+  const { id, correlationId, username, ticketCode } = entry
   const obfuscated = obfuscateTicket(ticketCode)
-  let claimed = false
+  const resolutionActor = options.operatorId ?? RESOLVER_ID
+  let lease: Awaited<ReturnType<typeof claimReconciliationEntry>> = null
 
   try {
-    // Step 1: In non-dry-run mode, claim entry before any state transition.
     if (!isDryRun) {
-      claimed = await claimReconciliationEntry(id, RESOLVER_ID)
-      if (!claimed) {
+      lease = options.manualReview
+        ? await claimManualReviewReconciliation(id, options.operatorId ?? '')
+        : await claimReconciliationEntry(id, RESOLVER_ID)
+      if (!lease) {
         return {
           entryId: id,
           correlationId,
           username,
           action: 'already_consistent',
-          detail: `Already claimed by another worker. Skipped.`,
+          detail: 'Already claimed by another worker. Skipped.',
         }
       }
     }
 
-    // Step 2: Entries over retry budget move to abandoned terminal state.
-    if (attemptCount >= RECONCILIATION_CONFIG.MAX_ATTEMPTS) {
-      const detail = `Exceeded MAX_ATTEMPTS (${RECONCILIATION_CONFIG.MAX_ATTEMPTS}). Last known attempts before claim: ${attemptCount}. Ticket: ${obfuscated}`
-      if (isDryRun) {
-        return {
-          entryId: id,
-          correlationId,
-          username,
-          action: 'abandoned',
-          detail: `Would mark as abandoned. ${detail}`,
-        }
-      }
-
-      const abandoned = await markReconciliationAbandoned(id, detail)
-      if (!abandoned) {
-        return {
-          entryId: id,
-          correlationId,
-          username,
-          action: 'error',
-          detail: `Failed to mark as abandoned after claim. Ticket: ${obfuscated}`,
-        }
-      }
-
+    if (
+      !options.manualReview &&
+      lease &&
+      lease.attemptCount > RECONCILIATION_CONFIG.MAX_ATTEMPTS
+    ) {
+      const detail =
+        'Exceeded MAX_ATTEMPTS (' +
+        RECONCILIATION_CONFIG.MAX_ATTEMPTS +
+        '); reserved use remains held for review. Ticket: ' +
+        obfuscated
+      await markReconciliationFailed(lease, detail)
       return {
         entryId: id,
         correlationId,
         username,
-        action: 'abandoned',
-        detail: `Marked as abandoned. ${detail}`,
+        action: 'manual_review',
+        detail:
+          (isDryRun
+            ? 'Would require manual review. '
+            : 'Requires manual review. ') + detail,
       }
     }
 
-    // Step 3: Poll on-chain state before deciding rollback.
-    const chainResult = await validateHiveAccountExistsWithPolling({
-      chain,
-      accountName: username,
+    const outcome = await reconcileCreationAttempt(correlationId, {
+      dryRun: isDryRun,
     })
-
-    if (chainResult.status === 'error') {
-      if (!isDryRun) {
-        await markReconciliationFailed(
-          id,
-          `Chain polling error after ${chainResult.attempts} attempt(s): ${chainResult.message}`
-        )
-      }
-      return {
-        entryId: id,
-        correlationId,
-        username,
-        action: 'error',
-        detail: `Chain polling failed after ${chainResult.attempts} attempt(s)${chainResult.timedOut ? ' (timed out)' : ''}: ${chainResult.message}. ${isDryRun ? '' : 'Marked as failed (will retry).'} Ticket: ${obfuscated}`,
-      }
-    }
-
-    // Step 4: status='found' path resolves consistency or DB completion.
-    if (chainResult.status === 'found') {
-      const attempt = await getCreationAttempt(correlationId)
-      if (!attempt) {
-        if (!isDryRun) {
-          await markReconciliationFailed(
-            id,
-            'No creation attempt for correlation'
-          )
-        }
-        return {
-          entryId: id,
-          correlationId,
-          username,
-          action: 'error',
-          detail: `No creation attempt for ${correlationId}. Ticket: ${obfuscated}`,
-        }
-      }
-
-      const recovered = await recoverOwnedAccount({
-        username,
-        ticket: ticketCode,
-        keys: attempt.keys,
-        correlationId,
-      })
-
-      if (recovered.kind !== 'recovered') {
-        if (recovered.kind === 'foreign_account') {
-          if (!isDryRun) {
-            const rollbackResult = await rollbackTicketReservation(
-              correlationId
-            )
-            if (!rollbackResult.success) {
-              await markReconciliationFailed(
-                id,
-                `Rollback failed: ${rollbackResult.error}`
-              )
-              return {
-                entryId: id,
-                correlationId,
-                username,
-                action: 'error',
-                detail: `Rollback failed after foreign account. Ticket: ${obfuscated}`,
-              }
-            }
-            await markReconciliationResolved(id, RESOLVER_ID)
-          }
-          return {
-            entryId: id,
-            correlationId,
-            username,
-            action: 'rolled_back',
-            detail: `Hive account authorities do not match this attempt. ${isDryRun ? 'Would roll back' : 'Rolled back'} this credit. Ticket: ${obfuscated}`,
-          }
-        }
-        if (!isDryRun) {
-          await markReconciliationFailed(id, `Recovery was ${recovered.kind}`)
-        }
-        return {
-          entryId: id,
-          correlationId,
-          username,
-          action: 'error',
-          detail: `Could not recover owned account (${recovered.kind}). Ticket: ${obfuscated}`,
-        }
-      }
-
-      if (!isDryRun) {
-        const persisted = await persistHiveMatchedAccount(attempt)
-        if (!persisted) {
-          await markReconciliationFailed(id, 'Hive-matched persist failed')
-          return {
-            entryId: id,
-            correlationId,
-            username,
-            action: 'error',
-            detail: `Hive-matched persist failed. Ticket: ${obfuscated}`,
-          }
-        }
-        await markReconciliationResolved(id, RESOLVER_ID)
-      }
+    if (outcome.kind === 'completed' || outcome.kind === 'would_complete') {
+      if (lease) await markReconciliationResolved(lease, resolutionActor)
       return {
         entryId: id,
         correlationId,
         username,
         action: 'completed_db',
-        detail: `Owned account on-chain but not in DB. ${isDryRun ? 'Would complete' : 'Completed'} DB operations. Ticket: ${obfuscated}`,
+        detail:
+          (isDryRun ? 'Would complete' : 'Completed') +
+          ' from irreversible transaction evidence. Ticket: ' +
+          obfuscated,
+      }
+    }
+    if (outcome.kind === 'rolled_back' || outcome.kind === 'would_rollback') {
+      if (lease) await markReconciliationResolved(lease, resolutionActor)
+      return {
+        entryId: id,
+        correlationId,
+        username,
+        action: 'rolled_back',
+        detail:
+          (isDryRun ? 'Would restore' : 'Restored') +
+          ' the ticket use after definitive non-execution. Ticket: ' +
+          obfuscated,
+      }
+    }
+    if (outcome.kind === 'already_terminal') {
+      if (lease) await markReconciliationResolved(lease, resolutionActor)
+      return {
+        entryId: id,
+        correlationId,
+        username,
+        action: 'already_consistent',
+        detail:
+          'Attempt is already ' + outcome.status + '. Ticket: ' + obfuscated,
       }
     }
 
-    // Step 5: status='not_found' is the only branch that can rollback credits.
-    if (!isDryRun) {
-      const rollbackResult = await rollbackTicketReservation(
-        correlationId
-      )
-      if (!rollbackResult.success) {
-        await markReconciliationFailed(
-          id,
-          `Rollback failed: ${rollbackResult.error}`
-        )
-        return {
-          entryId: id,
-          correlationId,
-          username,
-          action: 'error',
-          detail: `Rollback failed: ${rollbackResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`,
-        }
-      }
-      await markReconciliationResolved(id, RESOLVER_ID)
-    }
-    return {
-      entryId: id,
-      correlationId,
-      username,
-      action: 'rolled_back',
-      detail: `Account not on-chain (reason: ${reason}). ${isDryRun ? 'Would rollback' : 'Rolled back'} ticket ${obfuscated}.`,
-    }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : 'Unknown error'
-    // Best-effort: mark as failed if not dry-run
-    let statusNote = isDryRun
-      ? ''
-      : 'Entry was not claimed; no status update applied.'
-    if (!isDryRun && claimed) {
-      try {
-        const marked = await markReconciliationFailed(id, errMsg)
-        statusNote = marked
-          ? 'Marked as failed (will retry).'
-          : 'Failed to mark as failed after claim.'
-      } catch {
-        // If marking failed also fails, just report it
-        statusNote = 'Failed to mark as failed after claim.'
+    const detail =
+      outcome.kind === 'pending' ||
+      outcome.kind === 'review' ||
+      outcome.kind === 'failed'
+        ? outcome.reason
+        : outcome.kind
+    if (options.manualReview) {
+      if (lease) await releaseManualReviewReconciliation(lease, detail)
+      return {
+        entryId: id,
+        correlationId,
+        username,
+        action: 'manual_review',
+        detail:
+          detail +
+          '. ' +
+          (isDryRun
+            ? 'The item remains in manual review; no database changes were made.'
+            : 'The item remains in manual review.') +
+          ' Ticket: ' +
+          obfuscated,
       }
     }
+    if (lease) await markReconciliationFailed(lease, detail)
     return {
       entryId: id,
       correlationId,
       username,
       action: 'error',
-      detail: `Error processing: ${errMsg}. ${statusNote}`,
+      detail:
+        detail +
+        '. ' +
+        (isDryRun
+          ? 'No database changes were made.'
+          : 'Marked for retry/review.') +
+        ' Ticket: ' +
+        obfuscated,
+    }
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown error'
+    if (options.manualReview) {
+      if (lease) await releaseManualReviewReconciliation(lease, detail)
+      return {
+        entryId: id,
+        correlationId,
+        username,
+        action: 'manual_review',
+        detail:
+          detail +
+          (isDryRun
+            ? '. Item remains in manual review; no database changes were made.'
+            : '. Item remains in manual review.'),
+      }
+    }
+    if (lease) await markReconciliationFailed(lease, detail)
+    return {
+      entryId: id,
+      correlationId,
+      username,
+      action: 'error',
+      detail:
+        detail +
+        '. ' +
+        (isDryRun ? 'No database changes were made.' : 'Marked for retry.'),
     }
   }
 }
 
 async function main() {
-  console.log(`--- Reconciliation Consumer ${isDryRun ? '(DRY RUN)' : ''} ---`)
+  if (operatorId && !reviewCorrelationId) {
+    throw new Error('--operator can only be used together with --review')
+  }
+  if (reviewCorrelationId && !isDryRun && !operatorId) {
+    throw new Error('--operator is required for a live manual review')
+  }
+
+  console.log(
+    `--- ${reviewCorrelationId ? 'Manual Evidence Review' : 'Reconciliation Consumer'} ${isDryRun ? '(DRY RUN)' : ''} ---`
+  )
 
   await initializeDatabase()
 
-  // Reset stuck processing entries before starting
-  if (!isDryRun) {
-    const resetCount = await resetStuckProcessingEntries(
-      RECONCILIATION_CONFIG.PROCESSING_TIMEOUT_MS
-    )
-    if (resetCount > 0) {
-      console.log(
-        `Reset ${resetCount} stuck processing entry/entries to 'failed'.`
-      )
-    }
-  }
-
-  const pending = await getPendingReconciliations()
-  console.log(`Found ${pending.length} pending reconciliation(s).`)
+  const manualReviewEntry = reviewCorrelationId
+    ? await getManualReviewReconciliation(reviewCorrelationId)
+    : null
+  const pending = reviewCorrelationId
+    ? manualReviewEntry
+      ? [manualReviewEntry]
+      : []
+    : await getPendingReconciliations()
+  console.log(
+    reviewCorrelationId
+      ? pending.length > 0
+        ? 'Found the requested unresolved manual-review item.'
+        : 'No unresolved manual-review item found for that correlation ID.'
+      : `Found ${pending.length} pending reconciliation(s).`
+  )
 
   if (pending.length === 0) {
     console.log('Nothing to reconcile.')
     return
   }
 
-  const chain = await hiveChain()
   const results: ReconciliationResult[] = []
 
   for (const entry of pending) {
-    const result = await reconcileEntry(entry, chain)
+    const result = await reconcileEntry(entry, {
+      manualReview: reviewCorrelationId !== undefined,
+      operatorId,
+    })
     results.push(result)
     console.log(`[${result.correlationId}] ${result.action}: ${result.detail}`)
 
@@ -317,7 +276,7 @@ async function main() {
     rolledBack: results.filter(r => r.action === 'rolled_back').length,
     alreadyConsistent: results.filter(r => r.action === 'already_consistent')
       .length,
-    abandoned: results.filter(r => r.action === 'abandoned').length,
+    manualReview: results.filter(r => r.action === 'manual_review').length,
     errors: results.filter(r => r.action === 'error').length,
   }
 
@@ -326,12 +285,12 @@ async function main() {
   console.log(`Completed DB:       ${summary.completedDb}`)
   console.log(`Rolled back:        ${summary.rolledBack}`)
   console.log(`Already consistent: ${summary.alreadyConsistent}`)
-  console.log(`Abandoned:          ${summary.abandoned}`)
+  console.log(`Manual review:      ${summary.manualReview}`)
   console.log(`Errors:             ${summary.errors}`)
 
-  if (summary.errors > 0 || summary.abandoned > 0) {
+  if (summary.errors > 0 || summary.manualReview > 0) {
     console.error(
-      '\nSome entries had errors or were abandoned. Review logs above.'
+      '\nSome entries need retry or manual review. Review logs above.'
     )
     process.exit(1)
   }

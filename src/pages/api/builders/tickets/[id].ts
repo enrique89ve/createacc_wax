@@ -19,11 +19,12 @@ import { isValidationSuccess } from '@/utils/validation-result'
 import { apiSuccess, apiError } from '@/utils/errorResponse'
 import { requireValidOrigin } from '@/utils/csrf-protection'
 import type {
-  UpdateTicketUsesRequest,
   UpdateTicketUsesResponse,
   DeleteTicketResponse,
 } from '@/types/api-contracts'
 import { archiveOwnedTicket } from '@/lib/tickets/archive-ticket'
+import { parseJsonObject, parsePositiveDecimalId } from '@/utils/http-input'
+import { auditRepository } from '@/lib/repositories/audit-repository'
 
 /**
  * PATCH /api/builders/tickets/:id
@@ -45,12 +46,15 @@ export const PATCH: APIRoute = async context => {
     }
 
     try {
-      const ticketId = Number(context.params.id)
-      if (!ticketId || isNaN(ticketId)) {
+      const ticketId = parsePositiveDecimalId(context.params.id)
+      if (ticketId === null) {
         return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
-      const body: UpdateTicketUsesRequest = await context.request.json()
+      const body = await parseJsonObject(context.request)
+      if (!body) {
+        return apiError('Solicitud JSON inválida', HTTP_STATUS.BAD_REQUEST)
+      }
       const { code, delta } = body
 
       const mutation = await withTransaction(async () => {
@@ -74,15 +78,35 @@ export const PATCH: APIRoute = async context => {
           return apiError('Código de ticket inválido', HTTP_STATUS.BAD_REQUEST)
         }
 
+        if (body.revoked !== undefined && typeof body.revoked !== 'boolean') {
+          return apiError(
+            'Estado de revocación inválido',
+            HTTP_STATUS.BAD_REQUEST
+          )
+        }
+
         if (typeof body.revoked === 'boolean') {
+          const revokedAt = body.revoked ? new Date().toISOString() : null
           const updated = await ticketsRepository.updateOwned(
             ticketId,
             session.username,
-            { revoked_at: body.revoked ? new Date().toISOString() : null }
+            { revoked_at: revokedAt }
           )
           if (!updated) {
             return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
           }
+          await auditRepository.createTicketLog({
+            ticketId: ticket.id,
+            ticket: ticket.code,
+            action: body.revoked ? 'revoked' : 'restored',
+            actorType: 'builder',
+            actorId: session.username,
+            beforeUses: ticket.remaining_uses,
+            afterUses: ticket.remaining_uses,
+            beforeState: { revokedAt: ticket.revoked_at },
+            afterState: { revokedAt },
+            operationReference: `ticket:${ticket.id}:${body.revoked ? 'revoke' : 'restore'}:${crypto.randomUUID()}`,
+          })
           return {
             kind: 'revocation' as const,
             revoked: body.revoked,
@@ -102,8 +126,12 @@ export const PATCH: APIRoute = async context => {
           ticket.total_uses
         )
         if (!isValidationSuccess(deltaValidation)) {
-          return apiError(deltaValidation.error.message, HTTP_STATUS.BAD_REQUEST)
+          return apiError(
+            deltaValidation.error.message,
+            HTTP_STATUS.BAD_REQUEST
+          )
         }
+        const usesOperationReference = `ticket:${ticketId}:uses:${crypto.randomUUID()}`
 
         if (delta > 0) {
           const validation = await creditBalanceTracker.validateOperation(
@@ -124,7 +152,8 @@ export const PATCH: APIRoute = async context => {
           await creditsService.deductCreditsForTicket(
             session.username,
             delta,
-            ticket.code
+            ticket.code,
+            usesOperationReference
           )
         }
 
@@ -132,7 +161,8 @@ export const PATCH: APIRoute = async context => {
           await creditsService.refundCreditsFromTicket(
             session.username,
             Math.abs(delta),
-            ticket.code
+            ticket.code,
+            usesOperationReference
           )
         }
 
@@ -144,6 +174,26 @@ export const PATCH: APIRoute = async context => {
         if (!updated) {
           throw new Error('Ticket ownership update rejected')
         }
+
+        await auditRepository.createTicketLog({
+          ticketId: ticket.id,
+          ticket: ticket.code,
+          action: 'uses_adjusted',
+          actorType: 'builder',
+          actorId: session.username,
+          delta: deltaValidation.data.delta,
+          beforeUses: ticket.remaining_uses,
+          afterUses: updated.remaining_uses,
+          beforeState: {
+            totalUses: ticket.total_uses,
+            remainingUses: ticket.remaining_uses,
+          },
+          afterState: {
+            totalUses: updated.total_uses,
+            remainingUses: updated.remaining_uses,
+          },
+          operationReference: usesOperationReference,
+        })
 
         return {
           kind: 'uses' as const,
@@ -174,6 +224,15 @@ export const PATCH: APIRoute = async context => {
 
       return apiSuccess(response, HTTP_STATUS.OK)
     } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === 'Ticket ownership update rejected'
+      ) {
+        return apiError(
+          'El ticket cambió; vuelve a cargarlo',
+          HTTP_STATUS.CONFLICT
+        )
+      }
       logger.error('Error updating ticket:', error)
       return apiError(
         'Error interno del servidor',
@@ -203,8 +262,8 @@ export const DELETE: APIRoute = async context => {
     }
 
     try {
-      const ticketId = Number(context.params.id)
-      if (!ticketId || isNaN(ticketId)) {
+      const ticketId = parsePositiveDecimalId(context.params.id)
+      if (ticketId === null) {
         return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 

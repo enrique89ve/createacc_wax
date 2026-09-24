@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import { db } from '@/lib/database'
+import { execute } from '@/lib/database'
 import type { NewUser } from '@/lib/schemas/users'
 import { logger } from '@/lib/logger'
 
@@ -33,7 +33,7 @@ async function getUserByUsername(
 ): Promise<(NewUser & { role: string }) | null> {
   try {
     // Enforce role='admin' to ensure only admins can use password authentication
-    const result = await db.execute({
+    const result = await execute({
       sql: `SELECT id, username, password_hash, role, created_at, updated_at FROM "user" WHERE LOWER(username) = LOWER(?) AND role = 'admin' AND is_active = 1 LIMIT 1`,
       args: [username],
     })

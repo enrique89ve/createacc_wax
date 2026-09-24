@@ -1,32 +1,14 @@
 /**
- * Automatic reconciliation service.
- *
- * Periodically checks for pending reconciliation entries and resolves them
- * using the same logic as the manual script (scripts/reconcile-pending.ts).
- *
- * Started as a side-effect import from middleware.ts (and account.ts for
- * belt-and-suspenders). ES module imports are idempotent — setInterval
- * is only created once even with multiple import sites.
- *
- * Uses setInterval(...).unref() to avoid blocking process shutdown.
- *
- * Safe for multi-instance deployments: each entry is atomically claimed via
- * claimReconciliationEntry (WHERE status IN ('pending','failed')) before any
- * credit mutation, so only one worker performs the rollback/complete per entry.
- * If the mutation fails post-claim, the entry is marked 'failed' and retried
- * in the next cycle (up to MAX_ATTEMPTS, then abandoned).
+ * Durable reconciliation worker. Importing this module does not start timers;
+ * the production server bootstrap owns startup and shutdown.
  */
 
 import { logger } from '@/lib/logger'
-import { hiveChain } from '@/lib/hiveservice'
-import { validateHiveAccountExistsWithPolling } from '@/utils/validate-hiveuser'
-import { recoverOwnedAccount } from '@/lib/recover-owned-account'
-import { getCreationAttempt } from '@/lib/creation-attempts'
 import {
   confirmPendingBroadcastedAccounts,
-  persistHiveMatchedAccount,
   recoverStaleCreationAttempts,
 } from '@/lib/confirm-broadcasted'
+import { reconcileCreationAttempt } from '@/lib/creation-reconciler'
 import {
   processPendingRcDelegations,
   reconcileUncertainRcDelegations,
@@ -36,10 +18,6 @@ import {
   claimReconciliationEntry,
   markReconciliationResolved,
   markReconciliationFailed,
-  markReconciliationAbandoned,
-  resetStuckProcessingEntries,
-  rollbackTicketReservation,
-  accountExistsInDB,
   obfuscateTicket,
   type ReconciliationEntry,
 } from '@/utils/db-ticket-validator'
@@ -48,231 +26,278 @@ import { RECONCILIATION_CONFIG } from '@/consts/constants'
 const RESOLVER_ID = 'auto-reconciler'
 
 let isRunning = false
+let interval: ReturnType<typeof setInterval> | null = null
+let activeCycle: Promise<void> | null = null
+
+interface EntryMetrics {
+  readonly claimed: number
+  readonly completed: number
+  readonly compensated: number
+  readonly pendingEvidence: number
+  readonly failed: number
+  readonly manualReview: number
+  readonly maximumAgeMs: number
+}
+
+interface MutableEntryMetrics {
+  claimed: number
+  completed: number
+  compensated: number
+  pendingEvidence: number
+  failed: number
+  manualReview: number
+  maximumAgeMs: number
+}
+
+function emptyMetrics(): MutableEntryMetrics {
+  return {
+    claimed: 0,
+    completed: 0,
+    compensated: 0,
+    pendingEvidence: 0,
+    failed: 0,
+    manualReview: 0,
+    maximumAgeMs: 0,
+  }
+}
+
+function recordOutcome(
+  metrics: MutableEntryMetrics,
+  result: EntryMetrics
+): void {
+  metrics.claimed += result.claimed
+  metrics.completed += result.completed
+  metrics.compensated += result.compensated
+  metrics.pendingEvidence += result.pendingEvidence
+  metrics.failed += result.failed
+  metrics.manualReview += result.manualReview
+  metrics.maximumAgeMs = Math.max(metrics.maximumAgeMs, result.maximumAgeMs)
+}
 
 async function reconcileEntry(
-  entry: ReconciliationEntry,
-  chain: Awaited<ReturnType<typeof hiveChain>>
-): Promise<void> {
-  const { id, correlationId, username, ticketCode, reason, attemptCount } =
-    entry
-  const obfuscated = obfuscateTicket(ticketCode)
-  let claimed = false
+  entry: ReconciliationEntry
+): Promise<EntryMetrics> {
+  const { id, correlationId, ticketCode } = entry
+  const ageMs = Math.max(0, Date.now() - Date.parse(entry.createdAt))
+  const base = {
+    claimed: 0,
+    completed: 0,
+    compensated: 0,
+    pendingEvidence: 0,
+    failed: 0,
+    manualReview: 0,
+    maximumAgeMs: ageMs,
+  }
+  let lease: Awaited<ReturnType<typeof claimReconciliationEntry>> = null
 
   try {
-    // 1. Atomically claim entry BEFORE any reconciliation mutation
-    claimed = await claimReconciliationEntry(id, RESOLVER_ID)
-    if (!claimed) {
-      logger.info(
-        `[${RESOLVER_ID}] [${correlationId}] Already claimed by another worker. Skipping.`
+    lease = await claimReconciliationEntry(id, RESOLVER_ID)
+    if (!lease) return base
+
+    const claimed = { ...base, claimed: 1 }
+    const obfuscated = obfuscateTicket(ticketCode)
+    if (lease.attemptCount > RECONCILIATION_CONFIG.MAX_ATTEMPTS) {
+      const marked = await markReconciliationFailed(
+        lease,
+        `Exceeded MAX_ATTEMPTS (${RECONCILIATION_CONFIG.MAX_ATTEMPTS}). Reserved ticket use remains held for review.`
       )
-      return
-    }
-
-    // 2. Entries over retry budget become terminal (abandoned)
-    if (attemptCount >= RECONCILIATION_CONFIG.MAX_ATTEMPTS) {
-      const abandonMessage = `Exceeded MAX_ATTEMPTS (${RECONCILIATION_CONFIG.MAX_ATTEMPTS}). Last known attempts before claim: ${attemptCount}.`
-      const abandoned = await markReconciliationAbandoned(id, abandonMessage)
-      if (!abandoned) {
-        logger.error(
-          `[${RESOLVER_ID}] [${correlationId}] Failed to mark entry #${id} as abandoned after claim.`
-        )
-      } else {
-        logger.error(
-          `[${RESOLVER_ID}] [${correlationId}] Entry #${id} moved to abandoned after exhausting retries. Ticket: ${obfuscated}`
-        )
-      }
-      return
-    }
-
-    // 3. Poll chain confirmation before any rollback decision
-    const chainResult = await validateHiveAccountExistsWithPolling({
-      chain,
-      accountName: username,
-    })
-
-    if (chainResult.status === 'error') {
-      await markReconciliationFailed(
-        id,
-        `Chain polling error after ${chainResult.attempts} attempt(s): ${chainResult.message}`
-      )
-      logger.warn(
-        `[${RESOLVER_ID}] [${correlationId}] Chain polling failed for ${username} after ${chainResult.attempts} attempt(s)${chainResult.timedOut ? ' (timed out)' : ''}: ${chainResult.message}. Marked as failed (will retry).`
-      )
-      return
-    }
-
-    // 4. Resolve from confirmed on-chain state
-    if (chainResult.status === 'found') {
-      const existsInDB = await accountExistsInDB(username)
-      const attempt = await getCreationAttempt(correlationId)
-      if (!attempt) {
-        await markReconciliationFailed(
-          id,
-          'No creation attempt for correlation'
-        )
-        return
-      }
-
-      const recovered = await recoverOwnedAccount({
-        username,
-        ticket: ticketCode,
-        keys: attempt.keys,
-        correlationId,
-      })
-
-      if (recovered.kind !== 'recovered') {
-        if (recovered.kind === 'foreign_account') {
-          const rollbackResult = await rollbackTicketReservation(
-            correlationId
-          )
-          if (!rollbackResult.success) {
-            await markReconciliationFailed(
-              id,
-              `Rollback failed: ${rollbackResult.error}`
-            )
-            return
-          }
-          await markReconciliationResolved(id, RESOLVER_ID)
-          logger.info(
-            `[${RESOLVER_ID}] [${correlationId}] Foreign Hive account for ${username}. Rolled back this attempt.`
-          )
-          return
-        }
-        await markReconciliationFailed(id, `Recovery was ${recovered.kind}`)
-        return
-      }
-
-      const persisted = await persistHiveMatchedAccount(attempt)
-      if (!persisted) {
-        await markReconciliationFailed(id, 'Hive-matched persist failed')
-        return
-      }
-      await markReconciliationResolved(id, RESOLVER_ID)
-      logger.info(
-        `[${RESOLVER_ID}] [${correlationId}] Confirmed owned Hive account ${username} (existsInDB=${existsInDB}). Ticket: ${obfuscated}`
-      )
-      return
-    }
-
-    // 5. status='not_found' is the only branch allowed to rollback credits
-    const rollbackResult = await rollbackTicketReservation(
-      correlationId
-    )
-    if (!rollbackResult.success) {
-      await markReconciliationFailed(
-        id,
-        `Rollback failed: ${rollbackResult.error}`
-      )
+      if (!marked) return { ...claimed, failed: 1 }
       logger.error(
-        `[${RESOLVER_ID}] [${correlationId}] Rollback failed: ${rollbackResult.error}. Ticket: ${obfuscated}. Marked as failed (will retry).`
+        `[${RESOLVER_ID}] [${correlationId}] Manual review required after retry budget. Ticket: ${obfuscated}`
       )
-    } else {
-      await markReconciliationResolved(id, RESOLVER_ID)
-      logger.info(
-        `[${RESOLVER_ID}] [${correlationId}] Rolled back ticket ${obfuscated} (reason: ${reason}).`
-      )
+      return { ...claimed, manualReview: 1 }
     }
+
+    const outcome = await reconcileCreationAttempt(correlationId)
+    const isCompleted =
+      outcome.kind === 'completed' ||
+      (outcome.kind === 'already_terminal' && outcome.status === 'completed')
+    const isRolledBack =
+      outcome.kind === 'rolled_back' ||
+      (outcome.kind === 'already_terminal' && outcome.status === 'rolled_back')
+
+    if (isCompleted || isRolledBack) {
+      const marked = await markReconciliationResolved(lease, RESOLVER_ID)
+      if (!marked) return { ...claimed, failed: 1 }
+      logger.info(
+        `[${RESOLVER_ID}] [${correlationId}] Resolved as ${isCompleted ? 'completed' : 'rolled_back'}. Ticket: ${obfuscated}`
+      )
+      return {
+        ...claimed,
+        completed: isCompleted ? 1 : 0,
+        compensated: isRolledBack ? 1 : 0,
+      }
+    }
+
+    const detail =
+      outcome.kind === 'pending' ||
+      outcome.kind === 'review' ||
+      outcome.kind === 'failed'
+        ? outcome.reason
+        : outcome.kind
+    const marked = await markReconciliationFailed(lease, detail)
+    if (!marked) return { ...claimed, failed: 1 }
+    if (lease.attemptCount >= RECONCILIATION_CONFIG.MAX_ATTEMPTS) {
+      logger.warn(
+        `[${RESOLVER_ID}] [${correlationId}] Retry budget exhausted; reserved use remains in manual review: ${detail}`
+      )
+      return { ...claimed, manualReview: 1 }
+    }
+    if (outcome.kind === 'pending' || outcome.kind === 'review') {
+      logger.info(
+        `[${RESOLVER_ID}] [${correlationId}] Waiting for final Hive evidence: ${detail}`
+      )
+      return { ...claimed, pendingEvidence: 1 }
+    }
+    logger.warn(
+      `[${RESOLVER_ID}] [${correlationId}] Reconciliation retry scheduled: ${detail}`
+    )
+    return { ...claimed, failed: 1 }
   } catch (error) {
-    const errMsg = error instanceof Error ? error.message : 'Unknown error'
-    // Best-effort: mark as failed only if this worker claimed the entry
-    let statusNote = 'Entry was not claimed; no status update applied.'
-    if (claimed) {
+    const detail = error instanceof Error ? error.message : 'Unknown error'
+    let marked = false
+    if (lease) {
       try {
-        const marked = await markReconciliationFailed(id, errMsg)
-        statusNote = marked
-          ? 'Marked as failed.'
-          : 'Failed to mark as failed after claim.'
+        marked = await markReconciliationFailed(lease, detail)
       } catch {
-        // If even marking failed fails, just log it
-        statusNote = 'Failed to mark as failed after claim.'
+        marked = false
       }
     }
     logger.error(
-      `[${RESOLVER_ID}] [${correlationId}] Error processing entry: ${errMsg}. ${statusNote}`
+      `[${RESOLVER_ID}] [${correlationId}] Entry failed${lease ? (marked ? '; retry scheduled or manual review recorded' : '; lease no longer owns row') : '; claim unavailable'}: ${detail}`
     )
+    const manualReview =
+      marked && lease?.attemptCount === RECONCILIATION_CONFIG.MAX_ATTEMPTS
+    return {
+      ...base,
+      claimed: lease ? 1 : 0,
+      failed: marked && !manualReview ? 1 : 0,
+      manualReview: manualReview ? 1 : 0,
+    }
+  }
+}
+
+async function runPhase<T>(
+  phase: string,
+  action: () => Promise<T>,
+  onFailure: () => T
+): Promise<T> {
+  try {
+    return await action()
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : 'Unknown error'
+    logger.error(`[${RESOLVER_ID}] Phase '${phase}' failed: ${detail}`)
+    return onFailure()
   }
 }
 
 async function runReconciliation(): Promise<void> {
   if (isRunning) return
   isRunning = true
+  const startedAt = Date.now()
+  let phaseErrors = 0
+  let queueEntriesDue = 0
+  const metrics = emptyMetrics()
+  const runCountPhase = async (
+    name: string,
+    action: () => Promise<number>
+  ): Promise<void> => {
+    await runPhase(
+      name,
+      async () => action(),
+      () => {
+        phaseErrors += 1
+        return 0
+      }
+    )
+  }
 
   try {
-    // Reset entries stuck in 'processing' (crashed workers)
-    const resetCount = await resetStuckProcessingEntries(
-      RECONCILIATION_CONFIG.PROCESSING_TIMEOUT_MS
+    await runCountPhase(
+      'confirm-broadcasted',
+      confirmPendingBroadcastedAccounts
     )
-    if (resetCount > 0) {
-      logger.warn(
-        `[${RESOLVER_ID}] Reset ${resetCount} stuck processing entry/entries to 'failed'.`
-      )
-    }
+    await runCountPhase('recover-stale-attempts', recoverStaleCreationAttempts)
+    await runCountPhase(
+      'reconcile-uncertain-rc',
+      reconcileUncertainRcDelegations
+    )
+    await runCountPhase('process-rc-queue', processPendingRcDelegations)
 
-    const confirmed = await confirmPendingBroadcastedAccounts()
-    if (confirmed > 0) {
-      logger.info(
-        `[${RESOLVER_ID}] Confirmed ${confirmed} broadcasted account(s) and queued RC once.`
-      )
-    }
-    const stale = await recoverStaleCreationAttempts()
-    if (stale > 0) {
-      logger.info(
-        `[${RESOLVER_ID}] Reclaimed ${stale} stale creation attempt(s).`
-      )
-    }
-    const rcResolved = await reconcileUncertainRcDelegations()
-    if (rcResolved > 0) {
-      logger.info(
-        `[${RESOLVER_ID}] Resolved ${rcResolved} uncertain RC delegation(s).`
-      )
-    }
-    const rcProcessed = await processPendingRcDelegations()
-    if (rcProcessed > 0) {
-      logger.info(
-        `[${RESOLVER_ID}] Processed ${rcProcessed} durable RC delegation(s).`
-      )
-    }
-
-    const pending = await getPendingReconciliations()
-    if (pending.length === 0) return
-
-    // Filter to only process entries older than MIN_ENTRY_AGE_MS
+    const pending = await runPhase(
+      'read-queue',
+      getPendingReconciliations,
+      () => {
+        phaseErrors += 1
+        return []
+      }
+    )
     const now = Date.now()
     const mature = pending.filter(entry => {
-      const createdAt = new Date(entry.createdAt).getTime()
-      return now - createdAt >= RECONCILIATION_CONFIG.MIN_ENTRY_AGE_MS
+      const createdAt = Date.parse(entry.createdAt)
+      return (
+        Number.isFinite(createdAt) &&
+        now - createdAt >= RECONCILIATION_CONFIG.MIN_ENTRY_AGE_MS
+      )
     })
-
-    if (mature.length === 0) return
-
-    logger.info(
-      `[${RESOLVER_ID}] Processing ${mature.length} pending reconciliation(s).`
-    )
-
-    const chain = await hiveChain()
+    queueEntriesDue = mature.length
 
     for (const entry of mature) {
-      await reconcileEntry(entry, chain)
-      // Small delay between entries to avoid hammering the API
+      recordOutcome(metrics, await reconcileEntry(entry))
       await new Promise(resolve =>
         setTimeout(resolve, RECONCILIATION_CONFIG.RATE_LIMIT_DELAY_MS)
       )
     }
-  } catch (error) {
-    const errMsg = error instanceof Error ? error.message : 'Unknown error'
-    logger.error(`[${RESOLVER_ID}] Run failed: ${errMsg}`)
   } finally {
+    const durationMs = Date.now() - startedAt
+    const cycle = {
+      status: phaseErrors === 0 ? 'success' : 'partial',
+      startedAt: new Date(startedAt).toISOString(),
+      durationMs,
+      phaseErrors,
+      queueEntriesDue,
+      ...metrics,
+    }
+    logger.info(`[${RESOLVER_ID}] Cycle ${JSON.stringify(cycle)}`)
     isRunning = false
   }
 }
 
-// Start the automatic reconciliation interval (does not block process exit)
-const interval = setInterval(
-  runReconciliation,
-  RECONCILIATION_CONFIG.AUTO_CHECK_INTERVAL_MS
-)
-interval.unref()
+export function startAutoReconciler(): void {
+  if (interval) return
+  const launchCycle = (): void => {
+    if (isRunning) return
+    const trackedCycle = runReconciliation().then(
+      () => {
+        if (activeCycle === trackedCycle) activeCycle = null
+      },
+      error => {
+        const detail = error instanceof Error ? error.message : 'Unknown error'
+        logger.error(
+          `[${RESOLVER_ID}] Cycle escaped its error boundary: ${detail}`
+        )
+        if (activeCycle === trackedCycle) activeCycle = null
+      }
+    )
+    activeCycle = trackedCycle
+  }
+  launchCycle()
+  interval = setInterval(
+    launchCycle,
+    RECONCILIATION_CONFIG.AUTO_CHECK_INTERVAL_MS
+  )
+  interval.unref()
+  logger.info(
+    `[${RESOLVER_ID}] Started (interval: ${RECONCILIATION_CONFIG.AUTO_CHECK_INTERVAL_MS / 1000}s).`
+  )
+}
 
-logger.info(
-  `[${RESOLVER_ID}] Started (interval: ${RECONCILIATION_CONFIG.AUTO_CHECK_INTERVAL_MS / 1000}s).`
-)
+export async function stopAutoReconciler(): Promise<void> {
+  if (interval) {
+    clearInterval(interval)
+    interval = null
+  }
+  const cycle = activeCycle
+  if (cycle) await cycle.catch(() => undefined)
+  logger.info(`[${RESOLVER_ID}] Stopped.`)
+}

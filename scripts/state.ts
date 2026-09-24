@@ -23,7 +23,7 @@ interface SystemState {
   uncertainRc: number
   pendingReconciliations: number
   failedReconciliations: number
-  abandonedReconciliations: number
+  manualReviewReconciliations: number
 }
 
 interface OpenAttemptRow {
@@ -40,7 +40,7 @@ interface ObservedState {
   readonly uncertainRc: readonly string[]
   readonly pendingReconciliations: readonly string[]
   readonly failedReconciliations: readonly string[]
-  readonly abandonedReconciliations: readonly string[]
+  readonly manualReviewReconciliations: readonly string[]
 }
 
 function formatAge(updatedAt: string): string {
@@ -103,10 +103,10 @@ async function readState(): Promise<ObservedState> {
     'status',
     RECONCILIATION_STATUS.FAILED
   )
-  const abandonedReconciliations = await usernamesWhere(
+  const manualReviewReconciliations = await usernamesWhere(
     'ReconciliationQueue',
     'status',
-    RECONCILIATION_STATUS.ABANDONED
+    RECONCILIATION_STATUS.MANUAL_REVIEW
   )
   const uncertainRc = await usernamesWhere(
     'Accounts',
@@ -127,14 +127,14 @@ async function readState(): Promise<ObservedState> {
       uncertainRc: uncertainRc.length,
       pendingReconciliations: pendingReconciliations.length,
       failedReconciliations: failedReconciliations.length,
-      abandonedReconciliations: abandonedReconciliations.length,
+      manualReviewReconciliations: manualReviewReconciliations.length,
     },
     openAttempts,
     broadcastedAccounts,
     uncertainRc,
     pendingReconciliations,
     failedReconciliations,
-    abandonedReconciliations,
+    manualReviewReconciliations,
   }
 }
 
@@ -172,7 +172,9 @@ function printState(state: ObservedState): void {
   console.log('Reconciliation')
   console.log(`${padLabel('Pending')}${totals.pendingReconciliations}`)
   console.log(`${padLabel('Failed')}${totals.failedReconciliations}`)
-  console.log(`${padLabel('Abandoned')}${totals.abandonedReconciliations}`)
+  console.log(
+    `${padLabel('Manual review')}${totals.manualReviewReconciliations}`
+  )
   console.log('')
 
   if (totals.openAttempts > 0) {
@@ -200,9 +202,9 @@ function printState(state: ObservedState): void {
     printUsernames(state.failedReconciliations)
     console.log('')
   }
-  if (totals.abandonedReconciliations > 0) {
-    console.log(`Abandoned: ${totals.abandonedReconciliations}`)
-    printUsernames(state.abandonedReconciliations)
+  if (totals.manualReviewReconciliations > 0) {
+    console.log(`Manual review: ${totals.manualReviewReconciliations}`)
+    printUsernames(state.manualReviewReconciliations)
     console.log('')
   }
 

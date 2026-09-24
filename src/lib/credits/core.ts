@@ -114,9 +114,16 @@ export async function claimCredits(
 export async function deductCreditsForTicket(
   hiveUsername: string,
   amount: number,
-  ticketCode: string
+  ticketCode: string,
+  externalReference?: string
 ): Promise<void> {
   assertPositiveInteger(amount)
+  if (
+    externalReference !== undefined &&
+    externalReference.trim().length === 0
+  ) {
+    throw new Error('Ticket purchase requires an operation reference')
+  }
   await withTransaction(async () => {
     const result = await execute({
       sql: `
@@ -138,6 +145,7 @@ export async function deductCreditsForTicket(
       operation: 'create_ticket',
       amount: -amount,
       reason: `ticket created: ${ticketCode}`,
+      externalReference,
     })
   })
 }
@@ -145,9 +153,13 @@ export async function deductCreditsForTicket(
 export async function markCreditsAsConsumed(
   hiveUsername: string,
   amount: number,
-  accountUsername: string
+  accountUsername: string,
+  externalReference: string
 ): Promise<void> {
   assertPositiveInteger(amount)
+  if (externalReference.trim().length === 0) {
+    throw new Error('Credit consumption requires an operation reference')
+  }
   await withTransaction(async () => {
     const result = await execute({
       sql: `
@@ -171,6 +183,7 @@ export async function markCreditsAsConsumed(
       operation: 'consume_credits',
       amount: -amount,
       reason: `account created: ${accountUsername}`,
+      externalReference,
     })
   })
 }
@@ -178,9 +191,13 @@ export async function markCreditsAsConsumed(
 export async function refundCreditsFromTicket(
   hiveUsername: string,
   amount: number,
-  ticketCode: string
+  ticketCode: string,
+  externalReference: string
 ): Promise<void> {
   assertPositiveInteger(amount)
+  if (externalReference.trim().length === 0) {
+    throw new Error('Ticket refund requires an operation reference')
+  }
   await withTransaction(async () => {
     const result = await execute({
       sql: `
@@ -204,6 +221,7 @@ export async function refundCreditsFromTicket(
       operation: 'delete_ticket_refund',
       amount,
       reason: `ticket deleted: ${ticketCode}`,
+      externalReference,
     })
   })
 }

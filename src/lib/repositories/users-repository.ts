@@ -3,7 +3,7 @@
  * Builders are not rows in `"user"`.
  */
 
-import { db, insertAdminUser } from '@/lib/database'
+import { execute, insertAdminUser } from '@/lib/database'
 import {
   parseUserRow,
   compactMap,
@@ -59,7 +59,7 @@ export class UsersRepository {
    */
   async getById(id: string): Promise<DatabaseUserRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT id, username, role, is_active, created_at, updated_at FROM "user" WHERE id = ?',
         args: [id],
       })
@@ -80,7 +80,7 @@ export class UsersRepository {
    */
   async getByUsername(username: string): Promise<DatabaseUserRow | null> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT id, username, role, is_active, created_at, updated_at FROM "user" WHERE username = ?',
         args: [username],
       })
@@ -123,7 +123,7 @@ export class UsersRepository {
       updates.push('updated_at = CURRENT_TIMESTAMP')
       args.push(id)
 
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					UPDATE "user"
 					SET ${updates.join(', ')}
@@ -151,7 +151,7 @@ export class UsersRepository {
    */
   async getAdmins(): Promise<DatabaseUserRow[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT id, username, role, is_active, created_at, updated_at FROM "user"
 					WHERE role = 'admin'
@@ -175,7 +175,7 @@ export class UsersRepository {
 
   async getBuildersWithStats(): Promise<BuilderWithStats[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `
 					SELECT
 						c.hive_username as id,
@@ -210,7 +210,7 @@ export class UsersRepository {
 
   async countAdmins(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as total FROM "user" WHERE role = ?',
         args: [UserRole.Admin],
       })
@@ -222,7 +222,7 @@ export class UsersRepository {
 
   async countAll(): Promise<number> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: 'SELECT COUNT(*) as total FROM "user"',
         args: [],
       })
@@ -257,7 +257,7 @@ export class UsersRepository {
    */
   async getAccountsByUser(builderId: string): Promise<AccountWithTicketInfo[]> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `SELECT
 					a.id,
 					a.username,
@@ -300,7 +300,7 @@ export class UsersRepository {
    */
   async getBuildersStats(builderId: string): Promise<BuildersStats> {
     try {
-      const result = await db.execute({
+      const result = await execute({
         sql: `SELECT
 					(SELECT COUNT(*) FROM Accounts
 					 WHERE builder_username = ?
