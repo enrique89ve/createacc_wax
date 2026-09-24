@@ -229,66 +229,28 @@ export class TicketsRepository {
     return parseTicketRow(result.rows[0])
   }
 
-  async deleteOwned(id: number, creatorUsername: string): Promise<boolean> {
+  /** Archive an owned ticket while preserving its stable identity and code. */
+  async archiveOwned(
+    id: number,
+    ownerBuilderUsername: string
+  ): Promise<DatabaseTicketRow | null> {
     const result = await execute({
-      sql: `DELETE FROM Tickets WHERE id = ? AND funding_source = 'builder_credits' AND owner_builder_username = ?`,
-      args: [id, creatorUsername],
+      sql: `
+        UPDATE Tickets
+        SET retired_uses = retired_uses + remaining_uses,
+            remaining_uses = 0,
+            archived_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+          AND funding_source = 'builder_credits'
+          AND owner_builder_username = ?
+          AND archived_at IS NULL
+        RETURNING *
+      `,
+      args: [id, ownerBuilderUsername],
     })
-    return result.rowsAffected === 1
-  }
-
-  async update(id: number, data: UpdateTicketData): Promise<void> {
-    try {
-      // Build dynamic query with only present fields
-      const updates: string[] = []
-      const args: (string | number | null)[] = []
-
-      if (data.description !== undefined) {
-        updates.push('description = ?')
-        args.push(data.description ?? null)
-      }
-
-      if (data.total_uses !== undefined) {
-        updates.push('total_uses = ?')
-        args.push(data.total_uses)
-      }
-
-      if (data.remaining_uses !== undefined) {
-        updates.push('remaining_uses = ?')
-        args.push(data.remaining_uses)
-      }
-      if (data.revoked_at !== undefined) {
-        updates.push('revoked_at = ?')
-        args.push(data.revoked_at)
-      }
-
-      if (updates.length === 0) {
-        return
-      }
-
-      updates.push('updated_at = CURRENT_TIMESTAMP')
-      args.push(id)
-
-      const sql = `UPDATE Tickets SET ${updates.join(', ')} WHERE id = ?`
-
-      await execute({ sql, args })
-    } catch (error) {
-      throw error
-    }
-  }
-
-  /**
-   * Delete a ticket
-   */
-  async delete(id: number): Promise<void> {
-    try {
-      await execute({
-        sql: 'DELETE FROM Tickets WHERE id = ?',
-        args: [id],
-      })
-    } catch (error) {
-      throw error
-    }
+    if (result.rows.length === 0) return null
+    return parseTicketRow(result.rows[0])
   }
 
   // ===== SPECIALIZED QUERIES =====
@@ -477,8 +439,8 @@ export class TicketsRepository {
         sql: `
 					SELECT
 						COUNT(*) as total_tickets,
-						SUM(CASE WHEN remaining_uses > 0 AND revoked_at IS NULL THEN 1 ELSE 0 END) as active_tickets,
-						SUM(CASE WHEN remaining_uses < total_uses THEN 1 ELSE 0 END) as used_tickets,
+						SUM(CASE WHEN remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL THEN 1 ELSE 0 END) as active_tickets,
+						SUM(CASE WHEN remaining_uses < total_uses - retired_uses THEN 1 ELSE 0 END) as used_tickets,
 						SUM(total_uses) as total_credits_original,
 						SUM(remaining_uses) as total_credits_remaining
 					FROM Tickets
@@ -537,7 +499,7 @@ export class TicketsRepository {
   async countUsed(): Promise<number> {
     try {
       const result = await execute({
-        sql: 'SELECT COUNT(*) as total FROM Tickets WHERE remaining_uses < total_uses',
+        sql: 'SELECT COUNT(*) as total FROM Tickets WHERE remaining_uses < total_uses - retired_uses',
         args: [],
       })
 
@@ -547,33 +509,6 @@ export class TicketsRepository {
     }
   }
 
-  /**
-   * Deduct one use from a ticket (used when creating an account)
-   */
-  async deductCredit(code: string): Promise<void> {
-    try {
-      const ticket = await this.findByCode(code)
-
-      if (!ticket) {
-        throw new Error(`Ticket not found: ${code}`)
-      }
-
-      if (ticket.remaining_uses <= 0) {
-        throw new Error(`Ticket without available remaining_uses: ${code}`)
-      }
-
-      await execute({
-        sql: `
-					UPDATE Tickets
-						SET remaining_uses = remaining_uses - 1, updated_at = CURRENT_TIMESTAMP
-						WHERE code = ? AND remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
-				`,
-        args: [code],
-      })
-    } catch (error) {
-      throw error
-    }
-  }
 }
 
 // Singleton instance

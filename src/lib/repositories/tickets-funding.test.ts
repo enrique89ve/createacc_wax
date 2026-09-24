@@ -7,6 +7,7 @@ import {
   completeAccountCreationInDB,
 } from '@/utils/db-ticket-validator'
 import type { HiveTransactionResult } from '@/types/hive-transaction'
+import { archiveOwnedTicket } from '@/lib/tickets/archive-ticket'
 
 const RUN = crypto.randomUUID().replace(/-/g, '').slice(0, 10)
 const SHARED_USERNAME = `builder${RUN}`
@@ -150,5 +151,8 @@ describe('ticket funding and ownership', () => {
       creator_role: 'admin',
     })
     expect(systemRow?.status).toBe('exhausted')
+    expect(await archiveOwnedTicket(systemTicketId, SHARED_USERNAME)).toEqual({
+      kind: 'not_found',
+    })
   })
 })

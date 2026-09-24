@@ -23,6 +23,7 @@ import type {
   UpdateTicketUsesResponse,
   DeleteTicketResponse,
 } from '@/types/api-contracts'
+import { archiveOwnedTicket } from '@/lib/tickets/archive-ticket'
 
 /**
  * PATCH /api/builders/tickets/:id
@@ -184,7 +185,7 @@ export const PATCH: APIRoute = async context => {
 
 /**
  * DELETE /api/builders/tickets/:id
- * Delete a ticket (only if it has not been used)
+ * Archive a ticket and refund its remaining Builder-funded uses.
  */
 export const DELETE: APIRoute = async context => {
   const csrfCheck = requireValidOrigin(context.request)
@@ -207,58 +208,24 @@ export const DELETE: APIRoute = async context => {
         return apiError('ID de ticket inválido', HTTP_STATUS.BAD_REQUEST)
       }
 
-      const mutation = await withTransaction(async () => {
-        const ticket = await ticketsRepository.findById(ticketId)
-
-        if (!ticket) {
-          return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
-        }
-
-        if (
-          ticket.funding_source !== 'builder_credits' ||
-          ticket.owner_builder_username !== session.username
-        ) {
-          return apiError(
-            'No tienes permisos para eliminar este ticket',
-            HTTP_STATUS.FORBIDDEN
-          )
-        }
-
-        const usesToRefund = ticket.has_been_used
-          ? ticket.remaining_uses
-          : ticket.total_uses
-
-        if (usesToRefund > 0) {
-          await creditsService.refundCreditsFromTicket(
-            session.username,
-            usesToRefund,
-            ticket.code
-          )
-        }
-
-        const deleted = await ticketsRepository.deleteOwned(
-          ticketId,
-          session.username
+      const mutation = await archiveOwnedTicket(ticketId, session.username)
+      if (mutation.kind === 'not_found') {
+        return apiError('Ticket no encontrado', HTTP_STATUS.NOT_FOUND)
+      }
+      if (mutation.kind === 'open_attempts') {
+        return apiError(
+          'El ticket tiene creaciones en curso y no puede archivarse todavía',
+          HTTP_STATUS.CONFLICT
         )
-        if (!deleted) {
-          throw new Error('Ticket ownership delete rejected')
-        }
-
-        return {
-          kind: 'deleted' as const,
-          wasUsed: ticket.has_been_used,
-          refundedCredits: usesToRefund,
-        }
-      })
-
-      if (mutation instanceof Response) return mutation
+      }
 
       const response: DeleteTicketResponse = {
         success: true,
-        message: mutation.wasUsed
-          ? `Ticket eliminado. Se reembolsaron ${mutation.refundedCredits} créditos restantes.`
-          : 'Ticket eliminado exitosamente',
-        refundedCredits: mutation.refundedCredits,
+        message:
+          mutation.kind === 'already_archived'
+            ? `El ticket ya estaba archivado; el reembolso total fue de ${mutation.ticket.retired_uses} créditos`
+            : `Ticket archivado; se reembolsaron ${mutation.ticket.retired_uses} créditos`,
+        refundedCredits: mutation.ticket.retired_uses,
       }
 
       return apiSuccess(response, HTTP_STATUS.OK)

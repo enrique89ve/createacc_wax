@@ -86,7 +86,7 @@ export class DashboardService {
 					SELECT
 						(SELECT COUNT(*) FROM Credits) as total_builders,
 						(SELECT COUNT(*) FROM Tickets) as total_tickets,
-						(SELECT COUNT(*) FROM Tickets WHERE remaining_uses < total_uses) as used_tickets,
+						(SELECT COUNT(*) FROM Tickets WHERE remaining_uses < total_uses - retired_uses) as used_tickets,
 						(SELECT COUNT(*) FROM Accounts) as total_accounts,
 						(SELECT COUNT(*) FROM Accounts WHERE DATE(creation_date) = DATE('now')) as today_accounts
 				`,

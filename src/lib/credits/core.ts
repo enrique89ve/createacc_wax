@@ -149,16 +149,22 @@ export async function markCreditsAsConsumed(
 ): Promise<void> {
   assertPositiveInteger(amount)
   await withTransaction(async () => {
-    await execute({
+    const result = await execute({
       sql: `
-				UPDATE Credits
-				SET
-					total_consumed = total_consumed + ?,
-					updated_at = CURRENT_TIMESTAMP
-				WHERE hive_username = ?
-			`,
+        UPDATE Credits
+        SET
+          total_consumed = total_consumed + ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE hive_username = ?
+        RETURNING hive_username
+      `,
       args: [amount, hiveUsername],
     })
+    if (result.rows.length !== 1) {
+      throw new Error(
+        `Cannot consume account credit without Credits row: ${hiveUsername}`
+      )
+    }
 
     await insertCreditAudit({
       hiveUsername,
@@ -176,16 +182,22 @@ export async function refundCreditsFromTicket(
 ): Promise<void> {
   assertPositiveInteger(amount)
   await withTransaction(async () => {
-    await execute({
+    const result = await execute({
       sql: `
-				UPDATE Credits
-				SET
-					available_amount = available_amount + ?,
-					updated_at = CURRENT_TIMESTAMP
-				WHERE hive_username = ?
-			`,
+        UPDATE Credits
+        SET
+          available_amount = available_amount + ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE hive_username = ?
+        RETURNING hive_username
+      `,
       args: [amount, hiveUsername],
     })
+    if (result.rows.length !== 1) {
+      throw new Error(
+        `Cannot refund ticket uses without Credits row: ${hiveUsername}`
+      )
+    }
 
     await insertCreditAudit({
       hiveUsername,
