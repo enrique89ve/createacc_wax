@@ -65,6 +65,16 @@ export const es = {
       onlyNumbers: 'El código de acceso no puede ser solo números.',
       invalidFormat: 'El código de acceso no es válido.',
     },
+    validationErrors: {
+      invalidCode: 'El código de acceso no es válido.',
+      notFound: 'El código de acceso no existe.',
+      invalidRecord: 'El código de acceso no es válido.',
+      temporarilyUnavailable:
+        'El código de acceso no está disponible temporalmente.',
+      inactive: 'El código de acceso está inactivo.',
+      noUses: 'El código de acceso no tiene usos disponibles.',
+      internalError: 'No se pudo validar el código de acceso.',
+    },
   },
   details: {
     title: 'Protege tu cuenta',

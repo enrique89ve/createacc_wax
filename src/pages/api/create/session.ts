@@ -98,7 +98,10 @@ export const POST: APIRoute = async context => {
         return apiError(
           ticketValidation.error ?? VALIDATION_ERROR_MESSAGES.TICKET_INVALID,
           HTTP_STATUS.BAD_REQUEST,
-          undefined,
+          {
+            kind: 'ticket_validation',
+            code: ticketValidation.errorCode,
+          },
           { noCache: true }
         )
       }
@@ -118,7 +121,10 @@ export const POST: APIRoute = async context => {
         return apiError(
           ticketValidation.error ?? VALIDATION_ERROR_MESSAGES.TICKET_INVALID,
           HTTP_STATUS.BAD_REQUEST,
-          undefined,
+          {
+            kind: 'ticket_validation',
+            code: ticketValidation.errorCode,
+          },
           { noCache: true }
         )
       }

@@ -17,6 +17,7 @@ const VERIFIED_BUTTON_CLASSES = [
 ] as const
 
 export function showTicketError(elements: FormElements, message: string): void {
+  resetTicketVerification(elements)
   elements.ticketInput.classList.remove(
     ...VERIFIED_INPUT_CLASSES,
     'border-border'
@@ -26,6 +27,7 @@ export function showTicketError(elements: FormElements, message: string): void {
     'focus:border-primary',
     'focus:ring-primary/40'
   )
+  elements.ticketApplyBtn.disabled = true
   elements.ticketError.textContent = message
   elements.ticketError.classList.remove('hidden')
 }

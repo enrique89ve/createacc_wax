@@ -66,6 +66,16 @@ export const pt: Messages = {
       onlyNumbers: 'O código de acesso não pode ser só números.',
       invalidFormat: 'O código de acesso não é válido.',
     },
+    validationErrors: {
+      invalidCode: 'O código de acesso é inválido.',
+      notFound: 'O código de acesso não foi encontrado.',
+      invalidRecord: 'O código de acesso é inválido.',
+      temporarilyUnavailable:
+        'O código de acesso está temporariamente indisponível.',
+      inactive: 'O código de acesso está inativo.',
+      noUses: 'O código de acesso não tem usos disponíveis.',
+      internalError: 'Não foi possível validar o código de acesso.',
+    },
   },
   details: {
     title: 'Proteja sua conta',

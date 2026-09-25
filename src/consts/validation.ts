@@ -3,6 +3,19 @@ export const USERNAME_CONSTRAINTS = {
   MAX_LENGTH: 16,
 } as const
 
+export const TICKET_VALIDATION_ERROR_CODES = {
+  INVALID_CODE: 'invalidCode',
+  NOT_FOUND: 'notFound',
+  INVALID_RECORD: 'invalidRecord',
+  TEMPORARILY_UNAVAILABLE: 'temporarilyUnavailable',
+  INACTIVE: 'inactive',
+  NO_USES: 'noUses',
+  INTERNAL_ERROR: 'internalError',
+} as const
+
+export type TicketValidationErrorCode =
+  (typeof TICKET_VALIDATION_ERROR_CODES)[keyof typeof TICKET_VALIDATION_ERROR_CODES]
+
 export const VALIDATION_ERROR_MESSAGES = {
   USERNAME_REQUIRED: 'username required',
   INTERNAL_ERROR: 'internal error',

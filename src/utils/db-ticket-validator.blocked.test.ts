@@ -76,6 +76,7 @@ describe('blocked ticket creator', () => {
     expect(await validateTicketInDB(ticketCode)).toEqual({
       isValid: false,
       error: 'Ticket temporalmente no disponible',
+      errorCode: 'temporarilyUnavailable',
     })
     expect((await reserveTicketCredit(reservation)).success).toBe(false)
     expect(await markTicketAsUsed(ticketCode)).toBe(false)

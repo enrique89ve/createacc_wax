@@ -46,6 +46,10 @@ import {
   type ActionableReconciliationStatus,
   type ReconciliationStatus,
 } from '@/consts/constants'
+import {
+  TICKET_VALIDATION_ERROR_CODES,
+  type TicketValidationErrorCode,
+} from '@/consts/validation'
 
 /**
  * Re-export unified system codes for compatibility
@@ -104,11 +108,16 @@ function sanitizeUsername(raw: string): string | null {
 // Use centralized database types
 export type { DatabaseTicketRow } from '@/types/database'
 
-export interface TicketValidationResult {
-  readonly isValid: boolean
-  readonly error?: string
-  readonly ticket?: DatabaseTicketRow
-}
+export type TicketValidationResult =
+  | {
+      readonly isValid: true
+      readonly ticket: DatabaseTicketRow
+    }
+  | {
+      readonly isValid: false
+      readonly error: string
+      readonly errorCode: TicketValidationErrorCode
+    }
 
 /**
  * Validates a ticket against the database
@@ -120,7 +129,11 @@ export async function validateTicketInDB(
   try {
     const cleanCode = sanitizeTicketCode(ticketCode)
     if (!cleanCode) {
-      return { isValid: false, error: 'Código de ticket inválido' }
+      return {
+        isValid: false,
+        error: 'Código de ticket inválido',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.INVALID_CODE,
+      }
     }
 
     const result = await execute({
@@ -129,12 +142,20 @@ export async function validateTicketInDB(
     })
 
     if (result.rows.length === 0) {
-      return { isValid: false, error: 'Ticket no encontrado' }
+      return {
+        isValid: false,
+        error: 'Ticket no encontrado',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.NOT_FOUND,
+      }
     }
 
     const ticket = parseTicketRow(result.rows[0])
     if (!ticket) {
-      return { isValid: false, error: 'Formato de ticket inválido' }
+      return {
+        isValid: false,
+        error: 'Formato de ticket inválido',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.INVALID_RECORD,
+      }
     }
 
     if (
@@ -142,21 +163,37 @@ export async function validateTicketInDB(
       ticket.owner_builder_username &&
       (await isHiveUsernameBlocked(ticket.owner_builder_username))
     ) {
-      return { isValid: false, error: 'Ticket temporalmente no disponible' }
+      return {
+        isValid: false,
+        error: 'Ticket temporalmente no disponible',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.TEMPORARILY_UNAVAILABLE,
+      }
     }
 
     if (!ticket.is_active) {
-      return { isValid: false, error: 'Ticket no está activo' }
+      return {
+        isValid: false,
+        error: 'Ticket no está activo',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.INACTIVE,
+      }
     }
 
     // Verify that the ticket has available uses
     if (ticket.remaining_uses <= 0) {
-      return { isValid: false, error: 'Ticket sin créditos disponibles' }
+      return {
+        isValid: false,
+        error: 'Ticket sin créditos disponibles',
+        errorCode: TICKET_VALIDATION_ERROR_CODES.NO_USES,
+      }
     }
 
     return { isValid: true, ticket }
   } catch (error) {
-    return { isValid: false, error: 'Error interno validando ticket' }
+    return {
+      isValid: false,
+      error: 'Error interno validando ticket',
+      errorCode: TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR,
+    }
   }
 }
 

@@ -373,7 +373,19 @@ const copy =
       navigate(`/details/${username}`)
     } else {
       state.isSubmitting = false
-      showSubmitError(originalText)
+      const currentElements = elements
+      if (result.ticketValidationErrorCode && currentElements) {
+        state.isTicketValid = false
+        showTicketError(
+          currentElements,
+          publicCopy().accessCode.validationErrors[
+            result.ticketValidationErrorCode
+          ]
+        )
+        sync()
+      } else {
+        showSubmitError(originalText)
+      }
       refetchFlowTimingToken()
     }
   }

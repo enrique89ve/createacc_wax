@@ -65,6 +65,15 @@ export const en: Messages = {
       onlyNumbers: 'The access code cannot be only numbers.',
       invalidFormat: 'The access code is not valid.',
     },
+    validationErrors: {
+      invalidCode: 'The access code is invalid.',
+      notFound: 'The access code was not found.',
+      invalidRecord: 'The access code is invalid.',
+      temporarilyUnavailable: 'The access code is temporarily unavailable.',
+      inactive: 'The access code is inactive.',
+      noUses: 'The access code has no uses remaining.',
+      internalError: 'The access code could not be validated.',
+    },
   },
   details: {
     title: 'Protect your account',
