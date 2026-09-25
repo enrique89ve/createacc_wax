@@ -92,7 +92,7 @@ const copy =
             {copy.home.accessCodeLabel}
           </label>
 
-          <div id="ticket-input-container" class="flex gap-2">
+          <div class="flex gap-2">
             <input
               id="ticket"
               name="ticket"
@@ -109,30 +109,29 @@ const copy =
               id="ticket-apply-btn"
               type="button"
               disabled
-              class="bg-muted text-foreground hover:enabled:bg-accent border-border whitespace-nowrap rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label={copy.home.accessCodeVerify}
+              class="bg-muted text-foreground hover:enabled:bg-accent border-border inline-flex min-h-12 w-28 shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {copy.home.accessCodeVerify}
-            </button>
-          </div>
-
-          <div id="ticket-chip" class="hidden">
-            <div
-              class="bg-muted flex items-center gap-2 rounded-lg border border-green-500/40 px-3 py-2"
-            >
-              <span class="text-sm font-bold text-green-400">✓</span>
-              <span class="text-foreground text-sm font-medium">
-                {copy.home.accessCodeVerified}
+              <span id="ticket-apply-label">
+                {copy.home.accessCodeVerify}
               </span>
-              <span id="ticket-chip-code" class="hidden"></span>
-              <button
-                id="ticket-remove-btn"
-                type="button"
-                class="text-muted-foreground hover:text-foreground ml-auto inline-flex min-h-11 min-w-11 items-center justify-center transition-colors"
-                aria-label={copy.home.accessCodeRemove}
+              <svg
+                id="ticket-apply-icon"
+                class="hidden h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                aria-hidden="true"
               >
-                ✕
-              </button>
-            </div>
+                <path
+                  d="m4 10 4 4 8-8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </button>
           </div>
 
           <div
@@ -174,7 +173,6 @@ const copy =
   import { validateUsername } from '@/lib/form/username-validation'
   import {
     applyTicket,
-    removeTicket as removeTicketDom,
     handleTicketInputChange,
   } from '@/lib/form/ticket-handlers'
   import { syncSubmitButton } from '@/lib/form/submit-button'
@@ -287,7 +285,9 @@ const copy =
   function handleTicketInput(): void {
     if (!elements) return
     const shouldEnable = handleTicketInputChange(elements)
+    state.isTicketValid = false
     elements.ticketApplyBtn.disabled = !shouldEnable
+    sync()
   }
 
   async function handleApplyTicket(): Promise<void> {
@@ -304,13 +304,6 @@ const copy =
         sync()
       },
     })
-  }
-
-  function handleRemoveTicket(): void {
-    if (!elements) return
-    removeTicketDom(elements)
-    state.isTicketValid = false
-    sync()
   }
 
   function setSubmitLoadingState(text: string): void {
@@ -346,9 +339,7 @@ const copy =
     state.isSubmitting = true
 
     const username = elements.usernameInput.value.toLowerCase().trim()
-    const ticket =
-      elements.ticketChipCode.textContent?.trim() ||
-      elements.ticketInput.value.trim()
+    const ticket = elements.ticketInput.value.trim()
     if (!username || username.length < 3) {
       state.isSubmitting = false
       return
@@ -419,8 +410,6 @@ const copy =
         if (!elements?.ticketApplyBtn.disabled) handleApplyTicket()
       }
     })
-
-    elements.ticketRemoveBtn.addEventListener('click', handleRemoveTicket)
 
     if (elements.ticketInput.value) {
       const cleanedValue = cleanTicket(elements.ticketInput.value.trim())

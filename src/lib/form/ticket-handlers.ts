@@ -2,50 +2,97 @@ import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
 import { publicCopy } from '@/i18n'
 import type { FormElements } from './types'
 
+const VERIFIED_INPUT_CLASSES = [
+  'border-green-500',
+  'focus:border-green-500',
+  'focus:ring-green-500/40',
+] as const
+
+const VERIFIED_BUTTON_CLASSES = [
+  'bg-green-500/10',
+  'border-green-500',
+  'text-green-400',
+  '!opacity-100',
+  '!cursor-default',
+] as const
+
 export function showTicketError(elements: FormElements, message: string): void {
-  elements.ticketInput.classList.add('border-red-500')
+  elements.ticketInput.classList.remove(
+    ...VERIFIED_INPUT_CLASSES,
+    'border-border'
+  )
+  elements.ticketInput.classList.add(
+    'border-red-500',
+    'focus:border-primary',
+    'focus:ring-primary/40'
+  )
   elements.ticketError.textContent = message
   elements.ticketError.classList.remove('hidden')
 }
 
-export function setTicketLoadingState(
-  elements: FormElements,
-  _ticket: string
-): void {
+export function setTicketLoadingState(elements: FormElements): void {
   const copy = publicCopy()
   elements.ticketInput.disabled = true
   elements.ticketApplyBtn.disabled = true
-  elements.ticketApplyBtn.textContent = copy.accessCode.validating
+  elements.ticketApplyLabel.textContent = copy.accessCode.validating
+  elements.ticketApplyLabel.classList.remove('hidden')
+  elements.ticketApplyIcon.classList.add('hidden')
+  elements.ticketApplyBtn.setAttribute('aria-label', copy.accessCode.validating)
 }
 
 export function showTicketApplied(
   elements: FormElements,
   ticket: string
 ): void {
-  elements.ticketChipCode.textContent = ticket
-  elements.ticketInputContainer.classList.add('hidden')
-  elements.ticketChip.classList.remove('hidden')
-  elements.ticketError.classList.add('hidden')
-}
-
-export function resetTicketInput(elements: FormElements): void {
   const copy = publicCopy()
+  elements.ticketInput.value = ticket
   elements.ticketInput.disabled = false
-  elements.ticketApplyBtn.textContent = copy.home.accessCodeVerify
-  elements.ticketApplyBtn.disabled = false
-}
-
-export function removeTicket(elements: FormElements): void {
-  const copy = publicCopy()
-  elements.ticketChip.classList.add('hidden')
-  elements.ticketInputContainer.classList.remove('hidden')
-  elements.ticketInput.value = ''
-  elements.ticketInput.disabled = false
-  elements.ticketApplyBtn.textContent = copy.home.accessCodeVerify
+  elements.ticketInput.classList.remove('border-border', 'border-red-500')
+  elements.ticketInput.classList.remove(
+    'focus:border-primary',
+    'focus:ring-primary/40'
+  )
+  elements.ticketInput.classList.add(...VERIFIED_INPUT_CLASSES)
+  elements.ticketApplyLabel.classList.add('hidden')
+  elements.ticketApplyIcon.classList.remove('hidden')
+  elements.ticketApplyBtn.setAttribute(
+    'aria-label',
+    copy.home.accessCodeVerified
+  )
+  elements.ticketApplyBtn.classList.remove(
+    'bg-muted',
+    'text-foreground',
+    'border-border'
+  )
+  elements.ticketApplyBtn.classList.add(...VERIFIED_BUTTON_CLASSES)
   elements.ticketApplyBtn.disabled = true
   elements.ticketError.classList.add('hidden')
-  elements.ticketInput.classList.remove('border-red-500')
-  elements.ticketInput.focus()
+}
+
+function resetTicketVerification(elements: FormElements): void {
+  const copy = publicCopy()
+  elements.ticketInput.classList.remove(
+    ...VERIFIED_INPUT_CLASSES,
+    'border-red-500'
+  )
+  elements.ticketInput.classList.add(
+    'border-border',
+    'focus:border-primary',
+    'focus:ring-primary/40'
+  )
+  elements.ticketApplyLabel.textContent = copy.home.accessCodeVerify
+  elements.ticketApplyLabel.classList.remove('hidden')
+  elements.ticketApplyIcon.classList.add('hidden')
+  elements.ticketApplyBtn.setAttribute(
+    'aria-label',
+    copy.home.accessCodeVerify
+  )
+  elements.ticketApplyBtn.classList.remove(...VERIFIED_BUTTON_CLASSES)
+  elements.ticketApplyBtn.classList.add(
+    'bg-muted',
+    'text-foreground',
+    'border-border'
+  )
 }
 
 export function handleTicketInputChange(elements: FormElements): boolean {
@@ -59,7 +106,7 @@ export function handleTicketInputChange(elements: FormElements): boolean {
   }
 
   elements.ticketError.classList.add('hidden')
-  elements.ticketInput.classList.remove('border-red-500')
+  resetTicketVerification(elements)
 
   if (!cleaned) return false
 
@@ -92,11 +139,10 @@ export async function applyTicket(
     return { status: 'invalid' }
   }
 
-  setTicketLoadingState(elements, ticket)
+  setTicketLoadingState(elements)
   await Promise.resolve()
 
   showTicketApplied(elements, ticket)
   deps.onTicketValid(ticket)
-  resetTicketInput(elements)
   return { status: 'applied', ticket }
 }

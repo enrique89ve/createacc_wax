@@ -10,10 +10,8 @@ export interface FormElements {
   readonly usernameError: HTMLElement
   readonly ticketInput: HTMLInputElement
   readonly ticketApplyBtn: HTMLButtonElement
-  readonly ticketInputContainer: HTMLElement
-  readonly ticketChip: HTMLElement
-  readonly ticketChipCode: HTMLElement
-  readonly ticketRemoveBtn: HTMLButtonElement
+  readonly ticketApplyLabel: HTMLElement
+  readonly ticketApplyIcon: SVGSVGElement
   readonly ticketError: HTMLElement
   readonly submitButton: HTMLButtonElement
 }
@@ -31,14 +29,10 @@ export function queryFormElements(): FormElements | null {
   const ticketInput = document.querySelector<HTMLInputElement>('#ticket')
   const ticketApplyBtn =
     document.querySelector<HTMLButtonElement>('#ticket-apply-btn')
-  const ticketInputContainer = document.querySelector<HTMLElement>(
-    '#ticket-input-container'
-  )
-  const ticketChip = document.querySelector<HTMLElement>('#ticket-chip')
-  const ticketChipCode =
-    document.querySelector<HTMLElement>('#ticket-chip-code')
-  const ticketRemoveBtn =
-    document.querySelector<HTMLButtonElement>('#ticket-remove-btn')
+  const ticketApplyLabel =
+    document.querySelector<HTMLElement>('#ticket-apply-label')
+  const ticketApplyIcon =
+    document.querySelector<SVGSVGElement>('#ticket-apply-icon')
   const ticketError = document.querySelector<HTMLElement>('#ticket-error')
   const submitButton =
     document.querySelector<HTMLButtonElement>('#form-siguiente')
@@ -53,10 +47,8 @@ export function queryFormElements(): FormElements | null {
     !usernameError ||
     !ticketInput ||
     !ticketApplyBtn ||
-    !ticketInputContainer ||
-    !ticketChip ||
-    !ticketChipCode ||
-    !ticketRemoveBtn ||
+    !ticketApplyLabel ||
+    !ticketApplyIcon ||
     !ticketError ||
     !submitButton
   ) {
@@ -73,10 +65,8 @@ export function queryFormElements(): FormElements | null {
     usernameError,
     ticketInput,
     ticketApplyBtn,
-    ticketInputContainer,
-    ticketChip,
-    ticketChipCode,
-    ticketRemoveBtn,
+    ticketApplyLabel,
+    ticketApplyIcon,
     ticketError,
     submitButton,
   }
