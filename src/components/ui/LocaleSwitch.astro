@@ -14,9 +14,8 @@ const label = copy?.localeSwitch.label ?? 'Idioma'
 function hrefFor(next: string): string {
   const url = new URL(Astro.url)
   url.searchParams.delete(LOCALE_QUERY)
-  if (next !== DEFAULT_LOCALE) {
-    url.searchParams.set(LOCALE_QUERY, next)
-  }
+  // Make the default locale explicit so an existing locale cookie cannot win.
+  url.searchParams.set(LOCALE_QUERY, next)
   return `${url.pathname}${url.search}`
 }
 ---
