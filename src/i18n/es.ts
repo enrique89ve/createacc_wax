@@ -24,6 +24,15 @@ export const es = {
     verifying: 'Verificando...',
     continueError: 'No se pudo continuar. Inténtalo de nuevo.',
     continueErrorButton: 'Error — Inténtalo de nuevo',
+    flowErrors: {
+      pow: 'No se pudo verificar la solicitud. Inténtalo de nuevo.',
+      timing: 'La verificación de tiempo no se completó. Inténtalo de nuevo.',
+      rateLimited:
+        'Demasiados intentos. Vuelve a probar en {seconds} segundos.',
+      usernameRequired: 'Escribe un nombre de usuario para continuar.',
+      serviceUnavailable:
+        'No se pudo iniciar la sesión por un problema temporal. Inténtalo de nuevo.',
+    },
   },
   stepper: {
     ariaLabel: 'Progreso de creación de cuenta',

@@ -332,9 +332,9 @@ const copy =
     elements.submitButton.textContent = text
   }
 
-  function showSubmitError(originalText: string | null): void {
+  function showSubmitError(message: string, originalText: string | null): void {
     if (!elements) return
-    notify('error', publicCopy().home.continueError)
+    notify('error', message)
     elements.submitButton.textContent = publicCopy().home.continueErrorButton
     elements.submitButton.classList.add('bg-red-600', 'hover:bg-red-700')
     setTimeout(() => restoreSubmitButton(originalText), 3000)
@@ -375,13 +375,13 @@ const copy =
 
     if (resolved.status === 'pow_error') {
       state.isSubmitting = false
-      notify('error', 'Error de verificación. Inténtalo de nuevo.')
+      notify('error', publicCopy().home.flowErrors.pow)
       restoreSubmitButton(originalText)
       return
     }
     if (resolved.status === 'timing_error') {
       state.isSubmitting = false
-      notify('error', 'Error de verificación. Inténtalo de nuevo.')
+      notify('error', publicCopy().home.flowErrors.timing)
       restoreSubmitButton(originalText)
       return
     }
@@ -398,7 +398,7 @@ const copy =
     } else {
       state.isSubmitting = false
       const currentElements = elements
-      if (result.ticketValidationErrorCode && currentElements) {
+      if (result.reason === 'ticket_invalid' && currentElements) {
         state.isTicketValid = false
         showTicketError(
           currentElements,
@@ -408,7 +408,19 @@ const copy =
         )
         sync()
       } else {
-        showSubmitError(originalText)
+        const message =
+          result.reason === 'rate_limited'
+            ? interpolate(publicCopy().home.flowErrors.rateLimited, {
+                seconds: String(result.retryAfterSeconds ?? 60),
+              })
+            : result.reason === 'pow_invalid'
+              ? publicCopy().home.flowErrors.pow
+              : result.reason === 'timing_invalid'
+                ? publicCopy().home.flowErrors.timing
+                : result.reason === 'username_required'
+                  ? publicCopy().home.flowErrors.usernameRequired
+                  : publicCopy().home.flowErrors.serviceUnavailable
+        showSubmitError(message, originalText)
       }
       refetchFlowTimingToken()
     }

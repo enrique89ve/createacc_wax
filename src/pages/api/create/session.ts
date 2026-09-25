@@ -48,7 +48,7 @@ export const POST: APIRoute = async context => {
       return apiError(
         'Proof of work validation failed',
         HTTP_STATUS.BAD_REQUEST,
-        undefined,
+        { kind: 'session_validation', code: 'invalid_pow' },
         { noCache: true }
       )
     }
@@ -63,7 +63,7 @@ export const POST: APIRoute = async context => {
         return apiError(
           'Timing validation failed',
           HTTP_STATUS.BAD_REQUEST,
-          undefined,
+          { kind: 'session_validation', code: 'invalid_timing' },
           { noCache: true }
         )
       }
@@ -73,7 +73,7 @@ export const POST: APIRoute = async context => {
       return apiError(
         VALIDATION_ERROR_MESSAGES.USERNAME_REQUIRED,
         HTTP_STATUS.BAD_REQUEST,
-        undefined,
+        { kind: 'session_validation', code: 'username_required' },
         { noCache: true }
       )
     }
@@ -140,10 +140,9 @@ export const POST: APIRoute = async context => {
 
     return apiSuccess({ username }, HTTP_STATUS.OK, { noCache: true })
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : 'Internal server error'
+    console.error('[create-session] Session creation failed', error)
     return apiError(
-      errorMessage,
+      'Session creation failed',
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
       undefined,
       { noCache: true }

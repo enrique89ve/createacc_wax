@@ -25,6 +25,14 @@ export const pt: Messages = {
     verifying: 'Verificando...',
     continueError: 'Não foi possível continuar. Tente novamente.',
     continueErrorButton: 'Erro — Tente novamente',
+    flowErrors: {
+      pow: 'Não foi possível verificar a solicitação. Tente novamente.',
+      timing: 'A verificação de tempo não foi concluída. Tente novamente.',
+      rateLimited: 'Muitas tentativas. Tente novamente em {seconds} segundos.',
+      usernameRequired: 'Digite um nome de usuário para continuar.',
+      serviceUnavailable:
+        'Não foi possível iniciar a sessão devido a um problema temporário. Tente novamente.',
+    },
   },
   stepper: {
     ariaLabel: 'Progresso de criação da conta',

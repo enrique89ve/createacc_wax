@@ -25,6 +25,14 @@ export const en: Messages = {
     verifying: 'Verifying...',
     continueError: 'Could not continue. Please try again.',
     continueErrorButton: 'Error — Try again',
+    flowErrors: {
+      pow: 'Could not verify the request. Please try again.',
+      timing: 'Time verification did not complete. Please try again.',
+      rateLimited: 'Too many attempts. Try again in {seconds} seconds.',
+      usernameRequired: 'Enter a username to continue.',
+      serviceUnavailable:
+        'Could not start the session due to a temporary problem. Please try again.',
+    },
   },
   stepper: {
     ariaLabel: 'Account creation progress',

@@ -11,8 +11,21 @@ export type SessionCreationResult =
   | { readonly success: true }
   | {
       readonly success: false
-      readonly error: string
-      readonly ticketValidationErrorCode?: TicketValidationErrorCode
+      readonly reason: 'ticket_invalid'
+      readonly ticketValidationErrorCode: TicketValidationErrorCode
+    }
+  | {
+      readonly success: false
+      readonly reason: 'rate_limited'
+      readonly retryAfterSeconds?: number
+    }
+  | {
+      readonly success: false
+      readonly reason:
+        | 'pow_invalid'
+        | 'timing_invalid'
+        | 'username_required'
+        | 'service_unavailable'
     }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -31,17 +44,40 @@ function parseTicketValidationErrorCode(
   )
 }
 
+function parseSessionValidationReason(
+  payload: unknown
+): 'pow_invalid' | 'timing_invalid' | 'username_required' | undefined {
+  if (!isRecord(payload) || !isRecord(payload.details)) return undefined
+  if (payload.details.kind !== 'session_validation') return undefined
+
+  switch (payload.details.code) {
+    case 'invalid_pow':
+      return 'pow_invalid'
+    case 'invalid_timing':
+      return 'timing_invalid'
+    case 'username_required':
+      return 'username_required'
+    default:
+      return undefined
+  }
+}
+
 export async function createSession(
   username: string,
   ticket: string,
   pow: PowSolution,
   timingTokenId: string
 ): Promise<SessionCreationResult> {
-  const response = await fetch('/api/create/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, ticket, pow, timingTokenId }),
-  })
+  let response: Response
+  try {
+    response = await fetch('/api/create/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, ticket, pow, timingTokenId }),
+    })
+  } catch {
+    return { success: false, reason: 'service_unavailable' }
+  }
   let result: unknown
   try {
     result = await response.json()
@@ -53,13 +89,34 @@ export async function createSession(
     return { success: true }
   }
 
+  if (response.status === 429) {
+    const retryAfterSeconds = Number(response.headers.get('Retry-After'))
+    return {
+      success: false,
+      reason: 'rate_limited',
+      ...(Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? { retryAfterSeconds }
+        : {}),
+    }
+  }
+
+  const ticketValidationErrorCode = parseTicketValidationErrorCode(result)
+  if (ticketValidationErrorCode) {
+    return {
+      success: false,
+      reason: 'ticket_invalid',
+      ticketValidationErrorCode,
+    }
+  }
+
+  const sessionValidationReason = parseSessionValidationReason(result)
+  if (sessionValidationReason) {
+    return { success: false, reason: sessionValidationReason }
+  }
+
   return {
     success: false,
-    error:
-      isRecord(result) && typeof result.error === 'string'
-        ? result.error
-        : 'Error al crear la sesión',
-    ticketValidationErrorCode: parseTicketValidationErrorCode(result),
+    reason: 'service_unavailable',
   }
 }
 
@@ -100,10 +157,14 @@ export async function resolveSubmitDependencies(
     return { status: 'timing_error' }
   }
 
-  await ensureTimingMatured(
-    state.flowTimingTokenFetchedAt,
-    TIMING_THRESHOLDS.flow
-  )
+  try {
+    await ensureTimingMatured(
+      state.flowTimingTokenFetchedAt,
+      TIMING_THRESHOLDS.flow
+    )
+  } catch {
+    return { status: 'timing_error' }
+  }
 
   return { status: 'resolved', pow, timingTokenId }
 }
