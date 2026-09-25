@@ -9,6 +9,7 @@
     "preview": "pnpm start",
     "astro": "astro",
     "db:init": "tsx scripts/init-database.ts",
+    "db:convert:v1-to-v2": "tsx scripts/convert-database-v1-to-v2.ts",
     "db:diagnose": "tsx scripts/diagnose-database.ts",
     "db:reset": "rm -f holahive.db && pnpm run db:init",
     "db:seed": "tsx scripts/seed-database.ts",

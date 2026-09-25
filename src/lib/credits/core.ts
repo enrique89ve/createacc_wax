@@ -25,11 +25,12 @@ export async function grantPendingCredits(params: {
     await execute({
       sql: `
         INSERT INTO Credits (
-          hive_username, pending_amount, available_amount, total_issued, total_consumed
-        ) VALUES (?, ?, 0, ?, 0)
+          hive_username, pending_amount, available_amount, total_issued, total_consumed, revision
+        ) VALUES (?, ?, 0, ?, 0, 1)
         ON CONFLICT(hive_username) DO UPDATE SET
           pending_amount = pending_amount + excluded.pending_amount,
           total_issued = total_issued + excluded.total_issued,
+          revision = Credits.revision + 1,
           updated_at = CURRENT_TIMESTAMP
       `,
       args: [params.hiveUsername, params.amount, params.amount],
@@ -57,11 +58,12 @@ export async function grantAvailableCredits(params: {
     await execute({
       sql: `
         INSERT INTO Credits (
-          hive_username, pending_amount, available_amount, total_issued, total_consumed
-        ) VALUES (?, 0, ?, ?, 0)
+          hive_username, pending_amount, available_amount, total_issued, total_consumed, revision
+        ) VALUES (?, 0, ?, ?, 0, 1)
         ON CONFLICT(hive_username) DO UPDATE SET
           available_amount = available_amount + excluded.available_amount,
           total_issued = total_issued + excluded.total_issued,
+          revision = Credits.revision + 1,
           updated_at = CURRENT_TIMESTAMP
       `,
       args: [params.hiveUsername, params.amount, params.amount],
@@ -91,6 +93,7 @@ export async function claimCredits(
 				SET
 					pending_amount = pending_amount - ?,
 					available_amount = available_amount + ?,
+					revision = revision + 1,
 					updated_at = CURRENT_TIMESTAMP
 				WHERE hive_username = ? AND pending_amount >= ?
 			`,
@@ -130,6 +133,7 @@ export async function deductCreditsForTicket(
 				UPDATE Credits
 				SET
 					available_amount = available_amount - ?,
+					revision = revision + 1,
 					updated_at = CURRENT_TIMESTAMP
 				WHERE hive_username = ? AND available_amount >= ?
 			`,
@@ -166,6 +170,7 @@ export async function markCreditsAsConsumed(
         UPDATE Credits
         SET
           total_consumed = total_consumed + ?,
+          revision = revision + 1,
           updated_at = CURRENT_TIMESTAMP
         WHERE hive_username = ?
         RETURNING hive_username
@@ -204,6 +209,7 @@ export async function refundCreditsFromTicket(
         UPDATE Credits
         SET
           available_amount = available_amount + ?,
+          revision = revision + 1,
           updated_at = CURRENT_TIMESTAMP
         WHERE hive_username = ?
         RETURNING hive_username
@@ -248,7 +254,7 @@ export async function adjustCreditBalances(params: {
 
   return withTransaction(async () => {
     const current = await execute({
-      sql: `SELECT pending_amount, available_amount, total_issued, total_consumed
+      sql: `SELECT pending_amount, available_amount, total_issued, total_consumed, revision
         FROM Credits WHERE hive_username = ?`,
       args: [params.hiveUsername],
     })
@@ -273,6 +279,7 @@ export async function adjustCreditBalances(params: {
         available_amount: currentAvailable,
         total_issued: Number(row.total_issued),
         total_consumed: Number(row.total_consumed),
+        revision: Number(row.revision),
       }
     }
 
@@ -287,6 +294,7 @@ export async function adjustCreditBalances(params: {
       args.push(params.availableAmount)
     }
     updates.push('updated_at = CURRENT_TIMESTAMP')
+    updates.push('revision = revision + 1')
     args.push(params.hiveUsername)
     await execute({
       sql: `UPDATE Credits SET ${updates.join(', ')} WHERE hive_username = ?`,
@@ -318,6 +326,7 @@ export async function adjustCreditBalances(params: {
       available_amount: params.availableAmount ?? currentAvailable,
       total_issued: Number(row.total_issued),
       total_consumed: Number(row.total_consumed),
+      revision: Number(row.revision) + 1,
     }
   })
 }

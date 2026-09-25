@@ -7,6 +7,7 @@ export interface CreditBalance {
   readonly available_amount: number
   readonly total_issued: number
   readonly total_consumed: number
+  readonly revision: number
   readonly is_consistent: boolean
   readonly calculated_at: string
 }
@@ -65,6 +66,7 @@ function toBalance(
     available_amount: number
     total_issued: number
     total_consumed: number
+    revision: number
   },
   isConsistent: boolean
 ): CreditBalance {
@@ -74,6 +76,7 @@ function toBalance(
     available_amount: row.available_amount,
     total_issued: row.total_issued,
     total_consumed: row.total_consumed,
+    revision: row.revision,
     is_consistent: isConsistent,
     calculated_at: new Date().toISOString(),
   }
@@ -117,7 +120,7 @@ async function calculateBreakdown(hiveUsername: string) {
 async function getStoredCredits(hiveUsername: string) {
   const result = await execute({
     sql: `
-			SELECT pending_amount, available_amount, total_issued, total_consumed
+			SELECT pending_amount, available_amount, total_issued, total_consumed, revision
 			FROM Credits
 			WHERE hive_username = ?
 		`,
@@ -132,6 +135,7 @@ async function getStoredCredits(hiveUsername: string) {
     available_amount: Number(row.available_amount || 0),
     total_issued: Number(row.total_issued || 0),
     total_consumed: Number(row.total_consumed || 0),
+    revision: Number(row.revision || 0),
   }
 }
 

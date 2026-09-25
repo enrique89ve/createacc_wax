@@ -59,6 +59,7 @@ export interface DatabaseCreditRow {
   readonly available_amount: number
   readonly total_issued: number
   readonly total_consumed: number
+  readonly revision: number
   readonly created_at: string
   readonly updated_at: string
 }
@@ -451,6 +452,7 @@ export function isDatabaseCreditRow(row: unknown): row is DatabaseCreditRow {
     typeof r.available_amount === 'number' &&
     typeof r.total_issued === 'number' &&
     typeof r.total_consumed === 'number' &&
+    typeof r.revision === 'number' &&
     typeof r.created_at === 'string' &&
     typeof r.updated_at === 'string'
   )

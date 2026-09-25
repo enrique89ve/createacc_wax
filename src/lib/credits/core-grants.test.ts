@@ -44,13 +44,14 @@ describe('Credits core grants and adjustments', () => {
     })
 
     const balance = await db.execute({
-      sql: 'SELECT pending_amount, available_amount, total_issued FROM Credits WHERE hive_username = ?',
+      sql: 'SELECT pending_amount, available_amount, total_issued, revision FROM Credits WHERE hive_username = ?',
       args: [username],
     })
     expect(balance.rows[0]).toMatchObject({
       pending_amount: 6,
       available_amount: 0,
       total_issued: 6,
+      revision: 1,
     })
   })
 
@@ -67,6 +68,7 @@ describe('Credits core grants and adjustments', () => {
     expect(balance.available_amount).toBe(8)
     expect(balance.pending_amount).toBe(0)
     expect(balance.total_issued).toBe(8)
+    expect(balance.revision).toBe(1)
     expect(balance.is_consistent).toBe(true)
     expect(balance.breakdown.granted_available).toBe(8)
     expect(balance.discrepancy).toEqual({
@@ -93,7 +95,15 @@ describe('Credits core grants and adjustments', () => {
       pending_amount: 5,
       available_amount: 1,
       total_issued: 5,
+      revision: 1,
     })
+    const unchanged = await adjustCreditBalances({
+      hiveUsername: username,
+      pendingAmount: 5,
+      reason: 'unchanged correction',
+      performedBy: 'admin',
+    })
+    expect(unchanged.revision).toBe(1)
     const audit = await db.execute({
       sql: `SELECT operation, amount FROM CreditAudit
         WHERE hive_username = ? ORDER BY id ASC`,

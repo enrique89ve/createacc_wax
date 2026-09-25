@@ -24,6 +24,7 @@ export interface BuilderWithStats {
   readonly tickets_created: number
   readonly available_credits: number
   readonly pending_credits: number
+  readonly credit_revision: number
   readonly is_blocked: boolean
 }
 
@@ -184,11 +185,12 @@ export class UsersRepository {
 						COUNT(DISTINCT t.id) as tickets_created,
 						c.available_amount as available_credits,
 						c.pending_amount as pending_credits,
+						c.revision as credit_revision,
 						CASE WHEN b.hive_username IS NULL THEN 0 ELSE 1 END as is_blocked
 					FROM Credits c
 					LEFT JOIN Tickets t ON t.owner_builder_username = c.hive_username AND t.funding_source = 'builder_credits'
 					LEFT JOIN BlockedHiveAccounts b ON b.hive_username = c.hive_username
-					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount, b.hive_username
+					GROUP BY c.hive_username, c.created_at, c.available_amount, c.pending_amount, c.revision, b.hive_username
 					ORDER BY c.created_at DESC
 				`,
         args: [],
@@ -201,6 +203,7 @@ export class UsersRepository {
         tickets_created: Number(row.tickets_created || 0),
         available_credits: Number(row.available_credits || 0),
         pending_credits: Number(row.pending_credits || 0),
+        credit_revision: Number(row.credit_revision || 0),
         is_blocked: Number(row.is_blocked || 0) !== 0,
       }))
     } catch {

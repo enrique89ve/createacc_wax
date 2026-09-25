@@ -31,10 +31,11 @@ export async function selectCreditRow(hiveUsername: string): Promise<{
   available_amount: number
   total_issued: number
   total_consumed: number
+  revision: number
 } | null> {
   const result = await execute({
     sql: `
-			SELECT pending_amount, available_amount, total_issued, total_consumed
+			SELECT pending_amount, available_amount, total_issued, total_consumed, revision
 			FROM Credits
 			WHERE hive_username = ?
 		`,
@@ -49,5 +50,6 @@ export async function selectCreditRow(hiveUsername: string): Promise<{
     available_amount: Number(row.available_amount || 0),
     total_issued: Number(row.total_issued || 0),
     total_consumed: Number(row.total_consumed || 0),
+    revision: Number(row.revision || 0),
   }
 }

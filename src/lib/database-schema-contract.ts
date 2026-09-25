@@ -1,4 +1,4 @@
-export const DATABASE_SCHEMA_VERSION = 1
+export const DATABASE_SCHEMA_VERSION = 2
 
 export const REQUIRED_DATABASE_COLUMNS = {
   DatabaseSchemaMetadata: ['singleton', 'schema_version', 'applied_at'],
@@ -27,6 +27,24 @@ export const REQUIRED_DATABASE_COLUMNS = {
     'available_amount',
     'total_issued',
     'total_consumed',
+    'revision',
+  ],
+  AdminActionLog: [
+    'id',
+    'actor_user_id',
+    'actor_username',
+    'request_id',
+    'action',
+    'target_type',
+    'target_id',
+    'request_hash',
+    'policy_version',
+    'reason',
+    'outcome',
+    'before_state',
+    'after_state',
+    'receipt',
+    'created_at',
   ],
   CreditAudit: ['hive_username', 'operation', 'amount', 'external_reference'],
   TicketAudit: ['ticket_id', 'actor_type', 'actor_id', 'operation_reference'],

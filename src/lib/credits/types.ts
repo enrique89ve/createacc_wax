@@ -4,6 +4,7 @@ export interface CreditBalance {
   readonly available_amount: number
   readonly total_issued: number
   readonly total_consumed: number
+  readonly revision: number
 }
 
 export interface AssignCreditsOperation {
@@ -19,4 +20,5 @@ export const ZERO_BALANCE = (hiveUsername: string): CreditBalance => ({
   available_amount: 0,
   total_issued: 0,
   total_consumed: 0,
+  revision: 0,
 })

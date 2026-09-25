@@ -16,6 +16,10 @@ import {
   REQUIRED_DATABASE_COLUMNS,
 } from '@/lib/database-schema-contract'
 import {
+  ADMIN_ACTION_LOG_INDEX_STATEMENTS,
+  ADMIN_ACTION_LOG_TABLE_SQL,
+} from '@/lib/database-migrations'
+import {
   BLOCKCHAIN_STATUS,
   HIVE_TX_MODE_VALUES,
   RC_STATUS,
@@ -344,9 +348,12 @@ const SCHEMA_STATEMENTS: readonly string[] = [
 		available_amount INTEGER NOT NULL DEFAULT 0 CHECK (available_amount >= 0),
 		total_issued INTEGER NOT NULL DEFAULT 0 CHECK (total_issued >= 0),
 		total_consumed INTEGER NOT NULL DEFAULT 0 CHECK (total_consumed >= 0),
+		revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	)`,
+
+  ADMIN_ACTION_LOG_TABLE_SQL,
 
   `CREATE TABLE IF NOT EXISTS CreditAudit (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -517,6 +524,7 @@ const SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS idx_reconciliation_actionable ON ReconciliationQueue (status, next_attempt_at, id)`,
   `CREATE INDEX IF NOT EXISTS idx_creation_attempts_ticket ON CreationAttempts (ticket_id, username)`,
   `CREATE INDEX IF NOT EXISTS idx_creation_attempt_events_ticket ON CreationAttemptEvents (ticket_id, created_at)`,
+  ...ADMIN_ACTION_LOG_INDEX_STATEMENTS,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_creation_attempts_open_username
 		ON CreationAttempts (username) WHERE status IN ('reserved', 'prepared', 'broadcasting')`,
   `CREATE INDEX IF NOT EXISTS idx_accounts_broadcasted ON Accounts (blockchain_status) WHERE blockchain_status = 'broadcasted'`,
