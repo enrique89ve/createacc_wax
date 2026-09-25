@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro'
 import type { CreationSession } from '@/types/auth'
+import { logger } from '@/lib/logger'
 import { HTTP_STATUS } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
 import { CreationSessionManager } from '@/lib/session-cookies'
@@ -140,7 +141,7 @@ export const POST: APIRoute = async context => {
 
     return apiSuccess({ username }, HTTP_STATUS.OK, { noCache: true })
   } catch (error) {
-    console.error('[create-session] Session creation failed', error)
+    logger.error('[create-session] Session creation failed', error)
     return apiError(
       'Session creation failed',
       HTTP_STATUS.INTERNAL_SERVER_ERROR,

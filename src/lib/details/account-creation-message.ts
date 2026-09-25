@@ -51,10 +51,13 @@ export function getAccountCreationMessage(
       }
       if (result.errorCode) {
         const copyKey = ERROR_COPY_KEYS[result.errorCode]
-        if (copyKey) return copy.creationErrors[copyKey]
+        if (copyKey) {
+          return copy.creationErrors[copyKey]
+        }
       }
-      if (result.httpStatus >= 500)
+      if (result.httpStatus >= 500) {
         return copy.creationErrors.serviceUnavailable
+      }
       return copy.creationErrors.generic
     }
   }
