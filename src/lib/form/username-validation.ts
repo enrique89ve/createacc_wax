@@ -5,40 +5,50 @@ import {
 import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
 import type { HiveChain } from './hive-chain-client'
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 export type UsernameValidationResult =
   | { readonly status: 'empty' }
   | { readonly status: 'format_error'; readonly code: UsernameFormatCode }
   | { readonly status: 'suspicious' }
   | { readonly status: 'similar' }
   | { readonly status: 'chain_error' }
+  | {
+      readonly status: 'check_unavailable'
+      readonly retryAfterSeconds?: number
+    }
   | { readonly status: 'taken' }
   | { readonly status: 'available' }
 
-async function checkSuspiciousUsername(username: string): Promise<boolean> {
+async function checkUsernamePolicy(
+  username: string
+): Promise<UsernameValidationResult | null> {
   try {
-    const response = await fetch('/api/validate/suspicious', {
+    const response = await fetch('/api/validate/username', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username }),
     })
-    const result = await response.json()
-    return result.isSuspicious === true
-  } catch {
-    return false
-  }
-}
+    if (!response.ok) {
+      const retryAfter = Number(response.headers.get('Retry-After'))
+      return {
+        status: 'check_unavailable',
+        ...(Number.isFinite(retryAfter) && retryAfter > 0
+          ? { retryAfterSeconds: retryAfter }
+          : {}),
+      }
+    }
 
-async function checkSimilarUsername(username: string): Promise<boolean> {
-  try {
-    const response = await fetch('/api/validate/similarity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username }),
-    })
-    const result = await response.json()
-    return result.isSimilar === true
+    const result: unknown = await response.json()
+    if (!isRecord(result)) return { status: 'check_unavailable' }
+    if (result.status === 'suspicious') return { status: 'suspicious' }
+    if (result.status === 'similar') return { status: 'similar' }
+    if (result.status === 'allowed') return null
+    return { status: 'check_unavailable' }
   } catch {
-    return false
+    return { status: 'check_unavailable' }
   }
 }
 
@@ -51,20 +61,26 @@ export async function validateUsername(
   const formatError = validateAccountName(username)
   if (formatError) return { status: 'format_error', code: formatError }
 
-  const [isSuspicious, isSimilar] = await Promise.all([
-    checkSuspiciousUsername(username),
-    checkSimilarUsername(username),
-  ])
-  if (isSuspicious) return { status: 'suspicious' }
-  if (isSimilar) return { status: 'similar' }
+  const policyResult = await checkUsernamePolicy(username)
+  if (policyResult) return policyResult
 
-  const chain = await getChain()
+  let chain: HiveChain | null
+  try {
+    chain = await getChain()
+  } catch {
+    return { status: 'chain_error' }
+  }
   if (!chain) return { status: 'chain_error' }
 
-  const chainResult = await validateHiveAccountExists({
-    chain,
-    accountName: username,
-  })
+  let chainResult
+  try {
+    chainResult = await validateHiveAccountExists({
+      chain,
+      accountName: username,
+    })
+  } catch {
+    return { status: 'chain_error' }
+  }
 
   if (chainResult.status === 'error') return { status: 'chain_error' }
   if (chainResult.status === 'found') return { status: 'taken' }

@@ -37,7 +37,7 @@ import {
 } from '@/types/hive-transaction'
 import { HTTP_STATUS, RECONCILIATION_CONFIG } from '@/consts/constants'
 import { VALIDATION_ERROR_MESSAGES } from '@/consts/validation'
-import { isSuspiciousUsername } from '@/utils/suspicious-username'
+import { checkUsernamePolicy } from '@/lib/username-policy'
 import {
   reserveTicketCredit,
   completeAccountCreationInDB,
@@ -445,13 +445,30 @@ async function validateRequest(
     )
   }
 
-  if (isSuspiciousUsername(username)) {
+  const usernamePolicy = await checkUsernamePolicy(username)
+  if (usernamePolicy.status === 'unavailable') {
+    return failureResponse(
+      'Unable to verify username policy',
+      'Username policy check is temporarily unavailable',
+      ERROR_CODES.USERNAME_POLICY_UNAVAILABLE,
+      HTTP_STATUS.SERVICE_UNAVAILABLE
+    )
+  }
+  if (usernamePolicy.status === 'suspicious') {
     return failureResponse(
       VALIDATION_ERROR_MESSAGES.USERNAME_NOT_ALLOWED,
       VALIDATION_ERROR_MESSAGES.USERNAME_NOT_ALLOWED,
-      ERROR_CODES.INTERNAL_ERROR,
+      ERROR_CODES.USERNAME_NOT_ALLOWED,
       HTTP_STATUS.BAD_REQUEST,
       { details: VALIDATION_ERROR_MESSAGES.USERNAME_NOT_ALLOWED_DETAILS }
+    )
+  }
+  if (usernamePolicy.status === 'similar') {
+    return failureResponse(
+      VALIDATION_ERROR_MESSAGES.USERNAME_NOT_ALLOWED,
+      'This username is too similar to an account created recently',
+      ERROR_CODES.USERNAME_TOO_SIMILAR,
+      HTTP_STATUS.BAD_REQUEST
     )
   }
 

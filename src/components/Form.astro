@@ -181,6 +181,7 @@ const copy =
   let elements: FormElements | null = null
   let state: FormState = createInitialState()
   let debounceTimer: ReturnType<typeof setTimeout>
+  let usernameValidationRequestId = 0
 
   async function ensureFlowTimingToken(): Promise<string> {
     if (state.flowTimingToken) return state.flowTimingToken
@@ -208,13 +209,24 @@ const copy =
   async function handleUsernameInput(): Promise<void> {
     if (!elements) return
     const username = elements.usernameInput.value.toLowerCase().trim()
+    const requestId = ++usernameValidationRequestId
     clearTimeout(debounceTimer)
     debounceTimer = setTimeout(async () => {
-      if (!elements) return
+      if (
+        !elements ||
+        requestId !== usernameValidationRequestId ||
+        elements.usernameInput.value.toLowerCase().trim() !== username
+      )
+        return
 
       const result = await validateUsername(username, getHiveChain)
 
-      if (!elements) return
+      if (
+        !elements ||
+        requestId !== usernameValidationRequestId ||
+        elements.usernameInput.value.toLowerCase().trim() !== username
+      )
+        return
 
       switch (result.status) {
         case 'empty':
@@ -250,6 +262,18 @@ const copy =
             elements,
             'error',
             publicCopy().username.chainError
+          )
+          state.isUsernameValid = false
+          break
+        case 'check_unavailable':
+          setUsernameFieldState(
+            elements,
+            'error',
+            result.retryAfterSeconds
+              ? interpolate(publicCopy().username.checkRateLimited, {
+                  seconds: String(result.retryAfterSeconds),
+                })
+              : publicCopy().username.checkUnavailable
           )
           state.isUsernameValid = false
           break

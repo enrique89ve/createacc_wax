@@ -19,7 +19,7 @@ export const pt: Messages = {
     usernameLabel: 'Nome de usuário',
     accessCodeLabel: 'Código de acesso',
     accessCodeVerify: 'Verificar',
-    accessCodeVerified: 'Código de acesso verificado',
+    accessCodeVerified: 'Formato válido',
     accessCodeRemove: 'Remover código de acesso',
     continue: 'Continuar',
     verifying: 'Verificando...',
@@ -38,6 +38,9 @@ export const pt: Messages = {
     notAllowed: 'Este nome de usuário não é permitido',
     tooSimilar: 'Este nome de usuário é muito parecido com uma conta recente',
     chainError: 'Não foi possível conectar ao Hive',
+    checkUnavailable: 'Não foi possível verificar o nome. Tente novamente.',
+    checkRateLimited:
+      'Muitas tentativas. Tente novamente em {seconds} segundos.',
     format: {
       empty: 'Digite um nome de usuário.',
       tooShort: 'Use pelo menos 3 caracteres.',

@@ -19,7 +19,7 @@ export const en: Messages = {
     usernameLabel: 'Username',
     accessCodeLabel: 'Access code',
     accessCodeVerify: 'Verify',
-    accessCodeVerified: 'Access code verified',
+    accessCodeVerified: 'Format is valid',
     accessCodeRemove: 'Remove access code',
     continue: 'Continue',
     verifying: 'Verifying...',
@@ -38,6 +38,8 @@ export const en: Messages = {
     notAllowed: 'This username is not allowed',
     tooSimilar: 'This username is too similar to a recent account',
     chainError: 'Could not connect to Hive',
+    checkUnavailable: 'Could not check this username. Please try again.',
+    checkRateLimited: 'Too many checks. Try again in {seconds} seconds.',
     format: {
       empty: 'Enter a username.',
       tooShort: 'Use at least 3 characters.',

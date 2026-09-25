@@ -18,7 +18,7 @@ export const es = {
     usernameLabel: 'Nombre de usuario',
     accessCodeLabel: 'Código de acceso',
     accessCodeVerify: 'Verificar',
-    accessCodeVerified: 'Código de acceso verificado',
+    accessCodeVerified: 'Formato válido',
     accessCodeRemove: 'Quitar código de acceso',
     continue: 'Continuar',
     verifying: 'Verificando...',
@@ -37,6 +37,9 @@ export const es = {
     notAllowed: 'Este nombre de usuario no está permitido',
     tooSimilar: 'Este nombre de usuario es muy similar a una cuenta reciente',
     chainError: 'No se pudo conectar con Hive',
+    checkUnavailable: 'No se pudo comprobar el nombre. Inténtalo de nuevo.',
+    checkRateLimited:
+      'Demasiados intentos. Vuelve a probar en {seconds} segundos.',
     format: {
       empty: 'Escribe un nombre de usuario.',
       tooShort: 'Usa al menos 3 caracteres.',

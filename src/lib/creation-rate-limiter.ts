@@ -22,6 +22,7 @@ const CREATION_RATE_LIMITS = {
   session: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   keysHash: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   account: { maxRequests: 5, windowMs: 300_000, maxEntries: 10_000 },
+  username: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   suspicious: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   similarity: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   ticket: { maxRequests: 5, windowMs: 60_000, maxEntries: 10_000 },
