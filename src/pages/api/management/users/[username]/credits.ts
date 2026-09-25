@@ -92,7 +92,7 @@ export const PUT: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          Permission.ADMIN_ADJUSTMENTS,
+          Permission.ADJUST_CREDITS,
           'PUT /api/management/users/[username]/credits'
         )
       } catch {

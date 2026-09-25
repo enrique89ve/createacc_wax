@@ -17,7 +17,7 @@ export const POST: APIRoute = async context => {
     try {
       assertCanPerform(
         session,
-        Permission.MANAGE_CREDITS,
+        Permission.REACTIVATE_BUILDER,
         'POST /api/management/users/[id]/reactivate'
       )
     } catch {

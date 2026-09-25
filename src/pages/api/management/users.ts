@@ -17,7 +17,7 @@ export const GET: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          Permission.MANAGE_CREDITS,
+          Permission.VIEW_BUILDERS,
           'GET /api/management/users'
         )
       } catch {
@@ -55,7 +55,7 @@ export const POST: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          Permission.MANAGE_CREDITS,
+          Permission.ASSIGN_CREDITS,
           'POST /api/management/users'
         )
       } catch {
@@ -124,7 +124,7 @@ export const DELETE: APIRoute = async context => {
       try {
         assertCanPerform(
           session,
-          Permission.MANAGE_CREDITS,
+          Permission.BLOCK_BUILDER,
           'DELETE /api/management/users'
         )
       } catch {

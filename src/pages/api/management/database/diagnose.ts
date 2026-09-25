@@ -16,7 +16,7 @@ export const GET: APIRoute = async context =>
     try {
       assertCanPerform(
         session,
-        Permission.MANAGE_ALL_CREDITS,
+        Permission.VIEW_DATABASE_DIAGNOSTICS,
         'GET /api/management/database/diagnose'
       )
     } catch {

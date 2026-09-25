@@ -14,7 +14,7 @@ export const PATCH: APIRoute = async context => {
     try {
       assertCanPerform(
         session,
-        Permission.MANAGE_CREDITS,
+        Permission.VIEW_BUILDERS,
         'PATCH /api/management/users/[id]'
       )
     } catch {
@@ -36,7 +36,7 @@ export const DELETE: APIRoute = async context => {
     try {
       assertCanPerform(
         session,
-        Permission.MANAGE_CREDITS,
+        Permission.BLOCK_BUILDER,
         'DELETE /api/management/users/[id]'
       )
     } catch {
