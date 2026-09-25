@@ -29,6 +29,8 @@ export interface DOMElements {
   readonly progressModal: HTMLElement | null
   readonly progressErrorActions: HTMLElement | null
   readonly closeProgressBtn: HTMLButtonElement | null
+  readonly retryKeyConfirmationBtn: HTMLButtonElement | null
+  readonly keyConfirmationStatus: HTMLElement | null
 }
 
 export interface PreSolvedBundle {
@@ -43,6 +45,7 @@ export interface AppState {
   masterKeyRevealed: boolean
   copyFeedbackTimeout: number | undefined
   username: string
+  keysConfirmedOnServer: boolean
   ticket?: string
   preSolvedBundle: Promise<PreSolvedBundle | null> | null
 }

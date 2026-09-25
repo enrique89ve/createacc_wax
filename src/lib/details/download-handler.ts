@@ -7,54 +7,60 @@ import type { PublicKeySet } from '@/types/keys'
 import type { ClientKeySession } from './client-key-session'
 import type { PreSolvedBundle } from './types'
 
-export interface DownloadDependencies {
-  readonly keySession: ClientKeySession
-  readonly recoverSession: () => Promise<boolean>
-}
-
-export async function downloadAndNotify(
-  deps: DownloadDependencies,
+export async function initiateKeyDownload(
+  keySession: ClientKeySession,
   format: DownloadFormat
 ): Promise<void> {
-  const keysData = deps.keySession.createDownload()
+  const keysData = keySession.createDownload()
   await KeyDownloadManager.downloadKeys(keysData, format)
-  await notifyServerKeysDownloaded(
-    deps.keySession.getPublicKeys(),
-    deps.recoverSession
-  )
 }
 
-async function notifyServerKeysDownloaded(
+export type KeyConfirmationResult =
+  | { readonly status: 'confirmed' }
+  | { readonly status: 'session_recovery_failed' }
+  | { readonly status: 'rejected' }
+  | { readonly status: 'unavailable' }
+
+export async function confirmKeysDownloaded(
   publicKeys: PublicKeySet,
   recoverSession: () => Promise<boolean>
-): Promise<void> {
+): Promise<KeyConfirmationResult> {
   const body = JSON.stringify(publicKeys)
   const headers = { 'Content-Type': 'application/json' }
 
-  let res = await fetch('/api/create/keys-hash', {
-    method: 'POST',
-    headers,
-    body,
-  })
-
-  if (res.status === 401) {
-    const ok = await recoverSession()
-    if (!ok) {
-      throw new Error('Session expired — could not confirm key download')
-    }
+  let res: Response
+  try {
     res = await fetch('/api/create/keys-hash', {
       method: 'POST',
       headers,
       body,
     })
+  } catch {
+    return { status: 'unavailable' }
   }
 
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '')
-    throw new Error(
-      detail.trim() || `Server rejected key download confirmation (${res.status})`
-    )
+  if (res.status === 401) {
+    let ok: boolean
+    try {
+      ok = await recoverSession()
+    } catch {
+      ok = false
+    }
+    if (!ok) {
+      return { status: 'session_recovery_failed' }
+    }
+    try {
+      res = await fetch('/api/create/keys-hash', {
+        method: 'POST',
+        headers,
+        body,
+      })
+    } catch {
+      return { status: 'unavailable' }
+    }
   }
+
+  return res.ok ? { status: 'confirmed' } : { status: 'rejected' }
 }
 
 export async function preSolvePowBundle(): Promise<PreSolvedBundle | null> {

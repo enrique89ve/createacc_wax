@@ -259,7 +259,6 @@ const copy =
   <script>
     import { publicCopy } from '@/i18n'
     import type { DownloadFormat } from '@/utils/key-download-manager'
-    import { obtainPowSolution } from '@/utils/pow-solver'
     import type {
       ExtendedWindow,
       DOMElements,
@@ -274,7 +273,8 @@ const copy =
     } from '@/lib/details/client-key-session'
     import { copyMasterKey } from '@/lib/details/clipboard'
     import {
-      downloadAndNotify,
+      confirmKeysDownloaded,
+      initiateKeyDownload,
       preSolvePowBundle,
     } from '@/lib/details/download-handler'
     import {
@@ -282,6 +282,7 @@ const copy =
       submitAccountCreation,
     } from '@/lib/details/account-submit'
     import { getAccountCreationMessage } from '@/lib/details/account-creation-message'
+    import { recoverCreationSessionForKeyConfirmation } from '@/lib/details/session-recovery'
     import {
       showProgressModal,
       hideProgressModal,
@@ -294,6 +295,9 @@ const copy =
       private elements: DOMElements
       private state: AppState
       private isSubmitting = false
+      private isGeneratingKeys = false
+      private isConfirmingKeys = false
+      private keyConfirmationPromise: Promise<boolean> | null = null
       private tornDown = false
       private sessionRecoveryPromise: Promise<boolean> | null = null
       private readonly pageAbort = new AbortController()
@@ -342,6 +346,12 @@ const copy =
           closeProgressBtn: document.querySelector<HTMLButtonElement>(
             '#btn-close-progress'
           ),
+          retryKeyConfirmationBtn: document.querySelector<HTMLButtonElement>(
+            '#btn-retry-key-confirmation'
+          ),
+          keyConfirmationStatus: document.querySelector<HTMLElement>(
+            '#key-confirmation-status'
+          ),
         }
       }
 
@@ -357,6 +367,7 @@ const copy =
           masterKeyRevealed: false,
           copyFeedbackTimeout: undefined,
           username,
+          keysConfirmedOnServer: false,
           ticket,
           preSolvedBundle: null,
         }
@@ -372,31 +383,20 @@ const copy =
         if (this.sessionRecoveryPromise) return this.sessionRecoveryPromise
 
         this.sessionRecoveryPromise = (async (): Promise<boolean> => {
-          try {
-            if (!this.state.username) return false
-            const pow = await obtainPowSolution()
-            const payload: Record<string, unknown> = {
-              username: this.state.username,
-              pow,
-            }
-            if (this.state.ticket) payload.ticket = this.state.ticket
-            const res = await fetch('/api/create/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload),
-            })
-            return res.ok
-          } catch {
-            return false
-          } finally {
+          return recoverCreationSessionForKeyConfirmation(
+            this.state.username,
+            this.state.ticket
+          ).finally(() => {
             this.sessionRecoveryPromise = null
-          }
+          })
         })()
 
         return this.sessionRecoveryPromise
       }
 
       private async generateKeys(): Promise<void> {
+        if (this.isGeneratingKeys || this.tornDown) return
+        this.isGeneratingKeys = true
         try {
           if (!this.state.username) throw new Error('Username not found')
 
@@ -427,7 +427,9 @@ const copy =
 
           this.showGeneratedKeyUi()
         } catch {
-          this.showErrorState()
+          if (!this.tornDown) this.showErrorState()
+        } finally {
+          this.isGeneratingKeys = false
         }
       }
 
@@ -515,7 +517,7 @@ const copy =
 
         const errorContainer = document.createElement('div')
         errorContainer.className =
-          'flex items-center justify-center gap-3 text-red-400 py-2'
+          'flex flex-col items-center justify-center gap-2 py-2 text-red-400'
 
         const errorIcon = document.createElement('span')
         errorIcon.textContent = '\u2717'
@@ -526,6 +528,18 @@ const copy =
 
         errorContainer.appendChild(errorIcon)
         errorContainer.appendChild(errorMessage)
+
+        const retryButton = document.createElement('button')
+        retryButton.type = 'button'
+        retryButton.className =
+          'rounded-md border border-border px-3 py-1 text-sm text-foreground hover:bg-muted'
+        retryButton.textContent = publicCopy().details.retryKeyGeneration
+        retryButton.addEventListener(
+          'click',
+          () => void this.generateKeys(),
+          { once: true }
+        )
+        errorContainer.appendChild(retryButton)
         this.elements.loadingEl.appendChild(errorContainer)
       }
 
@@ -540,11 +554,14 @@ const copy =
         const ok =
           this.elements.chk1.checked &&
           this.elements.chk2.checked &&
-          this.hasBackup()
+          this.hasBackup() &&
+          this.state.keysConfirmedOnServer
         this.elements.submitBtn.disabled = !ok
         this.elements.submitBtn.title = !this.hasBackup()
           ? publicCopy().details.submitDisabledTitle
-          : ''
+          : !this.state.keysConfirmedOnServer
+            ? publicCopy().details.keyConfirmationRequired
+            : ''
 
         if (this.hasBackup()) {
           const tooltipTarget = this.elements.submitBtn.getAttribute(
@@ -585,10 +602,83 @@ const copy =
         modal?.classList.remove('flex')
       }
 
-      private buildDownloadDeps() {
-        return {
-          keySession: this.state.keySession!,
-          recoverSession: () => this.recoverCreationSession(),
+      private confirmKeysOnServer(): Promise<boolean> {
+        if (this.keyConfirmationPromise) return this.keyConfirmationPromise
+        if (this.state.keysConfirmedOnServer) return Promise.resolve(true)
+        const session = this.state.keySession
+        if (!session || !session.isAlive()) return Promise.resolve(false)
+
+        this.isConfirmingKeys = true
+        const confirmationPromise = (async (): Promise<boolean> => {
+          try {
+            const result = await confirmKeysDownloaded(
+              session.getPublicKeys(),
+              () => this.recoverCreationSession()
+            )
+            const confirmed = result.status === 'confirmed'
+            if (confirmed) {
+              this.state.keysConfirmedOnServer = true
+              this.elements.retryKeyConfirmationBtn?.classList.add('hidden')
+              if (this.elements.keyConfirmationStatus) {
+                this.elements.keyConfirmationStatus.textContent =
+                  publicCopy().details.keyConfirmationSucceeded
+                this.elements.keyConfirmationStatus.classList.remove('hidden')
+                this.elements.keyConfirmationStatus.classList.remove(
+                  'text-destructive'
+                )
+                this.elements.keyConfirmationStatus.classList.add(
+                  'text-green-500'
+                )
+              }
+            } else {
+              this.elements.retryKeyConfirmationBtn?.classList.remove('hidden')
+              if (this.elements.keyConfirmationStatus) {
+                this.elements.keyConfirmationStatus.textContent =
+                  publicCopy().details.keyConfirmationFailed
+                this.elements.keyConfirmationStatus.classList.remove(
+                  'hidden',
+                  'text-green-500'
+                )
+                this.elements.keyConfirmationStatus.classList.add(
+                  'text-destructive'
+                )
+              }
+            }
+            return confirmed
+          } catch {
+            this.elements.retryKeyConfirmationBtn?.classList.remove('hidden')
+            return false
+          } finally {
+            this.isConfirmingKeys = false
+            this.keyConfirmationPromise = null
+            this.updateSubmitState()
+          }
+        })()
+        this.keyConfirmationPromise = confirmationPromise
+        return confirmationPromise
+      }
+
+      private async handleKeyConfirmationRetry(): Promise<void> {
+        if (this.isConfirmingKeys) return
+        const button = this.elements.retryKeyConfirmationBtn
+        if (button) {
+          button.disabled = true
+          button.textContent = publicCopy().details.retryingKeyConfirmation
+        }
+
+        const confirmed = await this.confirmKeysOnServer()
+        if (button) {
+          button.disabled = false
+          button.textContent = publicCopy().details.retryKeyConfirmation
+        }
+        if (this.extWindow.showToast) {
+          this.extWindow.showToast(
+            confirmed ? 'success' : 'error',
+            confirmed
+              ? publicCopy().details.keyConfirmationSucceeded
+              : publicCopy().details.keyConfirmationFailed,
+            6000
+          )
         }
       }
 
@@ -607,7 +697,7 @@ const copy =
           doneIcon.classList.add('flex')
         }
         if (desc) {
-          desc.textContent = publicCopy().details.downloaded
+          desc.textContent = publicCopy().details.downloadStarted
           desc.classList.remove('text-muted-foreground')
           desc.classList.add('text-green-500')
         }
@@ -618,48 +708,57 @@ const copy =
         if (!session || !session.isAlive()) return
 
         try {
-          await downloadAndNotify(this.buildDownloadDeps(), format)
-
-          this.markFormatDownloaded(format)
-
-          if (session.phase === KEY_SESSION_PHASE.GENERATED) {
-            session.confirmBackup()
-          }
-          sessionStorage.setItem(KEYS_SESSION_KEY, session.keysetId)
-          this.updateSubmitState()
-
-          // Auto-close modal when both formats downloaded
-          const txtDone = document
-            .querySelector<HTMLElement>('#icon-txt-default')
-            ?.classList.contains('hidden')
-          const pdfDone = document
-            .querySelector<HTMLElement>('#icon-pdf-default')
-            ?.classList.contains('hidden')
-          const bothDone = txtDone && pdfDone
-          if (bothDone) {
-            this.closeDownloadModal()
-            if (this.extWindow.showToast) {
-              this.extWindow.showToast(
-                'success',
-                publicCopy().details.keysDownloadedBoth
-              )
-            }
-          }
-
-          // Pre-solve PoW + timing token in background
-          if (!this.state.preSolvedBundle) {
-            this.state.preSolvedBundle = preSolvePowBundle().catch(() => {
-              this.state.preSolvedBundle = null
-              return null
-            })
-          }
+          await initiateKeyDownload(session, format)
         } catch {
           if (this.extWindow.showToast) {
             this.extWindow.showToast(
               'error',
-              publicCopy().details.downloadRetryError
+              publicCopy().details.fileDownloadFailed
+            )
+          } else {
+            alert(publicCopy().details.fileDownloadFailed)
+          }
+          return
+        }
+
+        this.markFormatDownloaded(format)
+        if (session.phase === KEY_SESSION_PHASE.GENERATED) {
+          session.confirmBackup()
+        }
+        sessionStorage.setItem(KEYS_SESSION_KEY, session.keysetId)
+        this.updateSubmitState()
+
+        const serverConfirmed = await this.confirmKeysOnServer()
+        if (!serverConfirmed && this.extWindow.showToast) {
+          this.extWindow.showToast(
+            'error',
+            publicCopy().details.keyConfirmationFailed,
+            8000
+          )
+        }
+
+        const txtDone = document
+          .querySelector<HTMLElement>('#icon-txt-default')
+          ?.classList.contains('hidden')
+        const pdfDone = document
+          .querySelector<HTMLElement>('#icon-pdf-default')
+          ?.classList.contains('hidden')
+        const bothDone = txtDone && pdfDone
+        if (bothDone && serverConfirmed) {
+          this.closeDownloadModal()
+          if (this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'success',
+              publicCopy().details.keysDownloadedBoth
             )
           }
+        }
+
+        if (!this.state.preSolvedBundle) {
+          this.state.preSolvedBundle = preSolvePowBundle().catch(() => {
+            this.state.preSolvedBundle = null
+            return null
+          })
         }
       }
 
@@ -839,6 +938,11 @@ const copy =
             if (!this.state.keySession?.isAlive()) return
             this.openDownloadModal()
           },
+          { signal }
+        )
+        this.elements.retryKeyConfirmationBtn?.addEventListener(
+          'click',
+          () => this.handleKeyConfirmationRetry(),
           { signal }
         )
 

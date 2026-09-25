@@ -111,7 +111,7 @@ export const en: Messages = {
     downloadKeysAria: 'Download keys',
     copyMasterPassword: 'Copy Master Password',
     backupDownloaded: 'Backup downloaded',
-    downloaded: 'Downloaded',
+    downloadStarted: 'Download started',
     confirmation:
       'I have saved my Master Password and I understand that HolaHive cannot recover it for me.',
     keysSavedCheckbox: 'I have verified that my keys are saved.',
@@ -119,10 +119,20 @@ export const en: Messages = {
     createAccount: 'Create account',
     creatingAccount: 'Creating account...',
     downloadKeysRequired: 'You must download the keys first!',
-    generateKeysError: 'Failed to generate keys. Please reload the page.',
+    generateKeysError:
+      'Could not generate keys in this browser. Check browser support and try again.',
+    retryKeyGeneration: 'Retry key generation',
     reloadNewKeys: 'New keys were generated. You must download them again.',
-    keysDownloadedBoth: 'Keys downloaded in TXT and PDF',
-    downloadRetryError: 'Failed to download keys. Please try again.',
+    keysDownloadedBoth:
+      'TXT and PDF downloads were started. Confirm that you saved the keys.',
+    fileDownloadFailed: 'Could not start the key file download.',
+    keyConfirmationRequired:
+      'Waiting for server confirmation. Retry it from the download menu.',
+    keyConfirmationFailed:
+      'The file was generated, but its confirmation was not recorded. Retry here; you do not need to download it again.',
+    keyConfirmationSucceeded: 'Key confirmation was recorded.',
+    retryKeyConfirmation: 'Retry confirmation',
+    retryingKeyConfirmation: 'Confirming...',
     verificationError:
       'Could not prepare verification; the request was not sent. Please try again.',
     submitDisabledTitle: 'You must download the key file first',

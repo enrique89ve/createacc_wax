@@ -114,7 +114,7 @@ export const es = {
     downloadKeysAria: 'Descargar claves',
     copyMasterPassword: 'Copiar Master Password',
     backupDownloaded: 'Respaldo descargado',
-    downloaded: 'Descargado',
+    downloadStarted: 'Descarga iniciada',
     confirmation:
       'He guardado mi Master Password y entiendo que HolaHive no puede recuperarla por mí.',
     keysSavedCheckbox: 'He verificado que mis claves están guardadas.',
@@ -122,11 +122,21 @@ export const es = {
     createAccount: 'Crear cuenta',
     creatingAccount: 'Creando cuenta...',
     downloadKeysRequired: '¡Debes descargar las claves!',
-    generateKeysError: 'Error al generar claves. Por favor recarga la página.',
+    generateKeysError:
+      'No se pudieron generar las claves en este navegador. Comprueba que sea compatible e inténtalo de nuevo.',
+    retryKeyGeneration: 'Reintentar generación de claves',
     reloadNewKeys:
       'Se generaron unas claves nuevas. Debes descargar nuevamente.',
-    keysDownloadedBoth: 'Claves descargadas en TXT y PDF',
-    downloadRetryError: 'Error al descargar las claves. Inténtalo de nuevo.',
+    keysDownloadedBoth:
+      'Se iniciaron las descargas TXT y PDF. Confirma que guardaste las claves.',
+    fileDownloadFailed: 'No se pudo iniciar la descarga del archivo de claves.',
+    keyConfirmationRequired:
+      'Espera la confirmación del servidor o reinténtala desde el menú de descarga.',
+    keyConfirmationFailed:
+      'El archivo se generó, pero no se registró la confirmación. Reinténtala desde aquí; no hace falta volver a descargar.',
+    keyConfirmationSucceeded: 'La confirmación de las claves se registró.',
+    retryKeyConfirmation: 'Reintentar confirmación',
+    retryingKeyConfirmation: 'Confirmando...',
     verificationError:
       'No se pudo preparar la verificación; la solicitud no fue enviada. Inténtalo de nuevo.',
     submitDisabledTitle: 'Debes descargar el archivo de claves primero',
