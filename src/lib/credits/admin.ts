@@ -1,7 +1,7 @@
 import { notifyPendingCredits } from '../notification-service'
 import { logger } from '@/lib/logger'
 import { selectCreditRow } from './shared'
-import { adjustCreditBalances, grantPendingCredits } from './core'
+import { grantPendingCredits } from './core'
 import { type AssignCreditsOperation, type CreditBalance } from './types'
 
 export async function assignCredits(
@@ -29,20 +29,4 @@ export async function assignCredits(
     hive_username: operation.hive_username,
     ...credits,
   }
-}
-
-export async function adjustCredits(params: {
-  readonly hive_username: string
-  readonly pending_amount?: number
-  readonly available_amount?: number
-  readonly reason: string
-  readonly performed_by_admin: string
-}): Promise<CreditBalance> {
-  return adjustCreditBalances({
-    hiveUsername: params.hive_username,
-    pendingAmount: params.pending_amount,
-    availableAmount: params.available_amount,
-    reason: params.reason,
-    performedBy: params.performed_by_admin,
-  })
 }

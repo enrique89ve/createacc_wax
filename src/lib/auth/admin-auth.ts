@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { execute } from '@/lib/database'
 import { getCookies } from 'better-auth/cookies'
 import { makeSignature } from 'better-auth/crypto'
 import { UserRole, isValidRole } from '@/lib/roles'
@@ -6,42 +7,82 @@ import type { AdminSession } from '@/types/auth'
 import { hiveAuthEmail } from '@/lib/auth-user'
 import { logger } from '@/lib/logger'
 
-export async function getAdminSession(
-  headersOrRequest: Headers | Request
-): Promise<AdminSession | null> {
-  try {
-    const headers =
-      headersOrRequest instanceof Headers
-        ? headersOrRequest
-        : headersOrRequest.headers
-    const result = await auth.api.getSession({ headers })
-    if (!result?.user) return null
+export type FreshAdminSessionResult =
+  | { readonly kind: 'authenticated'; readonly session: AdminSession }
+  | { readonly kind: 'unauthenticated' }
+  | { readonly kind: 'unavailable' }
 
-    const user = result.user as typeof result.user & {
-      username?: string
-      role?: string
-      isActive?: boolean
-    }
+function toAdminSession(
+  result: Awaited<ReturnType<typeof auth.api.getSession>>
+):
+  | { readonly kind: 'authenticated'; readonly session: AdminSession }
+  | { readonly kind: 'unauthenticated' } {
+  if (!result?.user) return { kind: 'unauthenticated' }
 
-    const username = user.username || user.name
-    if (!username) return null
+  const user = result.user as typeof result.user & {
+    username?: string
+    role?: string
+    isActive?: boolean
+  }
+  const username = user.username || user.name
+  if (!username) return { kind: 'unauthenticated' }
+  if (!isValidRole(user.role) || user.role !== UserRole.Admin) {
+    return { kind: 'unauthenticated' }
+  }
+  if (user.isActive === false) return { kind: 'unauthenticated' }
 
-    const role = user.role
-    if (!isValidRole(role) || role !== UserRole.Admin) return null
-    if (user.isActive === false) return null
-
-    return {
+  return {
+    kind: 'authenticated',
+    session: {
       userId: user.id,
       username,
       role: UserRole.Admin,
       loginTime: new Date(result.session.createdAt).getTime(),
+    },
+  }
+}
+
+async function resolveAdminSession(
+  headersOrRequest: Headers | Request,
+  disableCookieCache: boolean
+): Promise<FreshAdminSessionResult> {
+  const headers =
+    headersOrRequest instanceof Headers
+      ? headersOrRequest
+      : headersOrRequest.headers
+  try {
+    const result = disableCookieCache
+      ? await auth.api.getSession({
+          headers,
+          query: { disableCookieCache: true },
+        })
+      : await auth.api.getSession({ headers })
+    if (!result?.user && disableCookieCache) {
+      // Better Auth returns null for both an absent session and a swallowed
+      // adapter failure, so probe the database before choosing 401 over 503.
+      await execute({ sql: 'SELECT 1', args: [] })
     }
+    return toAdminSession(result)
   } catch (error) {
     logger.warn(
       `[admin-auth] getSession failed: ${error instanceof Error ? error.message : 'unknown'}`
     )
-    return null
+    return { kind: 'unavailable' }
   }
+}
+
+export async function getAdminSession(
+  headersOrRequest: Headers | Request
+): Promise<AdminSession | null> {
+  const result = await resolveAdminSession(headersOrRequest, false)
+  return result.kind === 'authenticated' ? result.session : null
+}
+
+/** Bypass Better Auth's short-lived cookie cache before privileged mutations. */
+export async function getFreshAdminSession(
+  headersOrRequest: Headers | Request
+): Promise<FreshAdminSessionResult> {
+  return resolveAdminSession(headersOrRequest, true)
 }
 
 export async function createAdminAuthSession(params: {

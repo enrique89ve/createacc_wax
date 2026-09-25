@@ -2,6 +2,13 @@ import { execute, withTransaction } from '../database'
 import { insertCreditAudit } from './shared'
 import { ZERO_BALANCE, type CreditBalance } from './types'
 
+export class CreditBalanceRevisionConflictError extends Error {
+  constructor() {
+    super('Credit balance revision conflict')
+    this.name = 'CreditBalanceRevisionConflictError'
+  }
+}
+
 function assertPositiveInteger(amount: number): void {
   if (!Number.isSafeInteger(amount) || amount <= 0) {
     throw new Error('Credit amount must be a positive safe integer')
@@ -234,6 +241,7 @@ export async function refundCreditsFromTicket(
 
 export async function adjustCreditBalances(params: {
   readonly hiveUsername: string
+  readonly expectedRevision: number
   readonly pendingAmount?: number
   readonly availableAmount?: number
   readonly reason: string
@@ -263,6 +271,10 @@ export async function adjustCreditBalances(params: {
     const row = current.rows[0] as Record<string, unknown>
     const currentPending = Number(row.pending_amount)
     const currentAvailable = Number(row.available_amount)
+    const currentRevision = Number(row.revision)
+    if (params.expectedRevision !== currentRevision) {
+      throw new CreditBalanceRevisionConflictError()
+    }
     const pendingDiff =
       params.pendingAmount === undefined
         ? 0
@@ -296,10 +308,14 @@ export async function adjustCreditBalances(params: {
     updates.push('updated_at = CURRENT_TIMESTAMP')
     updates.push('revision = revision + 1')
     args.push(params.hiveUsername)
-    await execute({
-      sql: `UPDATE Credits SET ${updates.join(', ')} WHERE hive_username = ?`,
+    args.push(params.expectedRevision)
+    const updateResult = await execute({
+      sql: `UPDATE Credits SET ${updates.join(', ')} WHERE hive_username = ? AND revision = ?`,
       args,
     })
+    if (updateResult.rowsAffected !== 1) {
+      throw new CreditBalanceRevisionConflictError()
+    }
 
     if (pendingDiff !== 0) {
       await insertCreditAudit({

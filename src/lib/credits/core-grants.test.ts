@@ -85,6 +85,7 @@ describe('Credits core grants and adjustments', () => {
 
     const result = await adjustCreditBalances({
       hiveUsername: username,
+      expectedRevision: 0,
       pendingAmount: 5,
       availableAmount: 1,
       reason: 'correction',
@@ -99,11 +100,21 @@ describe('Credits core grants and adjustments', () => {
     })
     const unchanged = await adjustCreditBalances({
       hiveUsername: username,
+      expectedRevision: 1,
       pendingAmount: 5,
       reason: 'unchanged correction',
       performedBy: 'admin',
     })
     expect(unchanged.revision).toBe(1)
+    await expect(
+      adjustCreditBalances({
+        hiveUsername: username,
+        expectedRevision: 0,
+        pendingAmount: 6,
+        reason: 'stale adjustment',
+        performedBy: 'admin',
+      })
+    ).rejects.toThrow('Credit balance revision conflict')
     const audit = await db.execute({
       sql: `SELECT operation, amount FROM CreditAudit
         WHERE hive_username = ? ORDER BY id ASC`,
@@ -126,6 +137,7 @@ describe('Credits core grants and adjustments', () => {
     await expect(
       adjustCreditBalances({
         hiveUsername: `${PREFIX}-invalid`,
+        expectedRevision: 0,
         pendingAmount: -1,
         reason: 'invalid',
         performedBy: 'admin',

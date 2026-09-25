@@ -140,6 +140,7 @@ try {
                         data-username={builder.hive_username}
                         data-available={builder.available_credits}
                         data-pending={builder.pending_credits}
+                        data-revision={builder.credit_revision}
                         title="Editar créditos"
                       >
                         ✏️ Editar
@@ -333,8 +334,7 @@ try {
   <!-- Edit Credits Modal -->
   <div
     id="edit-modal"
-    class="group fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
-    data-has-pending="true"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50"
   >
     <div
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
@@ -366,10 +366,7 @@ try {
           </p>
         </div>
 
-        <div
-          id="pending-credits-container"
-          class="group-data-[has-pending=false]:hidden"
-        >
+        <div>
           <label
             for="edit-pending-credits"
             class="text-foreground mb-1 block text-sm font-medium"
@@ -385,7 +382,8 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Créditos que el builder debe reclamar con Keychain
+            Créditos asignados para reclamar con Keychain; las reducciones se
+            bloquean durante una reclamación activa
           </p>
         </div>
 
@@ -394,12 +392,14 @@ try {
             for="edit-reason"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Razón del ajuste (opcional)
+            Motivo del ajuste
           </label>
           <input
             id="edit-reason"
             type="text"
             placeholder="Ej: Corrección de error"
+            maxlength="500"
+            required
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
         </div>
@@ -411,6 +411,13 @@ try {
         </div>
 
         <div id="edit-error" class="text-destructive hidden text-sm"></div>
+        <button
+          type="button"
+          id="edit-refresh-btn"
+          class="hidden w-full rounded-lg border px-4 py-2 text-sm font-medium"
+        >
+          Recargar saldos actuales
+        </button>
 
         <div class="flex gap-3 pt-4">
           <button

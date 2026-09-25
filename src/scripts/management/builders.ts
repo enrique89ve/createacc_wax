@@ -68,6 +68,9 @@ const editCancelBtn = document.getElementById(
 const editSubmitBtn = document.getElementById(
   'edit-submit-btn'
 ) as HTMLButtonElement | null
+const editRefreshBtn = document.getElementById(
+  'edit-refresh-btn'
+) as HTMLButtonElement | null
 
 // Event Listeners for Main "Assign Credits" Button
 if (assignCreditsBtn && assignModal) {
@@ -107,6 +110,10 @@ if (editModal) {
   })
 }
 
+if (editRefreshBtn) {
+  editRefreshBtn.addEventListener('click', () => window.location.reload())
+}
+
 // Event Listeners for Success Modal
 if (successCloseBtn && successModal) {
   successCloseBtn.addEventListener('click', () => {
@@ -125,8 +132,9 @@ if (assignForm) {
       !creditsAmountInput ||
       !assignError ||
       !submitBtn
-    )
+    ) {
       return
+    }
 
     const username = builderUsernameInput.value.trim().toLowerCase()
     const amount = parseInt(creditsAmountInput.value)
@@ -202,8 +210,14 @@ document.addEventListener('click', async e => {
     const username = button.dataset.username
     const available = button.dataset.available
     const pending = button.dataset.pending
-    if (username) {
-      openEditModal(username, Number(available) || 0, Number(pending) || 0)
+    const revision = Number(button.dataset.revision)
+    if (username && Number.isSafeInteger(revision) && revision >= 0) {
+      openEditModal(
+        username,
+        Number(available) || 0,
+        Number(pending) || 0,
+        revision
+      )
     }
   }
 
@@ -281,8 +295,9 @@ function openModal(username: string = '') {
     !builderUsernameInput ||
     !creditsAmountInput ||
     !assignError
-  )
+  ) {
     return
+  }
 
   builderUsernameInput.value = username
   creditsAmountInput.value = '10' // Default value
@@ -311,8 +326,9 @@ function showSuccessModal(username: string, amount: number) {
     !successUsername ||
     !successAmount ||
     !successUsernameRepeat
-  )
+  ) {
     return
+  }
 
   successUsername.textContent = username
   successAmount.textContent = amount.toString()
@@ -324,7 +340,12 @@ function showSuccessModal(username: string, amount: number) {
 
 // ===== Edit Modal Functions =====
 
-function openEditModal(username: string, available: number, pending: number) {
+function openEditModal(
+  username: string,
+  available: number,
+  pending: number,
+  revision: number
+) {
   if (
     !editModal ||
     !editUsernameInput ||
@@ -333,27 +354,27 @@ function openEditModal(username: string, available: number, pending: number) {
     !editPendingCreditsInput ||
     !editReasonInput ||
     !editError
-  )
+  ) {
     return
+  }
 
   editUsernameInput.value = username
   editUsernameDisplay.textContent = username
   editAvailableCreditsInput.value = available.toString()
   editPendingCreditsInput.value = pending.toString()
   editReasonInput.value = ''
+  editModal.dataset.available = available.toString()
+  editModal.dataset.pending = pending.toString()
+  editModal.dataset.revision = revision.toString()
+  if (editForm) {
+    editForm.dataset.requestId = ''
+    editForm.dataset.commandKey = ''
+    editForm.dataset.stale = 'false'
+  }
+  if (editSubmitBtn) editSubmitBtn.disabled = false
+  if (editRefreshBtn) editRefreshBtn.classList.add('hidden')
   editError.classList.add('hidden')
   editError.textContent = ''
-
-  // Controlar visibilidad de créditos pendientes con data attribute
-  const hasPending = pending > 0
-  editModal.dataset.hasPending = hasPending.toString()
-
-  // Ajustar required del input
-  if (hasPending) {
-    editPendingCreditsInput.setAttribute('required', '')
-  } else {
-    editPendingCreditsInput.removeAttribute('required')
-  }
 
   editModal.classList.remove('hidden')
   editModal.classList.add('flex')
@@ -377,36 +398,89 @@ if (editForm) {
       !editPendingCreditsInput ||
       !editReasonInput ||
       !editError ||
-      !editSubmitBtn
-    )
+      !editSubmitBtn ||
+      !editModal
+    ) {
       return
+    }
 
     const username = editUsernameInput.value.trim().toLowerCase()
-    const availableCredits = parseInt(editAvailableCreditsInput.value)
-    const pendingCredits = parseInt(editPendingCreditsInput.value)
+    const availableCredits = Number(editAvailableCreditsInput.value)
+    const pendingCredits = Number(editPendingCreditsInput.value)
     const reason = editReasonInput.value.trim()
+    const originalAvailable = Number(editModal.dataset.available)
+    const originalPending = Number(editModal.dataset.pending)
+    const expectedRevision = Number(editModal.dataset.revision)
 
-    // Validation
-    if (isNaN(availableCredits) || availableCredits < 0) {
-      displayError(editError, 'Créditos disponibles debe ser un número >= 0')
+    if (
+      !Number.isSafeInteger(availableCredits) ||
+      availableCredits < 0 ||
+      availableCredits > 100000
+    ) {
+      displayError(
+        editError,
+        'Créditos disponibles debe ser un entero entre 0 y 100000'
+      )
+      return
+    }
+    if (
+      !Number.isSafeInteger(pendingCredits) ||
+      pendingCredits < 0 ||
+      pendingCredits > 100000
+    ) {
+      displayError(
+        editError,
+        'Créditos pendientes debe ser un entero entre 0 y 100000'
+      )
+      return
+    }
+    if (reason.length === 0 || reason.length > 500) {
+      displayError(editError, 'Escribe un motivo de hasta 500 caracteres')
+      return
+    }
+    if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+      displayError(
+        editError,
+        'No se pudo verificar la versión actual del saldo'
+      )
       return
     }
 
-    if (isNaN(pendingCredits) || pendingCredits < 0) {
-      displayError(editError, 'Créditos pendientes debe ser un número >= 0')
+    const changes: {
+      pending_amount?: number
+      available_amount?: number
+    } = {}
+    if (pendingCredits !== originalPending) {
+      changes.pending_amount = pendingCredits
+    }
+    if (availableCredits !== originalAvailable) {
+      changes.available_amount = availableCredits
+    }
+    if (Object.keys(changes).length === 0) {
+      displayError(
+        editError,
+        'Cambia al menos uno de los saldos antes de guardar'
+      )
       return
     }
 
-    if (availableCredits > 100000 || pendingCredits > 100000) {
-      displayError(editError, 'El valor máximo permitido es 100000')
-      return
-    }
-
-    // Reset UI
     editError.classList.add('hidden')
     editError.textContent = ''
     editSubmitBtn.disabled = true
     editSubmitBtn.textContent = 'Guardando...'
+
+    const command = {
+      ...changes,
+      expected_revision: expectedRevision,
+      reason,
+    }
+    const commandKey = JSON.stringify(command)
+    let requestId = editForm.dataset.requestId
+    if (!requestId || editForm.dataset.commandKey !== commandKey) {
+      requestId = crypto.randomUUID()
+      editForm.dataset.requestId = requestId
+      editForm.dataset.commandKey = commandKey
+    }
 
     try {
       const response = await fetch(
@@ -416,21 +490,34 @@ if (editForm) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            available_amount: availableCredits,
-            pending_amount: pendingCredits,
-            reason: reason || 'Ajuste manual desde panel admin',
-          }),
+          body: JSON.stringify({ ...command, request_id: requestId }),
         }
       )
 
-      const data = await response.json()
+      const responseBodyValue: unknown = await response.json()
+      const responseBody =
+        typeof responseBodyValue === 'object' && responseBodyValue !== null
+          ? (responseBodyValue as Record<string, unknown>)
+          : {}
+      const errorMessage =
+        typeof responseBody.error === 'string'
+          ? responseBody.error
+          : 'Error al actualizar créditos'
 
       if (!response.ok) {
-        throw new Error(data.error || 'Error al actualizar créditos')
+        if (response.status === 409) {
+          editForm.dataset.stale = 'true'
+          editSubmitBtn.disabled = true
+          editRefreshBtn?.classList.remove('hidden')
+          displayError(
+            editError,
+            `${errorMessage}. Recarga los saldos antes de preparar otro ajuste.`
+          )
+          return
+        }
+        throw new Error(errorMessage)
       }
 
-      // Success - reload page to show updated values
       closeEditModal()
       window.location.reload()
     } catch (error: unknown) {
@@ -439,7 +526,9 @@ if (editForm) {
       console.error('Error:', error)
       displayError(editError, errorMessage)
     } finally {
-      editSubmitBtn.disabled = false
+      if (editForm.dataset.stale !== 'true') {
+        editSubmitBtn.disabled = false
+      }
       editSubmitBtn.textContent = '💾 Guardar'
     }
   })

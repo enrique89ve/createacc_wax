@@ -33,6 +33,7 @@ export const GET: APIRoute = async context => {
         tickets_created: builder.tickets_created,
         available_credits: builder.available_credits,
         pending_credits: builder.pending_credits,
+        credit_revision: builder.credit_revision,
         is_blocked: builder.is_blocked,
       }))
 
