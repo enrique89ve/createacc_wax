@@ -159,7 +159,7 @@ async function creationInProgressResponse(
   return failureResponse(
     'Account creation already in progress',
     `An open creation attempt already exists for ${username}`,
-    ERROR_CODES.TICKET_RACE_CONDITION,
+    ERROR_CODES.ACCOUNT_CREATION_IN_PROGRESS,
     HTTP_STATUS.CONFLICT,
     { correlationId }
   )

@@ -8,6 +8,11 @@ import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
 import type { PublicKeySet } from '@/types/keys'
 import type { PreSolvedBundle } from './types'
 import { isJsonObject } from '@/utils/http-input'
+import {
+  ALL_ERROR_CODES,
+  VALIDATION_ERROR_CODES,
+  type UnifiedErrorCode,
+} from '@/consts/unified-errors'
 
 interface ResolvedPow {
   readonly pow: PowSolution
@@ -57,13 +62,23 @@ export async function resolvePow(
 }
 
 export type AccountCreationResult =
-  | { readonly success: true; readonly transactionId: string }
+  | { readonly status: 'created'; readonly transactionId: string }
   | {
-      readonly success: false
-      readonly error: string
-      readonly requiresReconciliation: boolean
+      readonly status: 'rejected'
+      readonly httpStatus: number
+      readonly errorCode?: UnifiedErrorCode
+      readonly retryAfterSeconds?: number
+    }
+  | {
+      readonly status: 'pending'
+      readonly reason: 'reconciliation' | 'creation_in_progress'
       readonly correlationId?: string
     }
+  | { readonly status: 'unknown' }
+
+function isUnifiedErrorCode(value: unknown): value is UnifiedErrorCode {
+  return Object.values(ALL_ERROR_CODES).some(code => code === value)
+}
 
 /**
  * Call the account creation API endpoint.
@@ -74,16 +89,21 @@ export async function submitAccountCreation(
   pow: PowSolution,
   timingTokenId: string
 ): Promise<AccountCreationResult> {
-  const response = await fetch('/api/create/account', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username,
-      ...publicKeys,
-      pow,
-      timingTokenId,
-    }),
-  })
+  let response: Response
+  try {
+    response = await fetch('/api/create/account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        ...publicKeys,
+        pow,
+        timingTokenId,
+      }),
+    })
+  } catch {
+    return { status: 'unknown' }
+  }
 
   let payload: unknown
   try {
@@ -95,22 +115,52 @@ export async function submitAccountCreation(
 
   if (response.ok && result?.success === true) {
     return {
-      success: true,
+      status: 'created',
       transactionId:
         typeof result.transactionId === 'string' ? result.transactionId : '',
     }
   }
 
-  const requiresReconciliation = result?.requiresReconciliation === true
+  const executionMayHaveStarted =
+    result?.broadcasted === true ||
+    result?.chainConfirmed === true ||
+    result?.databaseUpdated === true
+  const isPending =
+    response.status === 202 ||
+    result?.requiresReconciliation === true ||
+    result?.errorCode === VALIDATION_ERROR_CODES.ACCOUNT_CREATION_IN_PROGRESS ||
+    executionMayHaveStarted
+  if (isPending) {
+    return {
+      status: 'pending',
+      reason:
+        result?.errorCode ===
+        VALIDATION_ERROR_CODES.ACCOUNT_CREATION_IN_PROGRESS
+          ? 'creation_in_progress'
+          : 'reconciliation',
+      ...(typeof result?.correlationId === 'string'
+        ? { correlationId: result.correlationId }
+        : {}),
+    }
+  }
+
+  if (
+    response.status >= 500 ||
+    (response.ok && result?.success !== false) ||
+    !result
+  ) {
+    return { status: 'unknown' }
+  }
+
+  const retryAfterSeconds = Number(response.headers.get('Retry-After'))
   return {
-    success: false,
-    error:
-      typeof result?.error === 'string'
-        ? result.error
-        : 'Error al crear la cuenta',
-    requiresReconciliation,
-    ...(requiresReconciliation && typeof result?.correlationId === 'string'
-      ? { correlationId: result.correlationId }
+    status: 'rejected',
+    httpStatus: response.status,
+    ...(isUnifiedErrorCode(result.errorCode)
+      ? { errorCode: result.errorCode }
+      : {}),
+    ...(Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+      ? { retryAfterSeconds }
       : {}),
   }
 }

@@ -127,11 +127,34 @@ export const es = {
       'Se generaron unas claves nuevas. Debes descargar nuevamente.',
     keysDownloadedBoth: 'Claves descargadas en TXT y PDF',
     downloadRetryError: 'Error al descargar las claves. Inténtalo de nuevo.',
-    verificationError: 'Error de verificación. Inténtalo de nuevo.',
+    verificationError:
+      'No se pudo preparar la verificación; la solicitud no fue enviada. Inténtalo de nuevo.',
     submitDisabledTitle: 'Debes descargar el archivo de claves primero',
-    accountCreationFailed: 'Error al crear la cuenta: {error}',
+    creationRateLimited:
+      'Demasiadas solicitudes. Inténtalo en {seconds} segundos.',
+    creationOutcomeUnknown:
+      'Se interrumpió la conexión y no recibimos el resultado. Hive podría haber procesado la solicitud. Conserva esta página y tus claves; vuelve a intentar desde aquí para comprobar el mismo intento.',
     creationPending:
-      'Hive aún no confirma el resultado final. Conserva esta página y las claves descargadas; vuelve a intentarlo más tarde. Referencia: {correlationId}. {error}',
+      'Hive aún no confirma el resultado final. Conserva esta página y tus claves; puedes volver a intentar este mismo proceso más tarde. Referencia: {correlationId}.',
+    creationErrors: {
+      accountAlreadyExists:
+        'Ese nombre ya existe en Hive. Comprueba el nombre de usuario antes de continuar.',
+      ticketNotFound: 'El ticket no existe en la base de datos.',
+      ticketInUse:
+        'El ticket está siendo usado por otra solicitud. Inténtalo más tarde.',
+      ticketUsed: 'El ticket ya no tiene usos disponibles.',
+      creationInProgress:
+        'Ya hay una solicitud para esta cuenta en curso. Espera un momento y vuelve a intentarlo.',
+      usernameNotAllowed: 'Este nombre de usuario no está permitido.',
+      usernameTooSimilar:
+        'El nombre es demasiado parecido a una cuenta creada recientemente.',
+      keysNotConfirmed:
+        'No se confirmó la descarga de las claves. Reintenta la confirmación.',
+      serviceUnavailable:
+        'No se pudo completar una comprobación del servicio. Inténtalo más tarde.',
+      generic:
+        'No se pudo completar la creación. Revisa el nombre de usuario y el ticket.',
+    },
     createPrefix: 'Crear',
     advancedKeys: 'Ver claves avanzadas',
   },

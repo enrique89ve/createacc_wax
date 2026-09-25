@@ -35,7 +35,7 @@ describe('submitAccountCreation', () => {
       'timing-1'
     )
 
-    expect(result).toEqual({ success: true, transactionId: 'tx1' })
+    expect(result).toEqual({ status: 'created', transactionId: 'tx1' })
     const parsed = JSON.parse(body) as Record<string, unknown>
     expect(parsed).toEqual({
       username: 'alice',
@@ -74,10 +74,115 @@ describe('submitAccountCreation', () => {
         'timing-1'
       )
     ).resolves.toEqual({
-      success: false,
-      error: 'The Hive result is still pending',
-      requiresReconciliation: true,
+      status: 'pending',
+      reason: 'reconciliation',
       correlationId: 'create-attempt-123',
+    })
+  })
+
+  it('preserves known rejection codes without exposing server messages', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Ticket not found: internal details',
+              errorCode: 'TICKET_NOT_FOUND',
+              databaseUpdated: false,
+            }),
+            { status: 400 }
+          )
+      )
+    )
+
+    await expect(
+      submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+    ).resolves.toEqual({
+      status: 'rejected',
+      httpStatus: 400,
+      errorCode: 'TICKET_NOT_FOUND',
+    })
+  })
+
+  it('reports a transport failure as an unknown outcome', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('connection reset')
+      })
+    )
+
+    await expect(
+      submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+    ).resolves.toEqual({ status: 'unknown' })
+  })
+
+  it('treats an unsuccessful response after a broadcast as unresolved', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              errorCode: 'INTERNAL_ERROR',
+              broadcasted: true,
+              databaseUpdated: false,
+            }),
+            { status: 500 }
+          )
+      )
+    )
+
+    await expect(
+      submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+    ).resolves.toEqual({ status: 'pending', reason: 'reconciliation' })
+  })
+
+  it('keeps an existing creation attempt in the pending state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              success: false,
+              errorCode: 'ACCOUNT_CREATION_IN_PROGRESS',
+              correlationId: 'create-attempt-456',
+            }),
+            { status: 409 }
+          )
+      )
+    )
+
+    await expect(
+      submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+    ).resolves.toEqual({
+      status: 'pending',
+      reason: 'creation_in_progress',
+      correlationId: 'create-attempt-456',
     })
   })
 })

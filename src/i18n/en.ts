@@ -123,11 +123,33 @@ export const en: Messages = {
     reloadNewKeys: 'New keys were generated. You must download them again.',
     keysDownloadedBoth: 'Keys downloaded in TXT and PDF',
     downloadRetryError: 'Failed to download keys. Please try again.',
-    verificationError: 'Verification failed. Please try again.',
+    verificationError:
+      'Could not prepare verification; the request was not sent. Please try again.',
     submitDisabledTitle: 'You must download the key file first',
-    accountCreationFailed: 'Account creation failed: {error}',
+    creationRateLimited: 'Too many requests. Try again in {seconds} seconds.',
+    creationOutcomeUnknown:
+      'The connection ended before we received a result. Hive may have processed the request. Keep this page and your keys; retry here to check the same attempt.',
     creationPending:
-      'Hive has not confirmed the final status. Keep this page and your downloaded keys, then retry later. Reference: {correlationId}. {error}',
+      'Hive has not confirmed the final status. Keep this page and your keys; you can retry this same process later. Reference: {correlationId}.',
+    creationErrors: {
+      accountAlreadyExists:
+        'This username already exists on Hive. Check the username before continuing.',
+      ticketNotFound: 'The ticket does not exist in the database.',
+      ticketInUse:
+        'Another request is using this ticket. Please try again later.',
+      ticketUsed: 'The ticket has no uses remaining.',
+      creationInProgress:
+        'A request for this account is already in progress. Wait a moment and try again.',
+      usernameNotAllowed: 'This username is not allowed.',
+      usernameTooSimilar:
+        'This username is too similar to an account created recently.',
+      keysNotConfirmed:
+        'The key download was not confirmed. Retry the confirmation.',
+      serviceUnavailable:
+        'A service check could not be completed. Please try again later.',
+      generic:
+        'Account creation could not be completed. Check the username and ticket.',
+    },
     createPrefix: 'Create',
     advancedKeys: 'View advanced keys',
   },

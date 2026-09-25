@@ -126,11 +126,34 @@ export const pt: Messages = {
     reloadNewKeys: 'Novas chaves foram geradas. Você deve baixá-las novamente.',
     keysDownloadedBoth: 'Chaves baixadas em TXT e PDF',
     downloadRetryError: 'Erro ao baixar as chaves. Tente novamente.',
-    verificationError: 'Erro de verificação. Tente novamente.',
+    verificationError:
+      'Não foi possível preparar a verificação; a solicitação não foi enviada. Tente novamente.',
     submitDisabledTitle: 'Você deve baixar o arquivo de chaves primeiro',
-    accountCreationFailed: 'Erro ao criar a conta: {error}',
+    creationRateLimited:
+      'Muitas solicitações. Tente novamente em {seconds} segundos.',
+    creationOutcomeUnknown:
+      'A conexão foi interrompida antes de recebermos o resultado. A Hive pode ter processado a solicitação. Mantenha esta página e suas chaves; tente novamente aqui para verificar a mesma tentativa.',
     creationPending:
-      'A Hive ainda não confirmou o resultado final. Mantenha esta página e as chaves baixadas; tente novamente mais tarde. Referência: {correlationId}. {error}',
+      'A Hive ainda não confirmou o resultado final. Mantenha esta página e suas chaves; você pode tentar novamente mais tarde. Referência: {correlationId}.',
+    creationErrors: {
+      accountAlreadyExists:
+        'Esse nome de usuário já existe na Hive. Confira o nome antes de continuar.',
+      ticketNotFound: 'O ticket não existe no banco de dados.',
+      ticketInUse:
+        'Outra solicitação está usando este ticket. Tente mais tarde.',
+      ticketUsed: 'O ticket não tem usos disponíveis.',
+      creationInProgress:
+        'Já existe uma solicitação para esta conta em andamento. Aguarde e tente novamente.',
+      usernameNotAllowed: 'Este nome de usuário não é permitido.',
+      usernameTooSimilar:
+        'Este nome é muito parecido com uma conta criada recentemente.',
+      keysNotConfirmed:
+        'O download das chaves não foi confirmado. Tente confirmar novamente.',
+      serviceUnavailable:
+        'Não foi possível concluir uma verificação do serviço. Tente mais tarde.',
+      generic:
+        'Não foi possível concluir a criação. Confira o nome de usuário e o ticket.',
+    },
     createPrefix: 'Criar',
     advancedKeys: 'Ver chaves avançadas',
   },

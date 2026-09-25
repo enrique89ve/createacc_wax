@@ -257,7 +257,7 @@ const copy =
   <ProgressModal />
 
   <script>
-    import { interpolate, publicCopy } from '@/i18n'
+    import { publicCopy } from '@/i18n'
     import type { DownloadFormat } from '@/utils/key-download-manager'
     import { obtainPowSolution } from '@/utils/pow-solver'
     import type {
@@ -281,6 +281,7 @@ const copy =
       resolvePow,
       submitAccountCreation,
     } from '@/lib/details/account-submit'
+    import { getAccountCreationMessage } from '@/lib/details/account-creation-message'
     import {
       showProgressModal,
       hideProgressModal,
@@ -727,8 +728,10 @@ const copy =
         // Step 1: Creating account
         updateStepStates(progressModal, 1, [0], -1)
 
+        let accountRequestStarted = false
         try {
           const publicKeys = session.getPublicKeys()
+          accountRequestStarted = true
           const result = await submitAccountCreation(
             this.state.username,
             publicKeys,
@@ -736,7 +739,7 @@ const copy =
             timingTokenId
           )
 
-          if (result.success) {
+          if (result.status === 'created') {
             const PROGRESS_STEP_DELAY_MS = 300
             const PROGRESS_COMPLETE_DELAY_MS = 400
 
@@ -753,34 +756,42 @@ const copy =
             this.teardownSecrets()
             window.location.href = `/success/${this.state.username}`
           } else {
-            const errorMessage = result.requiresReconciliation
-              ? interpolate(publicCopy().details.creationPending, {
-                  correlationId: result.correlationId ?? 'unavailable',
-                  error: result.error,
-                })
-              : result.error
-            throw new Error(errorMessage)
+            const outcomeIsUnresolved =
+              result.status === 'pending' || result.status === 'unknown'
+            updateStepStates(
+              progressModal,
+              outcomeIsUnresolved ? 1 : -1,
+              [0],
+              outcomeIsUnresolved ? -1 : 1
+            )
+            if (progressErrorActions) showProgressError(progressErrorActions)
+
+            const message = getAccountCreationMessage(result)
+            if (this.extWindow.showToast) {
+              this.extWindow.showToast('error', message, 8000)
+            } else {
+              alert(message)
+            }
+            this.isSubmitting = false
+            this.resetSubmitButton()
           }
-        } catch (error) {
-          updateStepStates(progressModal, -1, [0], 1)
+        } catch {
+          const outcomeIsUnresolved = accountRequestStarted
+          updateStepStates(
+            progressModal,
+            outcomeIsUnresolved ? 1 : -1,
+            outcomeIsUnresolved ? [0] : [],
+            outcomeIsUnresolved ? -1 : 0
+          )
           if (progressErrorActions) showProgressError(progressErrorActions)
 
-          const errorMessage =
-            error instanceof Error ? error.message : String(error)
+          const message = outcomeIsUnresolved
+            ? getAccountCreationMessage({ status: 'unknown' })
+            : publicCopy().details.verificationError
           if (this.extWindow.showToast) {
-            this.extWindow.showToast(
-              'error',
-              interpolate(publicCopy().details.accountCreationFailed, {
-                error: errorMessage,
-              }),
-              8000
-            )
+            this.extWindow.showToast('error', message, 8000)
           } else {
-            alert(
-              interpolate(publicCopy().details.accountCreationFailed, {
-                error: errorMessage,
-              })
-            )
+            alert(message)
           }
 
           this.isSubmitting = false
