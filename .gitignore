@@ -54,3 +54,4 @@ test-results/
 !/docs/credits-closure.md
 !/docs/tickets-db-consistency-plan.md
 .gstack/
+.interface-harness
