@@ -1,5 +1,15 @@
 /* eslint-disable no-console */
 
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+
+const AdminTicketCreateResponseSchema = z.looseObject({
+  success: z.literal(true),
+  ticketId: z.number().int().positive(),
+  code: z.string().min(1),
+  uses: z.number().int().positive(),
+})
+
 const copyToast = document.getElementById('copy-toast') as HTMLDivElement | null
 const createTicketForm = document.getElementById(
   'admin-create-ticket-form'
@@ -7,12 +17,6 @@ const createTicketForm = document.getElementById(
 const createTicketFeedback = document.getElementById(
   'admin-ticket-feedback'
 ) as HTMLParagraphElement | null
-
-type ApiPayload = Record<string, unknown>
-
-function isRecord(value: unknown): value is ApiPayload {
-  return typeof value === 'object' && value !== null
-}
 
 function showCreateTicketFeedback(message: string, isError: boolean): void {
   if (!createTicketFeedback) return
@@ -45,14 +49,19 @@ createTicketForm?.addEventListener('submit', async event => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, uses, description }),
     })
-    const payload: unknown = await response.json()
-    const data = isRecord(payload) ? payload : {}
+    const result = await readApiResponse(
+      response,
+      AdminTicketCreateResponseSchema
+    )
 
-    if (!response.ok || data.success !== true) {
-      const error =
-        typeof data.error === 'string'
-          ? data.error
-          : 'No se pudo crear el ticket'
+    if (!response.ok || !result.ok) {
+      const error = !result.ok
+        ? result.kind === 'problem'
+          ? result.problem.detail
+          : result.kind === 'legacy_problem'
+            ? result.message
+            : 'Respuesta inválida al crear el ticket'
+        : 'No se pudo crear el ticket'
       showCreateTicketFeedback(error, true)
       return
     }

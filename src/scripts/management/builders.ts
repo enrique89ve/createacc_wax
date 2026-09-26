@@ -1,6 +1,46 @@
 /* eslint-disable no-console */
 export {}
 
+import { z } from 'astro/zod'
+import { readApiResponse, type ApiClientResult } from '@/utils/api-client'
+
+const CreditAssignmentResponseSchema = z.looseObject({
+  message: z.string().min(1),
+  credits: z.looseObject({
+    available: z.number().nonnegative(),
+    pending: z.number().nonnegative(),
+    total_issued: z.number().nonnegative(),
+  }),
+})
+
+const BuilderActionResponseSchema = z.looseObject({
+  message: z.string().min(1),
+  hive_username: z.string().min(1),
+})
+
+const CreditAdjustmentResponseSchema = z.looseObject({
+  disposition: z.enum(['applied', 'unchanged', 'replayed']),
+  action_log_id: z.number().int().positive(),
+  credits: z.looseObject({
+    hive_username: z.string().min(1),
+    pending_amount: z.number().nonnegative(),
+    available_amount: z.number().nonnegative(),
+    total_issued: z.number().nonnegative(),
+    total_consumed: z.number().nonnegative(),
+    revision: z.number().int().nonnegative(),
+  }),
+})
+
+function getApiErrorMessage<T>(
+  result: ApiClientResult<T>,
+  fallback: string
+): string {
+  if (result.ok) return fallback
+  if (result.kind === 'problem') return result.problem.detail
+  if (result.kind === 'legacy_problem') return result.message
+  return fallback
+}
+
 // DOM Elements - Assign Modal
 const assignCreditsBtn = document.getElementById(
   'assign-credits-btn'
@@ -170,10 +210,15 @@ if (assignForm) {
         }
       )
 
-      const data = await response.json()
+      const result = await readApiResponse(
+        response,
+        CreditAssignmentResponseSchema
+      )
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Error al procesar la solicitud')
+      if (!response.ok || !result.ok) {
+        throw new Error(
+          getApiErrorMessage(result, 'Error al procesar la solicitud')
+        )
       }
 
       // Success!
@@ -237,12 +282,15 @@ document.addEventListener('click', async e => {
         `/api/management/users?id=${encodeURIComponent(username)}`,
         { method: 'DELETE' }
       )
-      if (response.ok) {
+      const result = await readApiResponse(
+        response,
+        BuilderActionResponseSchema
+      )
+      if (response.ok && result.ok) {
         window.location.reload()
         return
       }
-      const data = await response.json()
-      alert(data.error || 'Error al bloquear el username')
+      alert(getApiErrorMessage(result, 'Error al bloquear el username'))
     } catch (error) {
       console.error('Error blocking hive username:', error)
       alert('Error de conexión al bloquear el username')
@@ -265,12 +313,15 @@ document.addEventListener('click', async e => {
         `/api/management/users/${encodeURIComponent(username)}/reactivate`,
         { method: 'POST' }
       )
-      if (response.ok) {
+      const result = await readApiResponse(
+        response,
+        BuilderActionResponseSchema
+      )
+      if (response.ok && result.ok) {
         window.location.reload()
         return
       }
-      const data = await response.json()
-      alert(data.error || 'Error al reactivar el username')
+      alert(getApiErrorMessage(result, 'Error al reactivar el username'))
     } catch (error) {
       console.error('Error unblocking hive username:', error)
       alert('Error de conexión al reactivar el username')
@@ -494,15 +545,14 @@ if (editForm) {
         }
       )
 
-      const responseBodyValue: unknown = await response.json()
-      const responseBody =
-        typeof responseBodyValue === 'object' && responseBodyValue !== null
-          ? (responseBodyValue as Record<string, unknown>)
-          : {}
-      const errorMessage =
-        typeof responseBody.error === 'string'
-          ? responseBody.error
-          : 'Error al actualizar créditos'
+      const result = await readApiResponse(
+        response,
+        CreditAdjustmentResponseSchema
+      )
+      const errorMessage = getApiErrorMessage(
+        result,
+        'Error al actualizar créditos'
+      )
 
       if (!response.ok) {
         if (response.status === 409) {
@@ -517,6 +567,8 @@ if (editForm) {
         }
         throw new Error(errorMessage)
       }
+
+      if (!result.ok) throw new Error(errorMessage)
 
       closeEditModal()
       window.location.reload()

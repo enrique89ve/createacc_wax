@@ -325,9 +325,35 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
 </BuildersLayout>
 
 <script>
+  import { z } from 'astro/zod'
   import { notify } from '@/utils/toast'
   import { BRAND } from '@/consts/branding'
   import { pollClaimVerification } from '@/lib/credits/claim-polling'
+  import { readApiResponse, type ApiClientResult } from '@/utils/api-client'
+
+  const ClaimHashResponseSchema = z.looseObject({
+    hash: z.string().min(1),
+    customJson: z.looseObject({
+      id: z.string().min(1),
+      json: z.unknown(),
+    }),
+  })
+
+  const ClaimVerificationResponseSchema = z.union([
+    z.looseObject({
+      message: z.string().min(1),
+      transactionId: z.string().min(1),
+      pending: z.literal(true),
+    }),
+    z.looseObject({
+      message: z.string().min(1),
+      transactionId: z.string().min(1),
+      available: z.number().nonnegative(),
+      pending: z.number().nonnegative(),
+      success: z.literal(true).optional(),
+    }),
+  ])
+  type ClaimVerificationData = z.infer<typeof ClaimVerificationResponseSchema>
 
   interface HiveKeychainResponse {
     readonly success: boolean
@@ -346,30 +372,6 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
       displayMsg: string,
       callback: (response: HiveKeychainResponse) => void
     ) => void
-  }
-
-  type ClaimVerificationData = {
-    readonly success?: boolean
-    readonly error?: string
-    readonly available?: number
-    readonly pending?: number
-  }
-
-  const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === 'object' && value !== null
-
-  const parseClaimVerificationData = (
-    value: unknown
-  ): ClaimVerificationData => {
-    if (!isRecord(value)) return {}
-
-    return {
-      success: typeof value.success === 'boolean' ? value.success : undefined,
-      error: typeof value.error === 'string' ? value.error : undefined,
-      available:
-        typeof value.available === 'number' ? value.available : undefined,
-      pending: typeof value.pending === 'number' ? value.pending : undefined,
-    }
   }
 
   const getHiveKeychain = (): HiveKeychainWithCustomJson | null => {
@@ -451,13 +453,24 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
         headers: { 'Content-Type': 'application/json' },
       })
 
-      const hashData = await hashResponse.json()
+      const hashResult = await readApiResponse(
+        hashResponse,
+        ClaimHashResponseSchema
+      )
 
-      if (!hashResponse.ok || !hashData.success) {
+      if (!hashResponse.ok || !hashResult.ok) {
         // Mostrar solo el toast, sin error en consola
-        notify('error', hashData.error || 'Error generando hash de validación')
+        const errorMessage = hashResult.ok
+          ? 'Error generando hash de validación'
+          : hashResult.kind === 'problem'
+            ? hashResult.problem.detail
+            : hashResult.kind === 'legacy_problem'
+              ? hashResult.message
+              : 'Respuesta inválida generando hash de validación'
+        notify('error', errorMessage)
         return
       }
+      const hashData = hashResult.data
 
       claimBtn.textContent = 'Conectando Keychain...'
 
@@ -625,28 +638,50 @@ const creditosConsumidos = builderCredits.consumed // total_consumed = cuentas c
             }),
           })
 
-          return { status: response.status, body: await response.json() }
+          const result = await readApiResponse(
+            response,
+            ClaimVerificationResponseSchema
+          )
+          return { status: response.status, body: result }
         }
       )
 
       const verifyResponse = { status: verifyResult.status }
-      const verifyData = parseClaimVerificationData(verifyResult.body)
+      const verificationResult =
+        verifyResult.body as ApiClientResult<ClaimVerificationData>
 
-      if (verifyResponse.status === 200 && verifyData.success) {
-        notify(
-          'success',
-          `¡Créditos reclamados! Disponible: ${verifyData.available || 0}, Pendiente: ${verifyData.pending || 0}`
-        )
-
-        // Recargar página después de un momento
-        setTimeout(() => location.reload(), 3000)
-      } else if (verifyResponse.status === 202) {
+      if (
+        verifyResponse.status === 202 &&
+        verificationResult.ok &&
+        'pending' in verificationResult.data &&
+        verificationResult.data.pending === true
+      ) {
         notify(
           'warning',
           'La transacción sigue confirmándose en Hive. Intenta verificarla nuevamente en unos momentos.'
         )
+      } else if (
+        verifyResponse.status === 200 &&
+        verificationResult.ok &&
+        'available' in verificationResult.data
+      ) {
+        const verifyData = verificationResult.data
+        notify(
+          'success',
+          `¡Créditos reclamados! Disponible: ${verifyData.available}, Pendiente: ${verifyData.pending}`
+        )
+
+        // Recargar página después de un momento
+        setTimeout(() => location.reload(), 3000)
       } else {
-        notify('error', verifyData.error || 'Error verificando la transacción')
+        const errorMessage = !verificationResult.ok
+          ? verificationResult.kind === 'problem'
+            ? verificationResult.problem.detail
+            : verificationResult.kind === 'legacy_problem'
+              ? verificationResult.message
+              : 'Respuesta inválida verificando la transacción'
+          : 'Error verificando la transacción'
+        notify('error', errorMessage)
       }
     } catch (error) {
       notify('error', 'Error de conexión o procesamiento')

@@ -8,6 +8,8 @@ import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
 import type { PublicKeySet } from '@/types/keys'
 import type { PreSolvedBundle } from './types'
 import { isJsonObject } from '@/utils/http-input'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
 import {
   ALL_ERROR_CODES,
   VALIDATION_ERROR_CODES,
@@ -76,6 +78,25 @@ export type AccountCreationResult =
     }
   | { readonly status: 'unknown' }
 
+const AccountCreationResponseDataSchema = z
+  .looseObject({
+    status: z.string().optional(),
+    transactionId: z.string().optional(),
+    errorCode: z.string().optional(),
+    correlationId: z.string().optional(),
+    requiresReconciliation: z.boolean().optional(),
+    broadcasted: z.boolean().optional(),
+    chainConfirmed: z.boolean().optional(),
+    databaseUpdated: z.boolean().optional(),
+    isIdempotent: z.boolean().optional(),
+  })
+  .refine(
+    data =>
+      data.status === 'pending' ||
+      typeof data.transactionId === 'string' ||
+      data.isIdempotent === true
+  )
+
 function isUnifiedErrorCode(value: unknown): value is UnifiedErrorCode {
   return Object.values(ALL_ERROR_CODES).some(code => code === value)
 }
@@ -105,21 +126,19 @@ export async function submitAccountCreation(
     return { status: 'unknown' }
   }
 
-  let payload: unknown
-  try {
-    payload = await response.json()
-  } catch {
-    payload = null
-  }
-  const result = isJsonObject(payload) ? payload : null
-
-  if (response.ok && result?.success === true) {
-    return {
-      status: 'created',
-      transactionId:
-        typeof result.transactionId === 'string' ? result.transactionId : '',
-    }
-  }
+  const parsedResponse = await readApiResponse(
+    response,
+    AccountCreationResponseDataSchema
+  )
+  const responseData = parsedResponse.ok
+    ? parsedResponse.data
+    : parsedResponse.kind === 'invalid_response'
+      ? null
+      : parsedResponse.body
+  const result = isJsonObject(responseData) ? responseData : null
+  const hasKnownSuccessEnvelope =
+    parsedResponse.ok &&
+    (parsedResponse.meta !== null || result?.success === true)
 
   const executionMayHaveStarted =
     result?.broadcasted === true ||
@@ -144,9 +163,18 @@ export async function submitAccountCreation(
     }
   }
 
+  if (response.ok && hasKnownSuccessEnvelope && result?.status !== 'pending') {
+    return {
+      status: 'created',
+      transactionId:
+        typeof result?.transactionId === 'string' ? result.transactionId : '',
+    }
+  }
+
   if (
     response.status >= 500 ||
-    (response.ok && result?.success !== false) ||
+    (response.ok && !hasKnownSuccessEnvelope) ||
+    (!parsedResponse.ok && parsedResponse.kind === 'invalid_response') ||
     !result
   ) {
     return { status: 'unknown' }

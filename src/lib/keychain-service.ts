@@ -12,6 +12,12 @@ import type {
   HiveMessage,
 } from '@/types/hive-signature'
 import { createHiveUsername, createHiveMessage } from '@/types/hive-signature'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+
+const BuilderChallengeResponseSchema = z.looseObject({
+  message: z.string().min(1),
+})
 
 // Global declaration for TypeScript
 declare global {
@@ -83,14 +89,17 @@ export class HiveKeychainService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username }),
     })
-    if (!response.ok) {
+    const result = await readApiResponse(
+      response,
+      BuilderChallengeResponseSchema
+    )
+    if (!response.ok || !result.ok) {
       throw new Error('No se pudo obtener challenge del servidor')
     }
-    const data = (await response.json()) as { message?: string }
-    if (!data.message) {
+    if (!result.data.message) {
       throw new Error('Challenge inválido recibido del servidor')
     }
-    return createHiveMessage(data.message)
+    return createHiveMessage(result.data.message)
   }
 
   /**
@@ -152,7 +161,7 @@ export class HiveKeychainService {
                 ),
                 publicKey: response.publicKey,
                 message: createHiveMessage(response.data?.message || message),
-                signature: signature,
+                signature,
                 requestId: response.request_id,
                 timestamp: Date.now(),
               })

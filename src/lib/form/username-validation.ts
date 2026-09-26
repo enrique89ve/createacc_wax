@@ -4,10 +4,12 @@ import {
 } from '@/utils/validate-username'
 import { validateHiveAccountExists } from '@/utils/validate-hiveuser'
 import type { HiveChain } from './hive-chain-client'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+const UsernamePolicyResponseSchema = z.looseObject({
+  status: z.enum(['unavailable', 'suspicious', 'similar', 'allowed']),
+})
 
 export type UsernameValidationResult =
   | { readonly status: 'empty' }
@@ -41,11 +43,11 @@ async function checkUsernamePolicy(
       }
     }
 
-    const result: unknown = await response.json()
-    if (!isRecord(result)) return { status: 'check_unavailable' }
-    if (result.status === 'suspicious') return { status: 'suspicious' }
-    if (result.status === 'similar') return { status: 'similar' }
-    if (result.status === 'allowed') return null
+    const result = await readApiResponse(response, UsernamePolicyResponseSchema)
+    if (!result.ok) return { status: 'check_unavailable' }
+    if (result.data.status === 'suspicious') return { status: 'suspicious' }
+    if (result.data.status === 'similar') return { status: 'similar' }
+    if (result.data.status === 'allowed') return null
     return { status: 'check_unavailable' }
   } catch {
     return { status: 'check_unavailable' }

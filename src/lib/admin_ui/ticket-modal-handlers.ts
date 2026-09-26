@@ -6,6 +6,25 @@
  */
 
 import { BUILDERS_UI, MAX_TICKET_USES } from '@/consts/constants'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+
+const BuilderCreditBalanceResponseSchema = z.looseObject({
+  balance: z.looseObject({
+    available_amount: z.number().nonnegative(),
+  }),
+})
+
+const TicketUpdateResponseSchema = z.looseObject({
+  success: z.literal(true),
+  message: z.string().min(1),
+})
+
+const TicketDeleteResponseSchema = z.looseObject({
+  success: z.literal(true),
+  message: z.string().min(1),
+  refundedCredits: z.number().nonnegative(),
+})
 
 export interface TicketData {
   id: number
@@ -96,10 +115,13 @@ async function getBuilderCredits(): Promise<number> {
   try {
     // Try to get from server (most recent data)
     const resp = await fetch('/api/builders/credits/balance')
-    if (resp.ok) {
-      const data = await resp.json()
+    const result = await readApiResponse(
+      resp,
+      BuilderCreditBalanceResponseSchema
+    )
+    if (resp.ok && result.ok) {
       // The endpoint returns: {success: true, balance: {available_amount: X}}
-      return data.balance?.available_amount || 0
+      return result.data.balance.available_amount
     }
   } catch (error) {
     console.warn('[getBuilderCredits] Error fetching from API:', error)
@@ -122,15 +144,16 @@ async function setupSlider(ticket: TicketData) {
     !sliderMinLabel ||
     !sliderMaxLabel ||
     !availableCreditsInfo
-  )
+  ) {
     return
+  }
 
   // Get real-time available credits and cache them
   const availableCredits = await getBuilderCredits()
   cachedAvailableCredits = availableCredits
 
   // Calculate limits
-    const maxDecrease = ticket.remaining_uses // Resizing may exhaust a ticket
+  const maxDecrease = ticket.remaining_uses // Resizing may exhaust a ticket
   const maxIncrease = Math.min(
     availableCredits,
     MAX_TICKET_USES - ticket.remaining_uses // Do not exceed 100 uses
@@ -209,10 +232,10 @@ export function openDeleteModal(ticket: TicketData) {
 
   // Populate fields
   if (deleteTicketCode) deleteTicketCode.textContent = ticket.code
-  if (deleteTicketUses)
-    deleteTicketUses.textContent = String(ticket.total_uses)
-  if (deleteRefundAmount)
+  if (deleteTicketUses) deleteTicketUses.textContent = String(ticket.total_uses)
+  if (deleteRefundAmount) {
     deleteRefundAmount.textContent = String(ticket.total_uses)
+  }
 
   // Show modal
   ticketActionModal.classList.remove('hidden')
@@ -342,14 +365,14 @@ function setupUpdateModalListeners() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             code: currentTicket.code,
-            delta: delta,
+            delta,
           }),
         }
       )
 
-      const data = await resp.json()
+      const result = await readApiResponse(resp, TicketUpdateResponseSchema)
 
-      if (resp.ok && data.success) {
+      if (resp.ok && result.ok) {
         const deltaText = delta > 0 ? `+${delta}` : String(delta)
         notify(
           'success',
@@ -363,7 +386,14 @@ function setupUpdateModalListeners() {
           location.reload()
         }, 3000)
       } else {
-        notify('error', data.error || 'Error updating uses')
+        const errorMessage = result.ok
+          ? 'Error updating uses'
+          : result.kind === 'problem'
+            ? result.problem.detail
+            : result.kind === 'legacy_problem'
+              ? result.message
+              : 'Invalid response while updating uses'
+        notify('error', errorMessage)
       }
     } catch (_error) {
       // Network error: notify user with generic message
@@ -396,9 +426,9 @@ function setupDeleteModalListeners() {
           }
         )
 
-        const data = await resp.json()
+        const result = await readApiResponse(resp, TicketDeleteResponseSchema)
 
-        if (resp.ok && data.success) {
+        if (resp.ok && result.ok) {
           notify('success', BUILDERS_UI.MESSAGES.TICKET_DELETED, 3000)
           closeModal()
 
@@ -407,7 +437,14 @@ function setupDeleteModalListeners() {
             location.reload()
           }, 3000)
         } else {
-          notify('error', data.error || 'Error deleting')
+          const errorMessage = result.ok
+            ? 'Error deleting'
+            : result.kind === 'problem'
+              ? result.problem.detail
+              : result.kind === 'legacy_problem'
+                ? result.message
+                : 'Invalid response while deleting ticket'
+          notify('error', errorMessage)
         }
       } catch (_error) {
         // Network error: notify user with generic message

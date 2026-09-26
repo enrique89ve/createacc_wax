@@ -5,7 +5,11 @@ import {
   TICKET_VALIDATION_ERROR_CODES,
   type TicketValidationErrorCode,
 } from '@/consts/validation'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
 import type { FormState } from './types'
+
+const SessionResponseSchema = z.looseObject({ username: z.string() })
 
 export type SessionCreationResult =
   | { readonly success: true }
@@ -78,14 +82,9 @@ export async function createSession(
   } catch {
     return { success: false, reason: 'service_unavailable' }
   }
-  let result: unknown
-  try {
-    result = await response.json()
-  } catch {
-    result = undefined
-  }
+  const parsedResponse = await readApiResponse(response, SessionResponseSchema)
 
-  if (response.ok && isRecord(result) && result.success === true) {
+  if (response.ok && parsedResponse.ok) {
     return { success: true }
   }
 
@@ -100,7 +99,11 @@ export async function createSession(
     }
   }
 
-  const ticketValidationErrorCode = parseTicketValidationErrorCode(result)
+  const errorBody =
+    !parsedResponse.ok && parsedResponse.kind !== 'invalid_response'
+      ? parsedResponse.body
+      : undefined
+  const ticketValidationErrorCode = parseTicketValidationErrorCode(errorBody)
   if (ticketValidationErrorCode) {
     return {
       success: false,
@@ -109,7 +112,7 @@ export async function createSession(
     }
   }
 
-  const sessionValidationReason = parseSessionValidationReason(result)
+  const sessionValidationReason = parseSessionValidationReason(errorBody)
   if (sessionValidationReason) {
     return { success: false, reason: sessionValidationReason }
   }

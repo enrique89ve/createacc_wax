@@ -70,8 +70,17 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
   </div>
 
   <script>
+    import { z } from 'astro/zod'
     import { quickLogin, isKeychainReady } from '@/lib/keychain-service'
     import { notify } from '@/utils/toast'
+    import { readApiResponse } from '@/utils/api-client'
+
+    const BuilderLoginResponseSchema = z.looseObject({
+      user: z.looseObject({
+        username: z.string().min(1),
+        role: z.string().min(1),
+      }),
+    })
 
     document.addEventListener('astro:page-load', async () => {
       await initPage()
@@ -169,7 +178,12 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           }),
         })
 
-        if (response.ok) {
+        const result = await readApiResponse(
+          response,
+          BuilderLoginResponseSchema
+        )
+
+        if (response.ok && result.ok) {
           notify('success', '¡Login exitoso! Redirigiendo...')
           setTimeout(() => {
             window.location.href = '/builders/tickets'
@@ -177,13 +191,13 @@ import BuildersLayout from '@/layouts/BuildersLayout.astro'
           return
         }
 
-        let errorMessage = 'Error en autenticación'
-        try {
-          const payload = (await response.json()) as { message?: string }
-          if (payload.message) errorMessage = payload.message
-        } catch {
-          // Keep default message
-        }
+        const errorMessage = !result.ok
+          ? result.kind === 'problem'
+            ? result.problem.detail
+            : result.kind === 'legacy_problem'
+              ? result.message
+              : 'Respuesta inválida del servidor'
+          : 'Error en autenticación'
 
         notify('error', errorMessage)
       } catch (error) {

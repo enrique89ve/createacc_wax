@@ -1,5 +1,15 @@
 /* eslint-disable no-console */
 
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+
+const ManagementLoginResponseSchema = z.looseObject({
+  user: z.looseObject({
+    username: z.string().min(1),
+    role: z.string().min(1),
+  }),
+})
+
 const form = document.getElementById('login-form') as HTMLFormElement
 const errorMessage = document.getElementById('error-message')
 const loginButton = document.getElementById('login-button') as HTMLButtonElement
@@ -39,11 +49,21 @@ if (form) {
         credentials: 'include', // Important to receive session cookies
       })
 
-      const data = await response.json()
+      const result = await readApiResponse(
+        response,
+        ManagementLoginResponseSchema
+      )
 
-      if (!response.ok || !data.success) {
+      if (!response.ok || !result.ok) {
         // Invalid credentials or error - show message and DO NOT redirect
-        showError(data.error || 'Invalid credentials')
+        const errorMessage = result.ok
+          ? 'Invalid credentials'
+          : result.kind === 'problem'
+            ? result.problem.detail
+            : result.kind === 'legacy_problem'
+              ? result.message
+              : 'Invalid response from the server'
+        showError(errorMessage)
         resetButton()
         return
       }

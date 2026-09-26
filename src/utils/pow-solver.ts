@@ -5,12 +5,26 @@
  * Processes nonces in batches to avoid blocking the main thread.
  */
 
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+
 interface PowChallenge {
   readonly challengeId: string
   readonly prefix: string
   readonly difficulty: number
   readonly expiresAt: number
 }
+
+const PowChallengeSchema = z.looseObject({
+  challengeId: z.string().min(1),
+  prefix: z.string().min(1),
+  difficulty: z.number().int().positive(),
+  expiresAt: z.number().int().positive(),
+})
+
+const TimingTokenSchema = z.looseObject({
+  timingTokenId: z.string().min(1),
+})
 
 export interface PowSolution {
   readonly challengeId: string
@@ -85,28 +99,16 @@ async function fetchWithRetry(url: string): Promise<Response> {
   throw lastError ?? new Error('Fetch failed after retries')
 }
 
-/** Runtime type guard for server challenge responses. */
-function isPowChallenge(data: unknown): data is PowChallenge {
-  if (typeof data !== 'object' || data === null) return false
-  const d = data as Record<string, unknown>
-  return (
-    typeof d.challengeId === 'string' &&
-    typeof d.prefix === 'string' &&
-    typeof d.difficulty === 'number' &&
-    typeof d.expiresAt === 'number'
-  )
-}
-
 /**
  * Fetches a fresh PoW challenge from the server.
  */
 async function fetchPowChallenge(): Promise<PowChallenge> {
   const response = await fetchWithRetry(POW_CHALLENGE_ENDPOINT)
-  const data: unknown = await response.json()
-  if (!isPowChallenge(data)) {
+  const parsedResponse = await readApiResponse(response, PowChallengeSchema)
+  if (!parsedResponse.ok) {
     throw new Error('Invalid PoW challenge response')
   }
-  return data
+  return parsedResponse.data
 }
 
 /**
@@ -182,15 +184,6 @@ async function solvePowChallenge(
   }
 }
 
-/** Runtime type guard for timing token responses. */
-function isTimingTokenResponse(
-  data: unknown
-): data is { timingTokenId: string } {
-  if (typeof data !== 'object' || data === null) return false
-  const d = data as Record<string, unknown>
-  return typeof d.timingTokenId === 'string' && d.timingTokenId.length > 0
-}
-
 /**
  * Fetches only a timing token from the dedicated lightweight endpoint.
  * Used to start the server-side timer on page load without generating
@@ -198,11 +191,11 @@ function isTimingTokenResponse(
  */
 export async function fetchTimingToken(): Promise<string> {
   const response = await fetchWithRetry(TIMING_TOKEN_ENDPOINT)
-  const data: unknown = await response.json()
-  if (!isTimingTokenResponse(data)) {
+  const parsedResponse = await readApiResponse(response, TimingTokenSchema)
+  if (!parsedResponse.ok) {
     throw new Error('Invalid timing token response')
   }
-  return data.timingTokenId
+  return parsedResponse.data.timingTokenId
 }
 
 /**
