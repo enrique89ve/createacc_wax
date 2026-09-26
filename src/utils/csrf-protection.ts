@@ -9,6 +9,7 @@
  */
 
 import { HTTP_STATUS } from '@/consts/constants'
+import { apiError } from '@/utils/errorResponse'
 
 /**
  * CSRF validation result
@@ -135,16 +136,7 @@ export function requireValidOrigin(request: Request): Response | null {
   const validation = validateOrigin(request)
 
   if (!validation.valid) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'CSRF validation failed',
-      }),
-      {
-        status: HTTP_STATUS.FORBIDDEN,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    return apiError('CSRF validation failed', HTTP_STATUS.FORBIDDEN)
   }
 
   return null

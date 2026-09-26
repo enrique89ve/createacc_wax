@@ -5,13 +5,15 @@ import { setBuilderSessionCookie } from '@/lib/auth/builder-session'
 import { logger } from '@/lib/logger'
 import { UserRole } from '@/lib/roles'
 import { requireValidOrigin } from '@/utils/csrf-protection'
+import { z } from 'astro/zod'
+import { apiError, apiSuccess } from '@/utils/errorResponse'
 
-interface KeychainVerifyBody {
-  readonly username?: unknown
-  readonly publicKey?: unknown
-  readonly signature?: unknown
-  readonly message?: unknown
-}
+const KeychainVerifyBodySchema = z.looseObject({
+  username: z.unknown().optional(),
+  publicKey: z.unknown().optional(),
+  signature: z.unknown().optional(),
+  message: z.unknown().optional(),
+})
 
 function asNonEmptyString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -22,7 +24,23 @@ export const POST: APIRoute = async context => {
   if (csrfCheck) return csrfCheck
 
   try {
-    const body = (await context.request.json()) as KeychainVerifyBody
+    let rawBody: unknown
+    try {
+      rawBody = await context.request.json()
+    } catch {
+      return apiError(
+        'Invalid authentication request.',
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+    const parsedBody = KeychainVerifyBodySchema.safeParse(rawBody)
+    if (!parsedBody.success) {
+      return apiError(
+        'Invalid authentication request.',
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+    const body = parsedBody.data
     const username = asNonEmptyString(body.username)
     const publicKey = asNonEmptyString(body.publicKey)
     const signature = asNonEmptyString(body.signature)
@@ -36,32 +54,22 @@ export const POST: APIRoute = async context => {
     })
 
     if (!result.ok) {
-      return new Response(JSON.stringify({ message: result.error }), {
-        status: HTTP_STATUS.UNAUTHORIZED,
-        headers: { 'Content-Type': 'application/json' },
-      })
+      return apiError(result.error, HTTP_STATUS.UNAUTHORIZED)
     }
 
     setBuilderSessionCookie(context.cookies, result.value, context.request)
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return apiSuccess(
+      {
         user: {
           username: result.value.username,
           role: UserRole.Builder,
         },
-      }),
-      {
-        status: HTTP_STATUS.OK,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      },
+      HTTP_STATUS.OK
     )
   } catch (error) {
     logger.error('Builder Keychain verify failed:', error)
-    return new Response(JSON.stringify({ message: 'Authentication failed' }), {
-      status: HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    return apiError('Authentication failed', HTTP_STATUS.INTERNAL_SERVER_ERROR)
   }
 }

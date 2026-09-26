@@ -1,13 +1,14 @@
 import type { APIContext } from 'astro'
 import { CreationSessionManager } from '@/lib/session-cookies'
 import type { AdminSession, BuilderSession } from '@/types/auth'
-import { ROUTES } from '@/consts/constants'
+import { HTTP_STATUS, ROUTES } from '@/consts/constants'
 import { getAdminSession as readAdminSession } from '@/lib/auth/admin-auth'
 import { getBuilderSessionCookie } from '@/lib/auth/builder-session'
 import {
   blockedHiveAccountMessage,
   isHiveUsernameBlocked,
 } from '@/lib/auth/blocked-hive-accounts'
+import { apiError } from '@/utils/errorResponse'
 
 export interface RetrievedSessions {
   admin: AdminSession | null
@@ -105,13 +106,7 @@ export async function withAdminApiSession<T>(
 
   const session = await getAdminSession(context.request)
   if (!session) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized: Session required' }),
-      {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    return apiError('Unauthorized: Session required', HTTP_STATUS.UNAUTHORIZED)
   }
 
   context.locals.adminUser = session
@@ -141,23 +136,11 @@ export async function withBuilderApiSession<T>(
     context.locals.builderUser ?? getBuilderSessionCookie(context.cookies)
 
   if (!session) {
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized: Session required' }),
-      {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    return apiError('Unauthorized: Session required', HTTP_STATUS.UNAUTHORIZED)
   }
 
   if (await isHiveUsernameBlocked(session.username)) {
-    return new Response(
-      JSON.stringify({ error: blockedHiveAccountMessage() }),
-      {
-        status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    )
+    return apiError(blockedHiveAccountMessage(), HTTP_STATUS.FORBIDDEN)
   }
 
   context.locals.builderUser = session

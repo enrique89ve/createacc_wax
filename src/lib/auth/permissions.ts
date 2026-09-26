@@ -1,6 +1,9 @@
 import { UserRole } from '@/lib/roles'
 import { logger } from '@/lib/logger'
 import type { AdminSession, BuilderSession } from '@/types/auth'
+import { HTTP_STATUS } from '@/consts/constants'
+import { DATABASE_ERROR_CODES } from '@/consts/unified-errors'
+import { apiError } from '@/utils/errorResponse'
 
 export type AuthenticatedSession = AdminSession | BuilderSession
 
@@ -26,6 +29,8 @@ export const Permission = {
   CLAIM_CREDITS: 'CLAIM_CREDITS',
 } as const
 
+// The value and type share an identifier through TypeScript's separate namespaces.
+// eslint-disable-next-line @typescript-eslint/no-redeclare
 export type Permission = (typeof Permission)[keyof typeof Permission]
 
 const ROLE_PERMISSIONS: Record<UserRole, readonly Permission[]> = {
@@ -82,9 +87,8 @@ export function assertCanPerform(
 }
 
 export function unauthorizedResponse(message = 'No autorizado'): Response {
-  return new Response(JSON.stringify({ error: message }), {
-    status: 403,
-    headers: { 'Content-Type': 'application/json' },
+  return apiError(message, HTTP_STATUS.FORBIDDEN, {
+    code: DATABASE_ERROR_CODES.PERMISSION_DENIED,
   })
 }
 

@@ -20,11 +20,13 @@ import {
   recordLoginAttempt,
 } from '@/lib/rate-limiter-server'
 import { resolveRateLimitSource } from '@/lib/client-ip'
+import { z } from 'astro/zod'
+import { apiSuccess, createJsonResponse } from '@/utils/errorResponse'
 
-interface ManagementLoginBody {
-  readonly username?: unknown
-  readonly password?: unknown
-}
+const ManagementLoginBodySchema = z.looseObject({
+  username: z.unknown().optional(),
+  password: z.unknown().optional(),
+})
 
 const FALLBACK_USERNAME = 'anonymous'
 
@@ -36,6 +38,17 @@ function normalizeUsername(rawUsername: unknown): string {
 function normalizePassword(rawPassword: unknown): string {
   if (typeof rawPassword !== 'string') return ''
   return rawPassword
+}
+
+function loginErrorResponse(
+  error: string,
+  status: number,
+  extensions: Readonly<Record<string, unknown>> = {},
+  headers?: HeadersInit
+): Response {
+  return createJsonResponse({ success: false, error, ...extensions }, status, {
+    headers,
+  })
 }
 
 async function persistLoginAttempt(
@@ -63,9 +76,9 @@ export const POST: APIRoute = async context => {
   try {
     const source = resolveRateLimitSource(context)
 
-    let body: ManagementLoginBody
+    let rawBody: unknown
     try {
-      body = (await request.json()) as ManagementLoginBody
+      rawBody = await request.json()
     } catch {
       await persistLoginAttempt(
         request,
@@ -74,19 +87,20 @@ export const POST: APIRoute = async context => {
         false,
         'Invalid JSON body'
       )
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Payload inválido',
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      )
+      return loginErrorResponse('Payload inválido', HTTP_STATUS.BAD_REQUEST)
     }
+    const parsedBody = ManagementLoginBodySchema.safeParse(rawBody)
+    if (!parsedBody.success) {
+      await persistLoginAttempt(
+        request,
+        source.sourceKey,
+        FALLBACK_USERNAME,
+        false,
+        'Invalid request body'
+      )
+      return loginErrorResponse('Payload inválido', HTTP_STATUS.BAD_REQUEST)
+    }
+    const body = parsedBody.data
 
     const normalizedUsername = normalizeUsername(body.username)
     const normalizedPassword = normalizePassword(body.password)
@@ -98,19 +112,11 @@ export const POST: APIRoute = async context => {
     })
 
     if (!rateLimit.allowed) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Demasiados intentos. Intenta de nuevo en ${Math.ceil(rateLimit.retryAfter / 60)} minutos`,
-          retryAfter: rateLimit.retryAfter,
-        }),
-        {
-          status: HTTP_STATUS.TOO_MANY_REQUESTS,
-          headers: {
-            'Content-Type': 'application/json',
-            'Retry-After': String(rateLimit.retryAfter),
-          },
-        }
+      return loginErrorResponse(
+        `Demasiados intentos. Intenta de nuevo en ${Math.ceil(rateLimit.retryAfter / 60)} minutos`,
+        HTTP_STATUS.TOO_MANY_REQUESTS,
+        { retryAfter: rateLimit.retryAfter },
+        { 'Retry-After': String(rateLimit.retryAfter) }
       )
     }
 
@@ -122,18 +128,10 @@ export const POST: APIRoute = async context => {
         false,
         'Missing credentials'
       )
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Credenciales requeridas',
-          remaining: Math.max(0, rateLimit.remaining - 1),
-        }),
-        {
-          status: HTTP_STATUS.BAD_REQUEST,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      return loginErrorResponse(
+        'Credenciales requeridas',
+        HTTP_STATUS.BAD_REQUEST,
+        { remaining: Math.max(0, rateLimit.remaining - 1) }
       )
     }
 
@@ -150,18 +148,10 @@ export const POST: APIRoute = async context => {
         false,
         'Invalid credentials'
       )
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Credenciales inválidas',
-          remaining: Math.max(0, rateLimit.remaining - 1),
-        }),
-        {
-          status: HTTP_STATUS.UNAUTHORIZED,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      return loginErrorResponse(
+        'Credenciales inválidas',
+        HTTP_STATUS.UNAUTHORIZED,
+        { remaining: Math.max(0, rateLimit.remaining - 1) }
       )
     }
 
@@ -174,18 +164,10 @@ export const POST: APIRoute = async context => {
         false,
         'Invalid credentials'
       )
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Credenciales inválidas',
-          remaining: Math.max(0, rateLimit.remaining - 1),
-        }),
-        {
-          status: HTTP_STATUS.UNAUTHORIZED,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      return loginErrorResponse(
+        'Credenciales inválidas',
+        HTTP_STATUS.UNAUTHORIZED,
+        { remaining: Math.max(0, rateLimit.remaining - 1) }
       )
     }
 
@@ -197,17 +179,9 @@ export const POST: APIRoute = async context => {
         false,
         'Role is not admin'
       )
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Acceso restringido a administradores',
-        }),
-        {
-          status: HTTP_STATUS.FORBIDDEN,
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
+      return loginErrorResponse(
+        'Acceso restringido a administradores',
+        HTTP_STATUS.FORBIDDEN
       )
     }
 
@@ -217,12 +191,9 @@ export const POST: APIRoute = async context => {
 
     if (!created) {
       logger.error('Failed to create Better Auth session')
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Error de configuración del servidor',
-        }),
-        { status: 500 }
+      return loginErrorResponse(
+        'Error de configuración del servidor',
+        HTTP_STATUS.INTERNAL_SERVER_ERROR
       )
     }
 
@@ -238,32 +209,21 @@ export const POST: APIRoute = async context => {
     })
     await appendAdminSessionCookie(headers, created.token)
 
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return apiSuccess(
+      {
         user: {
           username: user.username,
           role: user.role,
         },
-      }),
-      {
-        status: 200,
-        headers,
-      }
+      },
+      HTTP_STATUS.OK,
+      { headers }
     )
   } catch (error) {
     logger.error('Management login error:', error)
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Error del servidor',
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
+    return loginErrorResponse(
+      'Error del servidor',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     )
   }
 }

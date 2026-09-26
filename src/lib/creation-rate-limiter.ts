@@ -7,6 +7,9 @@
  * @limitation Single-server only. For multi-server, replace with Redis.
  */
 
+import { HTTP_STATUS } from '@/consts/constants'
+import { apiError } from '@/utils/errorResponse'
+
 interface RateWindow {
   count: number
   windowStart: number
@@ -122,15 +125,10 @@ export function checkCreationRateLimit(
  */
 export function createRateLimitResponse(retryAfterMs: number): Response {
   const retryAfterSeconds = Math.ceil(retryAfterMs / 1000)
-  return new Response(
-    JSON.stringify({ error: 'Too many requests. Please try again later.' }),
-    {
-      status: 429,
-      headers: {
-        'Content-Type': 'application/json',
-        'Retry-After': String(retryAfterSeconds),
-        'Cache-Control': 'no-store',
-      },
-    }
+  return apiError(
+    'Too many requests. Please try again later.',
+    HTTP_STATUS.TOO_MANY_REQUESTS,
+    { retryAfterSeconds },
+    { headers: { 'Retry-After': String(retryAfterSeconds) } }
   )
 }

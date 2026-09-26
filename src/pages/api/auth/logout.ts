@@ -4,6 +4,7 @@ import { CreationSessionManager } from '@/lib/session-cookies'
 import { apiError } from '@/utils/errorResponse'
 import { signOutAdmin } from '@/lib/auth/admin-auth'
 import { buildLogoutHeaders } from '@/utils/logout-helpers'
+import { apiSuccess } from '@/utils/errorResponse'
 
 async function clearCreationSession(context: Parameters<APIRoute>[0]) {
   try {
@@ -37,14 +38,13 @@ export const POST: APIRoute = async context => {
     context.locals.builderUser = undefined
 
     const headers = buildLogoutHeaders(context.request)
-    headers.set('Cache-Control', 'no-store')
-    return new Response(
-      JSON.stringify({
-        success: true,
+    return apiSuccess(
+      {
         message: 'Sesión cerrada exitosamente',
         redirectTo: ROUTES.LOGIN,
-      }),
-      { status: HTTP_STATUS.OK, headers }
+      },
+      HTTP_STATUS.OK,
+      { headers }
     )
   } catch {
     return apiError(

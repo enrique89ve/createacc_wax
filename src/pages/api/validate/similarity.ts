@@ -10,10 +10,13 @@ import {
   createRateLimitResponse,
 } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
+import { z } from 'astro/zod'
+import { apiError, apiSuccess, createJsonResponse } from '@/utils/errorResponse'
+import { HTTP_STATUS } from '@/consts/constants'
 
-interface SimilarityValidationRequest {
-  readonly username: string
-}
+const SimilarityValidationRequestSchema = z.looseObject({
+  username: z.string().min(1),
+})
 
 /**
  * F5a FIX: Reduced response - only returns isSimilar boolean.
@@ -33,17 +36,18 @@ export const POST: APIRoute = async context => {
     }
 
     const { request } = context
-    const data: SimilarityValidationRequest = await request.json()
-    const { username } = data
-
-    if (!username || typeof username !== 'string') {
-      return new Response(JSON.stringify({ error: 'Username es requerido' }), {
-        status: 400,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        },
-      })
+    let rawBody: unknown
+    try {
+      rawBody = await request.json()
+    } catch {
+      return apiError(
+        'El cuerpo debe contener JSON válido',
+        HTTP_STATUS.BAD_REQUEST
+      )
+    }
+    const parsedBody = SimilarityValidationRequestSchema.safeParse(rawBody)
+    if (!parsedBody.success) {
+      return apiError('Username es requerido', HTTP_STATUS.BAD_REQUEST)
     }
 
     const now = new Date()
@@ -72,34 +76,20 @@ export const POST: APIRoute = async context => {
     )
 
     const similarityResult: SimilarityCheckResult = findSimilarUsernames(
-      username,
+      parsedBody.data.username,
       recentAccounts,
       DEFAULT_THRESHOLD
     )
 
-    return new Response(
-      JSON.stringify({ isSimilar: similarityResult.isSimilar }),
+    return apiSuccess({ isSimilar: similarityResult.isSimilar })
+  } catch {
+    return createJsonResponse(
       {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        },
-      }
-    )
-  } catch (_error) {
-    return new Response(
-      JSON.stringify({
+        success: false,
         error: 'Error interno del servidor',
         isSimilar: true,
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-        },
-      }
+      },
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
     )
   }
 }

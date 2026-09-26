@@ -5,6 +5,7 @@ import {
   checkCreationRateLimit,
   createRateLimitResponse,
 } from '@/lib/creation-rate-limiter'
+import { apiSuccess } from '@/utils/errorResponse'
 
 export const GET: APIRoute = context => {
   const clientIp = resolveClientIp(context)
@@ -15,11 +16,5 @@ export const GET: APIRoute = context => {
 
   const timingTokenId = issueTimingToken()
 
-  return new Response(JSON.stringify({ timingTokenId }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-    },
-  })
+  return apiSuccess({ timingTokenId })
 }

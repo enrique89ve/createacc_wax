@@ -5,11 +5,8 @@ import {
 } from '@/lib/creation-rate-limiter'
 import { checkUsernamePolicy } from '@/lib/username-policy'
 import { resolveClientIp } from '@/lib/client-ip'
-
-const NO_CACHE_HEADERS = {
-  'Content-Type': 'application/json',
-  'Cache-Control': 'no-store',
-} as const
+import { apiError, apiSuccess, createJsonResponse } from '@/utils/errorResponse'
+import { HTTP_STATUS } from '@/consts/constants'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -21,32 +18,48 @@ export const POST: APIRoute = async context => {
     return createRateLimitResponse(rateLimit.retryAfterMs)
   }
 
+  let payload: unknown
   try {
-    const payload: unknown = await context.request.json()
-    if (
-      !isRecord(payload) ||
-      typeof payload.username !== 'string' ||
-      !payload.username.trim()
-    ) {
-      return Response.json(
-        { error: 'Invalid username', status: 'invalid_request' },
-        { status: 400, headers: NO_CACHE_HEADERS }
-      )
-    }
+    payload = await context.request.json()
+  } catch {
+    return apiError(
+      'The request body must contain valid JSON.',
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
+  if (
+    !isRecord(payload) ||
+    typeof payload.username !== 'string' ||
+    !payload.username.trim()
+  ) {
+    return createJsonResponse(
+      {
+        success: false,
+        error: 'Invalid username',
+        status: 'invalid_request',
+      },
+      HTTP_STATUS.BAD_REQUEST
+    )
+  }
 
+  try {
     const result = await checkUsernamePolicy(payload.username)
     if (result.status === 'unavailable') {
-      return Response.json(
-        { status: 'unavailable' },
-        { status: 503, headers: NO_CACHE_HEADERS }
+      return createJsonResponse(
+        {
+          success: false,
+          error: 'Username policy check is temporarily unavailable.',
+          status: 'unavailable',
+        },
+        HTTP_STATUS.SERVICE_UNAVAILABLE
       )
     }
 
-    return Response.json(result, { status: 200, headers: NO_CACHE_HEADERS })
+    return apiSuccess(result)
   } catch {
-    return Response.json(
-      { status: 'unavailable' },
-      { status: 503, headers: NO_CACHE_HEADERS }
+    return apiError(
+      'Username policy check is temporarily unavailable.',
+      HTTP_STATUS.SERVICE_UNAVAILABLE
     )
   }
 }
