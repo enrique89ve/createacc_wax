@@ -4,6 +4,7 @@ import { getRequiredEnvString } from '@/lib/env'
 import { CREATION_SESSION_CONFIG, ENV_KEYS } from '@/consts/constants'
 import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
 import { logger } from '@/lib/logger'
+import { isConfirmedPublicKeysHash } from '@/lib/create/confirmed-public-keys'
 import {
   decodeJson,
   encodeJson,
@@ -20,7 +21,15 @@ function sessionSecret(): string {
 function isCreationSession(value: unknown): value is CreationSession {
   if (typeof value !== 'object' || value === null) return false
   const record = value as Record<string, unknown>
-  return typeof record.username === 'string' && record.username.length > 0
+  const hasValidConfirmedKeysHash =
+    record.confirmedPublicKeysHash === undefined ||
+    isConfirmedPublicKeysHash(record.confirmedPublicKeysHash)
+
+  return (
+    typeof record.username === 'string' &&
+    record.username.length > 0 &&
+    hasValidConfirmedKeysHash
+  )
 }
 
 export function setCreationCookie(

@@ -11,6 +11,8 @@ import {
   createRateLimitResponse,
 } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
+import { hashConfirmedPublicKeys } from '@/lib/create/confirmed-public-keys'
+import type { PublicKeySet } from '@/types/keys'
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -73,8 +75,9 @@ export const POST: APIRoute = async context => {
     }
 
     // Validate public keys format using unified wax validation
+    let validatedPublicKeys: PublicKeySet
     try {
-      validateHiveKeySet({
+      validatedPublicKeys = validateHiveKeySet({
         ownerPublicKey,
         activePublicKey,
         postingPublicKey,
@@ -96,6 +99,7 @@ export const POST: APIRoute = async context => {
     sessionManager.set({
       ...existing,
       confirmedDownload: true,
+      confirmedPublicKeysHash: hashConfirmedPublicKeys(validatedPublicKeys),
     })
 
     return apiSuccess({}, HTTP_STATUS.OK, {

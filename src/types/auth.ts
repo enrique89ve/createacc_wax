@@ -10,6 +10,7 @@ export interface CreationSession {
   readonly username: string
   readonly ticket?: string
   readonly confirmedDownload?: boolean
+  readonly confirmedPublicKeysHash?: string
   readonly accountCreated?: boolean
 }
 

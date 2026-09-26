@@ -5,6 +5,7 @@ import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
 import type { PublicKeySet } from '@/types/keys'
 import { hasForbiddenPrivateKeyFields } from '@/types/keys'
+import { hashConfirmedPublicKeys } from '@/lib/create/confirmed-public-keys'
 import {
   type ValidationResult,
   createValidationSuccess,
@@ -19,6 +20,7 @@ export interface ValidatedSession {
   readonly username: string
   readonly ticket: string
   readonly confirmedDownload: boolean
+  readonly confirmedPublicKeysHash: string
   readonly accountCreated: boolean
 }
 
@@ -99,9 +101,22 @@ export function validateRequestData(
  */
 export function validateSessionData(
   session: CreationSession | null,
-  requestUsername: string
+  requestUsername: string,
+  requestPublicKeys: PublicKeySet
 ): ValidationResult<ValidatedSession> {
   if (!session || !session.confirmedDownload) {
+    return createValidationFailure(
+      VALIDATION_ERROR_MESSAGES.KEYS_DOWNLOAD_NOT_CONFIRMED,
+      'session',
+      'KEYS_DOWNLOAD_NOT_CONFIRMED'
+    )
+  }
+
+  const confirmedPublicKeysHash = session.confirmedPublicKeysHash
+  if (
+    !confirmedPublicKeysHash ||
+    confirmedPublicKeysHash !== hashConfirmedPublicKeys(requestPublicKeys)
+  ) {
     return createValidationFailure(
       VALIDATION_ERROR_MESSAGES.KEYS_DOWNLOAD_NOT_CONFIRMED,
       'session',
@@ -129,6 +144,7 @@ export function validateSessionData(
     username: session.username,
     ticket: session.ticket.trim().toUpperCase(),
     confirmedDownload: session.confirmedDownload ?? false,
+    confirmedPublicKeysHash,
     accountCreated: session.accountCreated ?? false,
   } satisfies ValidatedSession)
 }

@@ -477,9 +477,10 @@ async function validateRequest(
 
 async function checkSessionAndIdempotency(
   session: CreationSession | null,
-  username: string
+  request: ValidatedAccountRequest
 ): Promise<Response | ValidatedSession> {
-  const sessionValidation = validateSessionData(session, username)
+  const { username } = request
+  const sessionValidation = validateSessionData(session, username, request)
   if (!isValidationSuccess(sessionValidation)) {
     return validationFailureToResponse(sessionValidation)
   }
@@ -1112,7 +1113,7 @@ export const POST: APIRoute = async context => {
 
     const sessionResult = await checkSessionAndIdempotency(
       creationSession,
-      requestResult.username
+      requestResult
     )
     if (sessionResult instanceof Response) return sessionResult
 
