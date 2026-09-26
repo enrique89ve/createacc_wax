@@ -57,3 +57,4 @@ test-results/
 !/docs/admin-action-authorization-plan.md
 .gstack/
 .interface-harness
+skills-lock.json
