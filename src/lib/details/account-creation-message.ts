@@ -27,6 +27,7 @@ const ERROR_COPY_KEYS: Partial<Record<UnifiedErrorCode, CreationErrorCopyKey>> =
     [VALIDATION_ERROR_CODES.USERNAME_TOO_SIMILAR]: 'usernameTooSimilar',
     [VALIDATION_ERROR_CODES.USERNAME_POLICY_UNAVAILABLE]: 'serviceUnavailable',
     [VALIDATION_ERROR_CODES.KEYS_DOWNLOAD_NOT_CONFIRMED]: 'keysNotConfirmed',
+    [VALIDATION_ERROR_CODES.IDEMPOTENCY_CHECK_FAILED]: 'creationContextChanged',
   }
 
 export function getAccountCreationMessage(

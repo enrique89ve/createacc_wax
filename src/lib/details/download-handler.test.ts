@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { apiSuccess } from '@/utils/errorResponse'
 import { confirmKeysDownloaded } from '@/lib/details/download-handler'
 import type { PublicKeySet } from '@/types/keys'
 
@@ -20,7 +21,10 @@ describe('confirmKeysDownloaded', () => {
       if (init) requests.push(init)
       return requests.length === 1
         ? new Response(null, { status: 401 })
-        : new Response(null, { status: 200 })
+        : apiSuccess({
+            executionMode: 'simulate',
+            creationIntentHash: 'a'.repeat(64),
+          })
     })
     vi.stubGlobal('fetch', fetchMock)
     const recoverSession = vi.fn(async () => true)
@@ -54,5 +58,22 @@ describe('confirmKeysDownloaded', () => {
     await expect(
       confirmKeysDownloaded(PUBLIC_KEYS, async () => false)
     ).resolves.toEqual({ status: 'rejected' })
+  })
+})
+
+describe('key confirmation response contract', () => {
+  it.each([
+    () => new Response('<html>Unavailable</html>', { status: 200 }),
+    () => apiSuccess({}),
+    () =>
+      apiSuccess({ executionMode: 'broadcast', creationIntentHash: 'invalid' }),
+  ])('does not confirm an invalid success response', async response => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response())
+    )
+    expect(await confirmKeysDownloaded(PUBLIC_KEYS, async () => false)).toEqual(
+      { status: 'unavailable' }
+    )
   })
 })

@@ -14,179 +14,175 @@ const copy =
   Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
-<section
-  class="flex w-full items-start justify-center px-6 py-2 md:items-center"
->
+<section class="flex w-full items-start justify-center px-4 py-2 md:px-6">
   <div class="w-full max-w-lg">
     <div
-      class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-6 shadow-lg backdrop-blur"
+      class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-4 shadow-lg backdrop-blur sm:p-6"
     >
-      <header class="mb-5 flex flex-col items-center gap-2 text-center">
+      <header
+        class="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-left"
+      >
         <h1
-          class="text-foreground text-2xl font-bold tracking-tight sm:text-3xl"
+          class="text-foreground text-xl font-bold tracking-tight sm:text-2xl"
         >
           {copy.details.title}
         </h1>
+        <div class="flex flex-wrap items-center gap-2">
+          <p class="text-muted-foreground text-xs font-medium sm:text-sm">
+            {copy.details.accountToCreate}
+          </p>
+          <span
+            class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-base font-semibold"
+            data-username={username}
+            data-ticket={ticket ?? ''}>@{username}</span
+          >
+        </div>
       </header>
-      <div
-        class="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
-      >
-        <p class="text-muted-foreground text-sm font-medium">
-          {copy.details.accountToCreate}
-        </p>
-        <span
-          class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-lg font-semibold"
-          data-username={username}
-          data-ticket={ticket ?? ''}>@{username}</span
-        >
-      </div>
       <!-- Keys Container (always visible) -->
-      <div id="keys-container" class="space-y-5">
+      <div id="keys-container" class="space-y-3">
         <p class="text-foreground mb-2 text-xs font-semibold">
           {copy.details.masterPasswordLabel}:
         </p>
-        <div class="group">
+        <div
+          class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-md border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
+        >
+          <!-- Loading State inside key field -->
           <div
-            class="border-border bg-background relative min-h-[2.5rem] overflow-hidden rounded-md border px-4 py-2 text-xs leading-relaxed transition-colors group-hover:border-gray-400"
+            id="key-loading"
+            class="flex h-full min-h-[2rem] items-center justify-center gap-3 transition-opacity duration-300 motion-reduce:transition-none"
           >
-            <!-- Loading State inside key field -->
-            <div
-              id="key-loading"
-              class="flex h-full min-h-[2rem] items-center justify-center gap-3 transition-opacity duration-300"
-            >
-              <div role="status">
-                <svg
-                  aria-hidden="true"
-                  class="inline h-6 w-6 animate-spin fill-gray-600 text-gray-200 dark:fill-gray-300 dark:text-gray-600"
-                  viewBox="0 0 100 101"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-                    fill="currentColor"></path>
-                  <path
-                    d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-                    fill="currentFill"></path>
-                </svg>
-                <span class="sr-only">{copy.common.loading}</span>
-              </div>
-              <p class="text-foreground text-sm">
-                {copy.details.generatingKeys}
+            <div role="status">
+              <svg
+                aria-hidden="true"
+                class="inline h-6 w-6 animate-spin fill-gray-600 text-gray-200 motion-reduce:animate-none dark:fill-gray-300 dark:text-gray-600"
+                viewBox="0 0 100 101"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                  fill="currentColor"></path>
+                <path
+                  d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                  fill="currentFill"></path>
+              </svg>
+              <span class="sr-only">{copy.common.loading}</span>
+            </div>
+            <p class="text-foreground text-sm">
+              {copy.details.generatingKeys}
+            </p>
+          </div>
+          <div class="flex min-h-[2.75rem] items-center gap-1">
+            <div id="master-key-content" class="min-w-0 flex-1">
+              <p
+                id="master-key-placeholder"
+                class="text-muted-foreground hidden min-h-[2.75rem] min-w-0 items-center font-mono text-base tracking-[0.28em]"
+              >
+                <span aria-hidden="true">••••••••••••</span>
+                <span class="sr-only">{copy.details.masterPasswordHidden}</span>
+              </p>
+              <p
+                id="master-key-display"
+                class="text-foreground/90 focus-visible:ring-primary/40 hidden min-h-[2.75rem] min-w-0 select-all items-center overflow-x-auto whitespace-nowrap font-mono text-xs tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                tabindex="0"
+              >
               </p>
             </div>
-            <p
-              id="master-key-placeholder"
-              class="text-muted-foreground hidden min-h-[2rem] items-center font-mono text-[15px] tracking-tight"
-            >
-              {copy.details.masterPasswordHidden}
-            </p>
-            <p
-              id="master-key-display"
-              class="text-foreground/90 hidden min-h-[2rem] cursor-pointer break-all font-mono text-[15px] tracking-tight"
-              title={copy.details.clickToCopy}
-            >
-            </p>
-            <!-- Copy button overlay (appears on hover) -->
             <button
-              id="master-key-copy-btn"
               type="button"
-              class="bg-background/70 text-muted-foreground/80 absolute inset-0 hidden cursor-pointer items-center justify-center gap-2 rounded-md text-[12px] font-semibold opacity-0 backdrop-blur-sm transition-all duration-300 hover:opacity-100 focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 group-hover:opacity-100"
-              aria-label={copy.details.copyMasterPassword}
+              id="btn-reveal-master"
+              class="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-primary/40 hidden min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none"
+              aria-label={copy.details.showMasterPassword}
+              aria-pressed="false"
+              aria-controls="master-key-content"
             >
               <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                class="h-4 w-4"
                 aria-hidden="true"
+                data-reveal-icon="show"
+                class="h-[18px] w-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
               >
-                <path
-                  d="M6.75 2A2.75 2.75 0 0 0 4 4.75v7.5A2.75 2.75 0 0 0 6.75 15h2.5A2.75 2.75 0 0 0 12 12.25v-7.5A2.75 2.75 0 0 0 9.25 2h-2.5ZM5.5 4.75c0-.69.56-1.25 1.25-1.25h2.5c.69 0 1.25.56 1.25 1.25v7.5c0 .69-.56 1.25-1.25 1.25h-2.5c-.69 0-1.25-.56-1.25-1.25v-7.5Z"
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
                 ></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg
+                aria-hidden="true"
+                data-reveal-icon="hide"
+                class="hidden h-[18px] w-[18px]"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="m3 3 18 18"></path>
+                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
                 <path
-                  d="M13.25 5A2.75 2.75 0 0 1 16 7.75v7.5A2.75 2.75 0 0 1 13.25 18h-2.5A2.75 2.75 0 0 1 8 15.25v-1a.75.75 0 0 1 1.5 0v1c0 .69.56 1.25 1.25 1.25h2.5c.69 0 1.25-.56 1.25-1.25v-7.5C14.5 6.56 13.94 6 13.25 6h-1a.75.75 0 0 1 0-1.5h1Z"
+                  d="M9.9 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-3 3.8"
+                ></path>
+                <path d="M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"
                 ></path>
               </svg>
-              <span>{copy.details.copy}</span>
             </button>
-            <!-- Feedback for copy action -->
-            <div
-              id="master-key-feedback"
-              class="pointer-events-none absolute inset-0 hidden items-center justify-center"
-              role="status"
-              aria-live="polite"
-            >
-              <span
-                class="bg-success/90 text-success-foreground flex items-center gap-2 rounded-md px-3 py-1 text-[12px] font-semibold shadow-sm"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  class="h-4 w-4"
-                  aria-hidden="true"
-                >
-                  <path
-                    fill-rule="evenodd"
-                    d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
-                    clip-rule="evenodd"></path>
-                </svg>
-                {copy.details.masterPasswordCopied}
-              </span>
-            </div>
           </div>
         </div>
         <p class="text-muted-foreground mt-2 text-xs leading-relaxed">
           {copy.details.beforeContinueHelp}
         </p>
+        <div class="mt-4 grid w-full grid-cols-2 gap-2">
+          <button
+            type="button"
+            id="btn-download-keys"
+            class="border-border inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-md border bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+            aria-label={copy.details.downloadKeysAria}
+            disabled
+          >
+            {copy.common.download}
+          </button>
+          <button
+            type="button"
+            id="btn-copy-master"
+            class="border-border bg-background text-foreground hover:bg-muted inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+            aria-label={copy.details.copyMasterPassword}
+            aria-live="polite"
+            disabled
+          >
+            {copy.details.copy}
+          </button>
+        </div>
       </div>
-      <div
-        class="mb-6 mt-4 flex flex-col gap-3 md:flex-row md:items-center md:gap-4"
+      <form
+        id="form-confirm"
+        class="mt-6 space-y-4"
+        aria-busy="false"
+        aria-describedby="form-error"
       >
-        <button
-          type="button"
-          id="btn-download-keys"
-          class="border-border inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border bg-white px-4 py-2 text-[0.9rem] font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-300"
-          aria-label={copy.details.downloadKeysAria}
-        >
-          {copy.details.downloadKeys}
-          <span aria-hidden="true">🔑</span>
-        </button>
-        <button
-          type="button"
-          id="btn-reveal-master"
-          class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-          aria-label={copy.details.showMasterPassword}
-          aria-pressed="false"
-        >
-          {copy.details.showMasterPassword}
-        </button>
-        <button
-          type="button"
-          id="btn-copy-master-cta"
-          class="border-border bg-background text-foreground hover:bg-muted inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border px-4 py-2 text-[0.9rem] font-medium shadow-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-          aria-label={copy.details.copyMasterPassword}
-        >
-          {copy.details.copyMasterPassword}
-          <span aria-hidden="true">🗝️</span>
-        </button>
-      </div>
-      <form id="form-confirm" class="space-y-4">
         <div class="space-y-2">
           <label
-            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 sm:gap-3"
+            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 motion-reduce:transition-none sm:gap-3"
           >
-            <input id="chk-keys-saved" type="checkbox" class="peer sr-only" />
+            <input
+              id="chk-keys-safety"
+              type="checkbox"
+              class="peer sr-only focus-visible:outline-none"
+              aria-labelledby="chk-keys-safety-label"
+            />
             <span
-              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 peer-checked:[&>svg]:opacity-100"
+              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 motion-reduce:transform-none motion-reduce:transition-none peer-checked:[&>svg]:opacity-100"
               aria-hidden="true"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
-                class="h-4 w-4 opacity-0 transition-all duration-200 peer-checked:opacity-100"
+                class="h-4 w-4 opacity-0 transition-all duration-200 peer-checked:opacity-100 motion-reduce:transition-none"
               >
                 <path
                   fill-rule="evenodd"
@@ -195,37 +191,14 @@ const copy =
               </svg>
             </span>
             <span
-              class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
+              id="chk-keys-safety-label"
+              class="text-foreground/90 min-w-0 flex-1 text-sm font-medium leading-snug sm:text-sm"
             >
-              {copy.details.keysSavedCheckbox}
+              {copy.details.keysSafetyCheckbox}
             </span>
           </label>
-          <label
-            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 sm:gap-3"
-          >
-            <input id="chk-keys-ack" type="checkbox" class="peer sr-only" />
-            <span
-              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 peer-checked:[&>svg]:opacity-100"
-              aria-hidden="true"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                class="h-4 w-4 opacity-0 transition-all duration-200 peer-checked:opacity-100"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M16.704 5.29a1 1 0 0 1 0 1.42l-7.01 7.01a1 1 0 0 1-1.414 0L3.296 8.737a1 1 0 1 1 1.414-1.414l4.012 4.011 6.303-6.303a1 1 0 0 1 1.414 0Z"
-                  clip-rule="evenodd"></path>
-              </svg>
-            </span>
-            <span
-              class="text-foreground/90 text-sm font-medium leading-snug sm:text-sm"
-            >
-              {copy.details.keysAckCheckbox}
-            </span>
-          </label>
+        </div>
+        <div id="form-error" class="sr-only" role="status" aria-live="polite">
         </div>
         <div class="relative">
           <button
@@ -236,7 +209,7 @@ const copy =
             data-loading-label={copy.details.creatingAccount}
             data-tooltip-target="tooltip-download-keys"
             data-tooltip-style="light"
-            class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 w-full cursor-pointer rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+            class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus-visible:ring-primary/40 w-full cursor-pointer rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
           >
             {copy.details.createAccount}
           </button>
@@ -271,7 +244,6 @@ const copy =
       bindActiveKeySession,
       destroyActiveKeySession,
     } from '@/lib/details/client-key-session'
-    import { copyMasterKey } from '@/lib/details/clipboard'
     import {
       confirmKeysDownloaded,
       initiateKeyDownload,
@@ -300,6 +272,7 @@ const copy =
       private keyConfirmationPromise: Promise<boolean> | null = null
       private tornDown = false
       private sessionRecoveryPromise: Promise<boolean> | null = null
+      private copyFeedbackTimeout: number | undefined
       private readonly pageAbort = new AbortController()
       private readonly extWindow = window as Window & ExtendedWindow
 
@@ -312,16 +285,15 @@ const copy =
 
       private queryDOM(): DOMElements {
         return {
-          chk1: document.querySelector<HTMLInputElement>('#chk-keys-saved'),
-          chk2: document.querySelector<HTMLInputElement>('#chk-keys-ack'),
+          keysSafetyConfirmed:
+            document.querySelector<HTMLInputElement>('#chk-keys-safety'),
           submitBtn: document.querySelector<HTMLButtonElement>(
             '#btn-create-account'
           ),
-          copyBtn: document.querySelector<HTMLButtonElement>(
-            '#btn-copy-master-cta'
-          ),
           downloadBtn:
             document.querySelector<HTMLButtonElement>('#btn-download-keys'),
+          copyBtn:
+            document.querySelector<HTMLButtonElement>('#btn-copy-master'),
           revealBtn:
             document.querySelector<HTMLButtonElement>('#btn-reveal-master'),
           loadingEl: document.querySelector<HTMLElement>('#key-loading'),
@@ -332,12 +304,7 @@ const copy =
           masterKeyPlaceholder: document.querySelector<HTMLElement>(
             '#master-key-placeholder'
           ),
-          masterKeyCopyBtn: document.querySelector<HTMLButtonElement>(
-            '#master-key-copy-btn'
-          ),
-          masterKeyFeedback: document.querySelector<HTMLElement>(
-            '#master-key-feedback'
-          ),
+          formError: document.querySelector<HTMLElement>('#form-error'),
           form: document.querySelector<HTMLFormElement>('#form-confirm'),
           progressModal: document.querySelector<HTMLElement>('#progress-modal'),
           progressErrorActions: document.querySelector<HTMLElement>(
@@ -365,7 +332,6 @@ const copy =
         return {
           keySession: null,
           masterKeyRevealed: false,
-          copyFeedbackTimeout: undefined,
           username,
           keysConfirmedOnServer: false,
           ticket,
@@ -441,9 +407,10 @@ const copy =
           this.hideMasterInDom()
           this.elements.masterKeyPlaceholder?.classList.remove('hidden')
           this.elements.masterKeyPlaceholder?.classList.add('flex')
-          this.elements.masterKeyCopyBtn?.classList.remove('hidden')
-          this.elements.masterKeyCopyBtn?.classList.add('flex')
           this.elements.revealBtn?.classList.remove('hidden')
+          this.elements.revealBtn?.classList.add('flex')
+          this.elements.downloadBtn?.removeAttribute('disabled')
+          this.elements.copyBtn?.removeAttribute('disabled')
         }, 300)
       }
 
@@ -458,15 +425,7 @@ const copy =
         }
         this.elements.masterKeyPlaceholder?.classList.remove('hidden')
         this.elements.masterKeyPlaceholder?.classList.add('flex')
-        if (this.elements.revealBtn) {
-          const copy = publicCopy().details
-          this.elements.revealBtn.textContent = copy.showMasterPassword
-          this.elements.revealBtn.setAttribute('aria-pressed', 'false')
-          this.elements.revealBtn.setAttribute(
-            'aria-label',
-            copy.showMasterPassword
-          )
-        }
+        this.setMasterRevealControl(false)
         this.state.masterKeyRevealed = false
       }
 
@@ -480,16 +439,26 @@ const copy =
         this.elements.masterKeyDisplay.textContent = session.revealMaster()
         this.elements.masterKeyDisplay.classList.remove('hidden')
         this.elements.masterKeyDisplay.classList.add('flex', 'items-center')
-        if (this.elements.revealBtn) {
-          const copy = publicCopy().details
-          this.elements.revealBtn.textContent = copy.hideMasterPassword
-          this.elements.revealBtn.setAttribute('aria-pressed', 'true')
-          this.elements.revealBtn.setAttribute(
-            'aria-label',
-            copy.hideMasterPassword
-          )
-        }
+        this.setMasterRevealControl(true)
         this.state.masterKeyRevealed = true
+      }
+
+      private setMasterRevealControl(revealed: boolean): void {
+        const button = this.elements.revealBtn
+        if (!button) return
+
+        const copy = publicCopy().details
+        button.setAttribute('aria-pressed', String(revealed))
+        button.setAttribute(
+          'aria-label',
+          revealed ? copy.hideMasterPassword : copy.showMasterPassword
+        )
+        button
+          .querySelector('[data-reveal-icon="show"]')
+          ?.classList.toggle('hidden', revealed)
+        button
+          .querySelector('[data-reveal-icon="hide"]')
+          ?.classList.toggle('hidden', !revealed)
       }
 
       private toggleMasterReveal(): void {
@@ -500,9 +469,55 @@ const copy =
         this.revealMasterInDom()
       }
 
+      private async handleCopyMasterPassword(): Promise<void> {
+        const session = this.state.keySession
+        const button = this.elements.copyBtn
+        if (!session?.isAlive() || !button) return
+
+        const copy = publicCopy().details
+        try {
+          await navigator.clipboard.writeText(session.revealMaster())
+        } catch {
+          if (this.extWindow.showToast) {
+            this.extWindow.showToast(
+              'error',
+              copy.masterPasswordCopyFailed,
+              6000
+            )
+          } else {
+            alert(copy.masterPasswordCopyFailed)
+          }
+          return
+        }
+
+        if (this.tornDown) return
+        if (this.copyFeedbackTimeout !== undefined) {
+          window.clearTimeout(this.copyFeedbackTimeout)
+        }
+        button.textContent = copy.copied
+        button.setAttribute('aria-label', copy.masterPasswordCopied)
+        this.copyFeedbackTimeout = window.setTimeout(() => {
+          button.textContent = copy.copy
+          button.setAttribute('aria-label', copy.copyMasterPassword)
+          this.copyFeedbackTimeout = undefined
+        }, 1600)
+      }
+
       teardownSecrets(): void {
         this.tornDown = true
         this.hideMasterInDom()
+        if (this.copyFeedbackTimeout !== undefined) {
+          window.clearTimeout(this.copyFeedbackTimeout)
+          this.copyFeedbackTimeout = undefined
+        }
+        if (this.elements.copyBtn) {
+          const copy = publicCopy().details
+          this.elements.copyBtn.textContent = copy.copy
+          this.elements.copyBtn.setAttribute(
+            'aria-label',
+            copy.copyMasterPassword
+          )
+        }
         this.state.keySession?.destroy()
         this.state.keySession = null
         destroyActiveKeySession()
@@ -534,26 +549,19 @@ const copy =
         retryButton.className =
           'rounded-md border border-border px-3 py-1 text-sm text-foreground hover:bg-muted'
         retryButton.textContent = publicCopy().details.retryKeyGeneration
-        retryButton.addEventListener(
-          'click',
-          () => void this.generateKeys(),
-          { once: true }
-        )
+        retryButton.addEventListener('click', () => void this.generateKeys(), {
+          once: true,
+        })
         errorContainer.appendChild(retryButton)
         this.elements.loadingEl.appendChild(errorContainer)
       }
 
       private updateSubmitState(): void {
-        if (
-          !this.elements.submitBtn ||
-          !this.elements.chk1 ||
-          !this.elements.chk2
-        )
+        if (!this.elements.submitBtn || !this.elements.keysSafetyConfirmed)
           return
 
         const ok =
-          this.elements.chk1.checked &&
-          this.elements.chk2.checked &&
+          this.elements.keysSafetyConfirmed.checked &&
           this.hasBackup() &&
           this.state.keysConfirmedOnServer
         this.elements.submitBtn.disabled = !ok
@@ -572,22 +580,6 @@ const copy =
             document.getElementById(tooltipTarget)?.remove()
           }
         }
-      }
-
-      private async handleCopy(trigger: HTMLElement): Promise<void> {
-        const session = this.state.keySession
-        if (!session || !session.isAlive()) return
-        if (!this.elements.masterKeyFeedback || !this.elements.masterKeyDisplay)
-          return
-        this.state.copyFeedbackTimeout = await copyMasterKey(
-          session.revealMaster(),
-          trigger,
-          {
-            feedback: this.elements.masterKeyFeedback,
-            keyDisplay: this.elements.masterKeyDisplay,
-          },
-          this.state.copyFeedbackTimeout
-        )
       }
 
       private openDownloadModal(): void {
@@ -763,6 +755,7 @@ const copy =
       }
 
       private resetSubmitButton(): void {
+        this.elements.form?.setAttribute('aria-busy', 'false')
         if (!this.elements.submitBtn) return
         this.elements.submitBtn.textContent =
           this.elements.submitBtn.dataset.defaultLabel ??
@@ -782,10 +775,13 @@ const copy =
         )
           return
         this.isSubmitting = true
+        this.elements.form?.setAttribute('aria-busy', 'true')
+        if (this.elements.formError) this.elements.formError.textContent = ''
 
         const { progressModal, progressErrorActions, submitBtn } = this.elements
         if (!progressModal) {
           this.isSubmitting = false
+          this.elements.form?.setAttribute('aria-busy', 'false')
           return
         }
 
@@ -811,6 +807,10 @@ const copy =
         } catch {
           this.state.preSolvedBundle = null
           this.isSubmitting = false
+          if (this.elements.formError) {
+            this.elements.formError.textContent =
+              publicCopy().details.verificationError
+          }
           updateStepStates(progressModal, -1, [], 0)
           if (progressErrorActions) showProgressError(progressErrorActions)
           if (this.extWindow.showToast) {
@@ -866,6 +866,9 @@ const copy =
             if (progressErrorActions) showProgressError(progressErrorActions)
 
             const message = getAccountCreationMessage(result)
+            if (this.elements.formError) {
+              this.elements.formError.textContent = message
+            }
             if (this.extWindow.showToast) {
               this.extWindow.showToast('error', message, 8000)
             } else {
@@ -887,6 +890,9 @@ const copy =
           const message = outcomeIsUnresolved
             ? getAccountCreationMessage({ status: 'unknown' })
             : publicCopy().details.verificationError
+          if (this.elements.formError) {
+            this.elements.formError.textContent = message
+          }
           if (this.extWindow.showToast) {
             this.extWindow.showToast('error', message, 8000)
           } else {
@@ -900,35 +906,20 @@ const copy =
 
       private setupEventListeners(): void {
         const { signal } = this.pageAbort
-        this.elements.chk1?.addEventListener(
-          'change',
-          () => this.updateSubmitState(),
-          { signal }
-        )
-        this.elements.chk2?.addEventListener(
+        this.elements.keysSafetyConfirmed?.addEventListener(
           'change',
           () => this.updateSubmitState(),
           { signal }
         )
 
-        this.elements.copyBtn?.addEventListener(
-          'click',
-          () => this.handleCopy(this.elements.copyBtn!),
-          { signal }
-        )
-        this.elements.masterKeyDisplay?.addEventListener(
-          'click',
-          () => this.handleCopy(this.elements.masterKeyDisplay!),
-          { signal }
-        )
-        this.elements.masterKeyCopyBtn?.addEventListener(
-          'click',
-          () => this.handleCopy(this.elements.masterKeyCopyBtn!),
-          { signal }
-        )
         this.elements.revealBtn?.addEventListener(
           'click',
           () => this.toggleMasterReveal(),
+          { signal }
+        )
+        this.elements.copyBtn?.addEventListener(
+          'click',
+          () => void this.handleCopyMasterPassword(),
           { signal }
         )
 

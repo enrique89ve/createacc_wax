@@ -146,9 +146,12 @@ export async function submitAccountCreation(
     result?.databaseUpdated === true
   const isPending =
     response.status === 202 ||
+    result?.status === 'pending' ||
     result?.requiresReconciliation === true ||
     result?.errorCode === VALIDATION_ERROR_CODES.ACCOUNT_CREATION_IN_PROGRESS ||
-    executionMayHaveStarted
+    // Execution flags also appear on completed responses. They only imply an
+    // unresolved outcome when the server has not returned a valid success.
+    (!hasKnownSuccessEnvelope && executionMayHaveStarted)
   if (isPending) {
     return {
       status: 'pending',

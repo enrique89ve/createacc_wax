@@ -5,7 +5,11 @@ import { validateAccountName } from '@/utils/validate-username'
 import type { CreationSession } from '@/types/auth'
 import type { PublicKeySet } from '@/types/keys'
 import { hasForbiddenPrivateKeyFields } from '@/types/keys'
-import { hashConfirmedPublicKeys } from '@/lib/create/confirmed-public-keys'
+import {
+  hashConfirmedPublicKeys,
+  hashCreationIntent,
+} from '@/lib/create/confirmed-public-keys'
+import type { HiveExecutionMode } from '@/consts/hive-execution'
 import {
   type ValidationResult,
   createValidationSuccess,
@@ -22,6 +26,8 @@ export interface ValidatedSession {
   readonly confirmedDownload: boolean
   readonly confirmedPublicKeysHash: string
   readonly accountCreated: boolean
+  readonly executionMode: HiveExecutionMode
+  readonly creationIntentHash: string
 }
 
 /**
@@ -102,7 +108,8 @@ export function validateRequestData(
 export function validateSessionData(
   session: CreationSession | null,
   requestUsername: string,
-  requestPublicKeys: PublicKeySet
+  requestPublicKeys: PublicKeySet,
+  executionMode: HiveExecutionMode
 ): ValidationResult<ValidatedSession> {
   if (!session || !session.confirmedDownload) {
     return createValidationFailure(
@@ -140,12 +147,32 @@ export function validateSessionData(
     )
   }
 
+  if (
+    session.executionMode !== executionMode ||
+    !session.creationIntentHash ||
+    session.creationIntentHash !==
+      hashCreationIntent({
+        username: session.username,
+        ticket: session.ticket,
+        executionMode,
+        publicKeys: requestPublicKeys,
+      })
+  ) {
+    return createValidationFailure(
+      'Creation intent changed; restart the creation flow',
+      'session',
+      'IDEMPOTENCY_CHECK_FAILED'
+    )
+  }
+
   return createValidationSuccess({
     username: session.username,
     ticket: session.ticket.trim().toUpperCase(),
     confirmedDownload: session.confirmedDownload ?? false,
     confirmedPublicKeysHash,
     accountCreated: session.accountCreated ?? false,
+    executionMode,
+    creationIntentHash: session.creationIntentHash,
   } satisfies ValidatedSession)
 }
 

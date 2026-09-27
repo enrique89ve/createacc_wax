@@ -13,6 +13,7 @@ import { resolveClientIp } from '@/lib/client-ip'
 import { validatePowSolution, validateTimingToken } from '@/lib/pow'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { validateTicketInDB } from '@/utils/db-ticket-validator'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 
 interface Body {
   readonly username?: string
@@ -86,10 +87,15 @@ export const POST: APIRoute = async context => {
 
     // Check if a session already exists
     const existingSession = sessionManager.get()
+    const executionMode = getHiveExecutionMode()
 
     const normalizedTicket = ticket?.trim().toUpperCase() ?? ''
 
-    if (existingSession && existingSession.username === username) {
+    if (
+      existingSession &&
+      existingSession.username === username &&
+      existingSession.executionMode === executionMode
+    ) {
       if (!normalizedTicket) {
         return apiSuccess({ username }, HTTP_STATUS.OK, { noCache: true })
       }
@@ -108,8 +114,11 @@ export const POST: APIRoute = async context => {
       }
 
       const updatedSession: CreationSession = {
-        ...existingSession,
+        ...(existingSession.ticket === normalizedTicket
+          ? existingSession
+          : { username, confirmedDownload: false }),
         ticket: normalizedTicket,
+        executionMode,
       }
       sessionManager.set(updatedSession)
 
@@ -133,6 +142,7 @@ export const POST: APIRoute = async context => {
 
     const sessionData: CreationSession = {
       username,
+      executionMode,
       confirmedDownload: false,
       ...(normalizedTicket && { ticket: normalizedTicket }),
     }

@@ -16,6 +16,7 @@ import {
   claimCreationAttempt,
   findOpenCreationAttempt,
   getCreationAttempt,
+  getAccountCreationAttempt,
   markAttemptBroadcasting as markPersistedAttemptBroadcasting,
   persistAttemptBroadcastOutcome as persistAttemptBroadcastOutcomeWithLease,
   persistAttemptPreparation as persistAttemptPreparationWithLease,
@@ -259,6 +260,14 @@ describe('simulation DB completion', () => {
     expect(account.rows[0]?.blockchain_status).toBe('simulated')
     expect(account.rows[0]?.wax_status).toBe('passed')
     expect(account.rows[0]?.transaction_id).toBe('tx-sim-1')
+    expect(await getAccountCreationAttempt(username)).toMatchObject({
+      correlationId: 'corr-1',
+      username,
+      executionMode: 'simulate',
+      transactionId: 'tx-sim-1',
+      keys: keysFor(username),
+      status: 'completed',
+    })
 
     const ticket = await db.execute({
       sql: `SELECT remaining_uses FROM Tickets WHERE code = ?`,

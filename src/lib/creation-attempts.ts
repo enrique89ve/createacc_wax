@@ -352,6 +352,18 @@ export async function getCreationAttempt(
   return parseAttemptRow(result.rows[0] as Record<string, unknown>)
 }
 
+export async function getAccountCreationAttempt(
+  username: string
+): Promise<CreationAttempt | null> {
+  const result = await execute({
+    sql: `SELECT ${ATTEMPT_SELECT} FROM CreationAttempts
+      WHERE correlation_id = (SELECT correlation_id FROM Accounts WHERE username = ?)`,
+    args: [username],
+  })
+  const row = result.rows[0]
+  return row ? parseAttemptRow(row) : null
+}
+
 export async function findOpenCreationAttempt(params: {
   readonly username: string
   readonly ticket: string

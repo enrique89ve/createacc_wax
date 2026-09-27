@@ -1,6 +1,8 @@
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { ensureTimingMatured } from '@/utils/timing-maturation'
 import { fetchTimingToken, obtainPowSolution } from '@/utils/pow-solver'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
 
 export async function recoverCreationSessionForKeyConfirmation(
   username: string,
@@ -29,7 +31,11 @@ export async function recoverCreationSessionForKeyConfirmation(
         ...(ticket ? { ticket } : {}),
       }),
     })
-    return response.ok
+    const result = await readApiResponse(
+      response,
+      z.looseObject({ username: z.literal(username) })
+    )
+    return response.status === 200 && result.ok && result.meta !== null
   } catch {
     return false
   }

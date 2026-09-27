@@ -3,6 +3,7 @@
  */
 
 import type { UserRole } from '@/lib/roles'
+import type { HiveExecutionMode } from '@/consts/hive-execution'
 
 export type AuthMethod = 'password' | 'keychain'
 
@@ -11,6 +12,8 @@ export interface CreationSession {
   readonly ticket?: string
   readonly confirmedDownload?: boolean
   readonly confirmedPublicKeysHash?: string
+  readonly executionMode?: HiveExecutionMode
+  readonly creationIntentHash?: string
   readonly accountCreated?: boolean
 }
 

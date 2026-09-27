@@ -13,18 +13,16 @@ export interface ExtendedWindow {
 }
 
 export interface DOMElements {
-  readonly chk1: HTMLInputElement | null
-  readonly chk2: HTMLInputElement | null
+  readonly keysSafetyConfirmed: HTMLInputElement | null
   readonly submitBtn: HTMLButtonElement | null
-  readonly copyBtn: HTMLButtonElement | null
   readonly downloadBtn: HTMLButtonElement | null
+  readonly copyBtn: HTMLButtonElement | null
   readonly revealBtn: HTMLButtonElement | null
   readonly loadingEl: HTMLElement | null
   readonly keysContainer: HTMLElement | null
   readonly masterKeyDisplay: HTMLElement | null
   readonly masterKeyPlaceholder: HTMLElement | null
-  readonly masterKeyCopyBtn: HTMLButtonElement | null
-  readonly masterKeyFeedback: HTMLElement | null
+  readonly formError: HTMLElement | null
   readonly form: HTMLFormElement | null
   readonly progressModal: HTMLElement | null
   readonly progressErrorActions: HTMLElement | null
@@ -43,7 +41,6 @@ export interface PreSolvedBundle {
 export interface AppState {
   keySession: ClientKeySession | null
   masterKeyRevealed: boolean
-  copyFeedbackTimeout: number | undefined
   username: string
   keysConfirmedOnServer: boolean
   ticket?: string

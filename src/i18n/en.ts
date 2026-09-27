@@ -86,36 +86,33 @@ export const en: Messages = {
     },
   },
   details: {
-    title: 'Protect your account',
-    metaDescription: 'Protect your account and save your Master Password.',
+    title: 'Account details',
+    metaDescription: 'Review and save the details for your account.',
     accountToCreate: 'Account to create:',
-    masterPasswordLabel: 'Master Password',
-    generatingKeys: 'Generating secure keys...',
-    masterPasswordHidden:
-      'Your Master Password is hidden. Press Show to reveal it.',
-    clickToCopy: 'Click to copy Master Password',
-    copy: 'Copy',
-    masterPasswordCopied: 'Master Password copied',
-    beforeContinueHelp:
-      'Download or copy your Master Password before continuing.',
+    masterPasswordLabel: 'Master password',
+    generatingKeys: 'Generating secure keys…',
+    masterPasswordHidden: 'Master password hidden.',
+    beforeContinueHelp: 'Download and save your keys before continuing.',
     masterPasswordHelp:
-      'Your Master Password controls your account. Keep it in a safe place.',
+      'Your master password gives access to your account. Keep it in a safe place.',
     masterPasswordPrivacy:
       'It is generated on your device and HolaHive does not store it.',
-    show: 'Show',
-    hide: 'Hide',
-    showMasterPassword: 'Show Master Password',
-    hideMasterPassword: 'Hide Master Password',
+    showMasterPassword: 'Show master password',
+    hideMasterPassword: 'Hide master password',
+    copy: 'Copy',
+    copied: 'Copied',
+    copyMasterPassword: 'Copy master password',
+    masterPasswordCopied: 'Master password copied.',
+    masterPasswordCopyFailed:
+      'Could not copy it. Reveal and select it to copy it manually.',
     downloadBackup: 'Download backup',
-    downloadKeys: 'Download keys',
-    downloadKeysAria: 'Download keys',
-    copyMasterPassword: 'Copy Master Password',
+    downloadKeysAria: 'Download the account keys',
     backupDownloaded: 'Backup downloaded',
     downloadStarted: 'Download started',
     confirmation:
-      'I have saved my Master Password and I understand that HolaHive cannot recover it for me.',
-    keysSavedCheckbox: 'I have verified that my keys are saved.',
-    keysAckCheckbox: 'I understand that if I lose my keys, I lose the account.',
+      'I have saved my master password and understand that HolaHive cannot recover it for me.',
+    keysSafetyCheckbox:
+      'I have saved my keys. Without them, I will lose access to my account.',
     createAccount: 'Create account',
     creatingAccount: 'Creating account...',
     downloadKeysRequired: 'You must download the keys first!',
@@ -142,6 +139,8 @@ export const en: Messages = {
     creationPending:
       'Hive has not confirmed the final status. Keep this page and your keys; you can retry this same process later. Reference: {correlationId}.',
     creationErrors: {
+      creationContextChanged:
+        'The creation context no longer matches this attempt. Keep your keys and restart from the home page. A simulated account cannot be reused as a real account.',
       accountAlreadyExists:
         'This username already exists on Hive. Check the username before continuing.',
       ticketNotFound: 'The ticket does not exist in the database.',

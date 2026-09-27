@@ -11,7 +11,11 @@ import {
   createRateLimitResponse,
 } from '@/lib/creation-rate-limiter'
 import { resolveClientIp } from '@/lib/client-ip'
-import { hashConfirmedPublicKeys } from '@/lib/create/confirmed-public-keys'
+import {
+  hashConfirmedPublicKeys,
+  hashCreationIntent,
+} from '@/lib/create/confirmed-public-keys'
+import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import type { PublicKeySet } from '@/types/keys'
 
 function isJsonObject(value: unknown): value is Record<string, unknown> {
@@ -34,6 +38,14 @@ export const POST: APIRoute = async context => {
         HTTP_STATUS.UNAUTHORIZED,
         undefined,
         { noCache: true }
+      )
+    }
+
+    const executionMode = getHiveExecutionMode()
+    if (existing.executionMode !== executionMode || !existing.ticket) {
+      return apiError(
+        'Creation context changed; restart the creation flow',
+        HTTP_STATUS.CONFLICT
       )
     }
 
@@ -96,13 +108,20 @@ export const POST: APIRoute = async context => {
       context.cookies,
       context.request
     )
+    const creationIntentHash = hashCreationIntent({
+      username: existing.username,
+      ticket: existing.ticket,
+      executionMode,
+      publicKeys: validatedPublicKeys,
+    })
     sessionManager.set({
       ...existing,
       confirmedDownload: true,
       confirmedPublicKeysHash: hashConfirmedPublicKeys(validatedPublicKeys),
+      creationIntentHash,
     })
 
-    return apiSuccess({}, HTTP_STATUS.OK, {
+    return apiSuccess({ executionMode, creationIntentHash }, HTTP_STATUS.OK, {
       noCache: true,
     })
   } catch (error) {

@@ -89,36 +89,33 @@ export const es = {
     },
   },
   details: {
-    title: 'Protege tu cuenta',
-    metaDescription: 'Protege tu cuenta y guarda tu Master Password.',
+    title: 'Detalles de la cuenta',
+    metaDescription: 'Revisa los detalles y guarda las claves de tu cuenta.',
     accountToCreate: 'Cuenta a crear:',
-    masterPasswordLabel: 'Master Password',
-    generatingKeys: 'Generando claves seguras...',
-    masterPasswordHidden:
-      'La Master Password está oculta. Pulsa Mostrar para verla.',
-    clickToCopy: 'Clic para copiar Master Password',
-    copy: 'Copiar',
-    masterPasswordCopied: 'Master Password copiada',
-    beforeContinueHelp:
-      'Descarga o copia tu Master Password antes de continuar.',
+    masterPasswordLabel: 'Contraseña maestra',
+    generatingKeys: 'Generando claves seguras…',
+    masterPasswordHidden: 'Contraseña maestra oculta.',
+    beforeContinueHelp: 'Descarga y guarda tus claves antes de continuar.',
     masterPasswordHelp:
-      'Tu Master Password controla tu cuenta. Guárdala en un lugar seguro.',
+      'Tu contraseña maestra da acceso a tu cuenta. Guárdala en un lugar seguro.',
     masterPasswordPrivacy:
       'Se genera en tu dispositivo y HolaHive no la almacena.',
-    show: 'Mostrar',
-    hide: 'Ocultar',
-    showMasterPassword: 'Mostrar Master Password',
-    hideMasterPassword: 'Ocultar Master Password',
+    showMasterPassword: 'Mostrar contraseña maestra',
+    hideMasterPassword: 'Ocultar contraseña maestra',
+    copy: 'Copiar',
+    copied: 'Copiado',
+    copyMasterPassword: 'Copiar contraseña maestra',
+    masterPasswordCopied: 'Contraseña maestra copiada.',
+    masterPasswordCopyFailed:
+      'No se pudo copiar. Revélala y selecciónala para copiarla manualmente.',
     downloadBackup: 'Descargar respaldo',
-    downloadKeys: 'Descargar claves',
-    downloadKeysAria: 'Descargar claves',
-    copyMasterPassword: 'Copiar Master Password',
+    downloadKeysAria: 'Descargar las claves de la cuenta',
     backupDownloaded: 'Respaldo descargado',
     downloadStarted: 'Descarga iniciada',
     confirmation:
-      'He guardado mi Master Password y entiendo que HolaHive no puede recuperarla por mí.',
-    keysSavedCheckbox: 'He verificado que mis claves están guardadas.',
-    keysAckCheckbox: 'Reconozco que si pierdo mis claves, pierdo la cuenta.',
+      'He guardado mi contraseña maestra y entiendo que HolaHive no puede recuperarla por mí.',
+    keysSafetyCheckbox:
+      'He guardado mis claves. Sin ellas, perderé el acceso a mi cuenta.',
     createAccount: 'Crear cuenta',
     creatingAccount: 'Creando cuenta...',
     downloadKeysRequired: '¡Debes descargar las claves!',
@@ -147,6 +144,8 @@ export const es = {
     creationPending:
       'Hive aún no confirma el resultado final. Conserva esta página y tus claves; puedes volver a intentar este mismo proceso más tarde. Referencia: {correlationId}.',
     creationErrors: {
+      creationContextChanged:
+        'El contexto de creación ya no coincide con este intento. Conserva tus claves y vuelve al inicio. Una cuenta simulada no se puede reutilizar como una cuenta real.',
       accountAlreadyExists:
         'Ese nombre ya existe en Hive. Comprueba el nombre de usuario antes de continuar.',
       ticketNotFound: 'El ticket no existe en la base de datos.',

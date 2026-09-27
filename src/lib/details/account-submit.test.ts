@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AccountCreationSuccessResponse } from '@/pages/api/create/account'
+import { createJsonResponse } from '@/utils/errorResponse'
 import { submitAccountCreation } from '@/lib/details/account-submit'
 import type { PublicKeySet } from '@/types/keys'
 import { PRIVATE_KEY_FIELD_NAMES } from '@/types/keys'
@@ -23,7 +25,7 @@ describe('submitAccountCreation', () => {
         body = String(init?.body ?? '')
         return new Response(
           JSON.stringify({ success: true, transactionId: 'tx1' }),
-          { status: 200 }
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
         )
       })
     )
@@ -49,6 +51,72 @@ describe('submitAccountCreation', () => {
     }
   })
 
+  for (const executionMode of ['simulate', 'broadcast'] as const) {
+    for (const isIdempotent of [false, true]) {
+      it(`completes a successful ${executionMode} response (idempotent=${isIdempotent})`, async () => {
+        const payload: AccountCreationSuccessResponse = {
+          success: true,
+          message: 'Account creation completed',
+          transactionId: 'tx-completed',
+          executionMode,
+          waxValidated: true,
+          onChainVerified: true,
+          signed: true,
+          authorityVerified: true,
+          broadcasted: executionMode === 'broadcast',
+          chainConfirmed: executionMode === 'broadcast',
+          databaseUpdated: true,
+          isIdempotent,
+        }
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => createJsonResponse(payload, 200))
+        )
+
+        await expect(
+          submitAccountCreation(
+            'alice',
+            PUBLIC_KEYS,
+            { challengeId: 'c1', nonce: 'n1' },
+            'timing-1'
+          )
+        ).resolves.toEqual({ status: 'created', transactionId: 'tx-completed' })
+      })
+    }
+  }
+
+  it.each([
+    { status: 'pending' },
+    { requiresReconciliation: true },
+    { errorCode: 'ACCOUNT_CREATION_IN_PROGRESS' },
+  ])(
+    'preserves explicit pending evidence in a success envelope: %j',
+    async pending => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () =>
+          createJsonResponse(
+            {
+              success: true,
+              transactionId: 'tx-pending',
+              databaseUpdated: true,
+              ...pending,
+            },
+            200
+          )
+        )
+      )
+
+      const result = await submitAccountCreation(
+        'alice',
+        PUBLIC_KEYS,
+        { challengeId: 'c1', nonce: 'n1' },
+        'timing-1'
+      )
+      expect(result.status).toBe('pending')
+    }
+  )
+
   it('preserves the reconciliation reference and pending outcome for HTTP 202', async () => {
     vi.stubGlobal(
       'fetch',
@@ -61,7 +129,7 @@ describe('submitAccountCreation', () => {
               requiresReconciliation: true,
               correlationId: 'create-attempt-123',
             }),
-            { status: 202 }
+            { status: 202, headers: { 'Content-Type': 'application/json' } }
           )
       )
     )
@@ -92,7 +160,7 @@ describe('submitAccountCreation', () => {
               errorCode: 'TICKET_NOT_FOUND',
               databaseUpdated: false,
             }),
-            { status: 400 }
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
           )
       )
     )
@@ -141,7 +209,7 @@ describe('submitAccountCreation', () => {
               broadcasted: true,
               databaseUpdated: false,
             }),
-            { status: 500 }
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
           )
       )
     )
@@ -167,7 +235,7 @@ describe('submitAccountCreation', () => {
               errorCode: 'ACCOUNT_CREATION_IN_PROGRESS',
               correlationId: 'create-attempt-456',
             }),
-            { status: 409 }
+            { status: 409, headers: { 'Content-Type': 'application/json' } }
           )
       )
     )

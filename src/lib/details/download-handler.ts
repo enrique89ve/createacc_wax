@@ -6,6 +6,17 @@ import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
 import type { PublicKeySet } from '@/types/keys'
 import type { ClientKeySession } from './client-key-session'
 import type { PreSolvedBundle } from './types'
+import { z } from 'astro/zod'
+import { readApiResponse } from '@/utils/api-client'
+import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
+
+const KeyConfirmationSchema = z.looseObject({
+  executionMode: z.enum([
+    HIVE_TX_MODE_VALUES.SIMULATE,
+    HIVE_TX_MODE_VALUES.BROADCAST,
+  ]),
+  creationIntentHash: z.string().regex(/^[0-9a-f]{64}$/u),
+})
 
 export async function initiateKeyDownload(
   keySession: ClientKeySession,
@@ -60,7 +71,11 @@ export async function confirmKeysDownloaded(
     }
   }
 
-  return res.ok ? { status: 'confirmed' } : { status: 'rejected' }
+  if (!res.ok) return { status: 'rejected' }
+  const result = await readApiResponse(res, KeyConfirmationSchema)
+  return result.ok && result.meta !== null && res.status === 200
+    ? { status: 'confirmed' }
+    : { status: 'unavailable' }
 }
 
 export async function preSolvePowBundle(): Promise<PreSolvedBundle | null> {

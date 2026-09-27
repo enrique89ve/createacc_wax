@@ -10,6 +10,7 @@ import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
 import { maybeQueueRcDelegation } from '@/lib/create/queue-rc-delegation'
 import {
   getCreationAttempt,
+  getAccountCreationAttempt,
   getOpenCreationAttemptByUsername,
   isAttemptStale,
   claimCreationAttempt,
@@ -23,6 +24,7 @@ import { inspectHiveCreationEvidence } from '@/lib/creation-evidence'
 import { sameAttemptIdentity } from '@/lib/confirm-broadcasted'
 import type { CreationAttemptKeys } from '@/lib/creation-attempts'
 import {
+  BLOCKCHAIN_STATUS,
   CREATION_ATTEMPT_STATUS,
   HIVE_TX_MODE_VALUES,
   type HiveExecutionMode,
@@ -77,12 +79,14 @@ import { analyzeWaxError } from '@/lib/wax-error-utils'
 import { unwrapBroadcastError } from '@/lib/hive-broadcaster'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
+import { hashCreationIntent } from '@/lib/create/confirmed-public-keys'
 
 export type AccountCreationSuccessResponse = {
   readonly success: true
   readonly message: string
   readonly transactionId?: string
   readonly executionMode: HiveExecutionMode
+  readonly creationIntentHash?: string
   readonly waxValidated: boolean
   readonly onChainVerified: boolean
   readonly signed: boolean
@@ -173,6 +177,8 @@ async function reclaimOpenAttemptForRetry(
   const open = await getOpenCreationAttemptByUsername(request.username)
   if (!open) return
   const keys = keysFromRequest(request)
+  if (open.executionMode !== session.executionMode)
+    return creationIntentConflict()
   if (!sameAttemptIdentity(open, session.ticket, keys)) {
     return creationInProgressResponse(request.username, open.correlationId)
   }
@@ -317,36 +323,36 @@ function waxFlagsFromResult(tx: HiveTransactionResult, chainConfirmed = false) {
   }
 }
 
-function idempotentSuccessResponse(
+function creationIntentConflict(): Response {
+  return failureResponse(
+    'Creation intent does not match the persisted operation',
+    'Restart the creation flow with the original context',
+    ERROR_CODES.IDEMPOTENCY_CHECK_FAILED,
+    HTTP_STATUS.CONFLICT
+  )
+}
+
+async function idempotentSuccessResponse(
   message: string,
   account: PersistedAccountCreation | null
-): Response {
-  if (!account) {
-    return createJsonResponse(
-      {
-        success: true,
-        message,
-        executionMode: getHiveExecutionMode(),
-        waxValidated: false,
-        onChainVerified: false,
-        signed: false,
-        authorityVerified: false,
-        broadcasted: false,
-        chainConfirmed: false,
-        databaseUpdated: false,
-        isIdempotent: true,
-      },
-      HTTP_STATUS.OK,
-      { noCache: true }
-    )
+): Promise<Response> {
+  if (!account) return creationIntentConflict()
+  const attempt = await getAccountCreationAttempt(account.username)
+  if (!attempt || attempt.executionMode !== account.executionMode) {
+    return creationIntentConflict()
   }
-
   return createJsonResponse(
     {
       success: true,
       message,
       ...creationFlagsFromPersistedAccount(account),
       transactionId: account.transactionId ?? undefined,
+      creationIntentHash: hashCreationIntent({
+        username: attempt.username,
+        ticket: attempt.ticket,
+        executionMode: attempt.executionMode,
+        publicKeys: attempt.keys,
+      }),
       databaseUpdated: true,
       isIdempotent: true,
     },
@@ -476,33 +482,59 @@ async function validateRequest(
 }
 
 async function checkSessionAndIdempotency(
+  context: APIContext,
   session: CreationSession | null,
-  request: ValidatedAccountRequest
+  request: ValidatedAccountRequest,
+  executionMode: HiveExecutionMode
 ): Promise<Response | ValidatedSession> {
   const { username } = request
-  const sessionValidation = validateSessionData(session, username, request)
+  const sessionValidation = validateSessionData(
+    session,
+    username,
+    request,
+    executionMode
+  )
   if (!isValidationSuccess(sessionValidation)) {
     return validationFailureToResponse(sessionValidation)
   }
-
   const creationSession = sessionValidation.data
-
   const existingAccount = await getAccountCreationState(username)
-
-  if (creationSession.accountCreated) {
-    return idempotentSuccessResponse(
-      `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_CREATED_SESSION}`,
-      existingAccount
-    )
-  }
-
   if (existingAccount) {
-    return idempotentSuccessResponse(
+    const attempt = await getAccountCreationAttempt(username)
+    const expectedStatus =
+      executionMode === HIVE_TX_MODE_VALUES.SIMULATE
+        ? existingAccount.blockchainStatus === BLOCKCHAIN_STATUS.SIMULATED
+        : existingAccount.blockchainStatus === BLOCKCHAIN_STATUS.BROADCASTED ||
+          existingAccount.blockchainStatus === BLOCKCHAIN_STATUS.CONFIRMED
+    if (
+      !attempt ||
+      attempt.username !== username ||
+      attempt.status !== CREATION_ATTEMPT_STATUS.COMPLETED ||
+      attempt.executionMode !== executionMode ||
+      existingAccount.executionMode !== executionMode ||
+      !expectedStatus ||
+      !attempt.transactionId ||
+      attempt.transactionId !== existingAccount.transactionId ||
+      !sameAttemptIdentity(
+        attempt,
+        creationSession.ticket,
+        keysFromRequest(request)
+      )
+    )
+      return creationIntentConflict()
+
+    const response = await idempotentSuccessResponse(
       `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
       existingAccount
     )
+    if (response.status === HTTP_STATUS.OK)
+      finalizeSession(context, creationSession)
+    return response
   }
-
+  if (creationSession.accountCreated) return creationIntentConflict()
+  const open = await getOpenCreationAttemptByUsername(username)
+  if (open && open.executionMode !== executionMode)
+    return creationIntentConflict()
   return creationSession
 }
 
@@ -820,7 +852,7 @@ async function completeInDatabase(
 function finalizeSession(context: APIContext, session: ValidatedSession): void {
   setCreationCookie(
     context.cookies,
-    { ...session, accountCreated: true, ticket: undefined },
+    { ...session, accountCreated: true },
     context.request
   )
 }
@@ -978,10 +1010,19 @@ async function recoverReservedHttpRetry(
   session: ValidatedSession,
   request: ValidatedAccountRequest
 ): Promise<Response | null> {
+  const open = await getOpenCreationAttemptByUsername(request.username)
+  if (!open) return null
+  if (
+    open.executionMode !== session.executionMode ||
+    !sameAttemptIdentity(open, session.ticket, keysFromRequest(request))
+  ) {
+    return creationIntentConflict()
+  }
   const recovered = await recoverOwnedAccount({
     username: request.username,
     ticket: session.ticket,
     keys: keysFromRequest(request),
+    correlationId: open.correlationId,
   })
 
   if (recovered.kind === 'no_attempt' || recovered.kind === 'not_found') {
@@ -1035,6 +1076,7 @@ async function recoverReservedHttpRetry(
         transactionId: recovered.tx.id,
         correlationId,
         chainConfirmed,
+        creationIntentHash: session.creationIntentHash,
         isIdempotent: true,
       }
     )
@@ -1111,9 +1153,12 @@ export const POST: APIRoute = async context => {
     ])
     if (requestResult instanceof Response) return requestResult
 
+    const executionMode = getHiveExecutionMode()
     const sessionResult = await checkSessionAndIdempotency(
+      context,
       creationSession,
-      requestResult
+      requestResult,
+      executionMode
     )
     if (sessionResult instanceof Response) return sessionResult
 
@@ -1130,7 +1175,6 @@ export const POST: APIRoute = async context => {
     }
 
     const correlationId = `${requestResult.username}-${Date.now().toString(36)}`
-    const executionMode = getHiveExecutionMode()
 
     if (!acquireCreationLock(requestResult.username)) {
       return failureResponse(
@@ -1147,7 +1191,11 @@ export const POST: APIRoute = async context => {
         sessionResult,
         requestResult
       )
-      if (reclaimed instanceof Response) return reclaimed
+      if (reclaimed instanceof Response) {
+        if (reclaimed.status === HTTP_STATUS.OK)
+          finalizeSession(context, sessionResult)
+        return reclaimed
+      }
 
       const reserveResult = await reserveTicket(
         sessionResult.ticket,
@@ -1165,7 +1213,11 @@ export const POST: APIRoute = async context => {
         requestResult.username,
         executionMode
       )
-      if (creation instanceof Response) return creation
+      if (creation instanceof Response) {
+        if (creation.status === HTTP_STATUS.OK)
+          finalizeSession(context, sessionResult)
+        return creation
+      }
       const { tx: txResult, lease } = creation
 
       if (
@@ -1222,7 +1274,12 @@ export const POST: APIRoute = async context => {
       return successResponse(
         `Account ${requestResult.username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_CREATION_SUCCESS}`,
         txResult,
-        { transactionId: txResult.id, correlationId, chainConfirmed }
+        {
+          transactionId: txResult.id,
+          correlationId,
+          chainConfirmed,
+          creationIntentHash: sessionResult.creationIntentHash,
+        }
       )
     } finally {
       releaseCreationLock(requestResult.username)

@@ -5,6 +5,7 @@ import { CREATION_SESSION_CONFIG, ENV_KEYS } from '@/consts/constants'
 import { shouldUseSecureCookie } from '@/utils/cookie-helpers'
 import { logger } from '@/lib/logger'
 import { isConfirmedPublicKeysHash } from '@/lib/create/confirmed-public-keys'
+import { HIVE_TX_MODE_VALUES } from '@/consts/hive-execution'
 import {
   decodeJson,
   encodeJson,
@@ -28,7 +29,12 @@ function isCreationSession(value: unknown): value is CreationSession {
   return (
     typeof record.username === 'string' &&
     record.username.length > 0 &&
-    hasValidConfirmedKeysHash
+    hasValidConfirmedKeysHash &&
+    (record.creationIntentHash === undefined ||
+      isConfirmedPublicKeysHash(record.creationIntentHash)) &&
+    (record.executionMode === undefined ||
+      record.executionMode === HIVE_TX_MODE_VALUES.SIMULATE ||
+      record.executionMode === HIVE_TX_MODE_VALUES.BROADCAST)
   )
 }
 

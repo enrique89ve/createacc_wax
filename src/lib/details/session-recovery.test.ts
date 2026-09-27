@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { apiSuccess } from '@/utils/errorResponse'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { recoverCreationSessionForKeyConfirmation } from '@/lib/details/session-recovery'
 
@@ -28,7 +29,7 @@ describe('recoverCreationSessionForKeyConfirmation', () => {
       'fetch',
       vi.fn(async (_url: string, init?: RequestInit) => {
         requestBody = String(init?.body ?? '')
-        return new Response(null, { status: 200 })
+        return apiSuccess({ username: 'alice' })
       })
     )
 
@@ -46,5 +47,21 @@ describe('recoverCreationSessionForKeyConfirmation', () => {
       timingTokenId: 'timing-1',
       ticket: 'ticket-1',
     })
+  })
+})
+
+describe('session recovery response contract', () => {
+  it.each([
+    () => new Response('<html>Unavailable</html>', { status: 200 }),
+    () => apiSuccess({ username: 'someone-else' }),
+    () => apiSuccess({}),
+  ])('rejects invalid responses and another username', async response => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => response())
+    )
+    expect(
+      await recoverCreationSessionForKeyConfirmation('alice', 'ticket-1')
+    ).toBe(false)
   })
 })
