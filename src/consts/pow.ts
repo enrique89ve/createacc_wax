@@ -26,8 +26,8 @@ export const TIMING_THRESHOLDS = {
   flow: 5_000,
   /** Details page → create/account (usually overlapped by key download UX). */
   account: 1_000,
-  /** @deprecated Legacy endpoint /api/validate/ticket */
-  ticket: 3_000,
+  /** Minimum wait before checking ticket availability in the database. */
+  ticketVerification: 3_000,
   /** @deprecated Use flow for create/session */
   session: 5_000,
 } as const

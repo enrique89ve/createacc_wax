@@ -19,7 +19,7 @@ export const en: Messages = {
     usernameLabel: 'Username',
     accessCodeLabel: 'Access code',
     accessCodeVerify: 'Verify',
-    accessCodeVerified: 'Format is valid',
+    accessCodeVerified: 'Ticket verified',
     accessCodeRemove: 'Remove access code',
     continue: 'Continue',
     verifying: 'Verifying...',

@@ -1,28 +1,38 @@
 ---
-/**
- * Componente Button reutilizable
- * Usa clases .btn-primary y .btn-secondary definidas en global.css
- */
-interface Props {
-  variant?: 'primary' | 'secondary'
+import type { HTMLAttributes } from 'astro/types'
+
+type ButtonVariant = 'primary' | 'secondary' | 'light' | 'dark'
+
+interface Props extends Omit<HTMLAttributes<'button'>, 'class' | 'type'> {
+  variant?: ButtonVariant
   type?: 'button' | 'submit' | 'reset'
-  disabled?: boolean
   class?: string
 }
 
 const {
   variant = 'primary',
   type = 'button',
-  disabled = false,
   class: className,
+  ...attributes
 } = Astro.props
+
+const variantClasses: Record<ButtonVariant, string> = {
+  primary:
+    'rounded-lg bg-primary text-primary-foreground font-semibold shadow-sm hover:enabled:bg-primary/90 focus-visible:ring-primary/40',
+  secondary:
+    'rounded-lg border border-border bg-muted text-foreground font-medium hover:enabled:bg-accent focus-visible:ring-primary/40',
+  light:
+    'rounded-md border border-border bg-white text-gray-900 font-semibold shadow-sm hover:enabled:bg-gray-50 focus-visible:ring-gray-300',
+  dark: 'rounded-md border border-border bg-background text-foreground font-medium shadow-sm hover:enabled:bg-muted focus-visible:ring-gray-300',
+}
 ---
 
 <button
+  {...attributes}
   type={type}
-  disabled={disabled}
   class:list={[
-    variant === 'primary' ? 'btn-primary' : 'btn-secondary',
+    'inline-flex items-center justify-center text-base leading-[1.18] transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed motion-reduce:transition-none',
+    variantClasses[variant],
     className,
   ]}
 >

@@ -82,7 +82,10 @@ export const POST: APIRoute = async context => {
     // Validate timing token (anti-bot: user must spend minimum time on page)
     if (
       !data.timingTokenId ||
-      !validateTimingToken(data.timingTokenId, TIMING_THRESHOLDS.ticket)
+      !validateTimingToken(
+        data.timingTokenId,
+        TIMING_THRESHOLDS.ticketVerification
+      )
     ) {
       return createJsonResponse(
         {
@@ -110,7 +113,7 @@ export const POST: APIRoute = async context => {
     const validation = await validateTicketInDB(ticket)
 
     if (!validation.isValid) {
-      return apiSuccess({ valid: false })
+      return apiSuccess({ valid: false, errorCode: validation.errorCode })
     }
 
     // F5c FIX: Only return validity, not ticket code/description

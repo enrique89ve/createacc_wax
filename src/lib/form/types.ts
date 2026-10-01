@@ -11,6 +11,7 @@ export interface FormElements {
   readonly ticketInput: HTMLInputElement
   readonly ticketApplyBtn: HTMLButtonElement
   readonly ticketApplyLabel: HTMLElement
+  readonly ticketApplySpinner: SVGSVGElement
   readonly ticketApplyIcon: SVGSVGElement
   readonly ticketError: HTMLElement
   readonly submitButton: HTMLButtonElement
@@ -29,8 +30,12 @@ export function queryFormElements(): FormElements | null {
   const ticketInput = document.querySelector<HTMLInputElement>('#ticket')
   const ticketApplyBtn =
     document.querySelector<HTMLButtonElement>('#ticket-apply-btn')
-  const ticketApplyLabel =
-    document.querySelector<HTMLElement>('#ticket-apply-label')
+  const ticketApplyLabel = document.querySelector<HTMLElement>(
+    '#ticket-apply-label'
+  )
+  const ticketApplySpinner = document.querySelector<SVGSVGElement>(
+    '#ticket-apply-spinner'
+  )
   const ticketApplyIcon =
     document.querySelector<SVGSVGElement>('#ticket-apply-icon')
   const ticketError = document.querySelector<HTMLElement>('#ticket-error')
@@ -48,6 +53,7 @@ export function queryFormElements(): FormElements | null {
     !ticketInput ||
     !ticketApplyBtn ||
     !ticketApplyLabel ||
+    !ticketApplySpinner ||
     !ticketApplyIcon ||
     !ticketError ||
     !submitButton
@@ -66,6 +72,7 @@ export function queryFormElements(): FormElements | null {
     ticketInput,
     ticketApplyBtn,
     ticketApplyLabel,
+    ticketApplySpinner,
     ticketApplyIcon,
     ticketError,
     submitButton,

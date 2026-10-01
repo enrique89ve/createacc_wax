@@ -18,7 +18,7 @@ export const es = {
     usernameLabel: 'Nombre de usuario',
     accessCodeLabel: 'Código de acceso',
     accessCodeVerify: 'Verificar',
-    accessCodeVerified: 'Formato válido',
+    accessCodeVerified: 'Código verificado',
     accessCodeRemove: 'Quitar código de acceso',
     continue: 'Continuar',
     verifying: 'Verificando...',

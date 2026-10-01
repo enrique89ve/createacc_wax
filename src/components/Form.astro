@@ -1,4 +1,6 @@
 ---
+import Spinner from '@/components/ui/Spinner.astro'
+import Button from '@/components/ui/Button.astro'
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 interface Props {
@@ -6,8 +8,7 @@ interface Props {
 }
 const { ticket = '' } = Astro.props as Props
 const copy =
-  Astro.locals.messages ??
-  getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
 <section id="formulario" class="mx-auto px-6 py-2">
@@ -84,10 +85,7 @@ const copy =
 
         <!-- Ticket -->
         <div class="space-y-2">
-          <label
-            for="ticket"
-            class="text-foreground block text-sm font-medium"
-          >
+          <label for="ticket" class="text-foreground block text-sm font-medium">
             {copy.home.accessCodeLabel}
           </label>
 
@@ -104,13 +102,16 @@ const copy =
               placeholder=""
               class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 min-h-12 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
-            <button
+            <Button
+              variant="secondary"
               id="ticket-apply-btn"
               type="button"
               disabled
+              aria-busy="false"
               aria-label={copy.home.accessCodeVerify}
-              class="bg-muted text-foreground hover:enabled:bg-accent border-border inline-flex min-h-12 w-28 shrink-0 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+              class="min-h-12 w-28 shrink-0 px-3 py-2 tracking-normal disabled:opacity-40"
             >
+              <Spinner id="ticket-apply-spinner" className="hidden" />
               <span id="ticket-apply-label">
                 {copy.home.accessCodeVerify}
               </span>
@@ -127,10 +128,9 @@ const copy =
                 <path
                   d="m4 10 4 4 8-8"
                   stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
+                  stroke-linejoin="round"></path>
               </svg>
-            </button>
+            </Button>
           </div>
 
           <div
@@ -140,12 +140,13 @@ const copy =
           </div>
         </div>
 
-        <button
+        <Button
+          variant="primary"
           id="form-siguiente"
           type="submit"
           disabled
-          class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus:ring-primary/40 min-h-12 w-full rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-          >{copy.home.continue}</button
+          class="min-h-12 w-full px-5 py-3 tracking-wide disabled:opacity-50"
+          >{copy.home.continue}</Button
         >
       </form>
     </div>
@@ -154,8 +155,12 @@ const copy =
 
 <script>
   import { notify } from '@/utils/toast'
-  import { fetchTimingToken } from '@/utils/pow-solver'
+  import { fetchTimingToken, obtainPowSolution } from '@/utils/pow-solver'
   import { cleanTicket } from '@/utils/validate-ticket'
+  import { verifyTicketInDatabase as checkTicketInDatabase } from '@/lib/form/ticket-verification'
+  import { TICKET_VALIDATION_ERROR_CODES } from '@/consts/validation'
+  import { TIMING_THRESHOLDS, TIMING_TOKEN_TTL_MS } from '@/consts/pow'
+  import { ensureTimingMatured } from '@/utils/timing-maturation'
   import { navigate } from 'astro:transitions/client'
 
   import {
@@ -183,6 +188,8 @@ const copy =
   let state: FormState = createInitialState()
   let debounceTimer: ReturnType<typeof setTimeout>
   let usernameValidationRequestId = 0
+  let ticketTimingToken: string | undefined
+  let ticketTimingTokenFetchedAt = 0
 
   async function ensureFlowTimingToken(): Promise<string> {
     if (state.flowTimingToken) return state.flowTimingToken
@@ -190,6 +197,21 @@ const copy =
     state.flowTimingToken = id
     state.flowTimingTokenFetchedAt = Date.now()
     return id
+  }
+
+  async function ensureTicketTimingToken(): Promise<string> {
+    if (
+      !ticketTimingToken ||
+      Date.now() - ticketTimingTokenFetchedAt >= TIMING_TOKEN_TTL_MS - 60_000
+    ) {
+      ticketTimingToken = await fetchTimingToken()
+      ticketTimingTokenFetchedAt = Date.now()
+    }
+    await ensureTimingMatured(
+      ticketTimingTokenFetchedAt,
+      TIMING_THRESHOLDS.ticketVerification
+    )
+    return ticketTimingToken
   }
 
   function refetchFlowTimingToken(): void {
@@ -287,11 +309,7 @@ const copy =
           state.isUsernameValid = false
           break
         case 'available':
-          setUsernameFieldState(
-            elements,
-            'success',
-            interpolate(publicCopy().username.available, { username })
-          )
+          setUsernameFieldState(elements, 'success')
           state.isUsernameValid = true
           break
       }
@@ -316,6 +334,22 @@ const copy =
 
     await applyTicket({
       elements,
+      verifyTicketInDatabase: async ticket => {
+        try {
+          const [pow, timingTokenId] = await Promise.all([
+            obtainPowSolution(),
+            ensureTicketTimingToken(),
+          ])
+          // The API consumes timing tokens even when the ticket is invalid.
+          ticketTimingToken = undefined
+          ticketTimingTokenFetchedAt = 0
+          return await checkTicketInDatabase(ticket, pow, timingTokenId)
+        } catch {
+          ticketTimingToken = undefined
+          ticketTimingTokenFetchedAt = 0
+          return TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR
+        }
+      },
       onTicketValid: () => {
         state.isTicketValid = true
         sync()
@@ -444,6 +478,13 @@ const copy =
       })
       .catch(() => {})
 
+    fetchTimingToken()
+      .then(id => {
+        ticketTimingToken = id
+        ticketTimingTokenFetchedAt = Date.now()
+      })
+      .catch(() => {})
+
     elements.usernameInput.addEventListener('input', handleUsernameInput)
     elements.ticketInput.addEventListener('input', handleTicketInput)
     elements.form.addEventListener('submit', handleFormSubmit)
@@ -460,7 +501,7 @@ const copy =
       const cleanedValue = cleanTicket(elements.ticketInput.value.trim())
       if (cleanedValue) {
         elements.ticketInput.value = cleanedValue
-        handleApplyTicket()
+        handleTicketInput()
       }
     }
   }

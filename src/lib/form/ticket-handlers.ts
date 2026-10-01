@@ -1,5 +1,9 @@
 import { validateTicket, cleanTicket } from '@/utils/validate-ticket'
 import { publicCopy } from '@/i18n'
+import {
+  TICKET_VALIDATION_ERROR_CODES,
+  type TicketValidationErrorCode,
+} from '@/consts/validation'
 import type { FormElements } from './types'
 
 const VERIFIED_INPUT_CLASSES = [
@@ -18,6 +22,7 @@ const VERIFIED_BUTTON_CLASSES = [
 
 export function showTicketError(elements: FormElements, message: string): void {
   resetTicketVerification(elements)
+  elements.ticketInput.disabled = false
   elements.ticketInput.classList.remove(
     ...VERIFIED_INPUT_CLASSES,
     'border-border'
@@ -36,9 +41,10 @@ export function setTicketLoadingState(elements: FormElements): void {
   const copy = publicCopy()
   elements.ticketInput.disabled = true
   elements.ticketApplyBtn.disabled = true
-  elements.ticketApplyLabel.textContent = copy.accessCode.validating
-  elements.ticketApplyLabel.classList.remove('hidden')
+  elements.ticketApplyLabel.classList.add('hidden')
+  elements.ticketApplySpinner.classList.remove('hidden')
   elements.ticketApplyIcon.classList.add('hidden')
+  elements.ticketApplyBtn.setAttribute('aria-busy', 'true')
   elements.ticketApplyBtn.setAttribute('aria-label', copy.accessCode.validating)
 }
 
@@ -56,6 +62,7 @@ export function showTicketApplied(
   )
   elements.ticketInput.classList.add(...VERIFIED_INPUT_CLASSES)
   elements.ticketApplyLabel.classList.add('hidden')
+  elements.ticketApplySpinner.classList.add('hidden')
   elements.ticketApplyIcon.classList.remove('hidden')
   elements.ticketApplyBtn.setAttribute(
     'aria-label',
@@ -68,6 +75,7 @@ export function showTicketApplied(
   )
   elements.ticketApplyBtn.classList.add(...VERIFIED_BUTTON_CLASSES)
   elements.ticketApplyBtn.disabled = true
+  elements.ticketApplyBtn.setAttribute('aria-busy', 'false')
   elements.ticketError.classList.add('hidden')
 }
 
@@ -84,11 +92,10 @@ function resetTicketVerification(elements: FormElements): void {
   )
   elements.ticketApplyLabel.textContent = copy.home.accessCodeVerify
   elements.ticketApplyLabel.classList.remove('hidden')
+  elements.ticketApplySpinner.classList.add('hidden')
   elements.ticketApplyIcon.classList.add('hidden')
-  elements.ticketApplyBtn.setAttribute(
-    'aria-label',
-    copy.home.accessCodeVerify
-  )
+  elements.ticketApplyBtn.setAttribute('aria-busy', 'false')
+  elements.ticketApplyBtn.setAttribute('aria-label', copy.home.accessCodeVerify)
   elements.ticketApplyBtn.classList.remove(...VERIFIED_BUTTON_CLASSES)
   elements.ticketApplyBtn.classList.add(
     'bg-muted',
@@ -120,13 +127,16 @@ export interface ApplyTicketDeps {
   readonly elements: FormElements
   readonly onTicketValid: (ticket: string) => void
   readonly onTicketInvalid: () => void
+  readonly verifyTicketInDatabase: (
+    ticket: string
+  ) => Promise<TicketValidationErrorCode | null>
 }
 
 export type ApplyTicketResult =
   | { readonly status: 'applied'; readonly ticket: string }
   | { readonly status: 'invalid' }
 
-/** Local format check only — DB validation happens in POST /api/create/session. */
+/** Check format locally, then verify ticket availability against the database. */
 export async function applyTicket(
   deps: ApplyTicketDeps
 ): Promise<ApplyTicketResult> {
@@ -142,7 +152,18 @@ export async function applyTicket(
   }
 
   setTicketLoadingState(elements)
-  await Promise.resolve()
+  const validationErrorCode = await deps.verifyTicketInDatabase(ticket)
+  if (validationErrorCode) {
+    showTicketError(
+      elements,
+      copy.accessCode.validationErrors[validationErrorCode]
+    )
+    // Keep retry available only for a transient verification failure.
+    elements.ticketApplyBtn.disabled =
+      validationErrorCode !== TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR
+    deps.onTicketInvalid()
+    return { status: 'invalid' }
+  }
 
   showTicketApplied(elements, ticket)
   deps.onTicketValid(ticket)
