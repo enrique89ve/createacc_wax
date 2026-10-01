@@ -1,0 +1,94 @@
+---
+const MASK_GROUP_COUNT = 5
+const GROUP_DOT_COUNT = 4
+const CONTINUATION_DOT_COUNT = 3
+const maskGroups = Array.from({ length: MASK_GROUP_COUNT }, (_, index) => index)
+const groupDots = Array.from({ length: GROUP_DOT_COUNT }, (_, index) => index)
+const continuationDots = Array.from(
+  { length: CONTINUATION_DOT_COUNT },
+  (_, index) => index
+)
+---
+
+<span
+  class="glyph-matrix inline-flex min-w-0 items-center gap-2"
+  aria-hidden="true"
+>
+  {
+    maskGroups.map(() => (
+      <span class="glyph-matrix__group inline-flex shrink-0 items-center gap-0.5">
+        {groupDots.map(() => (
+          <span class="glyph-matrix__dot block size-1 rounded-full bg-current" />
+        ))}
+      </span>
+    ))
+  }
+  <span
+    class="glyph-matrix__continuation text-muted-foreground/70 ml-0.5 inline-flex shrink-0 items-center gap-0.5"
+  >
+    {
+      continuationDots.map(() => (
+        <span class="glyph-matrix__dot block size-1 rounded-full bg-current" />
+      ))
+    }
+  </span>
+</span>
+
+<style>
+  .glyph-matrix__dot:nth-child(2) {
+    --glyph-cell-delay: 65ms;
+  }
+
+  .glyph-matrix__dot:nth-child(3) {
+    --glyph-cell-delay: 130ms;
+  }
+
+  .glyph-matrix__dot:nth-child(4) {
+    --glyph-cell-delay: 195ms;
+  }
+
+  .glyph-matrix > .glyph-matrix__group:nth-child(2) {
+    --glyph-group-delay: 230ms;
+  }
+
+  .glyph-matrix > .glyph-matrix__group:nth-child(3) {
+    --glyph-group-delay: 460ms;
+  }
+
+  .glyph-matrix > .glyph-matrix__group:nth-child(4) {
+    --glyph-group-delay: 690ms;
+  }
+
+  .glyph-matrix > .glyph-matrix__group:nth-child(5) {
+    --glyph-group-delay: 920ms;
+  }
+
+  .glyph-matrix > .glyph-matrix__continuation {
+    --glyph-group-delay: 1150ms;
+  }
+
+  .glyph-matrix__dot {
+    animation: glyph-matrix-pulse 3.2s ease-in-out infinite backwards;
+    animation-delay: calc(
+      var(--glyph-group-delay, 0ms) + var(--glyph-cell-delay, 0ms)
+    );
+  }
+
+  @keyframes glyph-matrix-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+
+    50% {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .glyph-matrix__dot {
+      animation: none;
+      opacity: 1;
+    }
+  }
+</style>

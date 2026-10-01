@@ -1,6 +1,7 @@
 ---
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import Button from '@/components/ui/Button.astro'
+import GlyphMatrix from '@/components/ui/GlyphMatrix.astro'
 import DownloadFormatModal from '@/components/ui/DownloadFormatModal.astro'
 import ProgressModal from '@/components/ui/ProgressModal.astro'
 import Tooltip from '@/components/ui/Tooltip.astro'
@@ -41,7 +42,7 @@ const copy =
             {copy.details.masterPasswordLabel}:
           </p>
           <div
-            class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-md border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
+            class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-lg border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
           >
             <!-- Loading State inside key field -->
             <div
@@ -69,20 +70,20 @@ const copy =
                 {copy.details.generatingKeys}
               </p>
             </div>
-            <div class="flex min-h-[2.75rem] items-center gap-1">
+            <div class="flex min-h-[2.75rem] items-center gap-2">
               <div id="master-key-content" class="min-w-0 flex-1">
                 <p
                   id="master-key-placeholder"
-                  class="text-muted-foreground hidden min-h-[2.75rem] min-w-0 items-center font-mono text-base tracking-[0.28em]"
+                  class="text-muted-foreground hidden min-h-[2.75rem] min-w-0 items-center overflow-hidden"
                 >
-                  <span aria-hidden="true">••••••••••••</span>
+                  <GlyphMatrix />
                   <span class="sr-only"
                     >{copy.details.masterPasswordHidden}</span
                   >
                 </p>
                 <p
                   id="master-key-display"
-                  class="text-foreground/90 focus-visible:ring-primary/40 hidden min-h-[2.75rem] min-w-0 select-all items-center overflow-x-auto whitespace-nowrap font-mono text-xs tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  class="text-foreground/90 focus-visible:ring-primary/40 hidden min-h-[2.75rem] min-w-0 select-all items-center overflow-x-auto whitespace-nowrap font-mono text-sm leading-5 tracking-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
                   tabindex="0"
                 >
                 </p>
@@ -90,7 +91,7 @@ const copy =
               <button
                 type="button"
                 id="btn-reveal-master"
-                class="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-primary/40 hidden min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none"
+                class="border-border bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground aria-pressed:border-primary/40 aria-pressed:bg-primary/10 aria-pressed:text-primary focus-visible:ring-primary/40 hidden min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none"
                 aria-label={copy.details.showMasterPassword}
                 aria-pressed="false"
                 aria-controls="master-key-content"
@@ -1003,3 +1004,23 @@ const copy =
     })
   </script>
 </section>
+
+<style>
+  #master-key-display {
+    scrollbar-color: var(--color-muted-foreground) transparent;
+    scrollbar-width: thin;
+  }
+
+  #master-key-display::-webkit-scrollbar {
+    height: 3px;
+  }
+
+  #master-key-display::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  #master-key-display::-webkit-scrollbar-thumb {
+    background-color: var(--color-muted-foreground);
+    border-radius: 9999px;
+  }
+</style>
