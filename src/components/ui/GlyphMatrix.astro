@@ -36,39 +36,39 @@ const continuationDots = Array.from(
 
 <style>
   .glyph-matrix__dot:nth-child(2) {
-    --glyph-cell-delay: 65ms;
+    --glyph-cell-delay: 120ms;
   }
 
   .glyph-matrix__dot:nth-child(3) {
-    --glyph-cell-delay: 130ms;
+    --glyph-cell-delay: 240ms;
   }
 
   .glyph-matrix__dot:nth-child(4) {
-    --glyph-cell-delay: 195ms;
+    --glyph-cell-delay: 360ms;
   }
 
   .glyph-matrix > .glyph-matrix__group:nth-child(2) {
-    --glyph-group-delay: 230ms;
+    --glyph-group-delay: 450ms;
   }
 
   .glyph-matrix > .glyph-matrix__group:nth-child(3) {
-    --glyph-group-delay: 460ms;
+    --glyph-group-delay: 900ms;
   }
 
   .glyph-matrix > .glyph-matrix__group:nth-child(4) {
-    --glyph-group-delay: 690ms;
+    --glyph-group-delay: 1350ms;
   }
 
   .glyph-matrix > .glyph-matrix__group:nth-child(5) {
-    --glyph-group-delay: 920ms;
+    --glyph-group-delay: 1800ms;
   }
 
   .glyph-matrix > .glyph-matrix__continuation {
-    --glyph-group-delay: 1150ms;
+    --glyph-group-delay: 2250ms;
   }
 
   .glyph-matrix__dot {
-    animation: glyph-matrix-pulse 3.2s ease-in-out infinite backwards;
+    animation: glyph-matrix-pulse 3.6s ease-in-out infinite backwards;
     animation-delay: calc(
       var(--glyph-group-delay, 0ms) + var(--glyph-cell-delay, 0ms)
     );
@@ -77,7 +77,7 @@ const continuationDots = Array.from(
   @keyframes glyph-matrix-pulse {
     0%,
     100% {
-      opacity: 0.55;
+      opacity: 0.18;
     }
 
     50% {
