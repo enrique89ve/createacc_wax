@@ -1,5 +1,6 @@
 ---
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+import Button from '@/components/ui/Button.astro'
 import DownloadFormatModal from '@/components/ui/DownloadFormatModal.astro'
 import ProgressModal from '@/components/ui/ProgressModal.astro'
 import Tooltip from '@/components/ui/Tooltip.astro'
@@ -19,143 +20,145 @@ const copy =
     <div
       class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-xl border p-4 shadow-lg backdrop-blur sm:p-6"
     >
-      <header
-        class="mb-5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-left"
-      >
+      <header class="mb-5 text-left">
         <h1
-          class="text-foreground text-xl font-bold tracking-tight sm:text-2xl"
+          class="text-foreground flex items-center gap-2 whitespace-nowrap text-xs font-semibold tracking-tight min-[360px]:text-sm sm:text-lg"
         >
-          {copy.details.title}
-        </h1>
-        <div class="flex flex-wrap items-center gap-2">
-          <p class="text-muted-foreground text-xs font-medium sm:text-sm">
+          <span class="text-muted-foreground font-semibold">
             {copy.details.accountToCreate}
-          </p>
+          </span>
           <span
-            class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-base font-semibold"
+            class="border-border text-primary inline-flex w-fit items-center rounded-md border bg-white px-2 py-1 text-xs font-semibold min-[360px]:text-sm sm:text-lg"
             data-username={username}
             data-ticket={ticket ?? ''}>@{username}</span
           >
-        </div>
+        </h1>
       </header>
       <!-- Keys Container (always visible) -->
-      <div id="keys-container" class="space-y-3">
-        <p class="text-foreground mb-2 text-xs font-semibold">
-          {copy.details.masterPasswordLabel}:
-        </p>
-        <div
-          class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-md border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
-        >
-          <!-- Loading State inside key field -->
+      <div id="keys-container">
+        <div class="space-y-1.5">
+          <p class="text-foreground text-sm font-semibold leading-5">
+            {copy.details.masterPasswordLabel}:
+          </p>
           <div
-            id="key-loading"
-            class="flex h-full min-h-[2rem] items-center justify-center gap-3 transition-opacity duration-300 motion-reduce:transition-none"
+            class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-md border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
           >
-            <div role="status">
-              <svg
-                aria-hidden="true"
-                class="inline h-6 w-6 animate-spin fill-gray-600 text-gray-200 motion-reduce:animate-none dark:fill-gray-300 dark:text-gray-600"
-                viewBox="0 0 100 101"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
-                  fill="currentColor"></path>
-                <path
-                  d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
-                  fill="currentFill"></path>
-              </svg>
-              <span class="sr-only">{copy.common.loading}</span>
-            </div>
-            <p class="text-foreground text-sm">
-              {copy.details.generatingKeys}
-            </p>
-          </div>
-          <div class="flex min-h-[2.75rem] items-center gap-1">
-            <div id="master-key-content" class="min-w-0 flex-1">
-              <p
-                id="master-key-placeholder"
-                class="text-muted-foreground hidden min-h-[2.75rem] min-w-0 items-center font-mono text-base tracking-[0.28em]"
-              >
-                <span aria-hidden="true">••••••••••••</span>
-                <span class="sr-only">{copy.details.masterPasswordHidden}</span>
-              </p>
-              <p
-                id="master-key-display"
-                class="text-foreground/90 focus-visible:ring-primary/40 hidden min-h-[2.75rem] min-w-0 select-all items-center overflow-x-auto whitespace-nowrap font-mono text-xs tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                tabindex="0"
-              >
-              </p>
-            </div>
-            <button
-              type="button"
-              id="btn-reveal-master"
-              class="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-primary/40 hidden min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none"
-              aria-label={copy.details.showMasterPassword}
-              aria-pressed="false"
-              aria-controls="master-key-content"
+            <!-- Loading State inside key field -->
+            <div
+              id="key-loading"
+              class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-3 transition-opacity duration-300 motion-reduce:transition-none"
             >
-              <svg
-                aria-hidden="true"
-                data-reveal-icon="show"
-                class="h-[18px] w-[18px]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+              <div role="status">
+                <svg
+                  aria-hidden="true"
+                  class="inline h-6 w-6 animate-spin fill-gray-600 text-gray-200 motion-reduce:animate-none dark:fill-gray-300 dark:text-gray-600"
+                  viewBox="0 0 100 101"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M100 50.5908C100 78.2051 77.6142 100.591 50 100.591C22.3858 100.591 0 78.2051 0 50.5908C0 22.9766 22.3858 0.59082 50 0.59082C77.6142 0.59082 100 22.9766 100 50.5908ZM9.08144 50.5908C9.08144 73.1895 27.4013 91.5094 50 91.5094C72.5987 91.5094 90.9186 73.1895 90.9186 50.5908C90.9186 27.9921 72.5987 9.67226 50 9.67226C27.4013 9.67226 9.08144 27.9921 9.08144 50.5908Z"
+                    fill="currentColor"></path>
+                  <path
+                    d="M93.9676 39.0409C96.393 38.4038 97.8624 35.9116 97.0079 33.5539C95.2932 28.8227 92.871 24.3692 89.8167 20.348C85.8452 15.1192 80.8826 10.7238 75.2124 7.41289C69.5422 4.10194 63.2754 1.94025 56.7698 1.05124C51.7666 0.367541 46.6976 0.446843 41.7345 1.27873C39.2613 1.69328 37.813 4.19778 38.4501 6.62326C39.0873 9.04874 41.5694 10.4717 44.0505 10.1071C47.8511 9.54855 51.7191 9.52689 55.5402 10.0491C60.8642 10.7766 65.9928 12.5457 70.6331 15.2552C75.2735 17.9648 79.3347 21.5619 82.5849 25.841C84.9175 28.9121 86.7997 32.2913 88.1811 35.8758C89.083 38.2158 91.5421 39.6781 93.9676 39.0409Z"
+                    fill="currentFill"></path>
+                </svg>
+                <span class="sr-only">{copy.common.loading}</span>
+              </div>
+              <p class="text-foreground text-sm">
+                {copy.details.generatingKeys}
+              </p>
+            </div>
+            <div class="flex min-h-[2.75rem] items-center gap-1">
+              <div id="master-key-content" class="min-w-0 flex-1">
+                <p
+                  id="master-key-placeholder"
+                  class="text-muted-foreground hidden min-h-[2.75rem] min-w-0 items-center font-mono text-base tracking-[0.28em]"
+                >
+                  <span aria-hidden="true">••••••••••••</span>
+                  <span class="sr-only"
+                    >{copy.details.masterPasswordHidden}</span
+                  >
+                </p>
+                <p
+                  id="master-key-display"
+                  class="text-foreground/90 focus-visible:ring-primary/40 hidden min-h-[2.75rem] min-w-0 select-all items-center overflow-x-auto whitespace-nowrap font-mono text-xs tracking-tight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                  tabindex="0"
+                >
+                </p>
+              </div>
+              <button
+                type="button"
+                id="btn-reveal-master"
+                class="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-primary/40 hidden min-h-11 min-w-11 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none"
+                aria-label={copy.details.showMasterPassword}
+                aria-pressed="false"
+                aria-controls="master-key-content"
               >
-                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
-                ></path>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-              <svg
-                aria-hidden="true"
-                data-reveal-icon="hide"
-                class="hidden h-[18px] w-[18px]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.7"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="m3 3 18 18"></path>
-                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
-                <path
-                  d="M9.9 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-3 3.8"
-                ></path>
-                <path d="M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"
-                ></path>
-              </svg>
-            </button>
+                <svg
+                  aria-hidden="true"
+                  data-reveal-icon="show"
+                  class="h-[18px] w-[18px]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                  ></path>
+                  <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+                <svg
+                  aria-hidden="true"
+                  data-reveal-icon="hide"
+                  class="hidden h-[18px] w-[18px]"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.7"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="m3 3 18 18"></path>
+                  <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
+                  <path
+                    d="M9.9 5.2A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-3 3.8"
+                  ></path>
+                  <path
+                    d="M6.6 6.6C3.7 8.4 2 12 2 12s3.5 7 10 7c1 0 2-.2 2.9-.5"
+                  ></path>
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        <p class="text-muted-foreground mt-2 text-xs leading-relaxed">
+        <p class="text-muted-foreground mt-6 text-xs leading-relaxed">
           {copy.details.beforeContinueHelp}
         </p>
         <div class="mt-4 grid w-full grid-cols-2 gap-2">
-          <button
+          <Button
+            variant="light"
             type="button"
             id="btn-download-keys"
-            class="border-border inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-md border bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+            class="min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60"
             aria-label={copy.details.downloadKeysAria}
             disabled
           >
             {copy.common.download}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="dark"
             type="button"
             id="btn-copy-master"
-            class="border-border bg-background text-foreground hover:bg-muted inline-flex min-h-12 w-full cursor-pointer items-center justify-center whitespace-nowrap rounded-md border px-3 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+            class="min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60"
             aria-label={copy.details.copyMasterPassword}
             aria-live="polite"
             disabled
           >
             {copy.details.copy}
-          </button>
+          </Button>
         </div>
       </div>
       <form
@@ -166,7 +169,7 @@ const copy =
       >
         <div class="space-y-2">
           <label
-            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-3 py-3 transition-all duration-200 motion-reduce:transition-none sm:gap-3"
+            class="text-foreground hover:bg-muted/50 focus-within:bg-muted/50 hover:border-border/30 group flex cursor-pointer select-none items-center gap-3 rounded-lg border border-transparent px-0 py-3 transition-all duration-200 motion-reduce:transition-none sm:gap-3"
           >
             <input
               id="chk-keys-safety"
@@ -175,7 +178,7 @@ const copy =
               aria-labelledby="chk-keys-safety-label"
             />
             <span
-              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 motion-reduce:transform-none motion-reduce:transition-none peer-checked:[&>svg]:opacity-100"
+              class="border-muted-foreground/40 peer-focus-visible:outline-primary/40 peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground hover:border-muted-foreground/60 mt-1 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 bg-white text-transparent transition-all duration-200 ease-out peer-checked:scale-105 peer-checked:shadow-md peer-focus-visible:outline peer-focus-visible:outline-offset-2 motion-reduce:transform-none motion-reduce:transition-none peer-checked:[&>svg]:opacity-100"
               aria-hidden="true"
             >
               <svg
@@ -201,7 +204,8 @@ const copy =
         <div id="form-error" class="sr-only" role="status" aria-live="polite">
         </div>
         <div class="relative">
-          <button
+          <Button
+            variant="primary"
             id="btn-create-account"
             type="submit"
             disabled
@@ -209,10 +213,10 @@ const copy =
             data-loading-label={copy.details.creatingAccount}
             data-tooltip-target="tooltip-download-keys"
             data-tooltip-style="light"
-            class="bg-primary text-primary-foreground hover:enabled:bg-primary/90 focus-visible:ring-primary/40 w-full cursor-pointer rounded-lg px-5 py-3 text-sm font-semibold tracking-wide shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+            class="min-h-12 w-full cursor-pointer px-5 py-3 tracking-wide disabled:opacity-60"
           >
             {copy.details.createAccount}
-          </button>
+          </Button>
           <Tooltip
             id="tooltip-download-keys"
             message={copy.details.downloadKeysRequired}
@@ -262,6 +266,15 @@ const copy =
       showProgressError,
       hideProgressError,
     } from '@/lib/details/progress-controller'
+
+    const navigationEntry = performance.getEntriesByType('navigation')[0] as
+      | PerformanceNavigationTiming
+      | undefined
+    const isReloadOfCurrentRoute =
+      navigationEntry?.type === 'reload' &&
+      new URL(navigationEntry.name, window.location.href).pathname ===
+        window.location.pathname
+    let reloadWarningPending = isReloadOfCurrentRoute
 
     class AccountDetailsManager {
       private elements: DOMElements
@@ -380,11 +393,9 @@ const copy =
             session.confirmBackup()
           }
 
-          const nav = performance.getEntriesByType('navigation')[0]
-          const isReload =
-            nav && (nav as PerformanceNavigationTiming).type === 'reload'
-          if (isReload && this.extWindow.showToast) {
-            this.extWindow.showToast(
+          if (reloadWarningPending) {
+            reloadWarningPending = false
+            this.extWindow.showToast?.(
               'warning',
               publicCopy().details.reloadNewKeys,
               6000
@@ -547,7 +558,7 @@ const copy =
         const retryButton = document.createElement('button')
         retryButton.type = 'button'
         retryButton.className =
-          'rounded-md border border-border px-3 py-1 text-sm text-foreground hover:bg-muted'
+          'rounded-md border border-border px-3 py-1 text-base leading-[1.18] text-foreground hover:bg-muted'
         retryButton.textContent = publicCopy().details.retryKeyGeneration
         retryButton.addEventListener('click', () => void this.generateKeys(), {
           once: true,

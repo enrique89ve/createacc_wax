@@ -1,4 +1,5 @@
 ---
+import CloseIcon from '@/components/ui/icons/CloseIcon.astro'
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 const translations =
@@ -13,9 +14,19 @@ const translations =
   aria-labelledby="modal-title"
 >
   <div
-    class="bg-card border-border mx-4 w-full max-w-md rounded-xl border p-6 shadow-xl"
+    class="bg-card border-border mx-4 w-full max-w-md rounded-xl border px-6 py-4 shadow-xl"
   >
-    <header class="mb-4 text-center">
+    <div class="mb-2 flex justify-end">
+      <button
+        type="button"
+        id="btn-close-download"
+        class="border-border bg-muted/70 text-foreground hover:bg-accent focus:ring-primary/40 inline-flex h-11 w-11 items-center justify-center rounded-lg border transition-colors focus:outline-none focus:ring-2"
+        aria-label={translations.common.close}
+      >
+        <CloseIcon className="h-5 w-5" />
+      </button>
+    </div>
+    <header class="mb-5 text-center">
       <h2 id="modal-title" class="text-foreground text-lg font-semibold">
         {translations.downloadModal.title}
       </h2>
@@ -24,7 +35,7 @@ const translations =
       </p>
     </header>
 
-    <div class="mb-6 space-y-3">
+    <div class="space-y-3">
       <button
         type="button"
         id="btn-download-txt"
@@ -127,27 +138,17 @@ const translations =
     <button
       type="button"
       id="btn-retry-key-confirmation"
-      class="border-primary text-primary hover:bg-primary/10 mb-4 hidden w-full rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+      class="border-primary text-primary hover:bg-primary/10 mb-4 mt-4 hidden w-full rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
     >
       {translations.details.retryKeyConfirmation}
     </button>
     <p
       id="key-confirmation-status"
-      class="text-muted-foreground mb-4 hidden text-center text-sm"
+      class="text-muted-foreground mt-4 hidden text-center text-sm"
       role="status"
       aria-live="polite"
     >
     </p>
-
-    <div class="flex gap-3">
-      <button
-        type="button"
-        id="btn-cancel-download"
-        class="border-border bg-background text-foreground hover:bg-muted focus:ring-primary/40 flex-1 rounded-lg border px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2"
-      >
-        {translations.common.cancel}
-      </button>
-    </div>
   </div>
 </div>
 
@@ -155,7 +156,7 @@ const translations =
   const modal = document.querySelector('#download-format-modal')
   const btnTxt = document.querySelector('#btn-download-txt')
   const btnPdf = document.querySelector('#btn-download-pdf')
-  const btnCancel = document.querySelector('#btn-cancel-download')
+  const btnClose = document.querySelector('#btn-close-download')
 
   // Modal events
   btnTxt?.addEventListener('click', () => {
@@ -174,7 +175,7 @@ const translations =
     }
   })
 
-  btnCancel?.addEventListener('click', () => {
+  btnClose?.addEventListener('click', () => {
     // @ts-ignore - function defined in the parent component
     if (window.closeDownloadModal) {
       // @ts-ignore
