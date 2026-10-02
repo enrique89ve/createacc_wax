@@ -1,94 +1,89 @@
----
-const MASK_GROUP_COUNT = 5
-const GROUP_DOT_COUNT = 4
-const CONTINUATION_DOT_COUNT = 3
-const maskGroups = Array.from({ length: MASK_GROUP_COUNT }, (_, index) => index)
-const groupDots = Array.from({ length: GROUP_DOT_COUNT }, (_, index) => index)
-const continuationDots = Array.from(
-  { length: CONTINUATION_DOT_COUNT },
-  (_, index) => index
-)
----
-
 <span
-  class="glyph-matrix inline-flex min-w-0 items-center gap-2"
-  aria-hidden="true"
->
-  {
-    maskGroups.map(() => (
-      <span class="glyph-matrix__group inline-flex shrink-0 items-center gap-0.5">
-        {groupDots.map(() => (
-          <span class="glyph-matrix__dot block size-1 rounded-full bg-current" />
-        ))}
-      </span>
-    ))
-  }
-  <span
-    class="glyph-matrix__continuation text-muted-foreground/70 ml-0.5 inline-flex shrink-0 items-center gap-0.5"
-  >
-    {
-      continuationDots.map(() => (
-        <span class="glyph-matrix__dot block size-1 rounded-full bg-current" />
-      ))
-    }
-  </span>
-</span>
+  class="glyph-matrix pointer-events-none relative isolate block h-6 w-full min-w-0 overflow-hidden"
+  aria-hidden="true"></span>
 
 <style>
-  .glyph-matrix__dot:nth-child(2) {
-    --glyph-cell-delay: 120ms;
-  }
+  /* Keep a static texture in browsers without CSS masking. */
+  .glyph-matrix {
+    --glyph-base: color-mix(in srgb, currentColor 32%, transparent);
 
-  .glyph-matrix__dot:nth-child(3) {
-    --glyph-cell-delay: 240ms;
-  }
-
-  .glyph-matrix__dot:nth-child(4) {
-    --glyph-cell-delay: 360ms;
-  }
-
-  .glyph-matrix > .glyph-matrix__group:nth-child(2) {
-    --glyph-group-delay: 450ms;
-  }
-
-  .glyph-matrix > .glyph-matrix__group:nth-child(3) {
-    --glyph-group-delay: 900ms;
-  }
-
-  .glyph-matrix > .glyph-matrix__group:nth-child(4) {
-    --glyph-group-delay: 1350ms;
-  }
-
-  .glyph-matrix > .glyph-matrix__group:nth-child(5) {
-    --glyph-group-delay: 1800ms;
-  }
-
-  .glyph-matrix > .glyph-matrix__continuation {
-    --glyph-group-delay: 2250ms;
-  }
-
-  .glyph-matrix__dot {
-    animation: glyph-matrix-pulse 3.6s ease-in-out infinite backwards;
-    animation-delay: calc(
-      var(--glyph-group-delay, 0ms) + var(--glyph-cell-delay, 0ms)
+    background-image: radial-gradient(
+      circle,
+      var(--glyph-base) 1px,
+      transparent 1.4px
     );
+    background-size: 8px 8px;
+    background-repeat: space;
   }
 
-  @keyframes glyph-matrix-pulse {
-    0%,
-    100% {
-      opacity: 0.18;
+  /* The grid stays fixed while light moves behind its dots. */
+  @supports (mask-image: radial-gradient(black, transparent)) {
+    .glyph-matrix {
+      background-color: var(--glyph-base);
+      background-image: none;
+      mask-image: radial-gradient(circle, black 1px, transparent 1.4px);
+      mask-size: 8px 8px;
+      mask-repeat: space;
     }
 
-    50% {
-      opacity: 1;
+    .glyph-matrix::before,
+    .glyph-matrix::after {
+      position: absolute;
+      inset: 0;
+      content: '';
+    }
+
+    .glyph-matrix::before {
+      background:
+        radial-gradient(ellipse at 18% 15%, currentColor, transparent 45%),
+        radial-gradient(ellipse at 82% 85%, currentColor, transparent 45%);
+      animation: glyph-twinkle 3.8s ease-in-out -1s infinite alternate;
+    }
+
+    .glyph-matrix::after {
+      background: linear-gradient(
+        110deg,
+        transparent 26%,
+        color-mix(in srgb, var(--color-primary) 65%, transparent) 41%,
+        var(--color-foreground) 50%,
+        color-mix(in srgb, var(--color-primary) 65%, transparent) 59%,
+        transparent 74%
+      );
+      animation: glyph-drift 5.8s ease-in-out -2.2s infinite alternate;
+    }
+  }
+
+  @keyframes glyph-twinkle {
+    from {
+      opacity: 0.2;
+    }
+    to {
+      opacity: 0.65;
+    }
+  }
+
+  @keyframes glyph-drift {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(50%);
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .glyph-matrix__dot {
+    .glyph-matrix::before,
+    .glyph-matrix::after {
       animation: none;
-      opacity: 1;
+    }
+
+    .glyph-matrix::before {
+      opacity: 0.45;
+    }
+
+    .glyph-matrix::after {
+      opacity: 0.55;
+      transform: none;
     }
   }
 </style>
