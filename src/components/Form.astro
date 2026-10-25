@@ -159,14 +159,19 @@ const copy =
     fetchTimingToken,
     fetchTimingTokenPair,
     obtainPowSolution,
+    type PowSolution,
   } from '@/utils/pow-solver'
-  import { cleanTicket } from '@/utils/validate-ticket'
+  import { cleanTicket, validateTicket } from '@/utils/validate-ticket'
   import { verifyTicketInDatabase as checkTicketInDatabase } from '@/lib/form/ticket-verification'
   import { TICKET_VALIDATION_ERROR_CODES } from '@/consts/validation'
-  import { TIMING_THRESHOLDS } from '@/consts/pow'
+  import {
+    TIMING_THRESHOLDS,
+    TICKET_POW_PREWARM_DEBOUNCE_MS,
+  } from '@/consts/pow'
   import {
     ensureTimingMatured,
     isTimingTokenFresh,
+    POW_MAX_AGE_MS,
   } from '@/utils/timing-maturation'
   import { navigate } from 'astro:transitions/client'
 
@@ -199,12 +204,113 @@ const copy =
   let ticketTimingTokenFetchedAt = 0
   let flowTimingTokenRequest: Promise<string> | null = null
   let initialTimingTokenRequest: Promise<void> | null = null
+  let initialTimingTokenAbortController: AbortController | null = null
+  let ticketPowPrewarmTimer: ReturnType<typeof setTimeout> | undefined
+  let ticketPowIntent: {
+    readonly ticket: string
+    readonly startedAt: number
+    readonly abortController: AbortController
+    readonly promise: Promise<PowSolution | null>
+  } | null = null
   let formPageAbortController = new AbortController()
+  let formVisibilityAbortController = new AbortController()
   let formLifecycleGeneration = 0
+
+  function createFormOperationSignal(): {
+    readonly signal: AbortSignal
+    readonly dispose: () => void
+  } {
+    const operationController = new AbortController()
+    const linkedSignals = [
+      formPageAbortController.signal,
+      formVisibilityAbortController.signal,
+    ] as const
+    const abortHandlers = linkedSignals.map(source => {
+      const abort = (): void => operationController.abort(source.reason)
+      if (source.aborted) abort()
+      else source.addEventListener('abort', abort, { once: true })
+      return { source, abort }
+    })
+
+    return {
+      signal: operationController.signal,
+      dispose: () => {
+        for (const { source, abort } of abortHandlers) {
+          source.removeEventListener('abort', abort)
+        }
+      },
+    }
+  }
+
+  function cancelTicketPowPrewarm(): void {
+    if (ticketPowPrewarmTimer !== undefined) {
+      clearTimeout(ticketPowPrewarmTimer)
+    }
+    ticketPowPrewarmTimer = undefined
+    ticketPowIntent?.abortController.abort()
+    ticketPowIntent = null
+  }
+
+  function scheduleTicketPowPrewarm(ticket: string): void {
+    cancelTicketPowPrewarm()
+    const lifecycleGeneration = formLifecycleGeneration
+    ticketPowPrewarmTimer = setTimeout(() => {
+      ticketPowPrewarmTimer = undefined
+      if (
+        !elements ||
+        document.visibilityState !== 'visible' ||
+        state.isTicketValid ||
+        cleanTicket(elements.ticketInput.value) !== ticket ||
+        validateTicket(ticket) !== null
+      ) {
+        return
+      }
+
+      const abortController = new AbortController()
+      const promise = obtainPowSolution({ signal: abortController.signal })
+        .then(solution =>
+          lifecycleGeneration === formLifecycleGeneration ? solution : null
+        )
+        .catch((): null => null)
+      ticketPowIntent = {
+        ticket,
+        startedAt: performance.now(),
+        abortController,
+        promise,
+      }
+    }, TICKET_POW_PREWARM_DEBOUNCE_MS)
+  }
+
+  async function resolveTicketPow(
+    ticket: string,
+    signal: AbortSignal
+  ): Promise<PowSolution> {
+    const intent = ticketPowIntent
+    if (
+      intent &&
+      intent.ticket === ticket &&
+      performance.now() - intent.startedAt < POW_MAX_AGE_MS
+    ) {
+      const preSolvedPow = await intent.promise
+      if (ticketPowIntent === intent) ticketPowIntent = null
+      if (preSolvedPow) return preSolvedPow
+    } else if (intent) {
+      cancelTicketPowPrewarm()
+    }
+
+    if (document.visibilityState !== 'visible') {
+      throw new Error('PoW preparation paused while the page is hidden')
+    }
+    return obtainPowSolution({ signal })
+  }
 
   function cancelFormPageWork(): void {
     formLifecycleGeneration += 1
     formPageAbortController.abort()
+    formVisibilityAbortController.abort()
+    initialTimingTokenAbortController?.abort()
+    initialTimingTokenAbortController = null
+    cancelTicketPowPrewarm()
     state.preSolvedPowAbortController?.abort()
     state.preSolvedPowAbortController = null
     state.preSolvedPow = null
@@ -229,9 +335,18 @@ const copy =
     if (initialTimingTokenRequest) return initialTimingTokenRequest
 
     const lifecycleGeneration = formLifecycleGeneration
-    const request = fetchTimingTokenPair(signal)
+    const requestController = new AbortController()
+    const abortWithParent = (): void => requestController.abort(signal?.reason)
+    if (signal?.aborted) abortWithParent()
+    else signal?.addEventListener('abort', abortWithParent, { once: true })
+
+    const requestSignal = requestController.signal
+    const request = fetchTimingTokenPair(requestSignal)
       .catch(async () =>
-        Promise.all([fetchTimingToken(signal), fetchTimingToken(signal)])
+        Promise.all([
+          fetchTimingToken(requestSignal),
+          fetchTimingToken(requestSignal),
+        ])
       )
       .then(([flowToken, ticketToken]) => {
         if (lifecycleGeneration !== formLifecycleGeneration) return
@@ -241,7 +356,15 @@ const copy =
         ticketTimingToken = ticketToken
         ticketTimingTokenFetchedAt = fetchedAt
       })
+      .finally(() => {
+        signal?.removeEventListener('abort', abortWithParent)
+        if (initialTimingTokenAbortController === requestController) {
+          initialTimingTokenAbortController = null
+          initialTimingTokenRequest = null
+        }
+      })
 
+    initialTimingTokenAbortController = requestController
     initialTimingTokenRequest = request
     return request
   }
@@ -287,6 +410,7 @@ const copy =
   async function ensureTicketTimingToken(
     signal?: AbortSignal
   ): Promise<string> {
+    const lifecycleGeneration = formLifecycleGeneration
     if (initialTimingTokenRequest) {
       try {
         await initialTimingTokenRequest
@@ -295,7 +419,11 @@ const copy =
       }
     }
     if (!ticketTimingToken || !isTimingTokenFresh(ticketTimingTokenFetchedAt)) {
-      ticketTimingToken = await fetchTimingToken(signal)
+      const timingTokenId = await fetchTimingToken(signal)
+      if (lifecycleGeneration !== formLifecycleGeneration) {
+        throw new Error('Timing token request cancelled')
+      }
+      ticketTimingToken = timingTokenId
       ticketTimingTokenFetchedAt = performance.now()
     }
     await ensureTimingMatured(
@@ -310,13 +438,51 @@ const copy =
   function refetchFlowTimingToken(): void {
     state.flowTimingToken = undefined
     state.flowTimingTokenFetchedAt = 0
+    if (document.visibilityState !== 'visible') return
     ensureFlowTimingToken(formPageAbortController.signal).catch(() => {})
   }
 
   function sync(): void {
-    if (elements) syncSubmitButton(elements, state)
-    if (state.isUsernameValid && state.isTicketValid) {
-      ensureFlowTimingToken(formPageAbortController.signal).catch(() => {})
+    const pageVisible = document.visibilityState === 'visible'
+    if (elements) syncSubmitButton(elements, state, pageVisible)
+    if (pageVisible && state.isUsernameValid && state.isTicketValid) {
+      const operation = createFormOperationSignal()
+      ensureFlowTimingToken(operation.signal)
+        .catch(() => {})
+        .finally(operation.dispose)
+    }
+  }
+
+  function handleFormVisibilityChange(): void {
+    if (document.visibilityState === 'hidden') {
+      formLifecycleGeneration += 1
+      formVisibilityAbortController.abort()
+      initialTimingTokenAbortController?.abort()
+      initialTimingTokenAbortController = null
+      cancelTicketPowPrewarm()
+      state.preSolvedPowAbortController?.abort()
+      state.preSolvedPowAbortController = null
+      state.preSolvedPow = null
+      state.preSolvedPowAt = 0
+      state.flowTimingToken = undefined
+      state.flowTimingTokenFetchedAt = 0
+      flowTimingTokenRequest = null
+      initialTimingTokenRequest = null
+      ticketTimingToken = undefined
+      ticketTimingTokenFetchedAt = 0
+      return
+    }
+
+    if (formVisibilityAbortController.signal.aborted) {
+      formVisibilityAbortController = new AbortController()
+    }
+    if (!initialTimingTokenRequest) {
+      initializeTimingTokenPair(formPageAbortController.signal).catch(() => {})
+    }
+    sync()
+    if (elements && !state.isTicketValid) {
+      const ticket = cleanTicket(elements.ticketInput.value)
+      if (validateTicket(ticket) === null) scheduleTicketPowPrewarm(ticket)
     }
   }
 
@@ -414,43 +580,64 @@ const copy =
 
   function handleTicketInput(): void {
     if (!elements) return
+    cancelTicketPowPrewarm()
     const shouldEnable = handleTicketInputChange(elements)
     state.isTicketValid = false
     elements.ticketApplyBtn.disabled = !shouldEnable
+    if (shouldEnable) {
+      scheduleTicketPowPrewarm(cleanTicket(elements.ticketInput.value))
+    }
     sync()
   }
 
   async function handleApplyTicket(): Promise<void> {
     if (!elements) return
+    if (ticketPowPrewarmTimer !== undefined) {
+      clearTimeout(ticketPowPrewarmTimer)
+    }
+    ticketPowPrewarmTimer = undefined
 
-    await applyTicket({
-      elements,
-      verifyTicketInDatabase: async ticket => {
-        const { signal } = formPageAbortController
-        try {
-          const [pow, timingTokenId] = await Promise.all([
-            obtainPowSolution({ signal }),
-            ensureTicketTimingToken(signal),
-          ])
-          // The API consumes timing tokens even when the ticket is invalid.
-          ticketTimingToken = undefined
-          ticketTimingTokenFetchedAt = 0
-          return await checkTicketInDatabase(ticket, pow, timingTokenId, signal)
-        } catch {
-          ticketTimingToken = undefined
-          ticketTimingTokenFetchedAt = 0
-          return TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR
-        }
-      },
-      onTicketValid: () => {
-        state.isTicketValid = true
-        sync()
-      },
-      onTicketInvalid: () => {
-        state.isTicketValid = false
-        sync()
-      },
-    })
+    const operation = createFormOperationSignal()
+    try {
+      await applyTicket({
+        elements,
+        verifyTicketInDatabase: async ticket => {
+          const { signal } = operation
+          try {
+            const [pow, timingTokenId] = await Promise.all([
+              resolveTicketPow(ticket, signal),
+              ensureTicketTimingToken(signal),
+            ])
+            cancelTicketPowPrewarm()
+            // The API consumes timing tokens even when the ticket is invalid.
+            ticketTimingToken = undefined
+            ticketTimingTokenFetchedAt = 0
+            return await checkTicketInDatabase(
+              ticket,
+              pow,
+              timingTokenId,
+              signal
+            )
+          } catch {
+            ticketTimingToken = undefined
+            ticketTimingTokenFetchedAt = 0
+            return TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR
+          }
+        },
+        onTicketValid: () => {
+          cancelTicketPowPrewarm()
+          state.isTicketValid = true
+          sync()
+        },
+        onTicketInvalid: () => {
+          cancelTicketPowPrewarm()
+          state.isTicketValid = false
+          sync()
+        },
+      })
+    } finally {
+      operation.dispose()
+    }
   }
 
   function setSubmitLoadingState(text: string): void {
@@ -495,12 +682,18 @@ const copy =
     const originalText = elements.submitButton.textContent
     setSubmitLoadingState(publicCopy().home.verifying)
 
-    const resolved = await resolveSubmitDependencies({
-      state,
-      ensureFlowTimingToken: () =>
-        ensureFlowTimingToken(formPageAbortController.signal),
-      signal: formPageAbortController.signal,
-    })
+    const resolved = await (async () => {
+      const operation = createFormOperationSignal()
+      try {
+        return await resolveSubmitDependencies({
+          state,
+          ensureFlowTimingToken: () => ensureFlowTimingToken(operation.signal),
+          signal: operation.signal,
+        })
+      } finally {
+        operation.dispose()
+      }
+    })()
 
     if (resolved.status === 'pow_error') {
       state.isSubmitting = false
@@ -566,11 +759,17 @@ const copy =
     if (formPageAbortController.signal.aborted) {
       formPageAbortController = new AbortController()
     }
+    if (formVisibilityAbortController.signal.aborted) {
+      formVisibilityAbortController = new AbortController()
+    }
     formLifecycleGeneration += 1
     state = createInitialState()
     sync()
 
-    initializeTimingTokenPair(formPageAbortController.signal).catch(() => {})
+    if (document.visibilityState === 'visible') {
+      initializeTimingTokenPair(formPageAbortController.signal).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', handleFormVisibilityChange)
 
     document.addEventListener('astro:before-swap', cancelFormBeforeSwap, {
       once: true,
@@ -599,5 +798,8 @@ const copy =
   }
 
   document.addEventListener('astro:page-load', initForm)
-  document.addEventListener('astro:before-swap', disposeHiveChain)
+  document.addEventListener('astro:before-swap', () => {
+    document.removeEventListener('visibilitychange', handleFormVisibilityChange)
+    disposeHiveChain()
+  })
 </script>

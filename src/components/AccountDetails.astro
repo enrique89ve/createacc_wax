@@ -288,6 +288,7 @@ const copy =
       private sessionRecoveryPromise: Promise<boolean> | null = null
       private copyFeedbackTimeout: number | undefined
       private readonly pageAbort = new AbortController()
+      private powAbort = new AbortController()
       private readonly extWindow = window as Window & ExtendedWindow
 
       constructor() {
@@ -375,6 +376,41 @@ const copy =
         return this.sessionRecoveryPromise
       }
 
+      private cancelAccountCreationPow(): void {
+        this.powAbort.abort()
+        this.state.preSolvedBundle = null
+      }
+
+      private preSolveAccountCreationPow(): void {
+        if (
+          this.tornDown ||
+          document.visibilityState !== 'visible' ||
+          !this.state.keySession?.isAlive() ||
+          this.state.keysConfirmedOnServer ||
+          this.state.preSolvedBundle
+        ) {
+          return
+        }
+
+        if (this.powAbort.signal.aborted) this.powAbort = new AbortController()
+        const controller = this.powAbort
+        const preSolvedBundle = preSolvePowBundle(controller.signal)
+          .then(bundle => {
+            if (this.powAbort === controller && bundle === null) {
+              this.state.preSolvedBundle = null
+            }
+            return bundle
+          })
+          .catch(() => {
+            if (this.powAbort === controller) {
+              this.state.preSolvedBundle = null
+            }
+            return null
+          })
+
+        this.state.preSolvedBundle = preSolvedBundle
+      }
+
       private async generateKeys(): Promise<void> {
         if (this.isGeneratingKeys || this.tornDown) return
         this.isGeneratingKeys = true
@@ -405,12 +441,7 @@ const copy =
           }
 
           this.showGeneratedKeyUi()
-          this.state.preSolvedBundle = preSolvePowBundle(
-            this.pageAbort.signal
-          ).catch(() => {
-            this.state.preSolvedBundle = null
-            return null
-          })
+          this.preSolveAccountCreationPow()
         } catch {
           if (!this.tornDown) this.showErrorState()
         } finally {
@@ -524,6 +555,7 @@ const copy =
 
       teardownSecrets(): void {
         this.tornDown = true
+        this.cancelAccountCreationPow()
         this.hideMasterInDom()
         if (this.copyFeedbackTimeout !== undefined) {
           window.clearTimeout(this.copyFeedbackTimeout)
@@ -814,7 +846,7 @@ const copy =
         try {
           const resolved = await resolvePow(
             this.state.preSolvedBundle,
-            this.pageAbort.signal
+            this.powAbort.signal
           )
           this.state.preSolvedBundle = null
           pow = resolved.pow
@@ -921,6 +953,17 @@ const copy =
 
       private setupEventListeners(): void {
         const { signal } = this.pageAbort
+        document.addEventListener(
+          'visibilitychange',
+          () => {
+            if (document.visibilityState === 'hidden') {
+              this.cancelAccountCreationPow()
+              return
+            }
+            this.preSolveAccountCreationPow()
+          },
+          { signal }
+        )
         this.elements.keysSafetyConfirmed?.addEventListener(
           'change',
           () => this.updateSubmitState(),

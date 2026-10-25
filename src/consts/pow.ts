@@ -42,6 +42,7 @@ export const POW_ENDPOINT_PARAMS = {
 } as const
 
 export const TIMING_TOKEN_PAIR_SIZE = 2 as const
+export const TICKET_POW_PREWARM_DEBOUNCE_MS = 250
 
 /** Maximum number of timing tokens stored in memory before forced eviction. */
 export const MAX_TIMING_ENTRIES = 10_000

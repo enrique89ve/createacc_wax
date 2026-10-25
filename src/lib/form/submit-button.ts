@@ -19,12 +19,13 @@ export function updateSubmitButtonState(
 
 export function syncSubmitButton(
   elements: FormElements,
-  state: FormState
+  state: FormState,
+  shouldPrewarm = true
 ): void {
   const bothValid = state.isUsernameValid && state.isTicketValid
   updateSubmitButtonState(elements, bothValid)
 
-  if (bothValid) {
+  if (bothValid && shouldPrewarm) {
     prewarmWaxFoundation()
     if (!state.preSolvedPow) {
       state.preSolvedPowAt = performance.now()
@@ -42,6 +43,8 @@ export function syncSubmitButton(
     }
     return
   }
+
+  if (bothValid) return
 
   state.preSolvedPowAbortController?.abort()
   state.preSolvedPowAbortController = null
