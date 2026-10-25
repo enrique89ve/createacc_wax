@@ -1,7 +1,7 @@
 allowBuilds:
-  '@tailwindcss/oxide': set this to true or false
-  esbuild: set this to true or false
-  sharp: set this to true or false
+  '@tailwindcss/oxide': true
+  esbuild: true
+  sharp: true
 minimumReleaseAgeExclude:
   - '@astrojs/internal-helpers@0.10.3'
   - '@astrojs/markdown-satteri@0.3.6'

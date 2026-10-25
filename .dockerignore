@@ -1,0 +1,14 @@
+*.git
+*.astro
+.claude
+dist
+node_modules
+.env
+.env.*
+!.env.example
+*.db
+*.db-shm
+*.db-wal
+/docs
+/coverage
+/test-results
