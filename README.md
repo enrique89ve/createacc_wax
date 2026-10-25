@@ -1,8 +1,10 @@
 # HolaHive
 
-Free Hive accounts. Keys never leave the browser.
+Free Hive accounts with browser-generated private keys.
 
-Built with Astro 7, Better Auth, and `@hiveio/wax`. Private keys are generated client-side. The server never reads or stores them.
+Built with Astro 7, Better Auth, and `@hiveio/wax`. The account-creation flow
+generates private keys client-side and sends public keys to the server. See the
+[readiness audit](docs/production-readiness-audit.md) for verified paths and open checks.
 
 ---
 
@@ -18,7 +20,20 @@ Five phases. Ship, learn, finish.
 | **4** | **Attract**  | Turn the site into a growth surface, not a form.                                 | The page itself pulls people in.                      |
 | **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                           | We would hand this to a stranger.                     |
 
-We are in **phase 1**.
+We are in **phase 1**. **Not ready for public production** as of 2026-10-23.
+
+The [production roadmap](docs/production-roadmap.md) tracks release blockers,
+dependencies, and acceptance criteria. The
+[readiness audit](docs/production-readiness-audit.md) records current evidence:
+the Node 24.22.1 container builds and starts locally, the home and health routes
+return 200, and 266/267 unit tests pass. The `transactionId` contract and global
+lint remain open; real Hive broadcast and remote deployment are unverified.
+
+Priorities are dependency fixes, account finality,
+complete ES/EN/PT copy, and a tested persistent Node deployment. Dokploy + SQLite
+is the proposed first target; Turso remote and Vercel are conditional paths in
+the roadmap. JEV's six bounded judgments were grouped into
+[one saved request](docs/production-audit-jev.json).
 
 ---
 
@@ -30,12 +45,18 @@ Astro 7.2 · TypeScript · Tailwind v4 · libsql · Better Auth · Hive Keychain
 
 ## Setup
 
+Use the patched Node.js 24 LTS release pinned in `.nvmrc` and `.node-version`.
+The Dokploy Dockerfile pins the same runtime.
+
 ```bash
+nvm install
+nvm use
 pnpm install
 cp .env.example .env.local
 ```
 
-Required in `.env.local` (dev and prod):
+Required configuration (`.env.local` for development; inject environment variables
+before starting the production process):
 
 ```bash
 HIVE_CREATOR_ACCOUNT=
@@ -61,7 +82,13 @@ DATABASE_URL=libsql://your-database-org.turso.io
 TURSO_AUTH_TOKEN=
 ```
 
-Default DB is local SQLite (`file:holahive.db`). One database for simulate and live. Tickets have no execution mode — only Accounts records how a creation ran.
+Default DB is local SQLite (`file:holahive.db`). Use separate databases for
+simulated validation and a public live deployment. Tickets have no execution mode;
+Accounts and CreationAttempts record how a creation ran.
+
+The Docker image uses `/data/holahive.db` by default. Mount `/data` as a persistent
+Dokploy volume and keep one application replica while SQLite is authoritative.
+`GET /api/health` checks database connectivity without contacting Hive.
 
 Schema is defined in `src/lib/database.ts`. There are no incremental migrations.
 Before pointing a deployment at an existing database, run `pnpm db:diagnose`.
@@ -151,7 +178,8 @@ scripts/         DB + admin
 
 ## Security
 
-- Keys generated in the browser. Never sent. Never stored.
+- Account keys generated in browser memory; creation requests carry public keys.
+  See the [privacy evidence and remaining checks](docs/production-readiness-audit.md#privacidad-de-claves-del-usuario).
 - Admin passwords: bcrypt.
 - Creation cookies: HMAC-SHA256.
 - Admin sessions: Better Auth (`user` / `session` in libsql), `AUTH_SECRET`. Builder sessions: signed HttpOnly cookies.

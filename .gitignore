@@ -55,6 +55,9 @@ test-results/
 !/docs/tickets-db-consistency-plan.md
 !/docs/admin-action-authorization-analysis.md
 !/docs/admin-action-authorization-plan.md
+!/docs/production-readiness-audit.md
+!/docs/production-roadmap.md
+!/docs/production-audit-jev.json
 .gstack/
 .interface-harness
 skills-lock.json
