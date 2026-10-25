@@ -1,24 +1,17 @@
 /**
- * Utilities for type-safe environment variable management
- * Environment variables loaded from .env.local (same file for dev and prod)
- *
- * Astro 6+ inlines import.meta.env at build time. Secrets must come from
- * process.env at runtime so deploy-time values are not baked into the bundle.
+ * Runtime-only access to sensitive environment configuration.
+ * Development loads .env.local before importing the server; production injects
+ * values into process.env when the server starts.
  */
 
 import { ENV_KEYS } from '@/consts/constants'
 
-type EnvName = Extract<keyof ImportMetaEnv, string>
+export type EnvironmentVariableName = (typeof ENV_KEYS)[keyof typeof ENV_KEYS]
 
-function readEnvValue(name: EnvName): string {
+function readEnvValue(name: EnvironmentVariableName): string {
   const fromProcess = process.env[name]
   if (typeof fromProcess === 'string' && fromProcess.trim().length > 0) {
     return fromProcess.trim()
-  }
-
-  const fromMeta = (import.meta.env as Record<string, unknown>)[name]
-  if (typeof fromMeta === 'string') {
-    return fromMeta.trim()
   }
 
   return ''
@@ -29,7 +22,7 @@ function readEnvValue(name: EnvName): string {
  * @param name - Environment variable key
  * @returns Trimmed value or empty string if it does not exist
  */
-export function getEnvString(name: EnvName): string {
+export function getEnvString(name: EnvironmentVariableName): string {
   return readEnvValue(name)
 }
 
@@ -38,7 +31,7 @@ export function getEnvString(name: EnvName): string {
  * @param name - Environment variable key
  * @throws Error if the variable does not exist or is empty
  */
-export function getRequiredEnvString(name: EnvName): string {
+export function getRequiredEnvString(name: EnvironmentVariableName): string {
   const value = getEnvString(name)
   if (!value) {
     throw new Error(`Required environment variable ${name} is missing or empty`)
@@ -51,14 +44,14 @@ export function getRequiredEnvString(name: EnvName): string {
  * @param name - Environment variable key
  * @returns true if the value is "TRUE", false otherwise
  */
-export function getBooleanEnv(name: EnvName): boolean {
+export function getBooleanEnv(name: EnvironmentVariableName): boolean {
   const value = readEnvValue(name)
   return value.toUpperCase() === 'TRUE'
 }
 
 /**
  * Evaluates if a process.env value is truthy (true/1/yes)
- * Useful for variables that are not in import.meta.env (e.g. runtime-only vars)
+ * Useful for process-only variables that are read at runtime.
  */
 export function isTruthyProcessEnv(name: string): boolean {
   const value = process.env[name]
@@ -71,7 +64,7 @@ export function isTruthyProcessEnv(name: string): boolean {
  * Validates that all required environment variables are present
  * @throws Error if any required variable is missing
  */
-const PUBLIC_CREATION_REQUIRED: EnvName[] = [
+const PUBLIC_CREATION_REQUIRED: EnvironmentVariableName[] = [
   ENV_KEYS.HIVE_CREATOR_ACCOUNT,
   ENV_KEYS.HIVE_CREATOR_ACTIVE_KEY,
   ENV_KEYS.HIVE_DELEGATOR_ACCOUNT,

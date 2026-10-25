@@ -56,7 +56,7 @@ export const ERROR_CONFIG = {
   MAX_RETRY_ATTEMPTS: 3,
   RETRY_DELAY_MS: 1000,
   LOG_LEVEL: 'error', // 'error' | 'warn' | 'info' | 'debug'
-  ENABLE_DETAILED_LOGGING: import.meta.env?.DEV ?? false,
+  ENABLE_DETAILED_LOGGING: process.env.NODE_ENV !== 'production',
 }
 
 export const HIVE_CHAIN_CONFIG = {

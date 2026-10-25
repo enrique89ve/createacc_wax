@@ -4,7 +4,7 @@ import {
   type IWalletSession,
 } from '@/lib/create/beekeeper-service'
 import type { IHiveChainInterface, IOnlineTransaction } from '@hiveio/wax'
-import { getEnvString } from '@/lib/env'
+import { getEnvString, type EnvironmentVariableName } from '@/lib/env'
 import { BEEKEEPER_CONFIG, ENV_KEYS, ERROR_CONFIG } from '@/consts/constants'
 import { shouldRetryWaxError } from '@/lib/wax-error-utils'
 import {
@@ -242,8 +242,8 @@ export class HiveTransactionService {
 export type HiveServiceRole = 'creator' | 'delegator'
 
 interface EnvConfigMapEntry {
-  readonly accountVar: string
-  readonly keyVar: string
+  readonly accountVar: EnvironmentVariableName
+  readonly keyVar: EnvironmentVariableName
   readonly walletName: string
 }
 

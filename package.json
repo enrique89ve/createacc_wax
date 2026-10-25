@@ -2,8 +2,11 @@
   "name": "holahive-create-account-app",
   "type": "module",
   "version": "0.0.1",
+  "engines": {
+    "node": ">=24.22.1 <25"
+  },
   "scripts": {
-    "dev": "tsx scripts/start-dev-server.ts",
+    "dev": "node --env-file-if-exists=.env.local --import tsx scripts/start-dev-server.ts",
     "build": "astro build",
     "start": "tsx scripts/start-server.ts",
     "preview": "pnpm start",
