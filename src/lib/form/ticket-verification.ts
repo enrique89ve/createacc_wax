@@ -12,7 +12,8 @@ const TicketValidationResponseSchema = z.looseObject({
 export async function verifyTicketInDatabase(
   ticket: string,
   pow: PowSolution,
-  timingTokenId: string
+  timingTokenId: string,
+  signal?: AbortSignal
 ): Promise<TicketValidationErrorCode | null> {
   let response: Response
   try {
@@ -20,6 +21,7 @@ export async function verifyTicketInDatabase(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ticket, pow, timingTokenId }),
+      signal,
     })
   } catch {
     return TICKET_VALIDATION_ERROR_CODES.INTERNAL_ERROR

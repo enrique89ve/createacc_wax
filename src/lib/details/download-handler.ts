@@ -2,7 +2,7 @@ import {
   KeyDownloadManager,
   type DownloadFormat,
 } from '@/utils/key-download-manager'
-import { obtainPowSolution, fetchTimingToken } from '@/utils/pow-solver'
+import { obtainPowBundle } from '@/utils/pow-solver'
 import type { PublicKeySet } from '@/types/keys'
 import type { ClientKeySession } from './client-key-session'
 import type { PreSolvedBundle } from './types'
@@ -78,22 +78,13 @@ export async function confirmKeysDownloaded(
     : { status: 'unavailable' }
 }
 
-export async function preSolvePowBundle(): Promise<PreSolvedBundle | null> {
+export async function preSolvePowBundle(
+  signal?: AbortSignal
+): Promise<PreSolvedBundle | null> {
   try {
-    let tokenFetchedAt = 0
-    const [pow, timingTokenId] = await Promise.all([
-      obtainPowSolution(),
-      fetchTimingToken()
-        .then(id => {
-          tokenFetchedAt = Date.now()
-          return id
-        })
-        .catch(() => {
-          tokenFetchedAt = Date.now()
-          return undefined
-        }),
-    ])
-    return { pow, timingTokenId, tokenFetchedAt, solvedAt: Date.now() }
+    const solvedAt = performance.now()
+    const bundle = await obtainPowBundle({ signal })
+    return { ...bundle, solvedAt }
   } catch {
     return null
   }

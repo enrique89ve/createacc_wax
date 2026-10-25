@@ -70,7 +70,8 @@ export async function createSession(
   username: string,
   ticket: string,
   pow: PowSolution,
-  timingTokenId: string
+  timingTokenId: string,
+  signal?: AbortSignal
 ): Promise<SessionCreationResult> {
   let response: Response
   try {
@@ -78,6 +79,7 @@ export async function createSession(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, ticket, pow, timingTokenId }),
+      signal,
     })
   } catch {
     return { success: false, reason: 'service_unavailable' }
@@ -135,35 +137,50 @@ export type ResolvedSubmitData =
 export interface SubmitDeps {
   readonly state: FormState
   readonly ensureFlowTimingToken: () => Promise<string>
+  readonly signal?: AbortSignal
 }
 
 export async function resolveSubmitDependencies(
   deps: SubmitDeps
 ): Promise<ResolvedSubmitData> {
-  const { state, ensureFlowTimingToken } = deps
+  const { state, ensureFlowTimingToken, signal } = deps
 
+  const cachedPow = state.preSolvedPow
   const isPowFresh =
-    state.preSolvedPow && Date.now() - state.preSolvedPowAt < POW_MAX_AGE_MS
-  let pow: PowSolution | null
-  try {
-    pow = isPowFresh ? await state.preSolvedPow : await obtainPowSolution()
-  } catch {
-    return { status: 'pow_error' }
+    cachedPow !== null &&
+    performance.now() - state.preSolvedPowAt < POW_MAX_AGE_MS
+  if (cachedPow && !isPowFresh) {
+    state.preSolvedPowAbortController?.abort()
   }
-  state.preSolvedPow = null
-  if (!pow) return { status: 'pow_error' }
+  const powPromise =
+    cachedPow && isPowFresh
+      ? cachedPow
+      : obtainPowSolution(signal ? { signal } : undefined)
+  const [powResult, timingTokenResult] = await Promise.allSettled([
+    powPromise,
+    ensureFlowTimingToken(),
+  ])
 
-  let timingTokenId: string
-  try {
-    timingTokenId = await ensureFlowTimingToken()
-  } catch {
+  state.preSolvedPow = null
+  state.preSolvedPowAbortController = null
+  state.preSolvedPowAt = 0
+
+  if (timingTokenResult.status === 'rejected') {
     return { status: 'timing_error' }
   }
+  if (powResult.status === 'rejected' || !powResult.value) {
+    return { status: 'pow_error' }
+  }
+
+  const pow: PowSolution = powResult.value
+  const timingTokenId: string = timingTokenResult.value
 
   try {
     await ensureTimingMatured(
       state.flowTimingTokenFetchedAt,
-      TIMING_THRESHOLDS.flow
+      TIMING_THRESHOLDS.flow,
+      100,
+      signal
     )
   } catch {
     return { status: 'timing_error' }

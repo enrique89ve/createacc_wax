@@ -155,12 +155,19 @@ const copy =
 
 <script>
   import { notify } from '@/utils/toast'
-  import { fetchTimingToken, obtainPowSolution } from '@/utils/pow-solver'
+  import {
+    fetchTimingToken,
+    fetchTimingTokenPair,
+    obtainPowSolution,
+  } from '@/utils/pow-solver'
   import { cleanTicket } from '@/utils/validate-ticket'
   import { verifyTicketInDatabase as checkTicketInDatabase } from '@/lib/form/ticket-verification'
   import { TICKET_VALIDATION_ERROR_CODES } from '@/consts/validation'
-  import { TIMING_THRESHOLDS, TIMING_TOKEN_TTL_MS } from '@/consts/pow'
-  import { ensureTimingMatured } from '@/utils/timing-maturation'
+  import { TIMING_THRESHOLDS } from '@/consts/pow'
+  import {
+    ensureTimingMatured,
+    isTimingTokenFresh,
+  } from '@/utils/timing-maturation'
   import { navigate } from 'astro:transitions/client'
 
   import {
@@ -190,26 +197,112 @@ const copy =
   let usernameValidationRequestId = 0
   let ticketTimingToken: string | undefined
   let ticketTimingTokenFetchedAt = 0
+  let flowTimingTokenRequest: Promise<string> | null = null
+  let initialTimingTokenRequest: Promise<void> | null = null
+  let formPageAbortController = new AbortController()
+  let formLifecycleGeneration = 0
 
-  async function ensureFlowTimingToken(): Promise<string> {
-    if (state.flowTimingToken) return state.flowTimingToken
-    const id = await fetchTimingToken()
-    state.flowTimingToken = id
-    state.flowTimingTokenFetchedAt = Date.now()
-    return id
+  function cancelFormPageWork(): void {
+    formLifecycleGeneration += 1
+    formPageAbortController.abort()
+    state.preSolvedPowAbortController?.abort()
+    state.preSolvedPowAbortController = null
+    state.preSolvedPow = null
+    state.preSolvedPowAt = 0
+    flowTimingTokenRequest = null
+    initialTimingTokenRequest = null
+    ticketTimingToken = undefined
+    ticketTimingTokenFetchedAt = 0
   }
 
-  async function ensureTicketTimingToken(): Promise<string> {
+  function cancelFormBeforeSwap(): void {
+    window.removeEventListener('pagehide', cancelFormOnPageHide)
+    cancelFormPageWork()
+  }
+
+  function cancelFormOnPageHide(): void {
+    document.removeEventListener('astro:before-swap', cancelFormBeforeSwap)
+    cancelFormPageWork()
+  }
+
+  function initializeTimingTokenPair(signal?: AbortSignal): Promise<void> {
+    if (initialTimingTokenRequest) return initialTimingTokenRequest
+
+    const lifecycleGeneration = formLifecycleGeneration
+    const request = fetchTimingTokenPair(signal)
+      .catch(async () =>
+        Promise.all([fetchTimingToken(signal), fetchTimingToken(signal)])
+      )
+      .then(([flowToken, ticketToken]) => {
+        if (lifecycleGeneration !== formLifecycleGeneration) return
+        const fetchedAt = performance.now()
+        state.flowTimingToken = flowToken
+        state.flowTimingTokenFetchedAt = fetchedAt
+        ticketTimingToken = ticketToken
+        ticketTimingTokenFetchedAt = fetchedAt
+      })
+
+    initialTimingTokenRequest = request
+    return request
+  }
+
+  async function ensureFlowTimingToken(signal?: AbortSignal): Promise<string> {
     if (
-      !ticketTimingToken ||
-      Date.now() - ticketTimingTokenFetchedAt >= TIMING_TOKEN_TTL_MS - 60_000
+      state.flowTimingToken &&
+      isTimingTokenFresh(state.flowTimingTokenFetchedAt)
     ) {
-      ticketTimingToken = await fetchTimingToken()
-      ticketTimingTokenFetchedAt = Date.now()
+      return state.flowTimingToken
+    }
+    if (initialTimingTokenRequest) {
+      try {
+        await initialTimingTokenRequest
+      } catch {
+        // A fresh single token request below recovers a failed bootstrap call.
+      }
+      if (
+        state.flowTimingToken &&
+        isTimingTokenFresh(state.flowTimingTokenFetchedAt)
+      ) {
+        return state.flowTimingToken
+      }
+    }
+    if (flowTimingTokenRequest) return flowTimingTokenRequest
+
+    const lifecycleGeneration = formLifecycleGeneration
+    const request = fetchTimingToken(signal).then(id => {
+      if (lifecycleGeneration === formLifecycleGeneration) {
+        state.flowTimingToken = id
+        state.flowTimingTokenFetchedAt = performance.now()
+      }
+      return id
+    })
+    flowTimingTokenRequest = request
+    try {
+      return await request
+    } finally {
+      if (flowTimingTokenRequest === request) flowTimingTokenRequest = null
+    }
+  }
+
+  async function ensureTicketTimingToken(
+    signal?: AbortSignal
+  ): Promise<string> {
+    if (initialTimingTokenRequest) {
+      try {
+        await initialTimingTokenRequest
+      } catch {
+        // The single-token request below retries after a failed bootstrap call.
+      }
+    }
+    if (!ticketTimingToken || !isTimingTokenFresh(ticketTimingTokenFetchedAt)) {
+      ticketTimingToken = await fetchTimingToken(signal)
+      ticketTimingTokenFetchedAt = performance.now()
     }
     await ensureTimingMatured(
       ticketTimingTokenFetchedAt,
-      TIMING_THRESHOLDS.ticketVerification
+      TIMING_THRESHOLDS.ticketVerification,
+      100,
+      signal
     )
     return ticketTimingToken
   }
@@ -217,16 +310,14 @@ const copy =
   function refetchFlowTimingToken(): void {
     state.flowTimingToken = undefined
     state.flowTimingTokenFetchedAt = 0
-    fetchTimingToken()
-      .then(id => {
-        state.flowTimingToken = id
-        state.flowTimingTokenFetchedAt = Date.now()
-      })
-      .catch(() => {})
+    ensureFlowTimingToken(formPageAbortController.signal).catch(() => {})
   }
 
   function sync(): void {
     if (elements) syncSubmitButton(elements, state)
+    if (state.isUsernameValid && state.isTicketValid) {
+      ensureFlowTimingToken(formPageAbortController.signal).catch(() => {})
+    }
   }
 
   async function handleUsernameInput(): Promise<void> {
@@ -335,15 +426,16 @@ const copy =
     await applyTicket({
       elements,
       verifyTicketInDatabase: async ticket => {
+        const { signal } = formPageAbortController
         try {
           const [pow, timingTokenId] = await Promise.all([
-            obtainPowSolution(),
-            ensureTicketTimingToken(),
+            obtainPowSolution({ signal }),
+            ensureTicketTimingToken(signal),
           ])
           // The API consumes timing tokens even when the ticket is invalid.
           ticketTimingToken = undefined
           ticketTimingTokenFetchedAt = 0
-          return await checkTicketInDatabase(ticket, pow, timingTokenId)
+          return await checkTicketInDatabase(ticket, pow, timingTokenId, signal)
         } catch {
           ticketTimingToken = undefined
           ticketTimingTokenFetchedAt = 0
@@ -405,7 +497,9 @@ const copy =
 
     const resolved = await resolveSubmitDependencies({
       state,
-      ensureFlowTimingToken,
+      ensureFlowTimingToken: () =>
+        ensureFlowTimingToken(formPageAbortController.signal),
+      signal: formPageAbortController.signal,
     })
 
     if (resolved.status === 'pow_error') {
@@ -425,7 +519,8 @@ const copy =
       username,
       ticket,
       resolved.pow,
-      resolved.timingTokenId
+      resolved.timingTokenId,
+      formPageAbortController.signal
     )
     if (result.success) {
       disposeHiveChain()
@@ -468,22 +563,19 @@ const copy =
     if (elements.form.dataset.initialized) return
     elements.form.dataset.initialized = 'true'
 
+    if (formPageAbortController.signal.aborted) {
+      formPageAbortController = new AbortController()
+    }
+    formLifecycleGeneration += 1
     state = createInitialState()
     sync()
 
-    fetchTimingToken()
-      .then(id => {
-        state.flowTimingToken = id
-        state.flowTimingTokenFetchedAt = Date.now()
-      })
-      .catch(() => {})
+    initializeTimingTokenPair(formPageAbortController.signal).catch(() => {})
 
-    fetchTimingToken()
-      .then(id => {
-        ticketTimingToken = id
-        ticketTimingTokenFetchedAt = Date.now()
-      })
-      .catch(() => {})
+    document.addEventListener('astro:before-swap', cancelFormBeforeSwap, {
+      once: true,
+    })
+    window.addEventListener('pagehide', cancelFormOnPageHide, { once: true })
 
     elements.usernameInput.addEventListener('input', handleUsernameInput)
     elements.ticketInput.addEventListener('input', handleTicketInput)

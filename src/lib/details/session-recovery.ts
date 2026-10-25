@@ -1,25 +1,26 @@
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { ensureTimingMatured } from '@/utils/timing-maturation'
-import { fetchTimingToken, obtainPowSolution } from '@/utils/pow-solver'
+import { obtainPowBundle } from '@/utils/pow-solver'
 import { z } from 'astro/zod'
 import { readApiResponse } from '@/utils/api-client'
 
 export async function recoverCreationSessionForKeyConfirmation(
   username: string,
-  ticket?: string
+  ticket?: string,
+  signal?: AbortSignal
 ): Promise<boolean> {
   try {
     if (!username) return false
 
-    let tokenFetchedAt = 0
-    const [pow, timingTokenId] = await Promise.all([
-      obtainPowSolution(),
-      fetchTimingToken().then(id => {
-        tokenFetchedAt = Date.now()
-        return id
-      }),
-    ])
-    await ensureTimingMatured(tokenFetchedAt, TIMING_THRESHOLDS.flow)
+    const { pow, timingTokenId, tokenFetchedAt } = await obtainPowBundle({
+      signal,
+    })
+    await ensureTimingMatured(
+      tokenFetchedAt,
+      TIMING_THRESHOLDS.flow,
+      100,
+      signal
+    )
 
     const response = await fetch('/api/create/session', {
       method: 'POST',
@@ -30,6 +31,7 @@ export async function recoverCreationSessionForKeyConfirmation(
         timingTokenId,
         ...(ticket ? { ticket } : {}),
       }),
+      signal,
     })
     const result = await readApiResponse(
       response,

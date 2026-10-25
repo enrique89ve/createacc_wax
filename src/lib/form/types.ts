@@ -87,6 +87,7 @@ export interface FormState {
   isSubmitting: boolean
   preSolvedPow: Promise<PowSolution | null> | null
   preSolvedPowAt: number
+  preSolvedPowAbortController: AbortController | null
   flowTimingToken: string | undefined
   flowTimingTokenFetchedAt: number
 }
@@ -98,6 +99,7 @@ export function createInitialState(): FormState {
     isSubmitting: false,
     preSolvedPow: null,
     preSolvedPowAt: 0,
+    preSolvedPowAbortController: null,
     flowTimingToken: undefined,
     flowTimingTokenFetchedAt: 0,
   }

@@ -1,10 +1,11 @@
-import {
-  obtainPowSolution,
-  fetchTimingToken,
-  type PowSolution,
-} from '@/utils/pow-solver'
+import { fetchTimingToken, type PowSolution } from '@/utils/pow-solver'
 import { TIMING_FLOOR_MS } from '@/consts/pow'
-import { POW_MAX_AGE_MS, ensureTimingMatured } from '@/utils/timing-maturation'
+import {
+  POW_MAX_AGE_MS,
+  ensureTimingMatured,
+  isTimingTokenFresh,
+} from '@/utils/timing-maturation'
+import { obtainPowBundle } from '@/utils/pow-solver'
 import type { PublicKeySet } from '@/types/keys'
 import type { PreSolvedBundle } from './types'
 import { isJsonObject } from '@/utils/http-input'
@@ -25,42 +26,34 @@ interface ResolvedPow {
  * Resolve PoW + timing token from a pre-solved bundle or fetch fresh ones.
  */
 export async function resolvePow(
-  preSolvedBundle: Promise<PreSolvedBundle | null> | null
+  preSolvedBundle: Promise<PreSolvedBundle | null> | null,
+  signal?: AbortSignal
 ): Promise<ResolvedPow> {
   const rawBundle = preSolvedBundle ? await preSolvedBundle : null
   const bundle =
-    rawBundle && Date.now() - rawBundle.solvedAt < POW_MAX_AGE_MS
+    rawBundle && performance.now() - rawBundle.solvedAt < POW_MAX_AGE_MS
       ? rawBundle
       : null
 
   if (bundle) {
-    if (!bundle.timingTokenId) {
-      throw new Error('Timing token missing from pre-solved bundle')
+    let timingTokenId = bundle.timingTokenId
+    let tokenFetchedAt = bundle.tokenFetchedAt
+    if (!timingTokenId || !isTimingTokenFresh(tokenFetchedAt)) {
+      timingTokenId = await fetchTimingToken(signal)
+      tokenFetchedAt = performance.now()
     }
-    await ensureTimingMatured(bundle.tokenFetchedAt, TIMING_FLOOR_MS, 0)
-    return { pow: bundle.pow, timingTokenId: bundle.timingTokenId }
+    await ensureTimingMatured(tokenFetchedAt, TIMING_FLOOR_MS, 0, signal)
+    return { pow: bundle.pow, timingTokenId }
   }
 
-  let tokenFetchedAt = 0
-  const [pow, timingTokenId] = await Promise.all([
-    obtainPowSolution(),
-    fetchTimingToken()
-      .then(id => {
-        tokenFetchedAt = Date.now()
-        return id
-      })
-      .catch(() => {
-        tokenFetchedAt = Date.now()
-        return undefined
-      }),
-  ])
-
-  if (!timingTokenId) {
-    throw new Error('Failed to obtain timing token')
-  }
-
-  await ensureTimingMatured(tokenFetchedAt, TIMING_FLOOR_MS, 0)
-  return { pow, timingTokenId }
+  const freshBundle = await obtainPowBundle({ signal })
+  await ensureTimingMatured(
+    freshBundle.tokenFetchedAt,
+    TIMING_FLOOR_MS,
+    0,
+    signal
+  )
+  return { pow: freshBundle.pow, timingTokenId: freshBundle.timingTokenId }
 }
 
 export type AccountCreationResult =

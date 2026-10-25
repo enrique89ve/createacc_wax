@@ -365,7 +365,8 @@ const copy =
         this.sessionRecoveryPromise = (async (): Promise<boolean> => {
           return recoverCreationSessionForKeyConfirmation(
             this.state.username,
-            this.state.ticket
+            this.state.ticket,
+            this.pageAbort.signal
           ).finally(() => {
             this.sessionRecoveryPromise = null
           })
@@ -404,6 +405,12 @@ const copy =
           }
 
           this.showGeneratedKeyUi()
+          this.state.preSolvedBundle = preSolvePowBundle(
+            this.pageAbort.signal
+          ).catch(() => {
+            this.state.preSolvedBundle = null
+            return null
+          })
         } catch {
           if (!this.tornDown) this.showErrorState()
         } finally {
@@ -757,13 +764,6 @@ const copy =
             )
           }
         }
-
-        if (!this.state.preSolvedBundle) {
-          this.state.preSolvedBundle = preSolvePowBundle().catch(() => {
-            this.state.preSolvedBundle = null
-            return null
-          })
-        }
       }
 
       private resetSubmitButton(): void {
@@ -812,7 +812,10 @@ const copy =
         // Resolve PoW + timing token (throws if token unavailable)
         let pow, timingTokenId
         try {
-          const resolved = await resolvePow(this.state.preSolvedBundle)
+          const resolved = await resolvePow(
+            this.state.preSolvedBundle,
+            this.pageAbort.signal
+          )
           this.state.preSolvedBundle = null
           pow = resolved.pow
           timingTokenId = resolved.timingTokenId
@@ -971,6 +974,11 @@ const copy =
         window.addEventListener('beforeunload', () => this.teardownSecrets(), {
           signal,
         })
+        document.addEventListener(
+          'astro:before-swap',
+          () => this.teardownSecrets(),
+          { signal }
+        )
       }
 
       private setupGlobalMethods(): void {

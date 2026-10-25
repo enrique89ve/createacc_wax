@@ -27,11 +27,24 @@ export function syncSubmitButton(
   if (bothValid) {
     prewarmWaxFoundation()
     if (!state.preSolvedPow) {
-      state.preSolvedPowAt = Date.now()
-      state.preSolvedPow = obtainPowSolution().catch((): PowSolution | null => {
-        state.preSolvedPow = null
+      state.preSolvedPowAt = performance.now()
+      const abortController = new AbortController()
+      state.preSolvedPowAbortController = abortController
+      state.preSolvedPow = obtainPowSolution({
+        signal: abortController.signal,
+      }).catch((): PowSolution | null => {
+        if (state.preSolvedPowAbortController === abortController) {
+          state.preSolvedPow = null
+          state.preSolvedPowAbortController = null
+        }
         return null
       })
     }
+    return
   }
+
+  state.preSolvedPowAbortController?.abort()
+  state.preSolvedPowAbortController = null
+  state.preSolvedPow = null
+  state.preSolvedPowAt = 0
 }
