@@ -1,29 +1,33 @@
-/**
- * Client-side Proof of Work solver using Web Crypto API.
- *
- * Solves SHA-256 puzzles issued by GET /api/pow/challenge.
- * Processes nonces in batches to avoid blocking the main thread.
- */
-
 import { z } from 'astro/zod'
 import { readApiResponse } from '@/utils/api-client'
+import { POW_ENDPOINT_PARAMS, TIMING_TOKEN_PAIR_SIZE } from '@/consts/pow'
+import {
+  isPowWorkerResponse,
+  type PowWorkerResponse,
+} from '@/lib/pow-client/worker-contract'
 
 interface PowChallenge {
   readonly challengeId: string
   readonly prefix: string
   readonly difficulty: number
-  readonly expiresAt: number
+  readonly expiresInMs: number
+  readonly timingTokenId?: string
 }
 
 const PowChallengeSchema = z.looseObject({
-  challengeId: z.string().min(1),
-  prefix: z.string().min(1),
-  difficulty: z.number().int().positive(),
+  challengeId: z.string().regex(/^[\da-f]{32}$/u),
+  prefix: z.string().regex(/^[\da-f]{32}$/u),
+  difficulty: z.number().int().min(1).max(256),
   expiresAt: z.number().int().positive(),
+  expiresInMs: z.number().int().positive(),
+  timingTokenId: z.string().min(1).optional(),
 })
 
 const TimingTokenSchema = z.looseObject({
   timingTokenId: z.string().min(1),
+})
+const TimingTokenPairSchema = z.looseObject({
+  timingTokenIds: z.tuple([z.string().min(1), z.string().min(1)]),
 })
 
 export interface PowSolution {
@@ -31,177 +35,451 @@ export interface PowSolution {
   readonly nonce: string
 }
 
-/**
- * Adaptive batch size based on device memory.
- * Larger = fewer microtask boundaries = faster.
- * Lower-end devices use smaller batches to reduce GC pressure.
- *
- * navigator.deviceMemory returns approximate RAM in GB (0.25, 0.5, 1, 2, 4, 8).
- * Unsupported browsers default to conservative 2048.
- */
-const BATCH_SIZE = (() => {
-  const memoryGB = (navigator as { deviceMemory?: number }).deviceMemory
-  if (memoryGB === undefined) return 2048
-  if (memoryGB <= 1) return 1024
-  if (memoryGB <= 2) return 2048
-  return 4096
-})()
+export interface PowBundle {
+  readonly pow: PowSolution
+  readonly timingTokenId: string
+  readonly tokenFetchedAt: number
+}
+
 const POW_CHALLENGE_ENDPOINT = '/api/pow/challenge'
 const TIMING_TOKEN_ENDPOINT = '/api/pow/timing'
+const FETCH_BUDGET_MS = 15_000
+const FETCH_ATTEMPT_TIMEOUT_MS = 7_000
+const MAX_FETCH_ATTEMPTS = 2
+const RETRY_DELAY_MS = 250
+const RETRY_JITTER_MS = 250
+const MAIN_THREAD_SLICE_MS = 8
 
-/** Timeout per fetch attempt (generous for slow connections). */
-const FETCH_TIMEOUT_MS = 15_000
-/** Maximum retry attempts before giving up. */
-const MAX_RETRIES = 2
-/** Base delay between retries (doubles each attempt). */
-const RETRY_BASE_DELAY_MS = 1_000
+interface FetchedResponse {
+  readonly response: Response
+  readonly requestStartedAt: number
+  readonly cleanup: () => void
+}
 
-/**
- * Fetch with timeout + retry for flaky/slow connections.
- * Retries on network errors and 5xx responses with exponential backoff.
- */
-async function fetchWithRetry(url: string): Promise<Response> {
-  let lastError: Error | undefined
+type WorkerSolveResult =
+  | { readonly status: 'solved'; readonly nonce: string }
+  | { readonly status: 'expired' | 'cancelled' | 'unavailable' }
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    if (attempt > 0) {
-      const delay = RETRY_BASE_DELAY_MS * 2 ** (attempt - 1)
-      await new Promise(resolve => setTimeout(resolve, delay))
+interface ActiveWorkerJob {
+  readonly jobId: string
+  readonly resolve: (result: WorkerSolveResult) => void
+  readonly signal: AbortSignal | undefined
+  readonly abortHandler: (() => void) | undefined
+}
+
+let powWorker: Worker | null = null
+let activeWorkerJob: ActiveWorkerJob | null = null
+let nextWorkerJobId = 0
+let powSolveQueue: Promise<void> = Promise.resolve()
+
+function abortError(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new Error('PoW operation cancelled')
+}
+
+function waitWithAbort(
+  durationMs: number,
+  signal: AbortSignal | undefined
+): Promise<void> {
+  if (signal?.aborted) return Promise.reject(abortError(signal))
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => finish(), durationMs)
+    const abortHandler = (): void => {
+      if (signal) finish(abortError(signal))
     }
 
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-
-      const response = await fetch(url, { signal: controller.signal })
+    function finish(error?: Error): void {
       clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', abortHandler)
+      if (error) reject(error)
+      else resolve()
+    }
 
-      if (response.ok) return response
+    signal?.addEventListener('abort', abortHandler, { once: true })
+  })
+}
 
-      // Retry on server errors, fail fast on client errors
-      if (response.status >= 500 && attempt < MAX_RETRIES) {
-        lastError = new Error(`Server error: ${response.status}`)
+function retryAfterMs(response: Response): number | null {
+  const value = response.headers.get('Retry-After')
+  if (!value) return null
+
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+
+  const retryAt = Date.parse(value)
+  if (!Number.isFinite(retryAt)) return null
+  const serverDate = Date.parse(response.headers.get('Date') ?? '')
+  const referenceTime = Number.isFinite(serverDate) ? serverDate : Date.now()
+  return Math.max(0, retryAt - referenceTime)
+}
+
+function networkRetryDelayMs(): number {
+  return RETRY_DELAY_MS + Math.floor(Math.random() * RETRY_JITTER_MS)
+}
+
+/**
+ * Fetch with one retry inside a single 15-second budget. Client errors stop
+ * immediately; a 429 is retried only after its advertised Retry-After delay.
+ */
+async function fetchWithRetry(
+  url: string,
+  signal?: AbortSignal
+): Promise<FetchedResponse> {
+  const deadline = performance.now() + FETCH_BUDGET_MS
+  let lastNetworkError: Error | undefined
+
+  for (let attempt = 0; attempt < MAX_FETCH_ATTEMPTS; attempt += 1) {
+    if (signal?.aborted) throw abortError(signal)
+
+    const remainingMs = deadline - performance.now()
+    if (remainingMs <= 0) break
+
+    const requestStartedAt = performance.now()
+    const controller = new AbortController()
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      Math.min(FETCH_ATTEMPT_TIMEOUT_MS, remainingMs)
+    )
+    const abortHandler = (): void => controller.abort(signal?.reason)
+    const cleanup = (): void => {
+      clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', abortHandler)
+    }
+    signal?.addEventListener('abort', abortHandler, { once: true })
+    if (signal?.aborted) abortHandler()
+
+    let response: Response
+    try {
+      response = await fetch(url, { signal: controller.signal })
+    } catch (error) {
+      cleanup()
+      if (signal?.aborted) throw abortError(signal)
+      lastNetworkError =
+        error instanceof Error ? error : new Error('PoW request failed')
+      const retryDelay = networkRetryDelayMs()
+      if (
+        attempt + 1 >= MAX_FETCH_ATTEMPTS ||
+        deadline - performance.now() <= retryDelay
+      ) {
+        break
+      }
+      await waitWithAbort(retryDelay, signal)
+      continue
+    }
+
+    if (response.ok) return { response, requestStartedAt, cleanup }
+    cleanup()
+
+    if (response.status === 429) {
+      const delayMs = retryAfterMs(response)
+      const budgetAfterDelay = deadline - performance.now() - (delayMs ?? 0)
+      if (
+        attempt + 1 < MAX_FETCH_ATTEMPTS &&
+        delayMs !== null &&
+        delayMs > 0 &&
+        budgetAfterDelay > 0
+      ) {
+        await waitWithAbort(delayMs, signal)
         continue
       }
-
-      throw new Error(`Fetch failed: ${response.status}`)
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        lastError = new Error('Request timed out')
-      } else if (error instanceof Error) {
-        lastError = error
+    } else if (response.status >= 500 && attempt + 1 < MAX_FETCH_ATTEMPTS) {
+      const remainingBudget = deadline - performance.now()
+      if (remainingBudget > 0) {
+        await waitWithAbort(
+          Math.min(networkRetryDelayMs(), remainingBudget),
+          signal
+        )
+        continue
       }
-
-      if (attempt === MAX_RETRIES) break
     }
+
+    throw new Error(`PoW request rejected: ${response.status}`)
   }
 
-  throw lastError ?? new Error('Fetch failed after retries')
+  if (signal?.aborted) throw abortError(signal)
+  throw lastNetworkError ?? new Error('PoW request timed out')
 }
 
-/**
- * Fetches a fresh PoW challenge from the server.
- */
-async function fetchPowChallenge(): Promise<PowChallenge> {
-  const response = await fetchWithRetry(POW_CHALLENGE_ENDPOINT)
-  const parsedResponse = await readApiResponse(response, PowChallengeSchema)
-  if (!parsedResponse.ok) {
-    throw new Error('Invalid PoW challenge response')
+async function fetchPowChallenge(
+  signal?: AbortSignal,
+  includeTimingToken = false
+): Promise<{
+  readonly challenge: PowChallenge
+  readonly challengeDeadlineAt: number
+  readonly responseReceivedAt: number
+}> {
+  const url = includeTimingToken
+    ? `${POW_CHALLENGE_ENDPOINT}?${POW_ENDPOINT_PARAMS.includeTimingToken}=${POW_ENDPOINT_PARAMS.enabled}`
+    : POW_CHALLENGE_ENDPOINT
+  const fetched = await fetchWithRetry(url, signal)
+  try {
+    const parsedResponse = await readApiResponse(
+      fetched.response,
+      PowChallengeSchema
+    )
+    if (!parsedResponse.ok) {
+      throw new Error('Invalid PoW challenge response')
+    }
+
+    const responseReceivedAt = performance.now()
+    const elapsedSinceRequestStart =
+      responseReceivedAt - fetched.requestStartedAt
+    const remainingMs =
+      parsedResponse.data.expiresInMs - elapsedSinceRequestStart
+    if (remainingMs <= 0) throw new Error('PoW challenge expired')
+
+    return {
+      challenge: parsedResponse.data,
+      challengeDeadlineAt: responseReceivedAt + remainingMs,
+      responseReceivedAt,
+    }
+  } finally {
+    fetched.cleanup()
   }
-  return parsedResponse.data
 }
 
-/**
- * Checks whether a hash has the required number of leading zero bits.
- */
-function hasLeadingZeroBits(hash: Uint8Array, bits: number): boolean {
-  const fullBytes = Math.floor(bits / 8)
-  const remainderBits = bits % 8
-
-  for (let i = 0; i < fullBytes; i++) {
-    if (hash[i] !== 0) return false
-  }
-
-  if (remainderBits > 0) {
-    const mask = 0xff << (8 - remainderBits)
-    if ((hash[fullBytes] & mask) !== 0) return false
-  }
-
-  return true
+function disposePowWorker(): void {
+  if (!powWorker) return
+  powWorker.onmessage = null
+  powWorker.onerror = null
+  powWorker.onmessageerror = null
+  powWorker.terminate()
+  powWorker = null
 }
 
-/**
- * Solves a PoW challenge by brute-forcing a nonce that produces
- * a SHA-256 hash with the required leading zero bits.
- *
- * Fires all digests in a batch via Promise.all (1 microtask boundary
- * per batch instead of BATCH_SIZE), then yields to the event loop.
- */
-async function solvePowChallenge(
-  challenge: PowChallenge
+function finishWorkerJob(
+  result: WorkerSolveResult,
+  terminateWorker = false
+): void {
+  const job = activeWorkerJob
+  activeWorkerJob = null
+  if (job?.signal && job.abortHandler) {
+    job.signal.removeEventListener('abort', job.abortHandler)
+  }
+  if (terminateWorker) disposePowWorker()
+  job?.resolve(result)
+}
+
+function handleWorkerMessage(event: MessageEvent<unknown>): void {
+  const job = activeWorkerJob
+  if (!job) return
+
+  if (!isPowWorkerResponse(event.data)) {
+    finishWorkerJob({ status: 'unavailable' }, true)
+    return
+  }
+
+  const response: PowWorkerResponse = event.data
+  if (response.jobId !== job.jobId) return
+
+  if (response.type === 'solved') {
+    finishWorkerJob({ status: 'solved', nonce: response.nonce })
+  } else if (response.reason === 'expired') {
+    finishWorkerJob({ status: 'expired' })
+  } else if (response.reason === 'cancelled') {
+    finishWorkerJob({ status: 'cancelled' })
+  } else {
+    finishWorkerJob({ status: 'unavailable' }, true)
+  }
+}
+
+function solveWithWorker(
+  challenge: PowChallenge,
+  remainingMs: number,
+  signal: AbortSignal | undefined
+): Promise<WorkerSolveResult> {
+  if (typeof Worker === 'undefined' || activeWorkerJob) {
+    return Promise.resolve({ status: 'unavailable' })
+  }
+  if (signal?.aborted) return Promise.resolve({ status: 'cancelled' })
+
+  try {
+    powWorker ??= new Worker(
+      new URL('../workers/pow.worker.ts', import.meta.url),
+      { type: 'module' }
+    )
+  } catch {
+    disposePowWorker()
+    return Promise.resolve({ status: 'unavailable' })
+  }
+
+  const worker = powWorker
+  if (!worker) return Promise.resolve({ status: 'unavailable' })
+
+  return new Promise(resolve => {
+    nextWorkerJobId += 1
+    const jobId = `${nextWorkerJobId.toString(36)}-${Math.floor(performance.now()).toString(36)}`
+    const abortHandler = (): void =>
+      finishWorkerJob({ status: 'cancelled' }, true)
+
+    worker.onmessage = handleWorkerMessage
+    worker.onerror = () => finishWorkerJob({ status: 'unavailable' }, true)
+    worker.onmessageerror = () =>
+      finishWorkerJob({ status: 'unavailable' }, true)
+
+    activeWorkerJob = { jobId, resolve, signal, abortHandler }
+    if (signal) signal.addEventListener('abort', abortHandler, { once: true })
+    if (signal?.aborted) abortHandler()
+
+    try {
+      worker.postMessage({
+        type: 'solve',
+        jobId,
+        prefix: challenge.prefix,
+        difficulty: challenge.difficulty,
+        remainingMs,
+      })
+    } catch {
+      finishWorkerJob({ status: 'unavailable' }, true)
+    }
+  })
+}
+
+async function solveOnMainThread(
+  challenge: PowChallenge,
+  remainingMs: number,
+  signal: AbortSignal | undefined
+): Promise<string> {
+  const { searchPowNonce } = await import('@/lib/pow-client/nonce-search')
+  const result = await searchPowNonce({
+    prefix: challenge.prefix,
+    difficulty: challenge.difficulty,
+    remainingMs,
+    sliceMs: MAIN_THREAD_SLICE_MS,
+    isCancelled: () => signal?.aborted ?? false,
+  })
+
+  if (result.status === 'solved') return result.nonce
+  if (result.status === 'cancelled' && signal) throw abortError(signal)
+  throw new Error('PoW challenge expired')
+}
+
+async function solvePowChallengeNow(
+  challenge: PowChallenge,
+  remainingMs: number,
+  signal?: AbortSignal
 ): Promise<PowSolution> {
-  if (!crypto?.subtle) {
-    throw new Error('Web Crypto API not available')
+  if (signal?.aborted) throw abortError(signal)
+
+  const workerResult = await solveWithWorker(challenge, remainingMs, signal)
+  if (workerResult.status === 'solved') {
+    return { challengeId: challenge.challengeId, nonce: workerResult.nonce }
+  }
+  if (workerResult.status === 'cancelled') {
+    throw signal ? abortError(signal) : new Error('PoW operation cancelled')
+  }
+  if (workerResult.status === 'expired') {
+    throw new Error('PoW challenge expired')
   }
 
-  const encoder = new TextEncoder()
-  let counter = 0
+  const nonce = await solveOnMainThread(challenge, remainingMs, signal)
+  return { challengeId: challenge.challengeId, nonce }
+}
 
-  while (true) {
-    if (Date.now() >= challenge.expiresAt) {
-      throw new Error('PoW challenge expired')
+function solvePowChallenge(
+  challenge: PowChallenge,
+  challengeDeadlineAt: number,
+  signal?: AbortSignal
+): Promise<PowSolution> {
+  const queuedSolve = powSolveQueue.then(() => {
+    const remainingMs = challengeDeadlineAt - performance.now()
+    if (remainingMs <= 0) throw new Error('PoW challenge expired')
+    return solvePowChallengeNow(challenge, remainingMs, signal)
+  })
+  powSolveQueue = queuedSolve.then(
+    () => undefined,
+    () => undefined
+  )
+  return queuedSolve
+}
+
+/** Fetches only a timing token to start the server-side timer. */
+export async function fetchTimingToken(signal?: AbortSignal): Promise<string> {
+  const fetched = await fetchWithRetry(TIMING_TOKEN_ENDPOINT, signal)
+  try {
+    const parsedResponse = await readApiResponse(
+      fetched.response,
+      TimingTokenSchema
+    )
+    if (!parsedResponse.ok) {
+      throw new Error('Invalid timing token response')
     }
-
-    // Prepare batch: encode all inputs and fire digests in parallel
-    const nonces: string[] = new Array(BATCH_SIZE)
-    const digests: Promise<ArrayBuffer>[] = new Array(BATCH_SIZE)
-
-    for (let i = 0; i < BATCH_SIZE; i++) {
-      const nonce = (counter + i).toString(16)
-      nonces[i] = nonce
-      digests[i] = crypto.subtle.digest(
-        'SHA-256',
-        encoder.encode(challenge.prefix + nonce)
-      )
-    }
-
-    // Single microtask boundary for the entire batch
-    const results = await Promise.all(digests)
-
-    // Check results sequentially (early return on match)
-    for (let i = 0; i < results.length; i++) {
-      if (
-        hasLeadingZeroBits(new Uint8Array(results[i]), challenge.difficulty)
-      ) {
-        return { challengeId: challenge.challengeId, nonce: nonces[i] }
-      }
-    }
-
-    counter += BATCH_SIZE
-
-    // Yield to event loop between batches
-    await new Promise<void>(resolve => setTimeout(resolve, 0))
+    return parsedResponse.data.timingTokenId
+  } finally {
+    fetched.cleanup()
   }
 }
 
-/**
- * Fetches only a timing token from the dedicated lightweight endpoint.
- * Used to start the server-side timer on page load without generating
- * an orphaned PoW challenge.
- */
-export async function fetchTimingToken(): Promise<string> {
-  const response = await fetchWithRetry(TIMING_TOKEN_ENDPOINT)
-  const parsedResponse = await readApiResponse(response, TimingTokenSchema)
-  if (!parsedResponse.ok) {
-    throw new Error('Invalid timing token response')
+export async function fetchTimingTokenPair(
+  signal?: AbortSignal
+): Promise<readonly [string, string]> {
+  const url = `${TIMING_TOKEN_ENDPOINT}?${POW_ENDPOINT_PARAMS.timingTokenCount}=${TIMING_TOKEN_PAIR_SIZE}`
+  const fetched = await fetchWithRetry(url, signal)
+  try {
+    const parsedResponse = await readApiResponse(
+      fetched.response,
+      TimingTokenPairSchema
+    )
+    if (!parsedResponse.ok) {
+      throw new Error('Invalid timing token pair response')
+    }
+    return parsedResponse.data.timingTokenIds
+  } finally {
+    fetched.cleanup()
   }
-  return parsedResponse.data.timingTokenId
 }
 
-/**
- * Convenience: fetches a challenge and solves it in one call.
- */
-export async function obtainPowSolution(): Promise<PowSolution> {
-  const challenge = await fetchPowChallenge()
-  return solvePowChallenge(challenge)
+async function obtainSolvedChallenge(
+  signal: AbortSignal | undefined,
+  includeTimingToken: boolean
+): Promise<{
+  readonly pow: PowSolution
+  readonly timingTokenId: string | undefined
+  readonly tokenFetchedAt: number
+}> {
+  const { challenge, challengeDeadlineAt, responseReceivedAt } =
+    await fetchPowChallenge(signal, includeTimingToken)
+  const pow = await solvePowChallenge(challenge, challengeDeadlineAt, signal)
+  return {
+    pow,
+    timingTokenId: challenge.timingTokenId,
+    tokenFetchedAt: responseReceivedAt,
+  }
+}
+
+/** Fetches and solves one fresh, single-use PoW challenge. */
+export async function obtainPowSolution(options?: {
+  readonly signal?: AbortSignal
+}): Promise<PowSolution> {
+  const { pow } = await obtainSolvedChallenge(options?.signal, false)
+  return pow
+}
+
+/** Fetches one challenge and its timing token with a single round trip. */
+export async function obtainPowBundle(options?: {
+  readonly signal?: AbortSignal
+}): Promise<PowBundle> {
+  const { pow, timingTokenId, tokenFetchedAt } = await obtainSolvedChallenge(
+    options?.signal,
+    true
+  )
+  if (!timingTokenId) {
+    throw new Error('PoW response did not include a timing token')
+  }
+  return { pow, timingTokenId, tokenFetchedAt }
+}
+
+function cancelPowWorker(): void {
+  if (activeWorkerJob) {
+    finishWorkerJob({ status: 'cancelled' }, true)
+    return
+  }
+  disposePowWorker()
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', cancelPowWorker)
+  document.addEventListener('astro:before-swap', cancelPowWorker)
 }

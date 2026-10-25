@@ -1,11 +1,12 @@
 import type { APIRoute } from 'astro'
-import { generatePowChallenge } from '@/lib/pow'
+import { generatePowChallenge, issueTimingToken } from '@/lib/pow'
 import { resolveClientIp } from '@/lib/client-ip'
 import {
   checkCreationRateLimit,
   createRateLimitResponse,
 } from '@/lib/creation-rate-limiter'
 import { apiSuccess } from '@/utils/errorResponse'
+import { POW_ENDPOINT_PARAMS } from '@/consts/pow'
 
 export const GET: APIRoute = context => {
   const clientIp = resolveClientIp(context)
@@ -15,6 +16,12 @@ export const GET: APIRoute = context => {
   }
 
   const challenge = generatePowChallenge()
+  const withTimingToken =
+    context.url.searchParams.get(POW_ENDPOINT_PARAMS.includeTimingToken) ===
+    POW_ENDPOINT_PARAMS.enabled
 
-  return apiSuccess(challenge)
+  return apiSuccess({
+    ...challenge,
+    ...(withTimingToken ? { timingTokenId: issueTimingToken() } : {}),
+  })
 }

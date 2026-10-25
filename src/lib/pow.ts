@@ -27,6 +27,7 @@ export interface PowChallenge {
   readonly prefix: string
   readonly difficulty: number
   readonly expiresAt: number
+  readonly expiresInMs: number
 }
 
 export interface PowSolution {
@@ -84,6 +85,7 @@ export function generatePowChallenge(): PowChallenge {
     prefix,
     difficulty: DIFFICULTY,
     expiresAt: createdAt + CHALLENGE_TTL_MS,
+    expiresInMs: CHALLENGE_TTL_MS,
   }
 }
 
@@ -152,6 +154,10 @@ export function issueTimingToken(): string {
   const tokenId = randomBytes(16).toString('hex')
   timingStore.set(tokenId, Date.now())
   return tokenId
+}
+
+export function issueTimingTokenPair(): readonly [string, string] {
+  return [issueTimingToken(), issueTimingToken()]
 }
 
 /**

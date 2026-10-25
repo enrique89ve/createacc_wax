@@ -40,14 +40,15 @@
     "@hiveio/wax": "2.0.2",
     "@libsql/client": "^0.15.12",
     "@libsql/kysely-libsql": "0.4.1",
+    "@noble/hashes": "2.3.0",
     "@tailwindcss/vite": "^4.1.12",
     "@types/bcryptjs": "^3.0.0",
     "astro": "^7.2.3",
     "bcryptjs": "^3.0.2",
     "better-auth": "1.7.1",
     "tailwindcss": "^4.1.12",
-    "typescript": "^5.9.2",
-    "tsx": "^4.20.4"
+    "tsx": "^4.20.4",
+    "typescript": "^5.9.2"
   },
   "devDependencies": {
     "@types/set-cookie-parser": "^2.4.10",

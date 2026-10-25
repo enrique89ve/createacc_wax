@@ -5,7 +5,7 @@
  * The client must solve a SHA-256 puzzle before accessing protected endpoints.
  */
 
-/** Number of leading zero bits required in the hash. 2^18 = ~262K hashes (~1s on mobile). */
+/** Leading zero bits required. Expected work: ~262K hashes; duration varies by device and nonce. */
 export const DIFFICULTY = 18
 
 /** Challenge validity window in milliseconds (5 minutes). */
@@ -34,6 +34,14 @@ export const TIMING_THRESHOLDS = {
 
 /** Timing token validity window in milliseconds (10 minutes). */
 export const TIMING_TOKEN_TTL_MS = 10 * 60 * 1000
+
+export const POW_ENDPOINT_PARAMS = {
+  includeTimingToken: 'withTiming',
+  enabled: '1',
+  timingTokenCount: 'count',
+} as const
+
+export const TIMING_TOKEN_PAIR_SIZE = 2 as const
 
 /** Maximum number of timing tokens stored in memory before forced eviction. */
 export const MAX_TIMING_ENTRIES = 10_000
