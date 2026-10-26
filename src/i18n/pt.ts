@@ -95,7 +95,6 @@ export const pt: Messages = {
     masterPasswordLabel: 'Senha mestra',
     generatingKeys: 'Gerando chaves seguras…',
     masterPasswordHidden: 'Senha mestra oculta.',
-    beforeContinueHelp: 'Baixe e guarde suas chaves antes de continuar.',
     masterPasswordHelp:
       'Sua senha mestra dá acesso à sua conta. Guarde-a em um local seguro.',
     masterPasswordPrivacy:
@@ -118,7 +117,7 @@ export const pt: Messages = {
       'Guardei minhas chaves. Sem elas, perderei o acesso à minha conta.',
     createAccount: 'Criar conta',
     creatingAccount: 'Criando conta...',
-    downloadKeysRequired: 'Você deve baixar as chaves primeiro!',
+    downloadKeysRequired: 'Baixe suas chaves primeiro.',
     generateKeysError:
       'Não foi possível gerar as chaves neste navegador. Verifique a compatibilidade e tente novamente.',
     retryKeyGeneration: 'Tentar gerar as chaves novamente',
@@ -136,7 +135,6 @@ export const pt: Messages = {
     retryingKeyConfirmation: 'Confirmando...',
     verificationError:
       'Não foi possível preparar a verificação; a solicitação não foi enviada. Tente novamente.',
-    submitDisabledTitle: 'Você deve baixar o arquivo de chaves primeiro',
     creationRateLimited:
       'Muitas solicitações. Tente novamente em {seconds} segundos.',
     creationOutcomeUnknown:

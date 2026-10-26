@@ -4,7 +4,6 @@ import Button from '@/components/ui/Button.astro'
 import GlyphMatrix from '@/components/ui/GlyphMatrix.astro'
 import DownloadFormatModal from '@/components/ui/DownloadFormatModal.astro'
 import ProgressModal from '@/components/ui/ProgressModal.astro'
-import Tooltip from '@/components/ui/Tooltip.astro'
 
 interface Props {
   readonly username: string
@@ -42,7 +41,7 @@ const copy =
             {copy.details.masterPasswordLabel}:
           </p>
           <div
-            class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-lg border px-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
+            class="border-border bg-background relative min-h-[2.75rem] overflow-hidden rounded-lg border pe-0 ps-2 text-xs leading-relaxed transition-colors motion-reduce:transition-none"
           >
             <!-- Loading State inside key field -->
             <div
@@ -135,25 +134,34 @@ const copy =
             </div>
           </div>
         </div>
-        <p class="text-muted-foreground mt-6 text-xs leading-relaxed">
-          {copy.details.beforeContinueHelp}
-        </p>
-        <div class="mt-4 grid w-full grid-cols-2 gap-2">
-          <Button
-            variant="light"
-            type="button"
-            id="btn-download-keys"
-            class="min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60"
-            aria-label={copy.details.downloadKeysAria}
-            disabled
-          >
-            {copy.common.download}
-          </Button>
+        <div class="mt-4 grid w-full grid-cols-2 items-start gap-2">
+          <div class="min-w-0">
+            <Button
+              variant="light"
+              type="button"
+              id="btn-download-keys"
+              data-prerequisite-targeted="false"
+              class="data-[prerequisite-targeted=true]:ring-primary/60 data-[prerequisite-targeted=true]:ring-offset-background min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60 data-[prerequisite-targeted=true]:ring-2 data-[prerequisite-targeted=true]:ring-offset-2"
+              aria-label={copy.details.downloadKeysAria}
+              disabled
+            >
+              {copy.common.download}
+            </Button>
+            <p
+              id="download-keys-required-hint"
+              data-visible="false"
+              data-backup-confirmed="false"
+              data-download-available="false"
+              class="text-primary mt-1 min-h-8 text-center text-xs font-medium leading-4 opacity-0 transition-opacity duration-150 data-[visible=true]:opacity-100 motion-reduce:transition-none"
+            >
+              {copy.details.downloadKeysRequired}
+            </p>
+          </div>
           <Button
             variant="dark"
             type="button"
             id="btn-copy-master"
-            class="min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60"
+            class="border-muted-foreground/55 bg-muted/20 hover:border-primary/60 active:border-primary/80 active:bg-primary/10 min-h-12 w-full cursor-pointer whitespace-nowrap px-3 py-2 disabled:opacity-60"
             aria-label={copy.details.copyMasterPassword}
             aria-live="polite"
             disabled
@@ -204,7 +212,7 @@ const copy =
         </div>
         <div id="form-error" class="sr-only" role="status" aria-live="polite">
         </div>
-        <div class="relative">
+        <div id="create-account-hint-trigger" class="relative">
           <Button
             variant="primary"
             id="btn-create-account"
@@ -212,17 +220,10 @@ const copy =
             disabled
             data-default-label={copy.details.createAccount}
             data-loading-label={copy.details.creatingAccount}
-            data-tooltip-target="tooltip-download-keys"
-            data-tooltip-style="light"
             class="min-h-12 w-full cursor-pointer px-5 py-3 tracking-wide disabled:opacity-60"
           >
             {copy.details.createAccount}
           </Button>
-          <Tooltip
-            id="tooltip-download-keys"
-            message={copy.details.downloadKeysRequired}
-            style="light"
-          />
         </div>
       </form>
     </div>
@@ -283,6 +284,7 @@ const copy =
       private isSubmitting = false
       private isGeneratingKeys = false
       private isConfirmingKeys = false
+      private downloadPrerequisiteRequested = false
       private keyConfirmationPromise: Promise<boolean> | null = null
       private tornDown = false
       private sessionRecoveryPromise: Promise<boolean> | null = null
@@ -305,8 +307,14 @@ const copy =
           submitBtn: document.querySelector<HTMLButtonElement>(
             '#btn-create-account'
           ),
+          createAccountHintTrigger: document.querySelector<HTMLElement>(
+            '#create-account-hint-trigger'
+          ),
           downloadBtn:
             document.querySelector<HTMLButtonElement>('#btn-download-keys'),
+          downloadKeysHint: document.querySelector<HTMLElement>(
+            '#download-keys-required-hint'
+          ),
           copyBtn:
             document.querySelector<HTMLButtonElement>('#btn-copy-master'),
           revealBtn:
@@ -358,6 +366,38 @@ const copy =
         return (
           this.state.keySession?.phase === KEY_SESSION_PHASE.BACKUP_CONFIRMED
         )
+      }
+
+      private updateDownloadPrerequisiteHint(): void {
+        const { createAccountHintTrigger, downloadBtn, downloadKeysHint } =
+          this.elements
+        if (!downloadBtn || !downloadKeysHint) return
+
+        const backupConfirmed = this.hasBackup()
+        const downloadAvailable = !downloadBtn.disabled
+        const isCreateHovered =
+          createAccountHintTrigger?.matches(':hover') === true
+        const isDownloadHovered = downloadBtn.matches(':hover')
+        const isDownloadFocused = document.activeElement === downloadBtn
+        const isTouchDevice = window.matchMedia('(hover: none)').matches
+        const isPrerequisiteIntent =
+          isCreateHovered || isDownloadHovered || isDownloadFocused
+
+        if (backupConfirmed) {
+          this.downloadPrerequisiteRequested = false
+        } else if (isPrerequisiteIntent) {
+          this.downloadPrerequisiteRequested = true
+        }
+
+        const showHint =
+          !backupConfirmed &&
+          downloadAvailable &&
+          (this.downloadPrerequisiteRequested || isTouchDevice)
+
+        downloadKeysHint.dataset.visible = String(showHint)
+        downloadKeysHint.dataset.backupConfirmed = String(backupConfirmed)
+        downloadKeysHint.dataset.downloadAvailable = String(downloadAvailable)
+        downloadBtn.dataset.prerequisiteTargeted = String(showHint)
       }
 
       private async recoverCreationSession(): Promise<boolean> {
@@ -461,6 +501,7 @@ const copy =
           this.elements.revealBtn?.classList.add('flex')
           this.elements.downloadBtn?.removeAttribute('disabled')
           this.elements.copyBtn?.removeAttribute('disabled')
+          this.updateSubmitState()
         }, 300)
       }
 
@@ -611,26 +652,31 @@ const copy =
         if (!this.elements.submitBtn || !this.elements.keysSafetyConfirmed)
           return
 
+        const backupConfirmed = this.hasBackup()
         const ok =
           this.elements.keysSafetyConfirmed.checked &&
-          this.hasBackup() &&
+          backupConfirmed &&
           this.state.keysConfirmedOnServer
         this.elements.submitBtn.disabled = !ok
-        this.elements.submitBtn.title = !this.hasBackup()
-          ? publicCopy().details.submitDisabledTitle
-          : !this.state.keysConfirmedOnServer
+        this.elements.submitBtn.title =
+          backupConfirmed && !this.state.keysConfirmedOnServer
             ? publicCopy().details.keyConfirmationRequired
             : ''
 
-        if (this.hasBackup()) {
-          const tooltipTarget = this.elements.submitBtn.getAttribute(
-            'data-tooltip-target'
+        const downloadAvailable =
+          this.elements.downloadBtn !== null &&
+          !this.elements.downloadBtn.disabled
+        const downloadHintId = this.elements.downloadKeysHint?.id
+        if (!backupConfirmed && downloadAvailable && downloadHintId) {
+          this.elements.submitBtn.setAttribute(
+            'aria-describedby',
+            downloadHintId
           )
-          if (tooltipTarget) {
-            this.elements.submitBtn.removeAttribute('data-tooltip-target')
-            document.getElementById(tooltipTarget)?.remove()
-          }
+        } else {
+          this.elements.submitBtn.removeAttribute('aria-describedby')
         }
+
+        this.updateDownloadPrerequisiteHint()
       }
 
       private openDownloadModal(): void {
@@ -953,6 +999,24 @@ const copy =
 
       private setupEventListeners(): void {
         const { signal } = this.pageAbort
+        const updateDownloadHint = (): void =>
+          this.updateDownloadPrerequisiteHint()
+
+        this.elements.createAccountHintTrigger?.addEventListener(
+          'mouseenter',
+          updateDownloadHint,
+          { signal }
+        )
+        this.elements.downloadBtn?.addEventListener(
+          'mouseenter',
+          updateDownloadHint,
+          { signal }
+        )
+        this.elements.downloadBtn?.addEventListener(
+          'focus',
+          updateDownloadHint,
+          { signal }
+        )
         document.addEventListener(
           'visibilitychange',
           () => {

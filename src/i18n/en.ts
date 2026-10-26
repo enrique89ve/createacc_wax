@@ -92,7 +92,6 @@ export const en: Messages = {
     masterPasswordLabel: 'Master password',
     generatingKeys: 'Generating secure keys…',
     masterPasswordHidden: 'Master password hidden.',
-    beforeContinueHelp: 'Download and save your keys before continuing.',
     masterPasswordHelp:
       'Your master password gives access to your account. Keep it in a safe place.',
     masterPasswordPrivacy:
@@ -115,7 +114,7 @@ export const en: Messages = {
       'I have saved my keys. Without them, I will lose access to my account.',
     createAccount: 'Create account',
     creatingAccount: 'Creating account...',
-    downloadKeysRequired: 'You must download the keys first!',
+    downloadKeysRequired: 'Download your keys first.',
     generateKeysError:
       'Could not generate keys in this browser. Check browser support and try again.',
     retryKeyGeneration: 'Retry key generation',
@@ -132,7 +131,6 @@ export const en: Messages = {
     retryingKeyConfirmation: 'Confirming...',
     verificationError:
       'Could not prepare verification; the request was not sent. Please try again.',
-    submitDisabledTitle: 'You must download the key file first',
     creationRateLimited: 'Too many requests. Try again in {seconds} seconds.',
     creationOutcomeUnknown:
       'The connection ended before we received a result. Hive may have processed the request. Keep this page and your keys; retry here to check the same attempt.',

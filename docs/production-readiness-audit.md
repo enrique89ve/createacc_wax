@@ -38,12 +38,15 @@ construyó con Node 24.22.1. El contenedor arrancó como usuario `node`, el
 reconciliador inició, `/` y `/api/health` devolvieron 200, y el logo optimizado
 devolvió `200 image/svg+xml`. Esto no es una publicación en Dokploy.
 
-La suite completa aislada en SQLite temporal quedó en 266/267: sigue fallando
-el contrato de `transactionId` de un intento reservado, ya presente en la
-auditoría. `astro check`, `tsc` y lint focalizado sobre los archivos de producción
-pasan; el lint global continúa abierto. Los avisos de dependencias, el proxy,
-restore, broadcast real y el resto del roadmap tampoco quedan cerrados por este
-seguimiento.
+La validación final del 2026-10-25 corrigió dos fixtures de tests que no seguían
+los contratos actuales (`transactionId` persistido y `obtainPowBundle`). En una
+SQLite temporal nueva, `pnpm test` pasa 61/61 archivos y 282/282 pruebas.
+`pnpm verify` pasa completo: Astro check (334 archivos, 0 errores y 1 hint),
+TypeScript, ESLint global y Vitest. La configuración plana ahora excluye las
+salidas generadas `.vercel/` y `.summarize-tmp/`; se retiró el `.eslintignore`
+obsoleto y sus reglas restantes se migraron a `eslint.config.js`. Los avisos de
+dependencias, el proxy, restore, broadcast real y el resto del roadmap tampoco
+quedan cerrados por esta validación.
 
 ## Evidencia ejecutada
 
@@ -52,12 +55,12 @@ no se reinició ni se migró la base de trabajo. No hubo broadcast real.
 
 | Comprobación                               | Resultado                                                                                        | Alcance y límite                                                                                                                                                                               |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm exec astro check`                    | Pasa: 325 archivos, 0 errores, 1 hint                                                            | Análisis estático Astro                                                                                                                                                                        |
+| `pnpm exec astro check`                    | Pasa: 334 archivos, 0 errores, 0 warnings, 1 hint                                                 | Análisis estático Astro; hint por `BUILDER_EMAIL` sin uso en test de simulación                                                                                                                 |
 | `pnpm exec tsc --noEmit`                   | Pasa                                                                                             | Tipos; no prueba runtime                                                                                                                                                                       |
 | `pnpm build`                               | Pasa con adapter Node                                                                            | No garantiza imágenes/WASM ni instalación limpia                                                                                                                                               |
-| `pnpm test` en SQLite temporal             | 54 archivos pasan, 2 fallan; 263/265 tests pasan                                                 | Contratos, servicios y handlers aislados; no equivale a E2E                                                                                                                                    |
-| Repetición de los dos archivos fallidos    | 26/28 tests pasan, mismos 2 fallos                                                               | Confirma que no fue únicamente ruido de la batería                                                                                                                                             |
-| `pnpm exec eslint .`                       | Falla: 4.337 errores y 1.152 warnings                                                            | Baseline global; no se declara `pnpm verify` aprobado                                                                                                                                          |
+| `pnpm test` en SQLite temporal nueva       | Pasa: 61 archivos, 282/282 tests                                                                 | Incluye corrección del mock PoW/timing en `session-recovery.test.ts`; no equivale a E2E                                                                                                         |
+| `pnpm exec eslint .`                       | Pasa: 0 errores, 0 warnings                                                                      | Configuración plana omite artefactos generados; el código fuente queda limpio                                                                                                                   |
+| `pnpm verify`                              | Pasa: `check` y 282/282 tests en SQLite temporal nueva                                            | Gate local completo; no equivale a despliegue ni a broadcast real                                                                                                                              |
 | `pnpm test:simulation` en SQLite temporal  | 2/2                                                                                              | Servicios: reserve→prepare→complete+RC y rollback ante fallo WAX; no HTTP                                                                                                                      |
 | `pnpm wax:self-test`                       | Pasa                                                                                             | RPC mainnet, cuenta creadora, claimed accounts, RC, construcción, validación, firma y autoridad; broadcast NO-OP inyectado                                                                     |
 | Build Node arrancado con env inyectado     | `/` devuelve 200; worker inicia                                                                  | Proceso local `NODE_ENV=production`; no prueba Dokploy/Traefik                                                                                                                                 |
@@ -182,15 +185,16 @@ conservadora propuesta, no una exigencia inherente de Hive: una cuenta puede ver
 en un bloque reversible. El defecto trazado es la falta de resolución explícita
 si la evidencia posterior de un intento terminal es negativa o inconclusa.
 
-### F-04: dos regresiones/contratos de tests abiertos
+### F-04: contratos de tests corregidos en el seguimiento
 
-- `src/i18n/resolve-locale.test.ts:32`: home exige evitar ticket/Web3, pero
-  `src/i18n/en.ts:22` dice `Ticket verified`. Propuesta: `Access code verified`.
-- `src/utils/db-ticket-validator.simulation.test.ts:263`: Accounts guarda
-  `tx-sim-1`, mientras `getAccountCreationAttempt()` devuelve transactionId null
-  en la finalización de un intento reservado. Investigar el contrato entre
-  preparación, finalización e idempotencia; no cambiar una aserción para ocultar
-  divergencia. El flujo de integración que sí prepara pasó 2/2.
+- `src/i18n/resolve-locale.test.ts:32`: el copy EN se cambió a `Access code
+  verified`; la suite actual incluye esa cobertura.
+- `src/utils/db-ticket-validator.simulation.test.ts`: el fixture ahora persiste
+  preparación y resultado de transacción antes de completar. La corrección está
+  en `79ea621` y el archivo pasa 20/20 en SQLite temporal.
+- `src/lib/details/session-recovery.test.ts`: el mock antiguo de PoW/timing se
+  actualizó a `obtainPowBundle` y a los cuatro argumentos actuales de
+  `ensureTimingMatured`; pasa 4/4.
 
 ### F-05: Beekeeper conserva el firmante anterior al rotar configuración
 
@@ -350,6 +354,112 @@ Fuentes: [adapter Astro Vercel](https://docs.astro.build/en/guides/integrations-
 [filesystem/runtime](https://vercel.com/docs/functions/runtimes),
 [cron](https://vercel.com/docs/cron-jobs/usage-and-pricing),
 [límites de funciones](https://vercel.com/docs/functions/limitations).
+
+## Compatibilidad del PoW — 2026-10-25
+
+Seguimiento sobre `080959f`. El PoW existe en verificación de código, sesión y
+creación: SHA-256 con dificultad 18 y TTL de cinco minutos. El cliente usa
+`crypto.subtle.digest`, `TextEncoder`, fetch, AbortController y timers; ejecuta
+lotes de 1.024/2.048/4.096 hashes en el contexto de la página. No utiliza Worker.
+`navigator.deviceMemory` es opcional: su ausencia selecciona 2.048.
+
+Se sirvió el solver real empaquetado con esbuild desde una fixture HTTP temporal,
+y los retos y su aceptación/rechazo provinieron de `generatePowChallenge()` y
+`validatePowSolution()` reales. No se arrancó la aplicación, no se accedió a DB,
+no se generaron claves ni hubo RPC/broadcast Hive. Es una prueba del protocolo
+PoW, no del bundle final Astro ni del flujo completo de creación.
+
+La segunda pasada midió desde después de cargar el módulo. El timer de 16 ms
+mide capacidad de respuesta del event loop; su hueco máximo observado se incluye
+como diagnóstico. Cada reto tiene un nonce aleatorio y distinto: son muestras
+individuales, no promedios de rendimiento ni una comparación entre motores.
+
+| Perfil                 | Motor                | Memoria declarada / CPU     | Intentos hasta solución | Tiempo observado | Mayor hueco del timer | Validador real         |
+| ---------------------- | -------------------- | --------------------------- | ----------------------- | ---------------- | --------------------- | ---------------------- |
+| Escritorio             | Chrome 144.0.7559.96 | 8 GB / normal               | 235.948                 | 3.892 ms         | 1.314 ms              | Acepta; rechaza replay |
+| API de memoria ausente | Chrome 144.0.7559.96 | no disponible / normal      | 354.078                 | 4.356 ms         | 170 ms                | Acepta; rechaza replay |
+| Android emulado        | Chrome 144.0.7559.96 | 0,5 GB / CPU 6x ralentizada | 23.864                  | 1.980 ms         | 181 ms                | Acepta; rechaza replay |
+| Tablet Android emulada | Chrome 144.0.7559.96 | 2 GB / normal               | 335.552                 | 3.168 ms         | 100 ms                | Acepta; rechaza replay |
+| Escritorio             | Firefox 156.0        | no disponible / normal      | 1.478.381               | 14.649 ms        | 64 ms                 | Acepta; rechaza replay |
+
+La emulación altera viewport, tacto, memoria declarada y, cuando se indica, la
+velocidad de CPU; no reproduce una batería, un SoC o un teléfono físico. La
+primera pasada también resolvió los cinco perfiles, con muestras entre 1.317 y
+6.099 ms. Se quitó del comentario de configuración la promesa no medida de
+«~1s on mobile». La dificultad sigue siendo 18 y el trabajo esperado ~262.144
+hashes; una solución individual puede requerir muchos más o menos.
+
+Hallazgos de compatibilidad:
+
+- **Reloj adelantado, fallo reproducido:** cambiar solo `Date.now()` del cliente
+  a +10 minutos provoca `PoW challenge expired` con un reto recién emitido. El
+  solver compara el reloj del dispositivo con `expiresAt` del servidor. La
+  corrección debe usar duración/tiempo monotónico y mantener al servidor como
+  autoridad sobre expiración; la zona horaria por sí sola no es el problema.
+- **Respuesta de la página:** el timer llegó a separarse 1.314 ms después de
+  cargar el módulo en Chrome, y 181 ms en la muestra móvil con CPU ralentizada.
+  El ajuste por RAM no garantiza un presupuesto de interacción. Faltan trabajo
+  acotado por tiempo o Worker, cancelación y validación en hardware real.
+- **HTTPS obligatorio:** sobre un origen HTTP no confiable Chrome expuso
+  `isSecureContext=false`, no hubo `crypto.subtle` y el solver falló con
+  `Web Crypto API not available`. Loopback de desarrollo sí se considera seguro.
+  No debe habilitarse un bypass de PoW ni una alternativa insegura para ocultarlo.
+- **Safari/iOS/iPadOS sin prueba ejecutada:** se descargó WebKit 26.6, pero no
+  arrancó por bibliotecas del sistema ausentes (`libgtk-4`, GStreamer y otras).
+  No se probó hardware Apple, Android físico, Samsung Internet ni WebViews de
+  aplicaciones. La presencia de las APIs en documentación no certifica esos
+  entornos ni el conjunto WAX/descargas de la aplicación.
+
+Web Crypto/SHA-256 y TextEncoder están ampliamente disponibles en navegadores
+modernos; deviceMemory tiene soporte limitado. Las referencias oficiales son
+[digest](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest),
+[TextEncoder](https://developer.mozilla.org/en-US/docs/Web/API/TextEncoder),
+[deviceMemory](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/deviceMemory)
+y [emulación Playwright](https://playwright.dev/docs/emulation).
+
+Arnés, bundles de fixture y JSON temporales: `/tmp/holahive-pow-audit-2dq1jR/`.
+El resumen de evidencia durable está en esta sección. Las correcciones del reloj,
+fluidez y la matriz de dispositivos quedan abiertas como **PROD-18**. No se
+declara compatibilidad con todos los dispositivos.
+
+El plan local de mitigación definió las fases de PROD-18. El seguimiento tras la
+implementación está resumido abajo; la matriz inicial de esta sección conserva la
+evidencia histórica del solver previo.
+
+### Seguimiento tras la mitigación — 2026-10-25
+
+Commits de código publicados en `main`: `5c58c2c` (Worker y emisión agrupada) y
+`b4cf1a8` (cancelación y preparación anticipada), más `15eeafb` (PoW anticipado
+para ticket y cancelación al suspender la pestaña). No se cambió `.gitignore` ni se
+incluyeron archivos Markdown en esos commits.
+
+El solver actualizado usa SHA-256 de `@noble/hashes` en Worker reutilizable,
+con fallback cooperativo de 8 ms. El challenge devuelve su TTL como duración y el
+cliente calcula el deadline desde el inicio de la solicitud con `performance.now()`.
+Se acotaron reintentos, abortos y trabajo especulativo; se agruparon challenge y
+timing token, y se emiten dos tokens de tiempo en una petición. El ticket conserva
+su verificación manual contra la DB. El PoW de sesión y el de ticket se preparan
+antes de pulsar cuando corresponde; Details empieza después de generar las claves,
+sin esperar a su descarga.
+
+El bundle Astro de producción se probó en Chrome 144 con DB SQLite temporal y
+`HIVE_TX_MODE=simulate`: un reto se solicita al quedar válido el código; ocultar
+la pestaña cancela el solve, volver a ella inicia un reto nuevo; pulsar Verificar
+hace una sola llamada a `/api/validate/ticket` y reutiliza el reto precalculado.
+El ticket ficticio responde “no encontrado” como se esperaba. No se creó cuenta,
+no se generaron claves para enviar y no hubo llamada/broadcast Hive.
+
+Validación: 15 pruebas enfocadas; `tsc --noEmit`, Astro check, ESLint de archivos
+cambiados, Prettier y `pnpm build` pasan. Astro check muestra un hint previo en
+`db-ticket-validator.simulation.test.ts`. La emulación de visibilidad no es una suspensión física del SO.
+Safari/iOS, Android físico, WebViews, Worker bloqueado por CSP y Dokploy todavía
+no tienen evidencia ejecutada. No se midieron p50/p95/p99 ni se confirma el objetivo
+de 3x con el mismo corpus. PROD-18 sigue abierto hasta esa evidencia y una decisión
+explícita sobre los pisos temporales y la prueba repetida de sesión.
+
+La validación final `pnpm verify` pasa con 282/282 pruebas y una SQLite temporal
+nueva. La suite requiere una base temporal nueva por corrida para evitar estado
+persistido entre ejecuciones. El lint global termina sin errores ni warnings.
 
 ## Uso de JEV y ahorro de peticiones
 

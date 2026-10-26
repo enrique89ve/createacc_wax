@@ -15,7 +15,9 @@ export interface ExtendedWindow {
 export interface DOMElements {
   readonly keysSafetyConfirmed: HTMLInputElement | null
   readonly submitBtn: HTMLButtonElement | null
+  readonly createAccountHintTrigger: HTMLElement | null
   readonly downloadBtn: HTMLButtonElement | null
+  readonly downloadKeysHint: HTMLElement | null
   readonly copyBtn: HTMLButtonElement | null
   readonly revealBtn: HTMLButtonElement | null
   readonly loadingEl: HTMLElement | null

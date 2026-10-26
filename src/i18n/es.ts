@@ -95,7 +95,6 @@ export const es = {
     masterPasswordLabel: 'Contraseña maestra',
     generatingKeys: 'Generando claves seguras…',
     masterPasswordHidden: 'Contraseña maestra oculta.',
-    beforeContinueHelp: 'Descarga y guarda tus claves antes de continuar.',
     masterPasswordHelp:
       'Tu contraseña maestra da acceso a tu cuenta. Guárdala en un lugar seguro.',
     masterPasswordPrivacy:
@@ -118,7 +117,7 @@ export const es = {
       'He guardado mis claves. Sin ellas, perderé el acceso a mi cuenta.',
     createAccount: 'Crear cuenta',
     creatingAccount: 'Creando cuenta...',
-    downloadKeysRequired: '¡Debes descargar las claves!',
+    downloadKeysRequired: 'Descarga las claves primero.',
     generateKeysError:
       'No se pudieron generar las claves en este navegador. Comprueba que sea compatible e inténtalo de nuevo.',
     retryKeyGeneration: 'Reintentar generación de claves',
@@ -136,7 +135,6 @@ export const es = {
     retryingKeyConfirmation: 'Confirmando...',
     verificationError:
       'No se pudo preparar la verificación; la solicitud no fue enviada. Inténtalo de nuevo.',
-    submitDisabledTitle: 'Debes descargar el archivo de claves primero',
     creationRateLimited:
       'Demasiadas solicitudes. Inténtalo en {seconds} segundos.',
     creationOutcomeUnknown:
