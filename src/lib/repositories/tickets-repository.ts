@@ -62,18 +62,17 @@ export class TicketsRepository {
    * Create a new ticket
    */
   async create(data: CreateTicketData): Promise<TicketCreationResult> {
-    try {
-      // Validate ticket uses
-      if (data.total_uses <= 0 || data.remaining_uses < 0) {
-        throw new Error('Ticket uses must be greater than 0')
-      }
+    // Validate ticket uses
+    if (data.total_uses <= 0 || data.remaining_uses < 0) {
+      throw new Error('Ticket uses must be greater than 0')
+    }
 
-      if (data.remaining_uses > data.total_uses) {
-        throw new Error('Remaining uses cannot be greater than total uses')
-      }
+    if (data.remaining_uses > data.total_uses) {
+      throw new Error('Remaining uses cannot be greater than total uses')
+    }
 
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					INSERT INTO Tickets (
 						code, description, total_uses, remaining_uses, creator_username,
 						funding_source, owner_builder_username, issuer_admin_id
@@ -81,35 +80,32 @@ export class TicketsRepository {
 					VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 					RETURNING id, code, description, total_uses, remaining_uses
 				`,
-        args: [
-          data.code,
-          data.description ?? null,
-          data.total_uses,
-          data.remaining_uses,
-          data.creator_username ?? null,
-          data.funding_source,
-          data.funding_source === 'builder_credits'
-            ? data.owner_builder_username
-            : null,
-          data.funding_source === 'system' ? data.issuer_admin_id : null,
-        ],
-      })
+      args: [
+        data.code,
+        data.description ?? null,
+        data.total_uses,
+        data.remaining_uses,
+        data.creator_username ?? null,
+        data.funding_source,
+        data.funding_source === 'builder_credits'
+          ? data.owner_builder_username
+          : null,
+        data.funding_source === 'system' ? data.issuer_admin_id : null,
+      ],
+    })
 
-      if (result.rows.length === 0) {
-        throw new Error('Could not create ticket')
-      }
+    if (result.rows.length === 0) {
+      throw new Error('Could not create ticket')
+    }
 
-      const row = result.rows[0] as Record<string, unknown>
+    const row = result.rows[0] as Record<string, unknown>
 
-      return {
-        id: Number(row.id),
-        code: String(row.code),
-        description: row.description as string | null,
-        total_uses: Number(row.total_uses),
-        remaining_uses: Number(row.remaining_uses),
-      }
-    } catch (error) {
-      throw error
+    return {
+      id: Number(row.id),
+      code: String(row.code),
+      description: row.description as string | null,
+      total_uses: Number(row.total_uses),
+      remaining_uses: Number(row.remaining_uses),
     }
   }
 
@@ -117,40 +113,32 @@ export class TicketsRepository {
    * Get ticket by ID
    */
   async findById(id: number): Promise<DatabaseTicketRow | null> {
-    try {
-      const result = await execute({
-        sql: 'SELECT * FROM Tickets WHERE id = ?',
-        args: [id],
-      })
+    const result = await execute({
+      sql: 'SELECT * FROM Tickets WHERE id = ?',
+      args: [id],
+    })
 
-      if (result.rows.length === 0) {
-        return null
-      }
-
-      return parseTicketRow(result.rows[0])
-    } catch (error) {
-      throw error
+    if (result.rows.length === 0) {
+      return null
     }
+
+    return parseTicketRow(result.rows[0])
   }
 
   /**
    * Get ticket by code (unique key)
    */
   async findByCode(code: string): Promise<DatabaseTicketRow | null> {
-    try {
-      const result = await execute({
-        sql: 'SELECT * FROM Tickets WHERE code = ?',
-        args: [code],
-      })
+    const result = await execute({
+      sql: 'SELECT * FROM Tickets WHERE code = ?',
+      args: [code],
+    })
 
-      if (result.rows.length === 0) {
-        return null
-      }
-
-      return parseTicketRow(result.rows[0])
-    } catch (error) {
-      throw error
+    if (result.rows.length === 0) {
+      return null
     }
+
+    return parseTicketRow(result.rows[0])
   }
 
   /**
@@ -259,20 +247,16 @@ export class TicketsRepository {
    * Get all tickets created by a user (admin or builder)
    */
   async findByCreator(userId: string): Promise<DatabaseTicketRow[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT * FROM Tickets
 					WHERE creator_username = ?
 					ORDER BY created_at DESC
 				`,
-        args: [userId],
-      })
+      args: [userId],
+    })
 
-      return compactMap(result.rows, parseTicketRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketRow)
   }
 
   /**
@@ -281,20 +265,16 @@ export class TicketsRepository {
    * Consider deleting in v2.0
    */
   async findActiveTickets(): Promise<DatabaseTicketRow[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT * FROM Tickets
 					WHERE remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL
 					ORDER BY created_at DESC
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      return compactMap(result.rows, parseTicketRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketRow)
   }
 
   /**
@@ -303,40 +283,38 @@ export class TicketsRepository {
    * Consider deleting in v2.0
    */
   async findWithFilters(filters: TicketFilters): Promise<DatabaseTicketRow[]> {
-    try {
-      const conditions: string[] = []
-      const args: (string | number | boolean)[] = []
+    const conditions: string[] = []
+    const args: (string | number | boolean)[] = []
 
-      if (filters.createdBy !== undefined) {
-                conditions.push('owner_builder_username = ?')
-        args.push(filters.createdBy)
-      }
+    if (filters.createdBy !== undefined) {
+      conditions.push('owner_builder_username = ?')
+      args.push(filters.createdBy)
+    }
 
-      if (filters.isActive !== undefined) {
-        conditions.push('(remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL) = ?')
-        args.push(filters.isActive)
-      }
+    if (filters.isActive !== undefined) {
+      conditions.push(
+        '(remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL) = ?'
+      )
+      args.push(filters.isActive)
+    }
 
-      if (filters.hasBeenUsed !== undefined) {
-        conditions.push('(remaining_uses < total_uses - retired_uses) = ?')
-        args.push(filters.hasBeenUsed)
-      }
+    if (filters.hasBeenUsed !== undefined) {
+      conditions.push('(remaining_uses < total_uses - retired_uses) = ?')
+      args.push(filters.hasBeenUsed)
+    }
 
-      const whereClause =
-        conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-      const sql = `
+    const sql = `
 				SELECT * FROM Tickets
 				${whereClause}
 				ORDER BY created_at DESC
 			`
 
-      const result = await execute({ sql, args })
+    const result = await execute({ sql, args })
 
-      return compactMap(result.rows, parseTicketRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketRow)
   }
 
   // ===== COMPLEX QUERIES WITH JOINS =====
@@ -346,9 +324,8 @@ export class TicketsRepository {
    * JOIN with Users table
    */
   async getAllWithCreators(): Promise<TicketWithCreator[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						t.*,
 						t.creator_username,
@@ -356,13 +333,10 @@ export class TicketsRepository {
 					FROM Tickets t
 					ORDER BY t.created_at DESC
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      return compactMap(result.rows, parseTicketWithCreatorRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketWithCreatorRow)
   }
 
   /**
@@ -371,9 +345,8 @@ export class TicketsRepository {
   async getUserTicketsWithCreator(
     userId: string
   ): Promise<TicketWithCreator[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						t.*,
 						t.creator_username,
@@ -383,13 +356,10 @@ export class TicketsRepository {
 					  AND t.owner_builder_username = ?
 					ORDER BY t.created_at DESC
 				`,
-        args: [userId],
-      })
+      args: [userId],
+    })
 
-      return compactMap(result.rows, parseTicketWithCreatorRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketWithCreatorRow)
   }
 
   /**
@@ -406,9 +376,8 @@ export class TicketsRepository {
    * Limited to N most recent results
    */
   async getRecentWithCreators(limit: number = 5): Promise<TicketWithCreator[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						t.*,
 						t.creator_username,
@@ -417,13 +386,10 @@ export class TicketsRepository {
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
-        args: [limit],
-      })
+      args: [limit],
+    })
 
-      return compactMap(result.rows, parseTicketWithCreatorRow)
-    } catch (error) {
-      throw error
-    }
+    return compactMap(result.rows, parseTicketWithCreatorRow)
   }
 
   // ===== STATISTICS AND AGGREGATIONS =====
@@ -434,9 +400,8 @@ export class TicketsRepository {
    * Consider deleting in v2.0
    */
   async getUserStats(userId: string): Promise<TicketStats> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						COUNT(*) as total_tickets,
 						SUM(CASE WHEN remaining_uses > 0 AND revoked_at IS NULL AND archived_at IS NULL THEN 1 ELSE 0 END) as active_tickets,
@@ -446,30 +411,27 @@ export class TicketsRepository {
 					FROM Tickets
 					WHERE owner_builder_username = ? AND funding_source = 'builder_credits'
 				`,
-        args: [userId],
-      })
+      args: [userId],
+    })
 
-      if (result.rows.length === 0) {
-        return {
-          totalTickets: 0,
-          activeTickets: 0,
-          usedTickets: 0,
-          totalCreditsOriginal: 0,
-          totalCreditsRemaining: 0,
-        }
-      }
-
-      const row = result.rows[0] as Record<string, unknown>
-
+    if (result.rows.length === 0) {
       return {
-        totalTickets: Number(row.total_tickets || 0),
-        activeTickets: Number(row.active_tickets || 0),
-        usedTickets: Number(row.used_tickets || 0),
-        totalCreditsOriginal: Number(row.total_credits_original || 0),
-        totalCreditsRemaining: Number(row.total_credits_remaining || 0),
+        totalTickets: 0,
+        activeTickets: 0,
+        usedTickets: 0,
+        totalCreditsOriginal: 0,
+        totalCreditsRemaining: 0,
       }
-    } catch (error) {
-      throw error
+    }
+
+    const row = result.rows[0] as Record<string, unknown>
+
+    return {
+      totalTickets: Number(row.total_tickets || 0),
+      activeTickets: Number(row.active_tickets || 0),
+      usedTickets: Number(row.used_tickets || 0),
+      totalCreditsOriginal: Number(row.total_credits_original || 0),
+      totalCreditsRemaining: Number(row.total_credits_remaining || 0),
     }
   }
 
@@ -479,16 +441,12 @@ export class TicketsRepository {
    * Consider deleting in v2.0
    */
   async countAll(): Promise<number> {
-    try {
-      const result = await execute({
-        sql: 'SELECT COUNT(*) as total FROM Tickets',
-        args: [],
-      })
+    const result = await execute({
+      sql: 'SELECT COUNT(*) as total FROM Tickets',
+      args: [],
+    })
 
-      return Number(result.rows[0]?.total || 0)
-    } catch (error) {
-      throw error
-    }
+    return Number(result.rows[0]?.total || 0)
   }
 
   /**
@@ -497,18 +455,13 @@ export class TicketsRepository {
    * Consider deleting in v2.0
    */
   async countUsed(): Promise<number> {
-    try {
-      const result = await execute({
-        sql: 'SELECT COUNT(*) as total FROM Tickets WHERE remaining_uses < total_uses - retired_uses',
-        args: [],
-      })
+    const result = await execute({
+      sql: 'SELECT COUNT(*) as total FROM Tickets WHERE remaining_uses < total_uses - retired_uses',
+      args: [],
+    })
 
-      return Number(result.rows[0]?.total || 0)
-    } catch (error) {
-      throw error
-    }
+    return Number(result.rows[0]?.total || 0)
   }
-
 }
 
 // Singleton instance

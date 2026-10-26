@@ -79,10 +79,9 @@ export class DashboardService {
    * Get all statistics for the main dashboard
    */
   async getDashboardStats(): Promise<DashboardStats> {
-    try {
-      // Single query with multiple subqueries to get all stats
-      const result = await execute({
-        sql: `
+    // Single query with multiple subqueries to get all stats
+    const result = await execute({
+      sql: `
 					SELECT
 						(SELECT COUNT(*) FROM Credits) as total_builders,
 						(SELECT COUNT(*) FROM Tickets) as total_tickets,
@@ -90,20 +89,17 @@ export class DashboardService {
 						(SELECT COUNT(*) FROM Accounts) as total_accounts,
 						(SELECT COUNT(*) FROM Accounts WHERE DATE(creation_date) = DATE('now')) as today_accounts
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      const row = result.rows[0] as Record<string, unknown>
+    const row = result.rows[0] as Record<string, unknown>
 
-      return {
-        totalBuilders: Number(row.total_builders || 0),
-        totalTickets: Number(row.total_tickets || 0),
-        usedTickets: Number(row.used_tickets || 0),
-        totalAccounts: Number(row.total_accounts || 0),
-        todayAccounts: Number(row.today_accounts || 0),
-      }
-    } catch (error) {
-      throw error
+    return {
+      totalBuilders: Number(row.total_builders || 0),
+      totalTickets: Number(row.total_tickets || 0),
+      usedTickets: Number(row.used_tickets || 0),
+      totalAccounts: Number(row.total_accounts || 0),
+      todayAccounts: Number(row.today_accounts || 0),
     }
   }
 
@@ -111,9 +107,8 @@ export class DashboardService {
    * Get recent tickets with creator information
    */
   async getRecentTickets(limit: number = 5): Promise<RecentTicketInfo[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						t.code,
 						t.total_uses,
@@ -127,47 +122,40 @@ export class DashboardService {
 					ORDER BY t.created_at DESC
 					LIMIT ?
 				`,
-        args: [limit],
-      })
+      args: [limit],
+    })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        code: String(row.code),
-        total_uses: Number(row.total_uses),
-        remaining_uses: Number(row.remaining_uses),
-        is_active: sqliteToBoolean(row.is_active),
-        has_been_used: sqliteToBoolean(row.has_been_used),
-        created_at: String(row.created_at),
-        created_by_username: row.created_by_username as string | null,
-        creator_type: (row.creator_type as 'admin' | 'builder' | null) ?? null,
-      }))
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map((row: Record<string, unknown>) => ({
+      code: String(row.code),
+      total_uses: Number(row.total_uses),
+      remaining_uses: Number(row.remaining_uses),
+      is_active: sqliteToBoolean(row.is_active),
+      has_been_used: sqliteToBoolean(row.has_been_used),
+      created_at: String(row.created_at),
+      created_by_username: row.created_by_username as string | null,
+      creator_type: (row.creator_type as 'admin' | 'builder' | null) ?? null,
+    }))
   }
 
   /**
    * Get recent accounts
    */
   async getRecentAccounts(limit: number = 5): Promise<RecentAccountInfo[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT username, ticket, creation_date
 					FROM Accounts
 					ORDER BY creation_date DESC
 					LIMIT ?
 				`,
-        args: [limit],
-      })
+      args: [limit],
+    })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        username: String(row.username),
-        ticket: String(row.ticket),
-        creation_date: String(row.creation_date),
-      }))
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map((row: Record<string, unknown>) => ({
+      username: String(row.username),
+      ticket: String(row.ticket),
+      creation_date: String(row.creation_date),
+    }))
   }
 
   /**
@@ -177,20 +165,16 @@ export class DashboardService {
   async getSystemActivitySummary(
     recentLimit: number = 5
   ): Promise<SystemActivitySummary> {
-    try {
-      const [stats, recentTickets, recentAccounts] = await Promise.all([
-        this.getDashboardStats(),
-        this.getRecentTickets(recentLimit),
-        this.getRecentAccounts(recentLimit),
-      ])
+    const [stats, recentTickets, recentAccounts] = await Promise.all([
+      this.getDashboardStats(),
+      this.getRecentTickets(recentLimit),
+      this.getRecentAccounts(recentLimit),
+    ])
 
-      return {
-        stats,
-        recentTickets,
-        recentAccounts,
-      }
-    } catch (error) {
-      throw error
+    return {
+      stats,
+      recentTickets,
+      recentAccounts,
     }
   }
 
@@ -202,9 +186,8 @@ export class DashboardService {
   async getBuilderFullStats(
     builderId: string
   ): Promise<BuilderFullStats | null> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						? as hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
@@ -219,27 +202,24 @@ export class DashboardService {
 					LEFT JOIN Accounts a ON a.builder_username = ?
 					LEFT JOIN Credits c ON c.hive_username = ?
 				`,
-        args: [builderId, builderId, builderId, builderId],
-      })
+      args: [builderId, builderId, builderId, builderId],
+    })
 
-      if (result.rows.length === 0) {
-        return null
-      }
+    if (result.rows.length === 0) {
+      return null
+    }
 
-      const row = result.rows[0] as Record<string, unknown>
+    const row = result.rows[0] as Record<string, unknown>
 
-      return {
-        hive_username: String(row.hive_username),
-        total_tickets: Number(row.total_tickets || 0),
-        active_tickets: Number(row.active_tickets || 0),
-        total_accounts: Number(row.total_accounts || 0),
-        pending_credits: Number(row.pending_credits || 0),
-        available_credits: Number(row.available_credits || 0),
-        total_issued: Number(row.total_issued || 0),
-        total_consumed: Number(row.total_consumed || 0),
-      }
-    } catch (error) {
-      throw error
+    return {
+      hive_username: String(row.hive_username),
+      total_tickets: Number(row.total_tickets || 0),
+      active_tickets: Number(row.active_tickets || 0),
+      total_accounts: Number(row.total_accounts || 0),
+      pending_credits: Number(row.pending_credits || 0),
+      available_credits: Number(row.available_credits || 0),
+      total_issued: Number(row.total_issued || 0),
+      total_consumed: Number(row.total_consumed || 0),
     }
   }
 
@@ -247,9 +227,8 @@ export class DashboardService {
    * Get statistics of all builders
    */
   async getAllBuildersFullStats(): Promise<BuilderFullStats[]> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						c.hive_username,
 						COALESCE(COUNT(DISTINCT t.id), 0) as total_tickets,
@@ -265,22 +244,19 @@ export class DashboardService {
 					GROUP BY c.hive_username, c.pending_amount, c.available_amount, c.total_issued, c.total_consumed
 					ORDER BY c.created_at DESC
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        hive_username: String(row.hive_username),
-        total_tickets: Number(row.total_tickets || 0),
-        active_tickets: Number(row.active_tickets || 0),
-        total_accounts: Number(row.total_accounts || 0),
-        pending_credits: Number(row.pending_credits || 0),
-        available_credits: Number(row.available_credits || 0),
-        total_issued: Number(row.total_issued || 0),
-        total_consumed: Number(row.total_consumed || 0),
-      }))
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map((row: Record<string, unknown>) => ({
+      hive_username: String(row.hive_username),
+      total_tickets: Number(row.total_tickets || 0),
+      active_tickets: Number(row.active_tickets || 0),
+      total_accounts: Number(row.total_accounts || 0),
+      pending_credits: Number(row.pending_credits || 0),
+      available_credits: Number(row.available_credits || 0),
+      total_issued: Number(row.total_issued || 0),
+      total_consumed: Number(row.total_consumed || 0),
+    }))
   }
 
   // ===== AGGREGATED REPORTS =====
@@ -289,27 +265,23 @@ export class DashboardService {
    * Get ticket distribution by type
    */
   async getTicketTypeDistribution(): Promise<Record<string, number>> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT type, COUNT(*) as count
 					FROM Tickets
 					GROUP BY type
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      const distribution: Record<string, number> = {}
+    const distribution: Record<string, number> = {}
 
-      for (const row of result.rows) {
-        const r = row as Record<string, unknown>
-        distribution[String(r.type)] = Number(r.count)
-      }
-
-      return distribution
-    } catch (error) {
-      throw error
+    for (const row of result.rows) {
+      const r = row as Record<string, unknown>
+      distribution[String(r.type)] = Number(r.count)
     }
+
+    return distribution
   }
 
   /**
@@ -318,9 +290,8 @@ export class DashboardService {
   async getAccountCreationTrend(
     days: number = 7
   ): Promise<Array<{ date: string; count: number }>> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						DATE(creation_date) as date,
 						COUNT(*) as count
@@ -329,16 +300,13 @@ export class DashboardService {
 					GROUP BY DATE(creation_date)
 					ORDER BY date DESC
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        date: String(row.date),
-        count: Number(row.count),
-      }))
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map((row: Record<string, unknown>) => ({
+      date: String(row.date),
+      count: Number(row.count),
+    }))
   }
 
   /**
@@ -351,9 +319,8 @@ export class DashboardService {
       total_tickets: number
     }>
   > {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						a.builder_username as hive_username,
 						COUNT(DISTINCT a.id) as total_accounts,
@@ -364,17 +331,14 @@ export class DashboardService {
 					ORDER BY total_accounts DESC
 					LIMIT ?
 				`,
-        args: [limit],
-      })
+      args: [limit],
+    })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        hive_username: String(row.hive_username),
-        total_accounts: Number(row.total_accounts || 0),
-        total_tickets: Number(row.total_tickets || 0),
-      }))
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map((row: Record<string, unknown>) => ({
+      hive_username: String(row.hive_username),
+      total_accounts: Number(row.total_accounts || 0),
+      total_tickets: Number(row.total_tickets || 0),
+    }))
   }
 
   /**
@@ -386,9 +350,8 @@ export class DashboardService {
     total_issued: number
     total_consumed: number
   }> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						SUM(pending_amount) as total_pending,
 						SUM(available_amount) as total_available,
@@ -396,19 +359,16 @@ export class DashboardService {
 						SUM(total_consumed) as total_consumed
 					FROM Credits
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      const row = result.rows[0] as Record<string, unknown>
+    const row = result.rows[0] as Record<string, unknown>
 
-      return {
-        total_pending: Number(row.total_pending || 0),
-        total_available: Number(row.total_available || 0),
-        total_issued: Number(row.total_issued || 0),
-        total_consumed: Number(row.total_consumed || 0),
-      }
-    } catch (error) {
-      throw error
+    return {
+      total_pending: Number(row.total_pending || 0),
+      total_available: Number(row.total_available || 0),
+      total_issued: Number(row.total_issued || 0),
+      total_consumed: Number(row.total_consumed || 0),
     }
   }
 }

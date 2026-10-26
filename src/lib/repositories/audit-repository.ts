@@ -137,12 +137,11 @@ export class AuditRepository {
    * Get all ticket logs with user information
    */
   async getAllTicketLogs(limit?: number): Promise<TicketAuditLog[]> {
-    try {
-      const args: number[] = []
-      const limitClause = limit ? 'LIMIT ?' : ''
-      if (limit) args.push(limit)
+    const args: number[] = []
+    const limitClause = limit ? 'LIMIT ?' : ''
+    if (limit) args.push(limit)
 
-      const sql = `
+    const sql = `
 				SELECT
 					ta.*,
 					u.username as performed_by_username,
@@ -153,14 +152,11 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await execute({ sql, args })
+    const result = await execute({ sql, args })
 
-      return result.rows.map(row =>
-        mapTicketAuditLog(row as Record<string, unknown>)
-      )
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map(row =>
+      mapTicketAuditLog(row as Record<string, unknown>)
+    )
   }
 
   /**
@@ -170,42 +166,41 @@ export class AuditRepository {
     filters: TicketAuditFilters,
     limit?: number
   ): Promise<TicketAuditLog[]> {
-    try {
-      const conditions: string[] = []
-      const args: (string | number)[] = []
+    const conditions: string[] = []
+    const args: (string | number)[] = []
 
-      if (filters.ticket) {
-        conditions.push('ta.ticket = ?')
-        args.push(filters.ticket)
-      }
+    if (filters.ticket) {
+      conditions.push('ta.ticket = ?')
+      args.push(filters.ticket)
+    }
 
-      if (filters.action) {
-        conditions.push('ta.action = ?')
-        args.push(filters.action)
-      }
+    if (filters.action) {
+      conditions.push('ta.action = ?')
+      args.push(filters.action)
+    }
 
-      if (filters.performedBy) {
-        conditions.push('ta.performed_by = ?')
-        args.push(filters.performedBy)
-      }
+    if (filters.performedBy) {
+      conditions.push('ta.performed_by = ?')
+      args.push(filters.performedBy)
+    }
 
-      if (filters.dateFrom) {
-        conditions.push('DATE(ta.timestamp) >= DATE(?)')
-        args.push(filters.dateFrom)
-      }
+    if (filters.dateFrom) {
+      conditions.push('DATE(ta.timestamp) >= DATE(?)')
+      args.push(filters.dateFrom)
+    }
 
-      if (filters.dateTo) {
-        conditions.push('DATE(ta.timestamp) <= DATE(?)')
-        args.push(filters.dateTo)
-      }
+    if (filters.dateTo) {
+      conditions.push('DATE(ta.timestamp) <= DATE(?)')
+      args.push(filters.dateTo)
+    }
 
-      const whereClause =
-        conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-      const limitClause = limit ? 'LIMIT ?' : ''
-      if (limit) args.push(limit)
+    const limitClause = limit ? 'LIMIT ?' : ''
+    if (limit) args.push(limit)
 
-      const sql = `
+    const sql = `
 				SELECT
 					ta.*,
 					u.username as performed_by_username,
@@ -217,14 +212,11 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await execute({ sql, args })
+    const result = await execute({ sql, args })
 
-      return result.rows.map(row =>
-        mapTicketAuditLog(row as Record<string, unknown>)
-      )
-    } catch (error) {
-      throw error
-    }
+    return result.rows.map(row =>
+      mapTicketAuditLog(row as Record<string, unknown>)
+    )
   }
 
   /**
@@ -247,12 +239,11 @@ export class AuditRepository {
    * Get all credit logs with complete information
    */
   async getAllCreditLogs(limit?: number): Promise<CreditAuditLog[]> {
-    try {
-      const args: number[] = []
-      const limitClause = limit ? 'LIMIT ?' : ''
-      if (limit) args.push(limit)
+    const args: number[] = []
+    const limitClause = limit ? 'LIMIT ?' : ''
+    if (limit) args.push(limit)
 
-      const sql = `
+    const sql = `
 				SELECT
 					ca.*,
 					b.username as builder_username,
@@ -265,31 +256,28 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await execute({ sql, args })
+    const result = await execute({ sql, args })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        hive_username: String(row.hive_username),
-        operation: String(row.operation),
-        amount: Number(row.amount),
-        reason: row.reason ? String(row.reason) : null,
-        performed_by: row.performed_by ? String(row.performed_by) : null,
-        external_reference:
-          typeof row.external_reference === 'string'
-            ? row.external_reference
-            : null,
-        timestamp: String(row.timestamp),
-        builder_username: String(row.builder_username),
-        performed_by_username: row.performed_by_username
-          ? String(row.performed_by_username)
+    return result.rows.map((row: Record<string, unknown>) => ({
+      id: Number(row.id),
+      hive_username: String(row.hive_username),
+      operation: String(row.operation),
+      amount: Number(row.amount),
+      reason: row.reason ? String(row.reason) : null,
+      performed_by: row.performed_by ? String(row.performed_by) : null,
+      external_reference:
+        typeof row.external_reference === 'string'
+          ? row.external_reference
           : null,
-        performed_by_role: row.performed_by_role
-          ? String(row.performed_by_role)
-          : null,
-      }))
-    } catch (error) {
-      throw error
-    }
+      timestamp: String(row.timestamp),
+      builder_username: String(row.builder_username),
+      performed_by_username: row.performed_by_username
+        ? String(row.performed_by_username)
+        : null,
+      performed_by_role: row.performed_by_role
+        ? String(row.performed_by_role)
+        : null,
+    }))
   }
 
   /**
@@ -299,42 +287,41 @@ export class AuditRepository {
     filters: CreditAuditFilters,
     limit?: number
   ): Promise<CreditAuditLog[]> {
-    try {
-      const conditions: string[] = []
-      const args: (string | number)[] = []
+    const conditions: string[] = []
+    const args: (string | number)[] = []
 
-      if (filters.builderId) {
-        conditions.push('ca.hive_username = ?')
-        args.push(filters.builderId)
-      }
+    if (filters.builderId) {
+      conditions.push('ca.hive_username = ?')
+      args.push(filters.builderId)
+    }
 
-      if (filters.operation) {
-        conditions.push('ca.operation = ?')
-        args.push(filters.operation)
-      }
+    if (filters.operation) {
+      conditions.push('ca.operation = ?')
+      args.push(filters.operation)
+    }
 
-      if (filters.performedBy) {
-        conditions.push('ca.performed_by = ?')
-        args.push(filters.performedBy)
-      }
+    if (filters.performedBy) {
+      conditions.push('ca.performed_by = ?')
+      args.push(filters.performedBy)
+    }
 
-      if (filters.dateFrom) {
-        conditions.push('DATE(ca.timestamp) >= DATE(?)')
-        args.push(filters.dateFrom)
-      }
+    if (filters.dateFrom) {
+      conditions.push('DATE(ca.timestamp) >= DATE(?)')
+      args.push(filters.dateFrom)
+    }
 
-      if (filters.dateTo) {
-        conditions.push('DATE(ca.timestamp) <= DATE(?)')
-        args.push(filters.dateTo)
-      }
+    if (filters.dateTo) {
+      conditions.push('DATE(ca.timestamp) <= DATE(?)')
+      args.push(filters.dateTo)
+    }
 
-      const whereClause =
-        conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
 
-      const limitClause = limit ? 'LIMIT ?' : ''
-      if (limit) args.push(limit)
+    const limitClause = limit ? 'LIMIT ?' : ''
+    if (limit) args.push(limit)
 
-      const sql = `
+    const sql = `
 				SELECT
 					ca.*,
 					b.username as builder_username,
@@ -348,31 +335,28 @@ export class AuditRepository {
 				${limitClause}
 			`
 
-      const result = await execute({ sql, args })
+    const result = await execute({ sql, args })
 
-      return result.rows.map((row: Record<string, unknown>) => ({
-        id: Number(row.id),
-        hive_username: String(row.hive_username),
-        operation: String(row.operation),
-        amount: Number(row.amount),
-        reason: row.reason ? String(row.reason) : null,
-        performed_by: row.performed_by ? String(row.performed_by) : null,
-        external_reference:
-          typeof row.external_reference === 'string'
-            ? row.external_reference
-            : null,
-        timestamp: String(row.timestamp),
-        builder_username: String(row.builder_username),
-        performed_by_username: row.performed_by_username
-          ? String(row.performed_by_username)
+    return result.rows.map((row: Record<string, unknown>) => ({
+      id: Number(row.id),
+      hive_username: String(row.hive_username),
+      operation: String(row.operation),
+      amount: Number(row.amount),
+      reason: row.reason ? String(row.reason) : null,
+      performed_by: row.performed_by ? String(row.performed_by) : null,
+      external_reference:
+        typeof row.external_reference === 'string'
+          ? row.external_reference
           : null,
-        performed_by_role: row.performed_by_role
-          ? String(row.performed_by_role)
-          : null,
-      }))
-    } catch (error) {
-      throw error
-    }
+      timestamp: String(row.timestamp),
+      builder_username: String(row.builder_username),
+      performed_by_username: row.performed_by_username
+        ? String(row.performed_by_username)
+        : null,
+      performed_by_role: row.performed_by_role
+        ? String(row.performed_by_role)
+        : null,
+    }))
   }
 
   /**
@@ -388,36 +372,32 @@ export class AuditRepository {
    * Get count of actions by type (tickets)
    */
   async getTicketActionStats(): Promise<Record<AuditAction, number>> {
-    try {
-      const result = await execute({
-        sql: `
+    const result = await execute({
+      sql: `
 					SELECT
 						action,
 						COUNT(*) as count
 					FROM TicketAudit
 					GROUP BY action
 				`,
-        args: [],
-      })
+      args: [],
+    })
 
-      const stats = {
-        create: 0,
-        update: 0,
-        delete: 0,
-        uses_adjusted: 0,
-        revoked: 0,
-        restored: 0,
-        archived: 0,
-      }
-
-      for (const row of result.rows) {
-        if (isAuditAction(row.action)) stats[row.action] = Number(row.count)
-      }
-
-      return stats
-    } catch (error) {
-      throw error
+    const stats = {
+      create: 0,
+      update: 0,
+      delete: 0,
+      uses_adjusted: 0,
+      revoked: 0,
+      restored: 0,
+      archived: 0,
     }
+
+    for (const row of result.rows) {
+      if (isAuditAction(row.action)) stats[row.action] = Number(row.count)
+    }
+
+    return stats
   }
 
   /**
@@ -427,23 +407,19 @@ export class AuditRepository {
     ticketLogs: number
     creditLogs: number
   }> {
-    try {
-      const ticketResult = await execute({
-        sql: 'SELECT COUNT(*) as count FROM TicketAudit',
-        args: [],
-      })
+    const ticketResult = await execute({
+      sql: 'SELECT COUNT(*) as count FROM TicketAudit',
+      args: [],
+    })
 
-      const creditResult = await execute({
-        sql: 'SELECT COUNT(*) as count FROM CreditAudit',
-        args: [],
-      })
+    const creditResult = await execute({
+      sql: 'SELECT COUNT(*) as count FROM CreditAudit',
+      args: [],
+    })
 
-      return {
-        ticketLogs: Number(ticketResult.rows[0]?.count || 0),
-        creditLogs: Number(creditResult.rows[0]?.count || 0),
-      }
-    } catch (error) {
-      throw error
+    return {
+      ticketLogs: Number(ticketResult.rows[0]?.count || 0),
+      creditLogs: Number(creditResult.rows[0]?.count || 0),
     }
   }
 }
