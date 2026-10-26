@@ -8,11 +8,11 @@ const { ensureTimingMatured } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/utils/pow-solver', () => ({
-  obtainPowSolution: vi.fn(async () => ({
-    challengeId: 'challenge-1',
-    nonce: 'nonce-1',
+  obtainPowBundle: vi.fn(async () => ({
+    pow: { challengeId: 'challenge-1', nonce: 'nonce-1' },
+    timingTokenId: 'timing-1',
+    tokenFetchedAt: 1_000,
   })),
-  fetchTimingToken: vi.fn(async () => 'timing-1'),
 }))
 
 vi.mock('@/utils/timing-maturation', () => ({ ensureTimingMatured }))
@@ -38,8 +38,10 @@ describe('recoverCreationSessionForKeyConfirmation', () => {
     ).resolves.toBe(true)
 
     expect(ensureTimingMatured).toHaveBeenCalledWith(
-      expect.any(Number),
-      TIMING_THRESHOLDS.flow
+      1_000,
+      TIMING_THRESHOLDS.flow,
+      100,
+      undefined
     )
     expect(JSON.parse(requestBody)).toEqual({
       username: 'alice',
