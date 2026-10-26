@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
 import { initializeDatabase, db } from '@/lib/database'
 import { hiveAuthEmail } from '@/lib/auth-user'
 import {
@@ -36,6 +37,10 @@ const TICKET = `SIMT${RUN.slice(0, 12).toUpperCase()}`
 const BUILDER_ID = crypto.randomUUID()
 const BUILDER_USERNAME = `simb${RUN.slice(0, 10)}`
 const BUILDER_EMAIL = hiveAuthEmail(BUILDER_USERNAME)
+const SIMULATED_TRANSACTION_ID = createHash('sha256')
+  .update('holahive-simulated-account-creation')
+  .digest('hex')
+  .slice(0, 40)
 
 async function currentTestLease(
   correlationId: string
@@ -246,10 +251,23 @@ describe('simulation DB completion', () => {
     const reserved = await reserveTicketCredit(reserveInput('corr-1', username))
     expect(reserved.success).toBe(true)
 
-    const completed = await completeAccountCreationInDB(
-      'corr-1',
-      simulatedTx('tx-sim-1')
+    const transaction = simulatedTx(SIMULATED_TRANSACTION_ID)
+    expect(transaction.id).toMatch(/^[\da-f]{40}$/u)
+
+    const preparedLease = await persistAttemptPreparation('corr-1', {
+      id: transaction.id,
+      expiration: '2030-01-01T00:00:00',
+      wax: transaction.wax,
+    })
+    if (!preparedLease) throw new Error('Test attempt preparation failed')
+
+    const persistedLease = await persistAttemptBroadcastOutcomeWithLease(
+      preparedLease,
+      transaction
     )
+    if (!persistedLease) throw new Error('Test transaction persistence failed')
+
+    const completed = await completeAccountCreationInDB('corr-1', transaction)
     expect(completed.success).toBe(true)
 
     const account = await db.execute({
@@ -259,12 +277,12 @@ describe('simulation DB completion', () => {
     expect(account.rows[0]?.execution_mode).toBe('simulate')
     expect(account.rows[0]?.blockchain_status).toBe('simulated')
     expect(account.rows[0]?.wax_status).toBe('passed')
-    expect(account.rows[0]?.transaction_id).toBe('tx-sim-1')
+    expect(account.rows[0]?.transaction_id).toBe(SIMULATED_TRANSACTION_ID)
     expect(await getAccountCreationAttempt(username)).toMatchObject({
       correlationId: 'corr-1',
       username,
       executionMode: 'simulate',
-      transactionId: 'tx-sim-1',
+      transactionId: SIMULATED_TRANSACTION_ID,
       keys: keysFor(username),
       status: 'completed',
     })
@@ -282,6 +300,8 @@ describe('simulation DB completion', () => {
     })
     expect(events.rows.map(row => row.event_type)).toEqual([
       'reserved',
+      'prepared',
+      'broadcast_result',
       'completed',
     ])
     const creditConsumption = await db.execute({
