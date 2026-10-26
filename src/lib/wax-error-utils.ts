@@ -4,6 +4,7 @@
  */
 
 import { AppErrorCode } from '@/consts/errors'
+import type { BlockchainErrorCode } from '@/consts/unified-errors'
 import {
   WaxError,
   WaxChainApiError,
@@ -13,7 +14,7 @@ import {
   WaxAssertionError,
   WaxProtocolAssertionError,
   WaxChainAssertionError,
-  WaxNon_2XX_3XX_ResponseCodeError,
+  WaxNon_2XX_3XX_ResponseCodeError as WaxNon2XX3XXResponseCodeError,
   WaxUnknownRequestError,
   WaxMalformedJsonError,
   WaxHealthCheckerError,
@@ -28,14 +29,14 @@ const INTERNAL_ERROR_EXCEPTION = 'internal_error_exception'
 export interface WaxErrorInfo {
   readonly name: string
   readonly message: string
-  readonly code: AppErrorCode
+  readonly code: BlockchainErrorCode
   readonly isRetryable: boolean
   readonly category: 'network' | 'api' | 'business' | 'unknown'
 }
 
 const KNOWN_ERROR_PATTERNS: Array<{
   readonly pattern: RegExp
-  readonly code: AppErrorCode
+  readonly code: BlockchainErrorCode
   readonly category: WaxErrorInfo['category']
   readonly isRetryable: boolean
 }> = [
@@ -108,7 +109,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function classifyByInstance(error: unknown): WaxErrorInfo['category'] | null {
   if (error instanceof WaxRequestTimeoutError) return 'network'
   if (error instanceof WaxRequestAbortedByUser) return 'network'
-  if (error instanceof WaxNon_2XX_3XX_ResponseCodeError) return 'network'
+  if (error instanceof WaxNon2XX3XXResponseCodeError) return 'network'
   if (error instanceof WaxMalformedJsonError) return 'network'
   if (error instanceof WaxUnknownRequestError) return 'network'
   if (error instanceof WaxRequestError) return 'network'
@@ -248,7 +249,7 @@ export function shouldTriggerWaxFailover(error: unknown): boolean {
   return analyzeWaxError(error).category === 'network'
 }
 
-const USER_ERROR_MESSAGES: Record<AppErrorCode, string> = {
+const USER_ERROR_MESSAGES: Record<BlockchainErrorCode, string> = {
   [AppErrorCode.ACCOUNT_NOT_EXISTS]:
     'The specified account does not exist on Hive',
   [AppErrorCode.ACCOUNT_ALREADY_EXISTS]:
@@ -280,7 +281,7 @@ export function formatWaxErrorForUser(error: unknown): string {
   return deriveUserMessage(errorInfo)
 }
 
-export function getUserMessageForCode(code: AppErrorCode): string {
+export function getUserMessageForCode(code: BlockchainErrorCode): string {
   return USER_ERROR_MESSAGES[code] || 'An unexpected error has occurred'
 }
 

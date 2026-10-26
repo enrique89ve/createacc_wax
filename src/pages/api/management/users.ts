@@ -68,15 +68,16 @@ export const POST: APIRoute = async context => {
         readonly hive_username?: string
       }
 
-      const { hive_username, amount } = data as BuilderCreateRequest & {
-        amount?: number
-      }
+      const { hive_username: hiveUsername, amount } =
+        data as BuilderCreateRequest & {
+          amount?: number
+        }
 
-      if (!hive_username || hive_username.length < 3) {
+      if (!hiveUsername || hiveUsername.length < 3) {
         return apiError('Hive username debe tener al menos 3 caracteres', 400)
       }
 
-      const cleanUsername = hive_username.trim().toLowerCase()
+      const cleanUsername = hiveUsername.trim().toLowerCase()
 
       // Validate credit limits
       let initialCredits = 100 // default value

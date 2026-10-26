@@ -36,16 +36,16 @@ export class UsersRepository {
    */
   async create({
     username,
-    password_hash,
+    password_hash: passwordHash,
     role,
     is_active: _isActive,
   }: CreateUserData): Promise<DatabaseUserRow> {
-    if (role !== UserRole.Admin || !password_hash) {
+    if (role !== UserRole.Admin || !passwordHash) {
       throw new Error('Only admin users can be persisted')
     }
     const id = await insertAdminUser({
       username,
-      passwordHash: password_hash,
+      passwordHash,
     })
     const createdUser = await this.getById(id)
     if (!createdUser) {

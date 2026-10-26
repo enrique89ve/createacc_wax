@@ -11,12 +11,11 @@ import {
 
 // Re-exportar códigos blockchain como AppErrorCode para compatibilidad
 export const AppErrorCode = BLOCKCHAIN_ERROR_CODES
-export type AppErrorCode = BlockchainErrorCode
 
 // Clase AppError que extiende UnifiedError para mantener compatibilidad
 export class AppError extends UnifiedError {
   constructor(
-    public readonly code: AppErrorCode,
+    public readonly code: BlockchainErrorCode,
     message?: string,
     public readonly cause?: Error
   ) {

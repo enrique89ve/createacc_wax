@@ -158,11 +158,11 @@ export async function checkConsistency(
   const breakdown = await calculateBreakdown(hiveUsername)
   const calculatedAvailable = calculateExpectedAvailable(breakdown)
 
-  const critical_issues: string[] = []
-  const warning_issues: string[] = []
+  const criticalIssues: string[] = []
+  const warningIssues: string[] = []
 
   if (calculatedAvailable !== stored.available_amount) {
-    critical_issues.push(
+    criticalIssues.push(
       `inconsistent available_amount: expected ${calculatedAvailable}, actual ${stored.available_amount}`
     )
   }
@@ -171,16 +171,16 @@ export async function checkConsistency(
     breakdown.assigned + breakdown.granted_available !==
     stored.total_issued
   ) {
-    warning_issues.push(
+    warningIssues.push(
       `inconsistent total_issued: expected ${breakdown.assigned + breakdown.granted_available}, actual ${stored.total_issued}`
     )
   }
 
   return {
     hive_username: hiveUsername,
-    is_consistent: critical_issues.length === 0,
-    critical_issues,
-    warning_issues,
+    is_consistent: criticalIssues.length === 0,
+    critical_issues: criticalIssues,
+    warning_issues: warningIssues,
     calculated_available: calculatedAvailable,
     stored_available: stored.available_amount,
     difference: stored.available_amount - calculatedAvailable,
