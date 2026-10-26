@@ -27,6 +27,9 @@ export default [
       // Ajustes específicos si es necesario
       'astro/no-conflict-set-directives': 'error',
       'astro/no-unused-define-vars-in-style': 'error',
+      // Astro frontmatter is type-checked by `astro check`; ESLint's no-undef
+      // cannot resolve TypeScript-only DOM types such as HTMLElementTagNameMap.
+      'no-undef': 'off',
       // Deshabilitar reglas de React que no aplican a Astro
       'react/jsx-key': 'off',
       'react/self-closing-comp': 'off',
@@ -55,6 +58,15 @@ export default [
       'scripts/**/*',
       'src/**/*.test.ts',
       'vitest.config.ts',
+      '.vercel/**/*',
+      '.summarize-tmp/**/*',
+      '.cache/**/*',
+      '.vscode/**/*',
+      '.idea/**/*',
+      '.env',
+      '.env.*',
+      'pnpm-lock.yaml',
+      'package-lock.json',
     ],
   },
 ]
