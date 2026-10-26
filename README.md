@@ -3,8 +3,7 @@
 Free Hive accounts with browser-generated private keys.
 
 Built with Astro 7, Better Auth, and `@hiveio/wax`. The account-creation flow
-generates private keys client-side and sends public keys to the server. See the
-[readiness audit](docs/production-readiness-audit.md) for verified paths and open checks.
+generates private keys client-side and sends public keys to the server.
 
 ---
 
@@ -14,26 +13,26 @@ Five phases. Ship, learn, finish.
 
 |       | Phase        | What we do                                                                       | Done when                                             |
 | ----- | ------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **1** | **Build**    | Stand up the core. Create accounts. Keep keys local. Auth that holds.            | The product works end to end.                         |
+| **1** | **Build**    | Close the simulated-pilot gates, then run an invite-only pilot on a deployed instance. Keep user keys local. | People can complete the simulated flow and give useful feedback without believing a Hive account was created. |
 | **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition. | New users finish without a guide.                     |
 | **3** | **Prove**    | Lock v1. Test with the Hive community.                                           | Community can create accounts without us in the loop. |
 | **4** | **Attract**  | Turn the site into a growth surface, not a form.                                 | The page itself pulls people in.                      |
 | **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                           | We would hand this to a stranger.                     |
 
-We are in **phase 1**. **Not ready for public production** as of 2026-10-23.
+We are in **phase 1**. The next milestone is a **closed simulated pilot**; it is
+not a public launch and does not create Hive accounts. The app is **not ready to
+invite participants yet**: the success page currently says an account was
+created even in simulation, and there is no remote pilot deployment. Complete
+the simulated-pilot gates before inviting participants.
 
-The [production roadmap](docs/production-roadmap.md) tracks release blockers,
-dependencies, and acceptance criteria. The
-[readiness audit](docs/production-readiness-audit.md) records current evidence:
-the Node 24.22.1 container builds and starts locally, the home and health routes
-return 200, and 266/267 unit tests pass. The `transactionId` contract and global
-lint remain open; real Hive broadcast and remote deployment are unverified.
-
-Priorities are dependency fixes, account finality,
-complete ES/EN/PT copy, and a tested persistent Node deployment. Dokploy + SQLite
-is the proposed first target; Turso remote and Vercel are conditional paths in
-the roadmap. JEV's six bounded judgments were grouped into
-[one saved request](docs/production-audit-jev.json).
+The simulated pilot is separate from a real Hive launch. The latest documented
+local validation is dated 2026-10-25: `pnpm verify` passes with 282/282 tests,
+and a Node 24.22.1 container builds and starts locally. No remote deployment,
+participant pilot, restore, or real Hive broadcast has been validated. Dokploy
+with one persistent Node process, SQLite, and one replica is the proposed first
+target. Turso and Vercel are conditional alternatives. JEV's six bounded
+judgments are saved in
+[one request](docs/production-audit-jev.json).
 
 ---
 
@@ -151,8 +150,6 @@ Tickets persist `total_uses`, `remaining_uses`, and optional `revoked_at`. `used
 
 Ticket mutations belong to Builders: their Hive username is the ticket creator and Builder credits are exchanged one-to-one for ticket uses. The management console exposes tickets for inspection only; Admins assign Builder credits but do not create or delete tickets directly.
 
-See [AUTH closure and transaction follow-up](docs/auth-closure.md) for scope and remaining production validation.
-
 ---
 
 ## Layout
@@ -179,7 +176,6 @@ scripts/         DB + admin
 ## Security
 
 - Account keys generated in browser memory; creation requests carry public keys.
-  See the [privacy evidence and remaining checks](docs/production-readiness-audit.md#privacidad-de-claves-del-usuario).
 - Admin passwords: bcrypt.
 - Creation cookies: HMAC-SHA256.
 - Admin sessions: Better Auth (`user` / `session` in libsql), `AUTH_SECRET`. Builder sessions: signed HttpOnly cookies.
