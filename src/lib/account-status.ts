@@ -41,8 +41,9 @@ export function parseExecutionMode(value: unknown): HiveExecutionMode {
 
 export function parseBlockchainStatus(value: unknown): BlockchainStatus {
   if (value === BLOCKCHAIN_STATUS.SIMULATED) return BLOCKCHAIN_STATUS.SIMULATED
-  if (value === BLOCKCHAIN_STATUS.BROADCASTED)
+  if (value === BLOCKCHAIN_STATUS.BROADCASTED) {
     return BLOCKCHAIN_STATUS.BROADCASTED
+  }
   if (value === BLOCKCHAIN_STATUS.CONFIRMED) return BLOCKCHAIN_STATUS.CONFIRMED
   return BLOCKCHAIN_STATUS.FAILED
 }

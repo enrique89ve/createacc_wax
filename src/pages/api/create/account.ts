@@ -177,8 +177,9 @@ async function reclaimOpenAttemptForRetry(
   const open = await getOpenCreationAttemptByUsername(request.username)
   if (!open) return
   const keys = keysFromRequest(request)
-  if (open.executionMode !== session.executionMode)
+  if (open.executionMode !== session.executionMode) {
     return creationIntentConflict()
+  }
   if (!sameAttemptIdentity(open, session.ticket, keys)) {
     return creationInProgressResponse(request.username, open.correlationId)
   }
@@ -520,21 +521,24 @@ async function checkSessionAndIdempotency(
         creationSession.ticket,
         keysFromRequest(request)
       )
-    )
+    ) {
       return creationIntentConflict()
+    }
 
     const response = await idempotentSuccessResponse(
       `Account ${username} ${VALIDATION_ERROR_MESSAGES.ACCOUNT_ALREADY_EXISTS}`,
       existingAccount
     )
-    if (response.status === HTTP_STATUS.OK)
+    if (response.status === HTTP_STATUS.OK) {
       finalizeSession(context, creationSession)
+    }
     return response
   }
   if (creationSession.accountCreated) return creationIntentConflict()
   const open = await getOpenCreationAttemptByUsername(username)
-  if (open && open.executionMode !== executionMode)
+  if (open && open.executionMode !== executionMode) {
     return creationIntentConflict()
+  }
   return creationSession
 }
 
@@ -1192,8 +1196,9 @@ export const POST: APIRoute = async context => {
         requestResult
       )
       if (reclaimed instanceof Response) {
-        if (reclaimed.status === HTTP_STATUS.OK)
+        if (reclaimed.status === HTTP_STATUS.OK) {
           finalizeSession(context, sessionResult)
+        }
         return reclaimed
       }
 
@@ -1214,8 +1219,9 @@ export const POST: APIRoute = async context => {
         executionMode
       )
       if (creation instanceof Response) {
-        if (creation.status === HTTP_STATUS.OK)
+        if (creation.status === HTTP_STATUS.OK) {
           finalizeSession(context, sessionResult)
+        }
         return creation
       }
       const { tx: txResult, lease } = creation

@@ -19,7 +19,7 @@ const displayUsername = builderUser?.username ?? ''
 const isAuthenticated = !!builderUser
 
 // Get user credits if authenticated and registered (pending builders default to 0)
-let userCredits: number | undefined = undefined
+let userCredits: number | undefined
 
 if (builderUser) {
   try {
@@ -41,7 +41,7 @@ const builderCreditsAttribute =
 <Base
   title={`${title} - ${TITLE_SUFFIXES.BUILDERS}`}
   description={`${BRAND.NAME} - Área de Builders`}
-  noindex={true}
+  noindex
   htmlClass="dark"
   bodyAttributes={{ 'data-builder-credits': builderCreditsAttribute }}
 >

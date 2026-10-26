@@ -7,6 +7,7 @@ import type {
   CreditAuditLog,
 } from '@/lib/repositories/audit-repository'
 import { isAuditAction } from '@/types/database'
+import { logger } from '@/lib/logger'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -75,7 +76,7 @@ try {
   }
 } catch (loadError) {
   error = 'Error al cargar los logs'
-  console.error('Error loading logs:', loadError)
+  logger.error('Error loading logs:', loadError)
 }
 
 // Helper para obtener badge de acción

@@ -4,6 +4,7 @@ import { formatDateTime } from '@/utils/date-formatters'
 import { accountsRepository } from '@/lib/repositories/accounts-repository'
 import type { DatabaseAccountRow } from '@/types/database'
 import { toAccountStatusLabel } from '@/lib/account-status'
+import { logger } from '@/lib/logger'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
@@ -60,7 +61,7 @@ try {
   }
 } catch (loadError) {
   error = 'Error al cargar las cuentas'
-  console.error('Error loading accounts:', loadError)
+  logger.error('Error loading accounts:', loadError)
 }
 ---
 
