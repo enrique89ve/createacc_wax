@@ -11,13 +11,13 @@ generates private keys client-side and sends public keys to the server.
 
 Five phases. Ship, learn, finish.
 
-|       | Phase        | What we do                                                                       | Done when                                             |
-| ----- | ------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+|       | Phase        | What we do                                                                                                   | Done when                                                                                                     |
+| ----- | ------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
 | **1** | **Build**    | Close the simulated-pilot gates, then run an invite-only pilot on a deployed instance. Keep user keys local. | People can complete the simulated flow and give useful feedback without believing a Hive account was created. |
-| **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition. | New users finish without a guide.                     |
-| **3** | **Prove**    | Lock v1. Test with the Hive community.                                           | Community can create accounts without us in the loop. |
-| **4** | **Attract**  | Turn the site into a growth surface, not a form.                                 | The page itself pulls people in.                      |
-| **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                           | We would hand this to a stranger.                     |
+| **2** | **Friction** | Watch real users stall. Kill the dead ends. Rebuild the idea around acquisition.                             | New users finish without a guide.                                                                             |
+| **3** | **Prove**    | Lock v1. Test with the Hive community.                                                                       | Community can create accounts without us in the loop.                                                         |
+| **4** | **Attract**  | Turn the site into a growth surface, not a form.                                                             | The page itself pulls people in.                                                                              |
+| **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                                                       | We would hand this to a stranger.                                                                             |
 
 We are in **phase 1**. The next milestone is a **closed simulated pilot**; it is
 not a public launch and does not create Hive accounts. The app is **not ready to
@@ -25,16 +25,68 @@ invite participants yet**: the success page currently says an account was
 created even in simulation, and there is no remote pilot deployment. Complete
 the simulated-pilot gates before inviting participants.
 
-The simulated pilot is separate from a real Hive launch. The latest documented
-local validation is dated 2026-10-25: `pnpm verify` passes with 282/282 tests,
-and a Node 24.22.1 container builds and starts locally. No remote deployment,
-participant pilot, restore, or real Hive broadcast has been validated. Dokploy
-with one persistent Node process, SQLite, and one replica is the proposed first
-target. Turso and Vercel are conditional alternatives. JEV's six bounded
-judgments are saved in
-[one request](docs/production-audit-jev.json).
+The simulated pilot is separate from a real Hive launch. Local tests and builds
+do not validate a remote deployment, a participant pilot, backup restoration,
+or real Hive broadcasts. The Docker configuration targets one persistent Node
+process with SQLite and one replica. A remote database requires its own
+deployment and consistency validation.
 
 ---
+
+## Personal invitations
+
+`/invite` lets a person sign in with GitHub or X and receive a personal link into
+the existing account-creation flow. Each provider identity receives one ticket
+with one use. Signing in again recovers that ticket, including an in-progress
+or completed creation. The campaign has a total issuance cap; it does not reset
+daily and recovering a ticket does not consume another place.
+
+Configure these private runtime variables (see `.env.example`):
+
+```dotenv
+INVITE_IDENTITY_SECRET=  # 64 hex characters; generate once: openssl rand -hex 32
+AUTH_SECRET=            # at least 32 characters; different from the identity secret
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=
+BETTER_AUTH_URL=https://join.holahive.com
+AUTH_ORIGIN=https://join.holahive.com
+```
+
+Register the exact OAuth callbacks under that origin:
+
+- `/api/invite/auth/callback/github`
+- `/api/invite/auth/callback/twitter`
+
+GitHub uses `read:user`; X uses `users.read` and `tweet.read`. The application
+does not require the person's email or retain provider access tokens. Better
+Auth handles OAuth state/PKCE and an encrypted invitation-session cookie, which
+is separate from the administrator's authentication. Public invitation auth
+routes do not expose profile updates, account linking or password registration.
+
+With the base database initialized, run `pnpm invite:init` once against the
+intended database. This explicitly adds the invitation tables and a ticket
+invariant trigger without changing existing account or ticket data. Existing
+deployments are not migrated by invitation HTTP requests. Keep the identity
+secret in backups: changing it changes every identity fingerprint, and the
+database rejects a mismatching key. Do not reset the ledger between campaigns.
+
+After initialization, administrators can activate or pause the campaign and
+set its total issuance cap at `/management/invites`. New campaigns start
+paused with a cap of zero; previously issued invitations remain recoverable.
+
+The ledger stores a provider-scoped HMAC fingerprint, a hash of the opaque link
+token and the ticket reference. The encrypted session also carries the public
+provider username for the welcome message. Opening the personal link and
+consuming its ticket require the matching verified social session; sharing the
+link or copying its code does not transfer access. Sessions expire after one
+hour; sign in again at `/invite` to recover the same invitation. Existing creation
+reservations, rollback and uncertain transaction reconciliation remain
+authoritative; viewing a link never spends it.
+
+The allowance is per social account. It does not establish that accounts from
+different providers, or several accounts on one provider, belong to one person.
 
 ## Stack
 
@@ -53,6 +105,9 @@ nvm use
 pnpm install
 cp .env.example .env.local
 ```
+
+The package manager is pinned in `package.json` (`pnpm@11.22.0`). Use
+`pnpm install --frozen-lockfile` when reproducing the committed dependency set.
 
 Required configuration (`.env.local` for development; inject environment variables
 before starting the production process):
@@ -89,7 +144,9 @@ The Docker image uses `/data/holahive.db` by default. Mount `/data` as a persist
 Dokploy volume and keep one application replica while SQLite is authoritative.
 `GET /api/health` checks database connectivity without contacting Hive.
 
-Schema is defined in `src/lib/database.ts`. There are no incremental migrations.
+The base schema is defined in `src/lib/database.ts`. There is no general
+incremental migration runner; invitations have a separate, explicit additive
+initializer (`pnpm invite:init`).
 Before pointing a deployment at an existing database, run `pnpm db:diagnose`.
 `pnpm db:init` is for an empty database or an already compatible schema; it does
 not migrate old table layouts. `pnpm db:reset` deletes the local database and is
@@ -101,6 +158,11 @@ SEED_ADMIN_PASSWORD="..." pnpm db:seed   # optional, on a fresh local DB only
 pnpm admin:create      # or ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create
 pnpm dev               # runs db:init, then astro dev
 ```
+
+`pnpm dev` and `pnpm invite:init` load `.env.local`. Standalone DB and admin
+commands use the process environment: export the required variables first,
+especially `DATABASE_URL` when targeting a nondefault database. Never run reset
+or seed commands against an existing deployment.
 
 One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 
@@ -114,6 +176,7 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 | `pnpm build`         | Production build                                                                            |
 | `pnpm preview`       | Preview production build                                                                    |
 | `pnpm db:init`       | Apply current schema (`CREATE IF NOT EXISTS`)                                               |
+| `pnpm invite:init`   | Initialize the personal-invitation schema; campaign starts paused                           |
 | `pnpm db:diagnose`   | Read-only schema/version preflight and consistency report; exits nonzero on critical issues |
 | `pnpm db:reset`      | Delete local DB and recreate schema; disposable development data only                       |
 | `pnpm db:seed`       | Test data (`SEED_ADMIN_PASSWORD` required)                                                  |
@@ -122,9 +185,19 @@ One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
 | `pnpm admin:reset`   | Rotate admin password                                                                       |
 | `pnpm admin:check`   | Admin status                                                                                |
 
-## Validaciones internas
+## Validation
 
-No hay GitHub Actions. Las comprobaciones se corren en local:
+Checks run locally; this repository has no GitHub Actions workflow. Run tests
+against a disposable SQLite database, with no real Hive broadcast:
+
+```bash
+validation_dir=$(mktemp -d)
+DATABASE_URL="file:$validation_dir/tests.db" HIVE_TX_MODE=simulate pnpm verify
+pnpm build
+```
+
+Build with synthetic credentials or no local secret file when inspecting
+generated assets. Production secrets belong in the running server environment.
 
 | Command                  |                                                                                                              |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -148,7 +221,19 @@ Blocking a Hive username denies Builder access and consumption of its existing t
 
 Tickets persist `total_uses`, `remaining_uses`, and optional `revoked_at`. `used_uses`, `kind` (`single_use`/`multi_use`) and lifecycle status are derived from those facts. A revoked ticket retains its remaining uses and can be restored without changing balances.
 
-Ticket mutations belong to Builders: their Hive username is the ticket creator and Builder credits are exchanged one-to-one for ticket uses. The management console exposes tickets for inspection only; Admins assign Builder credits but do not create or delete tickets directly.
+Builders exchange credits one-to-one for ticket uses and manage their own
+tickets. Admins assign Builder credits and can issue audited system-funded
+single-use tickets. Personal invitations also use system-funded tickets and
+enforce social-identity ownership during reservation. The campaign controls
+belong exclusively to Admins; Builders cannot activate it or change its cap.
+
+## Repository hygiene
+
+Only the root README is published as Markdown documentation. Internal plans,
+audit requests, agent settings, browser captures, generated output, databases
+and real `.env` files stay local through `.gitignore`. `.env.example` contains
+placeholders only. Review the staged file list and diff before each commit;
+ignore rules do not remove files that were already tracked.
 
 ---
 
