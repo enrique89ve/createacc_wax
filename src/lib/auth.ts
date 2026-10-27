@@ -71,6 +71,35 @@ export const auth = betterAuth({
         defaultValue: true,
         fieldName: 'is_active',
       },
+      // Admin provisioning writes this column; never accept or return it via Auth.
+      passwordHash: {
+        type: 'string',
+        required: true,
+        input: false,
+        returned: false,
+        fieldName: 'password_hash',
+      },
+    },
+  },
+  account: {
+    fields: {
+      accountId: 'account_id',
+      providerId: 'provider_id',
+      userId: 'user_id',
+      accessToken: 'access_token',
+      refreshToken: 'refresh_token',
+      idToken: 'id_token',
+      accessTokenExpiresAt: 'access_token_expires_at',
+      refreshTokenExpiresAt: 'refresh_token_expires_at',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
+  },
+  verification: {
+    fields: {
+      expiresAt: 'expires_at',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
     },
   },
   trustedOrigins: [

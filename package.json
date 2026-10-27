@@ -43,9 +43,9 @@
     "@noble/hashes": "2.3.0",
     "@tailwindcss/vite": "^4.1.12",
     "@types/bcryptjs": "^3.0.0",
-    "astro": "^7.2.3",
+    "astro": "^7.2.8",
     "bcryptjs": "^3.0.2",
-    "better-auth": "1.7.1",
+    "better-auth": "1.7.14",
     "tailwindcss": "^4.1.12",
     "tsx": "^4.20.4",
     "typescript": "^5.9.2"
