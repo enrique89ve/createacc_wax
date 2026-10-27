@@ -1,7 +1,6 @@
 ---
 // Minimal navbar: logo on the left, "+ Post" button only on /success/* pages
 // Determine if the current route includes "/success/".
-import { Image } from 'astro:assets'
 import hiveLogo from '@/assets/hive.svg'
 import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
 const currentPath: string = Astro.url.pathname
@@ -19,7 +18,13 @@ const isSuccess: boolean = currentPath.startsWith('/success/')
       href="/"
       class="text-foreground flex items-center gap-2 font-medium tracking-tight transition-opacity hover:opacity-90"
     >
-      <Image src={hiveLogo} alt="Hive" class="h-8 w-auto" />
+      <img
+        src={hiveLogo.src}
+        alt="Hive"
+        width={hiveLogo.width}
+        height={hiveLogo.height}
+        class="h-8 w-auto"
+      />
     </a>
     <div class="flex items-center gap-2">
       {isHome && <LocaleSwitch />}

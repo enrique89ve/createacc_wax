@@ -1,0 +1,29 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import CreationStepper from '@/components/ui/CreationStepper.astro'
+import Form from '@/components/Form.astro'
+import { getMessages, DEFAULT_LOCALE } from '@/i18n'
+import { getInvitePageState } from '@/lib/invite/page-state'
+import { hashInviteToken } from '@/lib/invite/crypto'
+
+Astro.response.headers.set('Cache-Control', 'no-store')
+Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+
+const state = await getInvitePageState(Astro.request)
+const token = Astro.params.token ?? ''
+if (
+  !hashInviteToken(token) ||
+  state.kind !== 'available' ||
+  new URL(state.url).pathname !== `/invite/${token}`
+) {
+  return Astro.redirect('/invite')
+}
+const copy = Astro.locals.messages ?? getMessages(DEFAULT_LOCALE)
+---
+
+<Layout title={copy.home.title} description={copy.home.metaDescription} noindex>
+  <div class="pt-6"><CreationStepper /></div>
+  <div class="mt-10">
+    <Form ticket={state.ticketCode} inviteTicketVerified />
+  </div>
+</Layout>

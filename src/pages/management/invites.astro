@@ -1,0 +1,219 @@
+---
+import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { UserRole } from '@/lib/roles'
+import { getInviteConfiguration } from '@/lib/invite/config'
+import { getInviteCampaignSettings } from '@/lib/invite/campaign-settings'
+import { hasInviteSchema, requireInviteSchemaKey } from '@/lib/invite/schema'
+import { logger } from '@/lib/logger'
+
+const session = Astro.locals.adminUser
+if (!session || session.role !== UserRole.Admin) {
+  return Astro.redirect('/management/access')
+}
+
+const configuration = getInviteConfiguration()
+let settings: Awaited<ReturnType<typeof getInviteCampaignSettings>> | null =
+  null
+let setupReady = false
+let setupError =
+  'Configura el secreto de invitaciones en el entorno del servidor.'
+const providers = {
+  github: Boolean(configuration?.providers.github),
+  twitter: Boolean(configuration?.providers.twitter),
+}
+
+try {
+  if (configuration && (await hasInviteSchema())) {
+    await requireInviteSchemaKey(configuration.identitySecret)
+    settings = await getInviteCampaignSettings()
+    setupReady = true
+  } else if (configuration) {
+    setupError =
+      'Ejecuta pnpm invite:init en la base de datos de esta instalación.'
+  }
+} catch (error) {
+  logger.warn('[invite] Admin campaign settings are unavailable')
+  setupError =
+    error instanceof Error && error.message.includes('identity key')
+      ? 'La clave de invitaciones no coincide con la base. Recupera la clave original antes de continuar.'
+      : 'No fue posible leer la configuración de invitaciones.'
+}
+---
+
+<ManagementLayout title="Invitaciones personales" activeTab="invites">
+  <section
+    class="bg-card border-border mx-auto max-w-3xl rounded-xl border p-5 sm:p-7"
+  >
+    <div class="mb-6">
+      <p class="text-primary text-sm font-semibold">Campaña</p>
+      <h2 class="text-foreground mt-1 text-2xl font-bold">
+        Invitaciones personales
+      </h2>
+      <p class="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
+        Activa o pausa el acceso y define el total de enlaces que se pueden
+        emitir. Los enlaces ya emitidos siguen disponibles para sus
+        propietarios.
+      </p>
+    </div>
+
+    {
+      setupReady && settings ? (
+        <>
+          <div class="border-border mb-6 rounded-lg border p-4">
+            <h3 class="text-foreground text-sm font-semibold">
+              Proveedores configurados
+            </h3>
+            <ul class="text-muted-foreground mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <li class="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  class={
+                    providers.github
+                      ? 'text-emerald-500'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {providers.github ? '●' : '○'}
+                </span>
+                GitHub {providers.github ? 'disponible' : 'sin credenciales'}
+              </li>
+              <li class="flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  class={
+                    providers.twitter
+                      ? 'text-emerald-500'
+                      : 'text-muted-foreground'
+                  }
+                >
+                  {providers.twitter ? '●' : '○'}
+                </span>
+                X {providers.twitter ? 'disponible' : 'sin credenciales'}
+              </li>
+            </ul>
+          </div>
+
+          <form
+            id="invite-campaign-form"
+            data-revision={settings.revision}
+            data-provider-ready={
+              providers.github || providers.twitter ? 'true' : 'false'
+            }
+            class="space-y-5"
+          >
+            <div>
+              <label
+                for="invite-campaign-limit"
+                class="text-foreground mb-2 block text-sm font-medium"
+              >
+                Cupo total de la campaña
+              </label>
+              <input
+                id="invite-campaign-limit"
+                name="total_limit"
+                type="number"
+                min="0"
+                max="1000000"
+                step="1"
+                required
+                value={settings.totalLimit}
+                class="bg-background border-border text-foreground focus:border-primary focus:ring-primary min-h-12 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1 sm:max-w-xs"
+                aria-describedby="invite-campaign-count invite-campaign-limit-help"
+              />
+              <p
+                id="invite-campaign-count"
+                class="text-muted-foreground mt-2 text-sm"
+              >
+                {settings.issuedCount} enlaces emitidos de {settings.totalLimit}
+                .
+              </p>
+              <p
+                id="invite-campaign-limit-help"
+                class="text-muted-foreground mt-1 text-xs"
+              >
+                Usa 0 para impedir nuevas emisiones. Las invitaciones existentes
+                se conservan.
+              </p>
+            </div>
+
+            <div class="border-border flex items-start gap-3 rounded-lg border p-4">
+              <input
+                id="invite-campaign-enabled"
+                name="enabled"
+                type="checkbox"
+                checked={settings.enabled}
+                class="border-border text-primary focus:ring-primary mt-1 h-4 w-4 rounded"
+              />
+              <div>
+                <label
+                  for="invite-campaign-enabled"
+                  class="text-foreground text-sm font-medium"
+                >
+                  Campaña activa
+                </label>
+                <p class="text-muted-foreground mt-1 text-xs leading-relaxed">
+                  Al pausar, no se emiten enlaces nuevos. Quienes ya tengan uno
+                  pueden continuar.
+                </p>
+              </div>
+            </div>
+
+            {!providers.github && !providers.twitter && (
+              <p class="text-sm text-amber-500" role="status">
+                Configura las credenciales GitHub o X en el entorno antes de
+                activar la campaña. Puedes pausarla desde aquí.
+              </p>
+            )}
+
+            <div>
+              <label
+                for="invite-campaign-reason"
+                class="text-foreground mb-2 block text-sm font-medium"
+              >
+                Motivo del cambio
+              </label>
+              <input
+                id="invite-campaign-reason"
+                name="reason"
+                type="text"
+                maxlength="500"
+                required
+                placeholder="Ej. Apertura de la campaña inicial"
+                class="bg-background border-border text-foreground focus:border-primary focus:ring-primary min-h-12 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1"
+              />
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <button
+                type="submit"
+                class="bg-primary hover:bg-primary/90 focus-visible:ring-primary/40 min-h-12 rounded-md px-5 py-3 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-60"
+              >
+                Guardar configuración
+              </button>
+              <p
+                id="invite-campaign-feedback"
+                class="text-muted-foreground text-sm"
+                role="status"
+                aria-live="polite"
+              />
+            </div>
+          </form>
+        </>
+      ) : (
+        <div class="border-border bg-muted/30 rounded-lg border p-4">
+          <p class="text-foreground text-sm font-medium">
+            Configuración pendiente
+          </p>
+          <p class="text-muted-foreground mt-2 text-sm leading-relaxed">
+            {setupError}
+          </p>
+        </div>
+      )
+    }
+  </section>
+</ManagementLayout>
+
+<script>
+  import { initializeInviteCampaignSettings } from '@/lib/admin_ui/invite-campaign'
+  initializeInviteCampaignSettings()
+</script>

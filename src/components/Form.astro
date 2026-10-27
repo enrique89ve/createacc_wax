@@ -5,8 +5,9 @@ import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 interface Props {
   readonly ticket?: string
+  readonly inviteTicketVerified?: boolean
 }
-const { ticket = '' } = Astro.props as Props
+const { ticket = '', inviteTicketVerified = false } = Astro.props as Props
 const copy =
   Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
@@ -23,7 +24,11 @@ const copy =
         </h1>
       </div>
 
-      <form id="registro-form" class="space-y-6">
+      <form
+        id="registro-form"
+        data-invite-ticket-verified={inviteTicketVerified ? 'true' : undefined}
+        class="space-y-6"
+      >
         <!-- Usuario -->
         <div class="space-y-2">
           <label
@@ -95,12 +100,13 @@ const copy =
               name="ticket"
               type="text"
               value={ticket}
+              readonly={inviteTicketVerified}
               required
               autocomplete="off"
               spellcheck="false"
               inputmode="text"
               placeholder=""
-              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 min-h-12 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class={`bg-muted text-foreground placeholder:text-muted-foreground min-h-12 w-full rounded-lg border px-3 py-2 text-sm font-medium uppercase tracking-wide focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${inviteTicketVerified ? 'border-green-500 focus:border-green-500 focus:ring-green-500/40' : 'border-border focus:border-primary focus:ring-primary/40'}`}
             />
             <Button
               variant="secondary"
@@ -108,16 +114,21 @@ const copy =
               type="button"
               disabled
               aria-busy="false"
-              aria-label={copy.home.accessCodeVerify}
-              class="min-h-12 w-28 shrink-0 px-3 py-2 tracking-normal disabled:opacity-40"
+              aria-label={inviteTicketVerified
+                ? copy.home.accessCodeVerified
+                : copy.home.accessCodeVerify}
+              class={`min-h-12 w-28 shrink-0 px-3 py-2 tracking-normal disabled:opacity-40 ${inviteTicketVerified ? '!bg-green-500/10 !border-green-500 !text-green-400 !opacity-100 !cursor-default' : ''}`}
             >
               <Spinner id="ticket-apply-spinner" className="hidden" />
-              <span id="ticket-apply-label">
+              <span
+                id="ticket-apply-label"
+                class={inviteTicketVerified ? 'hidden' : undefined}
+              >
                 {copy.home.accessCodeVerify}
               </span>
               <svg
                 id="ticket-apply-icon"
-                class="hidden h-5 w-5"
+                class={inviteTicketVerified ? 'h-5 w-5' : 'hidden h-5 w-5'}
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="none"
@@ -187,6 +198,7 @@ const copy =
   import {
     applyTicket,
     handleTicketInputChange,
+    showTicketApplied,
     showTicketError,
   } from '@/lib/form/ticket-handlers'
   import { syncSubmitButton } from '@/lib/form/submit-button'
@@ -196,6 +208,7 @@ const copy =
   } from '@/lib/form/form-submit'
   import { interpolate, publicCopy } from '@/i18n'
 
+  const USERNAME_VALIDATION_DEBOUNCE_MS = 400
   let elements: FormElements | null = null
   let state: FormState = createInitialState()
   let debounceTimer: ReturnType<typeof setTimeout>
@@ -499,7 +512,11 @@ const copy =
       )
         return
 
-      const result = await validateUsername(username, getHiveChain)
+      const result = await validateUsername(
+        username,
+        getHiveChain,
+        elements.form.dataset.inviteTicketVerified === 'true'
+      )
 
       if (
         !elements ||
@@ -571,7 +588,7 @@ const copy =
           break
       }
       sync()
-    }, 300)
+    }, USERNAME_VALIDATION_DEBOUNCE_MS)
 
     setUsernameFieldState(elements, 'loading')
     state.isUsernameValid = false
@@ -792,7 +809,16 @@ const copy =
       const cleanedValue = cleanTicket(elements.ticketInput.value.trim())
       if (cleanedValue) {
         elements.ticketInput.value = cleanedValue
-        handleTicketInput()
+        const inviteTicketVerified =
+          elements.form.dataset.inviteTicketVerified === 'true'
+        if (inviteTicketVerified && validateTicket(cleanedValue) === null) {
+          showTicketApplied(elements, cleanedValue)
+          state.isTicketValid = true
+          sync()
+        } else {
+          if (inviteTicketVerified) elements.ticketInput.readOnly = false
+          handleTicketInput()
+        }
       }
     }
   }

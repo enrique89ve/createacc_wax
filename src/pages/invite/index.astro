@@ -1,0 +1,313 @@
+---
+import Layout from '@/layouts/Layout.astro'
+import { getMessages, DEFAULT_LOCALE } from '@/i18n'
+import { getInvitePageState } from '@/lib/invite/page-state'
+
+const copy = (Astro.locals.messages ?? getMessages(DEFAULT_LOCALE)).invite
+const state = await getInvitePageState(Astro.request)
+const authenticated = !['login', 'unavailable'].includes(state.kind)
+Astro.response.headers.set('Cache-Control', 'no-store')
+Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+const buttonClass =
+  'border-input text-foreground hover:bg-muted focus-visible:ring-ring min-h-12 w-full rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
+const successActionClass =
+  'border-input text-foreground hover:bg-muted focus-visible:ring-ring inline-flex min-h-12 flex-1 items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
+const welcome =
+  state.kind === 'available'
+    ? state.provider === 'github'
+      ? copy.welcomeDeveloper
+      : copy.welcomeCreator
+    : ''
+const welcomeDescription =
+  state.kind === 'available'
+    ? state.provider === 'github'
+      ? copy.developerDescription
+      : copy.creatorDescription
+    : ''
+---
+
+<Layout title={copy.title} description={copy.introduction} noindex>
+  <section
+    id="invite-page"
+    data-auto-issue={state.kind === 'prepare' ? 'true' : undefined}
+    class={`mx-auto w-full ${state.kind === 'available' ? 'max-w-xl px-4 py-10 sm:px-6' : 'max-w-md px-6 py-12'}`}
+  >
+    <div
+      class={state.kind === 'available'
+        ? 'invite-success-card border-border bg-card relative isolate rounded-2xl border p-6 sm:p-9'
+        : 'border-border bg-card space-y-6 rounded-xl border p-6'}
+    >
+      {
+        state.kind === 'available' && (
+          <div class="invite-hexagons" aria-hidden="true">
+            <span class="invite-hexagon invite-hexagon-one" />
+            <span class="invite-hexagon invite-hexagon-two" />
+            <span class="invite-hexagon invite-hexagon-three" />
+          </div>
+        )
+      }
+      <div
+        class={state.kind === 'available'
+          ? 'relative z-10 space-y-7'
+          : 'space-y-6'}
+      >
+        {
+          state.kind === 'available' ? (
+            <div class="max-w-lg space-y-4">
+              <p class="border-primary/30 bg-primary/10 text-primary inline-flex rounded-full border px-3 py-1 text-xs font-semibold">
+                {copy.ready}
+              </p>
+              <h1 class="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">
+                {welcome}
+                {state.username && (
+                  <>
+                    {' '}
+                    <span class="text-primary break-words font-mono">
+                      @{state.username}
+                    </span>
+                  </>
+                )}
+                {copy.welcomeEnd}
+              </h1>
+              <p class="text-muted-foreground max-w-md text-base leading-relaxed sm:text-lg">
+                {welcomeDescription}
+              </p>
+            </div>
+          ) : (
+            <div class="space-y-3">
+              <h1 class="text-foreground text-2xl font-semibold tracking-tight sm:text-3xl">
+                {copy.title}
+              </h1>
+              <p class="text-muted-foreground text-sm leading-relaxed">
+                {copy.introduction}
+              </p>
+            </div>
+          )
+        }
+        {
+          state.kind === 'login' && (
+            <div class="space-y-3">
+              <button
+                type="button"
+                data-invite-provider="github"
+                disabled={!state.providers.includes('github')}
+                class={buttonClass}
+              >
+                {copy.signInGithub}
+              </button>
+              <button
+                type="button"
+                data-invite-provider="twitter"
+                disabled={!state.providers.includes('twitter')}
+                class={buttonClass}
+              >
+                {copy.signInTwitter}
+              </button>
+              <p class="text-muted-foreground text-xs leading-relaxed">
+                {copy.personal}
+              </p>
+            </div>
+          )
+        }
+        {
+          state.kind === 'prepare' && (
+            <p
+              id="invite-preparing"
+              role="status"
+              class="text-muted-foreground text-sm"
+            >
+              {copy.preparing}
+            </p>
+          )
+        }
+        {
+          state.kind === 'available' && (
+            <div class="space-y-6">
+              <div class="border-border/80 bg-background/70 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+                <div class="min-w-0 space-y-2">
+                  <p class="text-muted-foreground text-sm font-medium">
+                    {copy.codeLabel}
+                  </p>
+                  <code class="text-foreground block break-all font-mono text-lg font-semibold tracking-wide">
+                    {state.ticketCode}
+                  </code>
+                </div>
+                <button
+                  type="button"
+                  data-copy-value={state.ticketCode}
+                  data-copy-success={copy.codeCopied}
+                  class={successActionClass}
+                >
+                  {copy.copyCode}
+                </button>
+              </div>
+              <div class="flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={state.url}
+                  data-astro-reload
+                  class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex min-h-12 flex-1 items-center justify-center rounded-lg px-5 py-3 text-center text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2"
+                >
+                  {copy.continue}
+                </a>
+                <button
+                  type="button"
+                  data-copy-value={state.url}
+                  data-copy-success={copy.copied}
+                  class={successActionClass}
+                >
+                  {copy.copy}
+                </button>
+              </div>
+              <p class="text-muted-foreground text-sm leading-relaxed">
+                {copy.oneUse}
+              </p>
+            </div>
+          )
+        }
+        {
+          state.kind === 'processing' && (
+            <div class="space-y-3">
+              <h2 class="text-foreground text-lg font-semibold">
+                {copy.processing}
+              </h2>
+              <p class="text-foreground break-words text-sm">
+                @{state.username}
+              </p>
+              <p class="text-muted-foreground text-sm leading-relaxed">
+                {copy.processingDescription}
+              </p>
+              <a
+                href="/invite"
+                data-astro-reload
+                class={`${buttonClass} flex items-center justify-center`}
+              >
+                {copy.refresh}
+              </a>
+            </div>
+          )
+        }
+        {
+          state.kind === 'completed' && (
+            <div class="space-y-3">
+              <h2 class="text-foreground text-lg font-semibold">
+                {copy.completed}
+              </h2>
+              <p class="text-muted-foreground text-sm leading-relaxed">
+                {copy.completedDescription}{' '}
+                <strong class="text-foreground break-words">
+                  @{state.username}
+                </strong>
+                .
+              </p>
+            </div>
+          )
+        }
+        {
+          state.kind === 'unavailable' && (
+            <p
+              role="status"
+              class="text-muted-foreground text-sm leading-relaxed"
+            >
+              {copy.unavailable}
+            </p>
+          )
+        }
+        <p
+          id="invite-feedback"
+          role="status"
+          aria-live="polite"
+          class="text-muted-foreground hidden text-sm leading-relaxed"
+        >
+        </p>
+        <button id="invite-retry" type="button" class={`${buttonClass} hidden`}
+          >{copy.retry}</button
+        >
+        {
+          authenticated && (
+            <button
+              id="invite-signout"
+              type="button"
+              class="text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-12 w-full rounded-lg px-4 py-3 text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2"
+            >
+              {copy.signOut}
+            </button>
+          )
+        }
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  import { initializeInvitePage } from '@/lib/invite/client'
+  initializeInvitePage()
+  document.addEventListener('astro:page-load', initializeInvitePage)
+</script>
+
+<style>
+  .invite-hexagons {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .invite-hexagon {
+    position: absolute;
+    display: block;
+    aspect-ratio: 1;
+    background: color-mix(in srgb, var(--color-primary) 34%, transparent);
+    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+    filter: drop-shadow(
+      0 0 14px color-mix(in srgb, var(--color-primary) 30%, transparent)
+    );
+    opacity: 0.28;
+    animation: invite-hex-glow 5.2s ease-in-out infinite;
+  }
+
+  .invite-hexagon::after {
+    position: absolute;
+    content: '';
+    inset: 1px;
+    background: var(--color-card);
+    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
+  }
+
+  .invite-hexagon-one {
+    top: 1rem;
+    right: 1rem;
+    width: 6rem;
+  }
+
+  .invite-hexagon-two {
+    top: 4.75rem;
+    right: 5rem;
+    width: 3.5rem;
+    animation-delay: 1.4s;
+  }
+
+  .invite-hexagon-three {
+    top: 1.5rem;
+    right: 7rem;
+    width: 1.75rem;
+    animation-delay: 2.8s;
+  }
+
+  @keyframes invite-hex-glow {
+    0%,
+    100% {
+      opacity: 0.22;
+    }
+
+    50% {
+      opacity: 0.62;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .invite-hexagon {
+      animation: none;
+    }
+  }
+</style>

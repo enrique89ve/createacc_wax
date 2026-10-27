@@ -25,10 +25,14 @@ export type UsernameValidationResult =
   | { readonly status: 'available' }
 
 async function checkUsernamePolicy(
-  username: string
+  username: string,
+  isInviteFlow: boolean
 ): Promise<UsernameValidationResult | null> {
   try {
-    const response = await fetch('/api/validate/username', {
+    const endpoint = isInviteFlow
+      ? '/api/invite/validate/username'
+      : '/api/validate/username'
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username }),
@@ -56,14 +60,15 @@ async function checkUsernamePolicy(
 
 export async function validateUsername(
   username: string,
-  getChain: () => Promise<HiveChain | null>
+  getChain: () => Promise<HiveChain | null>,
+  isInviteFlow = false
 ): Promise<UsernameValidationResult> {
   if (!username.trim()) return { status: 'empty' }
 
   const formatError = validateAccountName(username)
   if (formatError) return { status: 'format_error', code: formatError }
 
-  const policyResult = await checkUsernamePolicy(username)
+  const policyResult = await checkUsernamePolicy(username, isInviteFlow)
   if (policyResult) return policyResult
 
   let chain: HiveChain | null

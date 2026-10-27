@@ -12,7 +12,13 @@ import { UserRole } from '@/lib/roles'
 
 interface Props {
   title: string
-  activeTab: 'dashboard' | 'tickets' | 'accounts' | 'logs' | 'builders'
+  activeTab:
+    | 'dashboard'
+    | 'tickets'
+    | 'accounts'
+    | 'logs'
+    | 'builders'
+    | 'invites'
 }
 
 const { title, activeTab } = Astro.props
@@ -53,6 +59,12 @@ const navItems = [
     key: 'builders',
     label: 'Builders',
     href: '/management/builders',
+    adminOnly: true,
+  },
+  {
+    key: 'invites',
+    label: 'Invitaciones',
+    href: '/management/invites',
     adminOnly: true,
   },
   {
@@ -98,7 +110,7 @@ const navItems = [
     <!-- Navigation -->
     <nav class="bg-card border-border border-b">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="flex space-x-8">
+        <div class="flex flex-wrap gap-x-5">
           {
             navItems.map(item => {
               // Ocultar items admin-only para no-admins
