@@ -14,6 +14,7 @@ import { validatePowSolution, validateTimingToken } from '@/lib/pow'
 import { TIMING_THRESHOLDS } from '@/consts/pow'
 import { validateTicketInDB } from '@/utils/db-ticket-validator'
 import { getHiveExecutionMode } from '@/lib/hive-execution-mode'
+import { authorizeInviteTicket } from '@/lib/invite/authorization'
 
 interface Body {
   readonly username?: string
@@ -90,6 +91,18 @@ export const POST: APIRoute = async context => {
     const executionMode = getHiveExecutionMode()
 
     const normalizedTicket = ticket?.trim().toUpperCase() ?? ''
+    const effectiveTicket = normalizedTicket || existingSession?.ticket
+    if (
+      effectiveTicket &&
+      !(await authorizeInviteTicket(context.request, effectiveTicket)).allowed
+    ) {
+      return apiError(
+        'Inicia sesión de nuevo desde /invite para usar tu invitación.',
+        HTTP_STATUS.FORBIDDEN,
+        { kind: 'invite_authorization', code: 'invite_auth_required' },
+        { noCache: true }
+      )
+    }
 
     if (
       existingSession &&

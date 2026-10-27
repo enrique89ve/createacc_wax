@@ -1,6 +1,7 @@
 import { execute, withTransaction } from '@/lib/database'
 import { logger } from '@/lib/logger'
 import { isHiveUsernameBlocked } from '@/lib/auth/blocked-hive-accounts'
+import { canUseInviteTicket } from '@/lib/invite/grants'
 import { creditsService } from '@/lib/credits-service'
 import { parseTicketRow } from '@/types/database'
 import type { DatabaseTicketRow } from '@/types/database'
@@ -204,6 +205,8 @@ export async function markTicketAsUsed(ticketCode: string): Promise<boolean> {
   try {
     const cleanCode = sanitizeTicketCode(ticketCode)
     if (!cleanCode) return false
+    // Personal social tickets must use the owner-checked creation reservation.
+    if (!(await canUseInviteTicket(cleanCode))) return false
 
     // UPDATE reducing uses and refreshing updated_at
     // is_active and has_been_used are updated automatically
@@ -256,6 +259,7 @@ export interface ReserveTicketCreditInput {
   readonly username: string
   readonly keys: CreationAttemptKeys
   readonly executionMode: HiveExecutionMode
+  readonly inviteIdentityHash?: string
 }
 
 export async function getAccountCreationState(
@@ -459,6 +463,17 @@ export async function reserveTicketCredit(
 
   try {
     return await withTransaction(async () => {
+      if (
+        !(await canUseInviteTicket(cleanTicketCode, input.inviteIdentityHash))
+      ) {
+        return {
+          success: false,
+          error:
+            'Personal invitation belongs to another authenticated identity',
+          errorCode: DATABASE_ERROR_CODES.INVALID_INPUT,
+          correlationId,
+        }
+      }
       const updateResult = await execute({
         sql: `UPDATE Tickets
               SET remaining_uses = CASE

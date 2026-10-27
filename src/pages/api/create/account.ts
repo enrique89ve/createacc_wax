@@ -80,6 +80,7 @@ import { unwrapBroadcastError } from '@/lib/hive-broadcaster'
 import { AppErrorCode } from '@/consts/errors'
 import { setCreationCookie } from '@/lib/session-cookies'
 import { hashCreationIntent } from '@/lib/create/confirmed-public-keys'
+import { authorizeInviteTicket } from '@/lib/invite/authorization'
 
 export type AccountCreationSuccessResponse = {
   readonly success: true
@@ -579,7 +580,8 @@ async function reserveTicket(
   correlationId: string,
   username: string,
   keys: CreationAttemptKeys,
-  executionMode: HiveExecutionMode
+  executionMode: HiveExecutionMode,
+  inviteIdentityHash?: string
 ): Promise<Response | void> {
   const obfuscatedTicket = obfuscateTicket(ticketCode)
   logger.warn(
@@ -592,6 +594,7 @@ async function reserveTicket(
     username,
     keys,
     executionMode,
+    inviteIdentityHash,
   })
   if (!reservation.success) {
     const isRace = reservation.errorCode === ERROR_CODES.TICKET_RACE_CONDITION
@@ -1157,6 +1160,18 @@ export const POST: APIRoute = async context => {
     ])
     if (requestResult instanceof Response) return requestResult
 
+    const inviteAuthorization = creationSession?.ticket
+      ? await authorizeInviteTicket(context.request, creationSession.ticket)
+      : { allowed: true as const, identity: null }
+    if (!inviteAuthorization.allowed) {
+      return failureResponse(
+        'Inicia sesión de nuevo desde /invite para usar tu invitación.',
+        'Social invitation authentication required',
+        ERROR_CODES.INVALID_INPUT,
+        HTTP_STATUS.FORBIDDEN
+      )
+    }
+
     const executionMode = getHiveExecutionMode()
     const sessionResult = await checkSessionAndIdempotency(
       context,
@@ -1207,7 +1222,8 @@ export const POST: APIRoute = async context => {
         correlationId,
         requestResult.username,
         keysFromRequest(requestResult),
-        executionMode
+        executionMode,
+        inviteAuthorization.identity?.identityHash
       )
       if (reserveResult instanceof Response) return reserveResult
 

@@ -136,6 +136,14 @@ function isKeyCeremonyPath(pathname: string): boolean {
   return pathname.startsWith(ROUTES.DETAILS_PREFIX)
 }
 
+function isInvitePath(pathname: string): boolean {
+  return (
+    pathname === '/invite' ||
+    pathname.startsWith('/invite/') ||
+    pathname.startsWith('/api/invite/')
+  )
+}
+
 function buildKeyCeremonySecurityHeaders(): Record<string, string> {
   const headers = buildSecurityHeaders()
   const connectSrc = ["'self'", ...hiveConnectSources()].join(' ')
@@ -167,6 +175,10 @@ function applySecurityHeaders(response: Response, pathname = ''): Response {
     : SECURITY_HEADERS
   for (const [header, value] of Object.entries(headers)) {
     response.headers.set(header, value)
+  }
+  if (isInvitePath(pathname)) {
+    response.headers.set('Cache-Control', 'no-store')
+    response.headers.set('Referrer-Policy', 'no-referrer')
   }
   return response
 }

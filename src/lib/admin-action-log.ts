@@ -18,6 +18,7 @@ export const ADMIN_MUTATION_ACTIONS = [
   Permission.BLOCK_BUILDER,
   Permission.REACTIVATE_BUILDER,
   Permission.CREATE_ADMIN_TICKET,
+  Permission.MANAGE_INVITE_CAMPAIGN,
 ] as const
 
 export type AdminMutationAction = (typeof ADMIN_MUTATION_ACTIONS)[number]
@@ -26,6 +27,7 @@ export const ADMIN_ACTION_TARGET_TYPES = [
   'builder',
   'credits',
   'ticket',
+  'campaign',
 ] as const
 
 export type AdminActionTargetType = (typeof ADMIN_ACTION_TARGET_TYPES)[number]

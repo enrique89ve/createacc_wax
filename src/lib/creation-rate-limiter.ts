@@ -22,6 +22,9 @@ interface RateLimiterConfig {
 }
 
 const CREATION_RATE_LIMITS = {
+  inviteAuth: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
+  inviteIssue: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
+  inviteUsername: { maxRequests: 3, windowMs: 1_000, maxEntries: 10_000 },
   session: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   keysHash: { maxRequests: 10, windowMs: 60_000, maxEntries: 10_000 },
   account: { maxRequests: 5, windowMs: 300_000, maxEntries: 10_000 },
