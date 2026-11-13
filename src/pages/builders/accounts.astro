@@ -4,8 +4,13 @@ import PageHeader from '@/components/ui/PageHeader.astro'
 import StatCard from '@/components/ui/StatCard.astro'
 import BuildersTable from '@/components/ui/BuildersTable.astro'
 import { usersRepository } from '@/lib/repositories/users-repository'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 
 const builderUser = Astro.locals.builderUser
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const page = copy.buildersArea.accounts
+const accountState = copy.states.account
 if (!builderUser) return Astro.redirect('/builders/login')
 
 let accounts: Awaited<ReturnType<typeof usersRepository.getAccountsByUser>> = []
@@ -32,13 +37,21 @@ const lastAccount = accounts.length > 0 ? accounts[0] : null
 const accountColumns = [
   {
     key: 'username',
-    label: 'Usuario Hive',
+    label: page.hiveUser,
     type: 'text' as const,
     width: 'w-1/3',
   },
   {
     key: 'status_label',
-    label: 'Estado',
+    label: copy.ui.status,
+    format: (value: unknown) => {
+      const code = String(value)
+      if (code === 'SIMULATED') return accountState.simulated
+      if (code === 'BROADCASTED') return accountState.broadcasted
+      if (code === 'CONFIRMED') return accountState.confirmed
+      if (code === 'FAILED') return accountState.failed
+      return code
+    },
     type: 'badge' as const,
     width: 'w-1/6',
     badgeVariant: (value: unknown) =>
@@ -56,55 +69,57 @@ const accountColumns = [
   },
   {
     key: 'creation_date',
-    label: 'Fecha de Creación',
+    label: page.createdAt,
     type: 'date' as const,
     width: 'w-1/3',
   },
 ]
 ---
 
-<BuildersLayout title="Cuentas Creadas - Builders" currentPage="accounts">
+<BuildersLayout title={page.title} currentPage="accounts">
   <div
     class="mx-auto max-w-7xl space-y-4 px-3 py-4 sm:space-y-6 sm:px-4 sm:py-6 lg:px-8"
   >
     <PageHeader
-      title="Cuentas Creadas"
-      description="Historial completo de todas las cuentas Hive que has creado."
+      title={page.title}
+      description={page.description}
     />
 
     <!-- Cards de estadísticas - Estilo Fintech -->
     <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <StatCard
-        title="Total de cuentas"
+        title={page.total}
         value={stats.totalAccounts}
-        unit="cuentas"
-        description="Cuentas creadas exitosamente"
+        unit={page.accountsUnit}
+        description={page.totalHelp}
       />
 
       <StatCard
-        title="Tickets activos"
+        title={page.activeTickets}
         value={stats.totalActiveTickets}
-        unit="tickets"
-        description={`Créditos restantes: ${stats.totalCreditsRemaining}`}
+        unit={page.ticketsUnit}
+        description={interpolate(page.remaining, {
+          count: String(stats.totalCreditsRemaining),
+        })}
       />
 
       <StatCard
-        title="Última cuenta creada"
-        value={lastAccount?.username || 'N/A'}
+        title={page.last}
+        value={lastAccount?.username || page.none}
         unit=""
-        description="Cuenta más reciente"
+        description={page.lastHelp}
         timestamp={lastAccount?.creation_date}
       />
     </section>
 
     <!-- Tabla de Cuentas -->
     <BuildersTable
-      title="Historial de Cuentas"
+      title={page.history}
       data={accounts}
       columns={accountColumns}
-      emptyMessage="No has creado cuentas aún"
+      emptyMessage={page.empty}
       showSearch
-      searchPlaceholder="Buscar por usuario o ticket..."
+      searchPlaceholder={page.search}
     />
   </div>
 </BuildersLayout>

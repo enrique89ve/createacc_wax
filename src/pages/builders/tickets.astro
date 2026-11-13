@@ -2,6 +2,7 @@
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
 import PageHeader from '@/components/ui/PageHeader.astro'
 import TicketActionModal from '@/components/ui/TicketActionModal.astro'
+import { DEFAULT_LOCALE } from '@/i18n'
 import { formatDate, formatShortDateTime } from '@/utils/date-formatters'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import { creditBalanceTracker } from '@/lib/credit-balance-tracker'
@@ -9,6 +10,7 @@ import { logger } from '@/lib/logger'
 import type { TicketWithCreator } from '@/types/database'
 
 const builderUser = Astro.locals.builderUser
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
 if (!builderUser) return Astro.redirect('/builders/login')
 
 let tickets: TicketWithCreator[] = []
@@ -120,7 +122,7 @@ if (builderUser) {
                         </span>
                       </td>
                       <td class="text-muted-foreground px-4 py-3 text-center align-middle">
-                        {formatDate(t.created_at)}
+                        {formatDate(t.created_at, locale)}
                       </td>
                       <td class="px-4 py-3 align-middle">
                         <div class="flex items-center justify-center gap-2">
@@ -209,7 +211,7 @@ if (builderUser) {
                         {t.code}
                       </span>
                       <span class="text-muted-foreground text-xs">
-                        {formatShortDateTime(t.created_at)}
+                        {formatShortDateTime(t.created_at, locale)}
                       </span>
                     </div>
                     {t.description && (

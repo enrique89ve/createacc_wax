@@ -3,6 +3,7 @@ import {
   getUnreadCount,
   getUnreadNotifications,
 } from '@/lib/notification-service'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import { formatShortDateTime } from '@/utils/date-formatters'
 import type { NotificationType } from '@/types/database'
 
@@ -11,6 +12,10 @@ interface Props {
 }
 
 const { hiveUsername } = Astro.props
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const notes = copy.notifications
 
 const unreadCount = await getUnreadCount(hiveUsername)
 const unreadNotifications = await getUnreadNotifications(hiveUsername)
@@ -23,10 +28,10 @@ const NOTIFICATION_ROUTES: Record<NotificationType, string> = {
 }
 
 const NOTIFICATION_ACTIONS: Record<NotificationType, string> = {
-  account_created: 'Ver cuentas',
-  pending_credits: 'Reclamar',
-  credit_assigned: 'Ver créditos',
-  system: 'Ver detalle',
+  account_created: notes.actions.accountCreated,
+  pending_credits: notes.actions.pendingCredits,
+  credit_assigned: notes.actions.creditAssigned,
+  system: notes.actions.system,
 }
 
 const NOTIFICATION_ICONS: Record<NotificationType, string> = {
@@ -49,7 +54,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
     type="button"
     id="notification-bell"
     class="text-muted-foreground hover:text-foreground hover:bg-accent relative inline-flex items-center justify-center rounded-md p-2 transition-colors"
-    aria-label="Notificaciones"
+    aria-label={notes.label}
     aria-expanded="false"
   >
     <svg
@@ -87,7 +92,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
     <div
       class="bg-card border-border/40 sticky top-0 z-10 flex items-center justify-between border-b px-4 py-3"
     >
-      <h3 class="text-foreground text-sm font-semibold">Notificaciones</h3>
+      <h3 class="text-foreground text-sm font-semibold">{notes.title}</h3>
       {
         unreadCount > 0 && (
           <button
@@ -95,7 +100,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
             id="mark-all-read-btn"
             class="text-primary text-xs hover:underline"
           >
-            Marcar todas como leídas
+            {notes.markAllRead}
           </button>
         )
       }
@@ -105,7 +110,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
       {
         unreadNotifications.length === 0 ? (
           <div class="text-muted-foreground px-4 py-8 text-center text-sm">
-            No tienes notificaciones nuevas
+            {notes.empty}
           </div>
         ) : (
           unreadNotifications.map(notification => (
@@ -130,7 +135,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
                 </p>
                 <div class="mt-1.5 flex items-center justify-between">
                   <span class="text-muted-foreground text-[11px]">
-                    {formatShortDateTime(notification.created_at)}
+                    {formatShortDateTime(notification.created_at, locale)}
                   </span>
                   <span class="text-primary text-[11px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
                     {NOTIFICATION_ACTIONS[notification.type]} &rarr;
@@ -142,7 +147,7 @@ const NOTIFICATION_ICON_COLORS: Record<NotificationType, string> = {
                 type="button"
                 class="mark-read-btn text-muted-foreground/50 hover:text-foreground mt-0.5 flex-shrink-0 transition-colors"
                 data-notification-id={notification.id}
-                aria-label="Descartar"
+                aria-label={notes.dismiss}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"

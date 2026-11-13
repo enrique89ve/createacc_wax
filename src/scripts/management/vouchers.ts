@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 
 import { z } from 'astro/zod'
+import { publicCopy } from '@/i18n'
 import { readApiResponse } from '@/utils/api-client'
 
 const AdminTicketCreateResponseSchema = z.looseObject({
@@ -41,7 +42,8 @@ createTicketForm?.addEventListener('submit', async event => {
   const description = String(formData.get('description') ?? '').trim()
 
   if (submitButton) submitButton.disabled = true
-  showCreateTicketFeedback('Creando ticket...', false)
+  const vouchers = publicCopy().admin.vouchers
+  showCreateTicketFeedback(vouchers.creating, false)
 
   try {
     const response = await fetch('/api/management/tickets', {
@@ -60,17 +62,17 @@ createTicketForm?.addEventListener('submit', async event => {
           ? result.problem.detail
           : result.kind === 'legacy_problem'
             ? result.message
-            : 'Respuesta inválida al crear el ticket'
-        : 'No se pudo crear el ticket'
+            : publicCopy().admin.vouchers.invalidResponse
+        : publicCopy().admin.vouchers.createFailed
       showCreateTicketFeedback(error, true)
       return
     }
 
-    showCreateTicketFeedback('Ticket creado. Actualizando la lista...', false)
+    showCreateTicketFeedback(publicCopy().admin.vouchers.created, false)
     window.setTimeout(() => window.location.reload(), 700)
   } catch (error) {
     console.error('Error creating management ticket:', error)
-    showCreateTicketFeedback('Error de conexión', true)
+    showCreateTicketFeedback(publicCopy().admin.vouchers.connectionError, true)
   } finally {
     if (
       submitButton &&
@@ -97,7 +99,7 @@ document.addEventListener('click', async event => {
     showCopyToast()
   } catch (error) {
     console.error('Error copying to clipboard:', error)
-    alert('Error al copiar el link')
+    alert(publicCopy().admin.vouchers.connectionError)
   }
 })
 

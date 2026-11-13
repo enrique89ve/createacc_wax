@@ -3,15 +3,30 @@
  * SQLite stores timestamps without time zone, UTC is assumed.
  */
 
-/** Ensures that a SQLite timestamp is interpreted as UTC */
+import { interpolate } from '@/i18n/interpolate'
+import { DEFAULT_LOCALE, type Locale } from '@/i18n/locales'
+import { getMessages } from '@/i18n/messages'
+
+const INTL_LOCALE: Record<Locale, string> = {
+  es: 'es-ES',
+  en: 'en-US',
+  pt: 'pt-BR',
+}
+
 function toUtcDate(dateStr: string): Date {
   const normalized = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`
   return new Date(normalized)
 }
 
-/** Short date: "10 feb 2026" */
-export function formatDate(dateStr: string): string {
-  return toUtcDate(dateStr).toLocaleDateString('es-ES', {
+function intlLocale(locale: Locale): string {
+  return INTL_LOCALE[locale]
+}
+
+export function formatDate(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  return toUtcDate(dateStr).toLocaleDateString(intlLocale(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -19,9 +34,11 @@ export function formatDate(dateStr: string): string {
   })
 }
 
-/** Date with time: "10 feb 2026, 04:09" */
-export function formatDateTime(dateStr: string): string {
-  return toUtcDate(dateStr).toLocaleDateString('es-ES', {
+export function formatDateTime(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  return toUtcDate(dateStr).toLocaleDateString(intlLocale(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -31,9 +48,11 @@ export function formatDateTime(dateStr: string): string {
   })
 }
 
-/** Date with time and seconds: "10 feb 2026, 04:09:32" */
-export function formatDateTimeFull(dateStr: string): string {
-  return toUtcDate(dateStr).toLocaleDateString('es-ES', {
+export function formatDateTimeFull(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  return toUtcDate(dateStr).toLocaleDateString(intlLocale(locale), {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -44,32 +63,39 @@ export function formatDateTimeFull(dateStr: string): string {
   })
 }
 
-/** Time only: "04:09" */
-export function formatTime(dateStr: string): string {
-  return toUtcDate(dateStr).toLocaleTimeString('es-ES', {
+export function formatTime(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  return toUtcDate(dateStr).toLocaleTimeString(intlLocale(locale), {
     hour: '2-digit',
     minute: '2-digit',
     timeZone: 'UTC',
   })
 }
 
-/** Relative date: "Today", "Yesterday", "3 days ago", or formatted date */
-export function formatRelativeDate(dateStr: string): string {
+export function formatRelativeDate(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
   const date = toUtcDate(dateStr)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const time = getMessages(locale).time
 
-  if (diffDays <= 0) return 'Hoy'
-  if (diffDays === 1) return 'Ayer'
-  if (diffDays < 7) return `Hace ${diffDays} días`
+  if (diffDays <= 0) return time.today
+  if (diffDays === 1) return time.yesterday
+  if (diffDays < 7) return interpolate(time.daysAgo, { days: String(diffDays) })
 
-  return formatDate(dateStr)
+  return formatDate(dateStr, locale)
 }
 
-/** Short date for tables: "10 feb, 04:09" (without year) */
-export function formatShortDateTime(dateStr: string): string {
-  return toUtcDate(dateStr).toLocaleDateString('es-ES', {
+export function formatShortDateTime(
+  dateStr: string,
+  locale: Locale = DEFAULT_LOCALE
+): string {
+  return toUtcDate(dateStr).toLocaleDateString(intlLocale(locale), {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',

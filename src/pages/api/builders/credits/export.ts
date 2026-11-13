@@ -7,6 +7,7 @@
 
 import type { APIRoute } from 'astro'
 import { execute } from '@/lib/database'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import { formatDateTime } from '@/utils/date-formatters'
 import { HTTP_STATUS } from '@/consts/constants'
 import { withBuilderApiSession } from '@/lib/session-helpers'
@@ -94,19 +95,21 @@ export const GET: APIRoute = async context => {
       )
 
       if (format === 'csv') {
+        const locale = context.locals.locale ?? DEFAULT_LOCALE
+        const headers = getMessages(locale).buildersArea.credits.exportHeaders
         const csvHeaders = [
-          'Date',
-          'Type',
-          'Code',
-          'Description',
-          'Total Uses',
-          'Remaining Uses',
-          'Action',
-          'Status',
+          headers.date,
+          headers.type,
+          headers.code,
+          headers.description,
+          headers.totalUses,
+          headers.remainingUses,
+          headers.action,
+          headers.status,
         ]
 
         const csvRows = creditHistory.map(item => [
-          formatDateTime(item.timestamp || item.created_at),
+          formatDateTime(item.timestamp || item.created_at, locale),
           item.type,
           item.code,
           item.description || '',

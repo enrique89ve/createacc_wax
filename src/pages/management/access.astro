@@ -1,29 +1,34 @@
 ---
 import Base from '@/layouts/Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
-import { PAGE_TITLES, TITLE_SUFFIXES } from '@/consts/seo'
+import { TITLE_SUFFIXES } from '@/consts/seo'
 import { BRAND } from '@/consts/branding'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const login = copy.auth.management
 
 // Check if user is already authenticated (handled by middleware)
 // If authenticated, middleware will redirect to console
 // If not, this page will be shown
 
-const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT}`
+const pageTitle = `${interpolate(login.title, { brand: BRAND.NAME })} - ${TITLE_SUFFIXES.MANAGEMENT}`
 ---
 
 <Base title={pageTitle} noindex enhancedSecurity>
-  <main class="flex min-h-screen items-center justify-center px-4 py-12">
-    <div class="w-full max-w-md">
+  <main class="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
+    <div class="w-full min-w-0">
       <!-- Card de Login -->
       <div
         class="bg-card/95 supports-[backdrop-filter]:bg-card/90 border-border rounded-lg border p-8 shadow-lg backdrop-blur"
       >
         <div class="mb-8 text-center">
-          <h1 class="text-foreground mb-2 text-3xl font-bold tracking-tight">
-            Gestión {BRAND.NAME}
+          <h1 class="text-foreground mb-2 text-balance text-3xl font-bold tracking-tight">
+            {interpolate(login.title, { brand: BRAND.NAME })}
           </h1>
           <p class="text-muted-foreground text-sm">
-            Acceso para administradores y referrers
+            {login.subtitle}
           </p>
         </div>
 
@@ -33,7 +38,7 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
               for="username"
               class="text-foreground block text-sm font-medium"
             >
-              Usuario
+              {login.username}
             </label>
             <input
               id="username"
@@ -47,10 +52,10 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
               maxlength="50"
               minlength="3"
               pattern="[^<>\{\};\(\)]+"
-              title="Por favor, no incluyas caracteres especiales de código como < > { } ; ( )"
-              placeholder="Ingresa tu usuario"
+              title={login.usernameTitle}
+              placeholder={login.usernamePlaceholder}
               aria-describedby="username-hint"
-              class="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full min-w-0 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
@@ -59,7 +64,7 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
               for="password"
               class="text-foreground block text-sm font-medium"
             >
-              Contraseña
+              {login.password}
             </label>
             <input
               id="password"
@@ -68,9 +73,9 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
               required
               autocomplete="current-password"
               minlength="8"
-              placeholder="Ingresa tu contraseña"
+              placeholder={login.passwordPlaceholder}
               aria-describedby="error-message"
-              class="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              class="bg-muted border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full min-w-0 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
 
@@ -88,13 +93,13 @@ const pageTitle = `${PAGE_TITLES.MANAGEMENT_LOGIN} - ${TITLE_SUFFIXES.MANAGEMENT
             type="submit"
             class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Iniciar Sesión
+            {login.submit}
           </button>
         </form>
 
         <div class="mt-8 text-center">
           <p class="text-muted-foreground text-xs">
-            Sistema de gestión {BRAND.NAME}
+            {interpolate(login.footer, { brand: BRAND.NAME })}
           </p>
         </div>
       </div>

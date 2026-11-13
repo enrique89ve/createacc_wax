@@ -1,4 +1,5 @@
 ---
+import { DEFAULT_LOCALE } from '@/i18n'
 import { formatDateTime, formatShortDateTime } from '@/utils/date-formatters'
 
 /**
@@ -20,6 +21,7 @@ export interface TableColumn {
   type?: 'text' | 'date' | 'badge' | 'actions' | 'key'
   width?: string
   badgeVariant?: (value: unknown) => 'success' | 'warning' | 'danger' | 'info'
+  format?: (value: unknown) => string
   actions?: TableAction[]
   truncate?: boolean
 }
@@ -31,13 +33,15 @@ export interface TableAction {
   variant?: 'primary' | 'secondary' | 'danger'
 }
 
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages
 const {
   title,
   data,
   columns,
-  emptyMessage = 'No hay datos para mostrar',
+  emptyMessage = copy?.ui.emptyTitle ?? 'No data',
   showSearch = false,
-  searchPlaceholder = 'Buscar...',
+  searchPlaceholder = copy?.ui.search ?? 'Search...',
 } = Astro.props
 
 type TableRow = Record<string, unknown>
@@ -67,13 +71,13 @@ function toDateInput(value: unknown): string | null {
 function formatDateCell(value: unknown): string {
   const dateValue = toDateInput(value)
   if (!dateValue) return '-'
-  return formatDateTime(dateValue)
+  return formatDateTime(dateValue, locale)
 }
 
 function formatShortDateCell(value: unknown): string {
   const dateValue = toDateInput(value)
   if (!dateValue) return '-'
-  return formatShortDateTime(dateValue)
+  return formatShortDateTime(dateValue, locale)
 }
 
 function getRowId(row: TableRow, fallbackIndex: number): string | number {
@@ -126,7 +130,7 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
     data.length === 0 ? (
       <div class="p-10 text-center">
         <div class="mb-4 text-5xl">📋</div>
-        <p class="text-foreground mb-2 font-semibold">No data</p>
+        <p class="text-foreground mb-2 font-semibold">{copy?.ui.emptyTitle ?? 'No data'}</p>
         <p class="text-muted-foreground text-sm">{emptyMessage}</p>
       </div>
     ) : (
@@ -157,7 +161,9 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                   >
                     {columns.map((column, idx) => {
                       const cellValue = getRowValue(row, column.key)
-                      const cellText = toDisplayText(cellValue)
+                      const cellText = column.format
+                        ? column.format(cellValue)
+                        : toDisplayText(cellValue)
                       return (
                         <td
                           class={`px-6 py-3 ${idx === 0 ? 'text-left' : 'text-center'}`}
@@ -357,7 +363,9 @@ function getRowId(row: TableRow, fallbackIndex: number): string | number {
                                         : 'bg-blue-500/20 text-blue-300'
                                 }`}
                               >
-                                {toDisplayText(getRowValue(row, column.key))}
+                                {column.format
+                                  ? column.format(getRowValue(row, column.key))
+                                  : toDisplayText(getRowValue(row, column.key))}
                               </span>
                             ) : column.type === 'key' ? (
                               <span class="break-all font-mono text-xs">

@@ -37,6 +37,17 @@
   --color-popover-foreground: #e5e5e2;
   --color-primary: #e42f4d;
   --color-primary-foreground: #f4f4f9;
+  /* Invitation tones share the brand hue; OKLCH separates lightness and chroma. */
+  --color-invite-code: oklch(from var(--color-primary) 0.18 0.012 h);
+  --color-invite-diamond: oklch(from var(--color-primary) 0.3 0.035 h);
+  --color-invite-diamond-muted: oklch(from var(--color-primary) 0.24 0.022 h);
+  --color-invite-accent: oklch(from var(--color-primary) 0.76 0.09 h);
+  --color-invite-action: oklch(
+    from var(--color-primary) calc(l - 0.06) calc(c * 0.9) h
+  );
+  --color-invite-action-hover: oklch(
+    from var(--color-primary) calc(l - 0.09) calc(c * 0.85) h
+  );
   --color-secondary: #faf9f5;
   --color-secondary-foreground: #1e0750;
   --color-muted: #1b1b19;

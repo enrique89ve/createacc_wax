@@ -1,6 +1,7 @@
 /* eslint-disable no-console */
 
 import { z } from 'astro/zod'
+import { publicCopy } from '@/i18n'
 import { readApiResponse } from '@/utils/api-client'
 
 const ManagementLoginResponseSchema = z.looseObject({
@@ -27,7 +28,7 @@ if (form) {
     // Disable button
     if (loginButton) {
       loginButton.disabled = true
-      loginButton.textContent = 'Logging in...'
+      loginButton.textContent = publicCopy().auth.management.submitting
     }
 
     const formData = new FormData(form)
@@ -56,13 +57,14 @@ if (form) {
 
       if (!response.ok || !result.ok) {
         // Invalid credentials or error - show message and DO NOT redirect
+        const loginCopy = publicCopy().auth.management
         const errorMessage = result.ok
-          ? 'Invalid credentials'
+          ? loginCopy.invalidCredentials
           : result.kind === 'problem'
             ? result.problem.detail
             : result.kind === 'legacy_problem'
               ? result.message
-              : 'Invalid response from the server'
+              : loginCopy.invalidResponse
         showError(errorMessage)
         resetButton()
         return
@@ -72,7 +74,7 @@ if (form) {
       window.location.href = '/management/console'
     } catch (error) {
       console.error('Login error:', error)
-      showError('Connection error')
+      showError(publicCopy().auth.management.connectionError)
       resetButton()
     }
   })
@@ -88,6 +90,6 @@ function showError(message: string) {
 function resetButton() {
   if (loginButton) {
     loginButton.disabled = false
-    loginButton.textContent = 'Sign In'
+    loginButton.textContent = publicCopy().auth.management.submit
   }
 }

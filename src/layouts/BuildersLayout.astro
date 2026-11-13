@@ -6,6 +6,8 @@ import BuildersTabs from '@/components/ui/BuildersTabs.astro'
 import Toasts from '@/components/ui/Toasts.astro'
 import { TITLE_SUFFIXES } from '@/consts/seo'
 import { BRAND } from '@/consts/branding'
+import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 
 export interface Props {
   title: string
@@ -36,11 +38,14 @@ if (builderUser) {
 
 const builderCreditsAttribute =
   typeof userCredits === 'number' ? userCredits : 0
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const shell = copy.shell.builders
 ---
 
 <Base
   title={`${title} - ${TITLE_SUFFIXES.BUILDERS}`}
-  description={`${BRAND.NAME} - Área de Builders`}
+  description={interpolate(shell.description, { brand: BRAND.NAME })}
   noindex
   htmlClass="dark"
   bodyAttributes={{ 'data-builder-credits': builderCreditsAttribute }}
@@ -55,7 +60,7 @@ const builderCreditsAttribute =
             {/* Left: Title + Tabs */}
             <div class="flex items-center gap-6">
               <h1 class="text-foreground text-lg font-semibold tracking-tight">
-                Dashboard de Builders
+                {shell.title}
               </h1>
               {currentPage && (
                 <BuildersTabs
@@ -73,7 +78,7 @@ const builderCreditsAttribute =
                 class="inline-flex items-center justify-center rounded-md bg-yellow-500/10 px-3 py-1.5 text-xs font-medium text-yellow-500 ring-1 ring-yellow-500/20 transition-all duration-200 hover:bg-yellow-500/20 hover:ring-yellow-500/30"
               >
                 <span class="mr-1">💳</span>
-                <span class="mr-2">Créditos: </span>
+                <span class="mr-2">{shell.credits} </span>
                 <span>{typeof userCredits === 'number' ? userCredits : 0}</span>
               </a>
 
@@ -86,12 +91,13 @@ const builderCreditsAttribute =
               <UserMenu username={displayUsername} />
 
               {/* Logout Button */}
+              <LocaleSwitch />
               <button
                 id="builders-logout-btn"
                 type="button"
                 class="text-muted-foreground hover:text-foreground hover:bg-accent inline-flex items-center justify-center rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
               >
-                Salir
+                {shell.logout}
               </button>
             </div>
           </div>
@@ -99,12 +105,12 @@ const builderCreditsAttribute =
           {/* Mobile Header (sm and below) */}
           <div class="md:hidden">
             {/* Top row: Avatar + Credits + Notifications + Logout */}
-            <div class="flex h-12 items-center justify-between">
+            <div class="flex min-h-12 flex-wrap items-center justify-between gap-2 py-1">
               {/* Left: Avatar only (compact) */}
               <div class="flex items-center gap-2">
                 <img
                   src={`https://images.hive.blog/u/${displayUsername}/avatar`}
-                  alt={`Avatar de ${displayUsername}`}
+                  alt={interpolate(shell.avatarAlt, { username: displayUsername })}
                   class="border-border/50 h-8 w-8 rounded-full border object-cover"
                   data-fallback="/assets/default-avatar.svg"
                 />
@@ -114,7 +120,7 @@ const builderCreditsAttribute =
               </div>
 
               {/* Right: Credits + Notifications + Logout */}
-              <div class="flex items-center gap-2">
+              <div class="flex flex-wrap items-center gap-2">
                 {/* Credits Badge (compact) */}
                 <a
                   href="/builders/creditos"
@@ -128,12 +134,13 @@ const builderCreditsAttribute =
                   <NotificationBell hiveUsername={builderUser.username} />
                 )}
 
+                <LocaleSwitch />
                 {/* Logout Button (icon only) */}
                 <button
                   id="builders-logout-btn-mobile"
                   type="button"
                   class="text-muted-foreground hover:text-foreground hover:bg-accent inline-flex items-center justify-center rounded-md p-1.5 transition-colors"
-                  title="Cerrar sesión"
+                  title={shell.logoutTitle}
                 >
                   <svg
                     class="h-5 w-5"

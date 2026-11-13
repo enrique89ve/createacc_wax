@@ -4,19 +4,24 @@ export interface Props {
   variant?: 'page' | 'header' | 'mobile'
 }
 
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
 const { active, variant = 'page' } = Astro.props as Props
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const tabsCopy = copy.shell.builders
 
 const tabs = [
-  { key: 'tickets', label: 'Tickets', emoji: '🎟️', href: '/builders/tickets' },
+  { key: 'tickets', label: tabsCopy.tabs.tickets, emoji: '🎟️', href: '/builders/tickets' },
   {
     key: 'accounts',
-    label: 'Cuentas',
+    label: tabsCopy.tabs.accounts,
     emoji: '👥',
     href: '/builders/accounts',
   },
   {
     key: 'creditos',
-    label: 'Créditos',
+    label: tabsCopy.tabs.credits,
     emoji: '💰',
     href: '/builders/creditos',
   },
@@ -48,7 +53,7 @@ if (variant === 'mobile') {
 }
 ---
 
-<nav aria-label="Secciones de Builders" class={navClasses}>
+<nav aria-label={tabsCopy.navLabel} class={navClasses}>
   <ul role="tablist" class={ulClasses}>
     {
       tabs.map(tab => {

@@ -14,6 +14,7 @@
 </div>
 
 <script>
+  import { publicCopy } from '@/i18n'
   import {
     TOAST_CONFIG,
     TOAST_VARIANT_ICON_COLORS,
@@ -105,7 +106,7 @@
     close.type = 'button'
     close.className =
       'absolute right-1.5 top-1.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100/70 dark:text-gray-500 dark:hover:text-gray-200 dark:hover:bg-gray-700/70 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 focus:ring-offset-white dark:focus:ring-offset-gray-900'
-    close.setAttribute('aria-label', 'Cerrar notificación')
+    close.setAttribute('aria-label', publicCopy().toasts.close)
     close.innerHTML = `<svg class="h-3.5 w-3.5" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l12 12M13 1 1 13"/></svg>`
     close.addEventListener('click', () => dismissToast(item.id))
 

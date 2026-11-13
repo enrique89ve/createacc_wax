@@ -1,4 +1,5 @@
 import { BRAND } from '@/consts/branding'
+import { privateEs } from './private-copy'
 
 export const es = {
   localeSwitch: {
@@ -20,29 +21,30 @@ export const es = {
     personal:
       'Una invitación por cuenta social. Vuelve a iniciar sesión para retomar tu proceso.',
     preparing: 'Preparando tu enlace...',
-    ready: 'Tu invitación está lista',
-    readyDescription:
-      'Guarda este enlace personal para continuar cuando quieras.',
+    ready: 'Tu acceso está listo',
     welcomeDeveloper: '¡Bienvenido, Dev',
     welcomeCreator: '¡Bienvenido',
     welcomeEnd: '!',
     developerDescription: 'Estás a un paso de empezar a construir en Hive.',
     creatorDescription:
       'Tu camino como creador de contenido en Web3 está a punto de comenzar en Hive.',
-    codeLabel: 'Tu código de acceso',
-    copyCode: 'Copiar código',
+    codeLabel: 'Código de acceso',
+    copyCode: 'Copiar',
     codeCopied: 'Código copiado',
-    oneUse: 'Este acceso es personal y puede usarse una sola vez.',
+    oneUse: 'Se usa una sola vez.',
     linkLabel: 'Tu enlace de creación',
     copy: 'Copiar enlace',
     copied: 'Enlace copiado',
     copyError: 'No se pudo copiar. Vuelve a intentarlo.',
-    continue: 'Seguir con la creación de mi cuenta',
+    continue: 'Seguir con la creación',
     processing: 'Estamos comprobando tu cuenta',
     processingDescription:
       'Tu creación sigue en curso. Conservamos tu invitación mientras comprobamos el resultado.',
     completed: 'Tu cuenta ya está creada',
     completedDescription: 'Esta invitación ya fue utilizada para crear',
+    simulatedCompleted: 'Completaste el ensayo',
+    simulatedCompletedDescription:
+      'Esta invitación ya se usó para el usuario de prueba',
     unavailable: 'Las invitaciones no están disponibles en este momento.',
     quota:
       'Se agotaron las invitaciones de esta campaña. Si ya tienes una, puedes retomarla al iniciar sesión.',
@@ -222,6 +224,7 @@ export const es = {
     creatingOnHive: 'Creando en Hive',
     confirming: 'Confirmando',
     created: 'Cuenta creada',
+    ariaLabel: 'Progreso de creación de cuenta',
   },
   success: {
     title: 'Tu cuenta está lista',
@@ -233,6 +236,7 @@ export const es = {
     readySubtitle: 'Tu cuenta está lista para acceder a Hive.',
     activeBody: 'ya está activo en Hive.',
     keychainCta: 'Descargar Keychain',
+    postCta: '+ Publicar',
     keychainTitle: 'Configura Hive Keychain',
     keychainDownloadTitle: 'Descargar Hive Keychain',
     keychainDownloadBody: 'Gestiona tus claves y firma transacciones',
@@ -251,6 +255,16 @@ export const es = {
     communityBody:
       'Ingresa a nuestro grupo de Telegram para recibir apoyo, compartir ideas y aprender más sobre Hive.',
     communityCta: 'Unirse al Grupo',
+    simulated: {
+      title: 'Ensayo completado',
+      metaDescription:
+        'Completaste el flujo de creación. No se creó una cuenta Hive.',
+      welcomeTitle: 'Ensayo completado',
+      accountCreatedLead: 'Completaste el flujo con el usuario',
+      accountCreatedTail: '. No se creó una cuenta en Hive.',
+      readySubtitle:
+        'Si descargaste claves, consérvalas. No sirven en la red hasta un lanzamiento real.',
+    },
     apps: {
       peakd: 'Plataforma social avanzada',
       hiveblog: 'Portal social clásico',
@@ -272,9 +286,10 @@ export const es = {
     generatedAtLabel: 'Generado:',
     keysetIdLabel: 'ID del lote:',
     pdfTitle: 'Tu usuario: {username}',
+    // Hive role ids and Keychain's "Master Password" stay in English.
     pdfMasterPasswordLabel: 'Master Password',
     pdfRolesHeading: 'Roles',
-    pdfRoleKeyTitle: '{role} Key:',
+    pdfRoleKeyTitle: 'Clave {role}:',
     pdfWindowTitle: 'Claves de {username}',
     roleNames: {
       owner: 'OWNER',
@@ -285,14 +300,14 @@ export const es = {
     },
     descriptions: {
       posting:
-        'Esta clave se utiliza para actividades sociales (publicar, comentar y votar). Esta clave tiene un conjunto limitado de permisos y no se puede utilizar para acciones monetarias. Por lo tanto, no puedes perder dinero si alguien más accede a esta clave.',
+        'Publica, comenta, vota y autoriza acciones sociales en las aplicaciones. No transfiere HIVE ni HBD por sí sola. Una aplicación puede aceptar esta firma para operaciones que ella define, así que no la compartas.',
       active:
-        'Esta clave tiene permisos adicionales para acciones relacionadas con el dinero más sensibles, como transferir e intercambiar monedas.',
+        'Mueve HIVE, HBD y Hive Power: transferencias, intercambios, power up y power down. Quien la tiene puede disponer de los fondos de la cuenta.',
       owner:
-        'La clave del propietario es necesaria para cambiar las otras claves. Esta clave tiene permisos adicionales para recuperar tu cuenta o cambiar tus otras claves.',
-      memo: 'Lo único que puede hacer la clave Memo es cifrar y descifrar mensajes privados que se envían a través de la cadena de bloques.',
+        'Cambia las demás claves y puede recuperar la cuenta. También puede hacer lo que hace la clave active. Guárdala fuera de línea.',
+      memo: 'Cifra y descifra los memos de las transferencias y otros mensajes cifrados de la cuenta. Quien la tiene puede leer esos memos. No mueve fondos por sí sola.',
       master:
-        'Es la clave principal de la cual se derivan todas las otras claves de una cuenta, se utiliza solo en situaciones críticas para garantizar la máxima seguridad.',
+        'De esta contraseña se derivan el resto de las claves. Quien la tiene controla la cuenta por completo. Guárdala fuera de línea y no la reutilices.',
     },
   },
   downloadModal: {
@@ -315,4 +330,5 @@ export const es = {
     pdfGenerationFailed: 'Error al generar el PDF.',
     unsupportedFormat: 'Formato no soportado: {format}',
   },
+  ...privateEs,
 }

@@ -3,6 +3,9 @@
  * Reusable StatCard component
  * Uses .card-stat class defined in global.css
  */
+import { DEFAULT_LOCALE } from '@/i18n'
+import { formatRelativeDate } from '@/utils/date-formatters'
+
 interface Props {
   title: string
   value: number | string
@@ -26,30 +29,12 @@ const {
 } = Astro.props
 
 // Format timestamp if it exists (normalized to UTC)
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
 let formattedTimestamp = ''
 if (timestamp) {
   try {
-    const utcTimestamp = timestamp.endsWith('Z') ? timestamp : `${timestamp}Z`
-    const date = new Date(utcTimestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-
-    if (diffDays <= 0) {
-      formattedTimestamp = 'Hoy'
-    } else if (diffDays === 1) {
-      formattedTimestamp = 'Ayer'
-    } else if (diffDays < 7) {
-      formattedTimestamp = `Hace ${diffDays} días`
-    } else {
-      formattedTimestamp = date.toLocaleDateString('es-ES', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-        timeZone: 'UTC',
-      })
-    }
-  } catch (error) {
+    formattedTimestamp = formatRelativeDate(timestamp, locale)
+  } catch (_error) {
     formattedTimestamp = ''
   }
 }

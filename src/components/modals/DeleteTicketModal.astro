@@ -3,25 +3,30 @@
  * 🗑️ DELETE TICKET MODAL
  * Modal nativo de Astro para confirmar borrado de tickets
  */
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const modal = copy.modals.deleteTicket
+const [warningBefore, warningAfter = ''] = modal.warning.split('{amount}')
 ---
 
 <div id="delete-modal-content" class="hidden">
-  <h3 class="mb-4 text-lg font-semibold text-white">🗑️ Borrar Ticket</h3>
+  <h3 class="mb-4 text-lg font-semibold text-white">{modal.title}</h3>
 
   <div class="mb-4 rounded-lg border border-yellow-500/30 bg-yellow-900/20 p-4">
     <p class="text-sm text-yellow-400">
-      ⚠️ Esta acción eliminará el ticket y te devolverá <strong
-      id="delete-refund-amount"></strong> usos a tu saldo disponible.
+      {warningBefore}<strong id="delete-refund-amount"></strong>{warningAfter}
     </p>
   </div>
 
   <div class="mb-4">
-    <div class="mb-2 text-sm text-gray-400">Código del ticket:</div>
+    <div class="mb-2 text-sm text-gray-400">{modal.code}</div>
     <div class="text-lg font-semibold text-white" id="delete-ticket-code"></div>
   </div>
 
   <div class="mb-6">
-    <div class="mb-2 text-sm text-gray-400">Usos originales:</div>
+    <div class="mb-2 text-sm text-gray-400">{modal.originalUses}</div>
     <div class="text-lg font-semibold text-white" id="delete-ticket-uses">
     </div>
   </div>
@@ -32,14 +37,14 @@
       id="cancel-delete"
       class="flex-1 rounded-lg border border-gray-600 px-4 py-2 text-gray-300 hover:bg-gray-800"
     >
-      Cancelar
+      {copy.ui.cancel}
     </button>
     <button
       type="button"
       id="confirm-delete"
       class="flex-1 rounded-lg bg-red-600 px-4 py-2 text-white hover:opacity-90"
     >
-      Confirmar Borrado
+      {modal.confirm}
     </button>
   </div>
 </div>

@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 import { formatDate } from '@/utils/date-formatters'
 import { ticketsRepository } from '@/lib/repositories/tickets-repository'
 import type { TicketWithCreator } from '@/types/database'
@@ -8,6 +9,10 @@ import { MAX_TICKET_USES, TICKET_LENGTH } from '@/consts/constants'
 
 // La autenticación ya se maneja en ManagementLayout
 const session = Astro.locals.adminUser as import('@/types/auth').AdminSession
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages ?? getMessages(locale)
+const page = copy.admin.vouchers
+const ticketState = copy.states.ticket
 
 let tickets: TicketWithCreator[] = []
 
@@ -18,13 +23,13 @@ try {
 }
 ---
 
-<ManagementLayout title="Gestión de Tickets" activeTab="tickets">
+<ManagementLayout title={page.title} activeTab="tickets">
   <!-- Header Section -->
   <div class="mb-8 flex items-center justify-between">
     <div>
-      <h2 class="text-foreground text-2xl font-bold">Gestión de Tickets</h2>
+      <h2 class="text-foreground text-2xl font-bold">{page.title}</h2>
       <p class="text-muted-foreground mt-1">
-        Crea tickets del sistema y consulta todos los tickets
+        {page.description}
       </p>
     </div>
   </div>
@@ -32,9 +37,9 @@ try {
   <!-- Admin-only ticket creation -->
   <section class="bg-card border-border mb-8 rounded-lg border p-6">
     <div class="mb-5">
-      <h3 class="text-foreground text-lg font-semibold">Crear ticket</h3>
+      <h3 class="text-foreground text-lg font-semibold">{page.createTitle}</h3>
       <p class="text-muted-foreground mt-1 text-sm">
-        Los tickets creados por admin no descuentan créditos de ningún Builder.
+        {page.createHelp}
       </p>
     </div>
 
@@ -42,7 +47,7 @@ try {
       <div class="md:col-span-2">
         <label
           for="admin-ticket-code"
-          class="text-foreground mb-2 block text-sm font-medium">Código</label
+          class="text-foreground mb-2 block text-sm font-medium">{page.code}</label
         >
         <input
           id="admin-ticket-code"
@@ -61,14 +66,17 @@ try {
           id="admin-ticket-code-help"
           class="text-muted-foreground mt-1 text-xs"
         >
-          {TICKET_LENGTH.MIN}-{TICKET_LENGTH.MAX} caracteres alfanuméricos.
+          {interpolate(page.codeHelp, {
+            min: String(TICKET_LENGTH.MIN),
+            max: String(TICKET_LENGTH.MAX),
+          })}
         </p>
       </div>
 
       <div>
         <label
           for="admin-ticket-uses"
-          class="text-foreground mb-2 block text-sm font-medium">Usos</label
+          class="text-foreground mb-2 block text-sm font-medium">{page.uses}</label
         >
         <input
           id="admin-ticket-uses"
@@ -86,7 +94,7 @@ try {
         <label
           for="admin-ticket-description"
           class="text-foreground mb-2 block text-sm font-medium"
-          >Descripción</label
+          >{page.descriptionLabel}</label
         >
         <input
           id="admin-ticket-description"
@@ -94,7 +102,7 @@ try {
           type="text"
           maxlength="200"
           class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1"
-          placeholder="Opcional"
+          placeholder={page.optional}
         />
       </div>
 
@@ -104,7 +112,7 @@ try {
         <button
           type="submit"
           class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
-          >Crear ticket</button
+          >{page.create}</button
         >
         <p
           id="admin-ticket-feedback"
@@ -141,7 +149,7 @@ try {
   <div class="bg-card border-border overflow-hidden rounded-lg border">
     <div class="border-border border-b px-6 py-4">
       <h3 class="text-foreground text-lg font-semibold">
-        {session.role === UserRole.Admin ? 'Todos los Tickets' : 'Mis Tickets'}
+        {session.role === UserRole.Admin ? page.allTickets : page.myTickets}
       </h3>
     </div>
 
@@ -152,28 +160,28 @@ try {
             <thead class="bg-muted/50">
               <tr>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Código
+                  {page.code}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Tipo
+                  {page.type}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Estado
+                  {copy.ui.status}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Creado por
+                  {page.createdBy}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Fecha
+                  {page.date}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Usos
+                  {page.uses}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Link
+                  {page.link}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Acciones
+                  {copy.ui.actions}
                 </th>
               </tr>
             </thead>
@@ -212,17 +220,17 @@ try {
                       }`}
                     >
                       {!ticket.is_active
-                        ? 'Sin créditos'
+                        ? ticketState.noCredits
                         : ticket.has_been_used
-                          ? 'En uso'
-                          : 'Disponible'}
+                          ? ticketState.inUse
+                          : ticketState.available}
                     </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
                     {ticket.creator_username}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {formatDate(ticket.created_at)}
+                    {formatDate(ticket.created_at, locale)}
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
                     {ticket.remaining_uses ?? 1}/{ticket.total_uses ?? 1}
@@ -232,7 +240,7 @@ try {
                       class="text-primary hover:text-primary/80 flex items-center gap-1 text-sm font-medium transition-colors"
                       data-action="copy-link"
                       data-ticket-code={ticket.code}
-                      title="Copiar link con ticket"
+                      title={page.copyTitle}
                     >
                       <svg
                         class="h-4 w-4"
@@ -247,12 +255,12 @@ try {
                           d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                         />
                       </svg>
-                      Copiar
+                      {copy.ui.copy}
                     </button>
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <span class="text-muted-foreground text-xs">
-                      Solo lectura
+                      {copy.ui.readOnly}
                     </span>
                   </td>
                 </tr>
@@ -263,9 +271,9 @@ try {
       ) : (
         <div class="p-8 text-center">
           <div class="text-muted-foreground mb-4 text-6xl">🎫</div>
-          <p class="text-foreground mb-2 text-lg font-medium">No hay tickets</p>
+          <p class="text-foreground mb-2 text-lg font-medium">{page.emptyTitle}</p>
           <p class="text-muted-foreground">
-            Aún no se han creado tickets en el sistema
+            {page.emptyBody}
           </p>
         </div>
       )
@@ -292,7 +300,7 @@ try {
         d="M5 13l4 4L19 7"></path>
     </svg>
     <p class="text-sm font-medium text-green-800">
-      Link copiado al portapapeles
+      {page.copied}
     </p>
   </div>
 </div>

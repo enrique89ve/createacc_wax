@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { DEFAULT_LOCALE } from '@/i18n'
 import { formatDate } from '@/utils/date-formatters'
 import {
   usersRepository,
@@ -9,6 +10,7 @@ import { UserRole } from '@/lib/roles'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -122,7 +124,7 @@ try {
                     {builder.tickets_created}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                    {formatDate(builder.created_at)}
+                    {formatDate(builder.created_at, locale)}
                   </td>
                   <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
                     <div class="flex gap-2">

@@ -1,9 +1,13 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import { BRAND } from '@/consts/branding'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
-<Layout title={`Error del servidor - ${BRAND.NAME}`} noindex>
+<Layout title={`${copy.errors.server.title} - ${BRAND.NAME}`} noindex>
   <section class="flex min-h-screen w-full items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div
@@ -32,14 +36,13 @@ import { BRAND } from '@/consts/branding'
 
         <!-- Título y mensaje -->
         <h1 class="text-foreground mb-2 text-2xl font-bold">
-          Error del servidor
+          {copy.errors.server.title}
         </h1>
 
         <p class="text-muted-foreground mb-4 text-4xl font-bold">500</p>
 
         <p class="text-muted-foreground mb-6 text-sm leading-relaxed">
-          Algo salió mal en nuestro servidor. Por favor, inténtalo de nuevo más
-          tarde.
+          {copy.errors.server.description}
         </p>
 
         <!-- Botón para volver -->
@@ -60,7 +63,7 @@ import { BRAND } from '@/consts/branding'
               stroke-width="2"
               d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
           </svg>
-          Volver al inicio
+          {copy.errors.server.action}
         </a>
       </div>
     </div>

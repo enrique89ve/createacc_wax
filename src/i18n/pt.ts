@@ -1,5 +1,6 @@
 import { BRAND } from '@/consts/branding'
 import type { Messages } from './types'
+import { privatePt } from './private-copy'
 
 export const pt: Messages = {
   localeSwitch: {
@@ -21,8 +22,7 @@ export const pt: Messages = {
     personal:
       'Um convite por conta social. Entre novamente para retomar seu processo.',
     preparing: 'Preparando seu link...',
-    ready: 'Seu convite está pronto',
-    readyDescription: 'Guarde este link pessoal para continuar quando quiser.',
+    ready: 'Seu acesso está pronto',
     welcomeDeveloper: 'Bem-vindo, Dev',
     welcomeCreator: 'Bem-vindo',
     welcomeEnd: '!',
@@ -30,20 +30,23 @@ export const pt: Messages = {
       'Você está a um passo de começar a construir na Hive.',
     creatorDescription:
       'Seu caminho como criador de conteúdo Web3 está prestes a começar na Hive.',
-    codeLabel: 'Seu código de acesso',
-    copyCode: 'Copiar código',
+    codeLabel: 'Código de acesso',
+    copyCode: 'Copiar',
     codeCopied: 'Código copiado',
-    oneUse: 'Este acesso é pessoal e só pode ser usado uma vez.',
+    oneUse: 'Use uma vez.',
     linkLabel: 'Seu link de criação',
     copy: 'Copiar link',
     copied: 'Link copiado',
     copyError: 'Não foi possível copiar. Tente novamente.',
-    continue: 'Continuar a criação da minha conta',
+    continue: 'Seguir com a criação',
     processing: 'Estamos verificando sua conta',
     processingDescription:
       'A criação está em andamento. Seu convite fica reservado enquanto verificamos o resultado.',
     completed: 'Sua conta já foi criada',
     completedDescription: 'Este convite já foi usado para criar',
+    simulatedCompleted: 'Você concluiu o ensaio',
+    simulatedCompletedDescription:
+      'Este convite já foi usado para o usuário de teste',
     unavailable: 'Os convites não estão disponíveis no momento.',
     quota:
       'Os convites desta campanha acabaram. Se você já tem um, entre para retomá-lo.',
@@ -222,6 +225,7 @@ export const pt: Messages = {
     creatingOnHive: 'Criando no Hive',
     confirming: 'Confirmando',
     created: 'Conta criada',
+    ariaLabel: 'Progresso da criação da conta',
   },
   success: {
     title: 'Sua conta está pronta',
@@ -233,6 +237,7 @@ export const pt: Messages = {
     readySubtitle: 'Sua conta está pronta para acessar o Hive.',
     activeBody: 'já está ativo no Hive.',
     keychainCta: 'Baixar Keychain',
+    postCta: '+ Publicar',
     keychainTitle: 'Configure o Hive Keychain',
     keychainDownloadTitle: 'Baixar Hive Keychain',
     keychainDownloadBody: 'Gerencie suas chaves e assine transações',
@@ -251,6 +256,16 @@ export const pt: Messages = {
     communityBody:
       'Entre no nosso grupo do Telegram para receber apoio, compartilhar ideias e aprender mais sobre o Hive.',
     communityCta: 'Entrar no grupo',
+    simulated: {
+      title: 'Ensaio concluído',
+      metaDescription:
+        'Você concluiu o fluxo de criação. Nenhuma conta Hive foi criada.',
+      welcomeTitle: 'Ensaio concluído',
+      accountCreatedLead: 'Você concluiu o fluxo com o usuário',
+      accountCreatedTail: '. Nenhuma conta foi criada no Hive.',
+      readySubtitle:
+        'Se você baixou as chaves, guarde-as. Elas não funcionam na rede até um lançamento real.',
+    },
     apps: {
       peakd: 'Plataforma social avançada',
       hiveblog: 'Portal social clássico',
@@ -274,7 +289,7 @@ export const pt: Messages = {
     pdfTitle: 'Seu usuário: {username}',
     pdfMasterPasswordLabel: 'Master Password',
     pdfRolesHeading: 'Funções',
-    pdfRoleKeyTitle: '{role} Key:',
+    pdfRoleKeyTitle: 'Chave {role}:',
     pdfWindowTitle: 'Chaves de {username}',
     roleNames: {
       owner: 'OWNER',
@@ -285,14 +300,14 @@ export const pt: Messages = {
     },
     descriptions: {
       posting:
-        'Esta chave é usada para atividades sociais (postar, comentar e votar). Esta chave tem um conjunto limitado de permissões e não pode ser usada para ações monetárias. Portanto, você não pode perder dinheiro se outra pessoa acessar esta chave.',
+        'Serve para publicar, comentar, votar e autorizar ações sociais nos aplicativos. Não transfere HIVE nem HBD por si só. Um aplicativo pode aceitar esta assinatura para operações que ele define, então não a compartilhe.',
       active:
-        'Esta chave tem permissões adicionais para ações mais sensíveis relacionadas ao dinheiro, como transferir e trocar moedas.',
+        'Move HIVE, HBD e Hive Power: transferências, trocas, power up e power down. Quem a tem pode dispor dos fundos da conta.',
       owner:
-        'A chave do proprietário é necessária para alterar as outras chaves. Esta chave tem permissões adicionais para recuperar sua conta ou alterar suas outras chaves.',
-      memo: 'A única coisa que a chave Memo pode fazer é criptografar e descriptografar mensagens privadas enviadas através da blockchain.',
+        'Altera as outras chaves e pode recuperar a conta. Também pode fazer o que a chave active faz. Guarde-a offline.',
+      memo: 'Criptografa e descriptografa os memos das transferências e outras mensagens criptografadas da conta. Quem a tem pode ler esses memos. Não move fundos por si só.',
       master:
-        'É a chave principal da qual todas as outras chaves de uma conta são derivadas, usada apenas em situações críticas para garantir máxima segurança.',
+        'As outras chaves são derivadas desta senha. Quem a tem controla a conta por completo. Guarde-a offline e não a reutilize.',
     },
   },
   downloadModal: {
@@ -315,4 +330,5 @@ export const pt: Messages = {
     pdfGenerationFailed: 'Erro ao gerar o PDF.',
     unsupportedFormat: 'Formato não suportado: {format}',
   },
+  ...privatePt,
 }

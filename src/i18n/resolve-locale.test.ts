@@ -68,6 +68,59 @@ describe('details and success dictionaries', () => {
 
 })
 
+function collectPlaceholders(
+  value: unknown,
+  prefix = ''
+): Record<string, string> {
+  if (typeof value === 'string') {
+    const names = [...value.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map(
+      match => match[1]
+    )
+    return { [prefix]: names.sort().join(',') }
+  }
+  if (value === null || typeof value !== 'object') return {}
+  return Object.entries(value as Record<string, unknown>).reduce<
+    Record<string, string>
+  >((accumulator, [key, child]) => {
+    const path = prefix.length > 0 ? `${prefix}.${key}` : key
+    return { ...accumulator, ...collectPlaceholders(child, path) }
+  }, {})
+}
+
+describe('private and glossary copy', () => {
+  it('keeps keys and placeholders aligned across locales', () => {
+    const es = getMessages('es')
+    const en = getMessages('en')
+    const pt = getMessages('pt')
+    expect(collectPlaceholders(en)).toEqual(collectPlaceholders(es))
+    expect(collectPlaceholders(pt)).toEqual(collectPlaceholders(es))
+  })
+
+  it('keeps Hive role ids and Master Password in English', () => {
+    for (const locale of ['es', 'en', 'pt'] as const) {
+      const keys = getMessages(locale).keys
+      expect(keys.roleNames).toEqual({
+        owner: 'OWNER',
+        active: 'ACTIVE',
+        posting: 'POSTING',
+        memo: 'MEMO',
+        master: 'MASTER',
+      })
+      expect(keys.pdfRoleKeyTitle).toMatch(/\{role\}/)
+    }
+    expect(getMessages('es').keys.pdfRoleKeyTitle).toBe('Clave {role}:')
+    expect(getMessages('en').keys.pdfRoleKeyTitle).toBe('{role} key:')
+    expect(getMessages('pt').keys.pdfRoleKeyTitle).toBe('Chave {role}:')
+  })
+
+  it('does not promise that a key cannot lose money', () => {
+    for (const locale of ['es', 'en', 'pt'] as const) {
+      const posting = getMessages(locale).keys.descriptions.posting
+      expect(posting).not.toMatch(/lose money|perder dinero|perder dinheiro/i)
+    }
+  })
+})
+
 describe('hreflang and canonical', () => {
   it('builds clean canonical and hreflang without ticket or tracking', async () => {
     const {

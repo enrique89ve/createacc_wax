@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { DEFAULT_LOCALE } from '@/i18n'
 import { formatDateTimeFull } from '@/utils/date-formatters'
 import { auditRepository } from '@/lib/repositories/audit-repository'
 import type {
@@ -11,6 +12,7 @@ import { logger } from '@/lib/logger'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -338,7 +340,7 @@ function getActionBadge(action: string): {
                             )}
                           </td>
                           <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                            {formatDateTimeFull(log.timestamp)}
+                            {formatDateTimeFull(log.timestamp, locale)}
                           </td>
                         </tr>
                       )
@@ -440,7 +442,7 @@ function getActionBadge(action: string): {
                           )}
                         </td>
                         <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                          {formatDateTimeFull(log.timestamp)}
+                          {formatDateTimeFull(log.timestamp, locale)}
                         </td>
                       </tr>
                     ))

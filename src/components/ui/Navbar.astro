@@ -3,8 +3,11 @@
 // Determine if the current route includes "/success/".
 import hiveLogo from '@/assets/hive.svg'
 import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 const currentPath: string = Astro.url.pathname
-const isHome: boolean = currentPath === '/' || currentPath === ''
 const isSuccess: boolean = currentPath.startsWith('/success/')
 ---
 
@@ -12,7 +15,7 @@ const isSuccess: boolean = currentPath.startsWith('/success/')
   class="border-border/60 from-background/90 to-background/70 supports-[backdrop-filter]:bg-background/60 bg-gradient-to-b backdrop-blur"
 >
   <div
-    class="mx-auto flex h-12 w-full max-w-7xl items-center justify-between px-3 md:px-5"
+    class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-3 py-2 sm:flex-row sm:items-center sm:justify-between md:px-5"
   >
     <a
       href="/"
@@ -26,8 +29,8 @@ const isSuccess: boolean = currentPath.startsWith('/success/')
         class="h-8 w-auto"
       />
     </a>
-    <div class="flex items-center gap-2">
-      {isHome && <LocaleSwitch />}
+    <div class="flex flex-wrap items-center gap-2">
+      {!isSuccess && <LocaleSwitch />}
       {
         isSuccess && (
           <a
@@ -36,7 +39,7 @@ const isSuccess: boolean = currentPath.startsWith('/success/')
             rel="noopener noreferrer"
             class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 inline-flex min-h-11 items-center justify-center rounded-md px-3 text-xs font-semibold shadow-sm transition-colors focus:outline-none focus-visible:ring-2"
           >
-            + Post
+            {copy.success.postCta}
           </a>
         )
       }

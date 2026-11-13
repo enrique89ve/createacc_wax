@@ -67,6 +67,10 @@ function cls(...parts: (string | false | undefined)[]): string {
             const isCurrent = step.id === current
             const isCompleted = step.id < current
             const isUpcoming = step.id > current
+            const isFinalStepDone =
+              isCurrent && step.id === steps.length && current === steps.length
+            const showCheck = isCompleted || isFinalStepDone
+            const flowFinished = current === steps.length
             const canNavigate = isCompleted || isCurrent
             return (
               <div
@@ -90,7 +94,10 @@ function cls(...parts: (string | false | undefined)[]): string {
                   <span
                     class={cls(
                       'StepperIndicator relative flex h-6 w-6 items-center justify-center rounded-full border text-[11px] font-medium transition-all',
+                      isFinalStepDone &&
+                        'border-success/50 bg-success/15 text-success ring-2 ring-success/25',
                       isCurrent &&
+                        !isFinalStepDone &&
                         'scale-105 border-white bg-white text-black shadow-sm ring-2 ring-white/30',
                       isCompleted &&
                         !isCurrent &&
@@ -98,7 +105,7 @@ function cls(...parts: (string | false | undefined)[]): string {
                       isUpcoming && 'border-white/10 bg-white/5 text-white/40'
                     )}
                   >
-                    {isCompleted && !isCurrent ? (
+                    {showCheck ? (
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
@@ -118,7 +125,8 @@ function cls(...parts: (string | false | undefined)[]): string {
                     <div
                       class={cls(
                         'StepperTitle text-[12px] font-medium tracking-tight transition-colors md:text-sm',
-                        isCurrent && 'text-white',
+                        isFinalStepDone && 'text-success font-semibold',
+                        isCurrent && !isFinalStepDone && 'text-white',
                         isCompleted && !isCurrent && 'text-white',
                         isUpcoming && 'text-white/60'
                       )}
@@ -132,8 +140,14 @@ function cls(...parts: (string | false | undefined)[]): string {
                     <div
                       class={cls(
                         'h-px w-full transition-colors',
-                        isCompleted ? 'bg-white' : 'bg-white/10',
-                        isCurrent && 'bg-white'
+                        isCompleted &&
+                          flowFinished &&
+                          'bg-success/70',
+                        isCompleted &&
+                          !flowFinished &&
+                          'bg-white',
+                        !isCompleted && isCurrent && 'bg-white',
+                        isUpcoming && 'bg-white/10'
                       )}
                     />
                   </div>

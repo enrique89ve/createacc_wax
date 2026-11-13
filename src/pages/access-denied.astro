@@ -1,9 +1,13 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import { BRAND } from '@/consts/branding'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
+
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
 ---
 
-<Layout title={`Acceso Denegado - ${BRAND.NAME}`}>
+<Layout title={`${copy.errors.accessDenied.title} - ${BRAND.NAME}`} noindex>
   <section class="flex min-h-screen w-full items-center justify-center px-4">
     <div class="w-full max-w-md">
       <div
@@ -32,11 +36,12 @@ import { BRAND } from '@/consts/branding'
         </div>
 
         <!-- Título y mensaje -->
-        <h1 class="text-foreground mb-4 text-2xl font-bold">Acceso Denegado</h1>
+        <h1 class="text-foreground mb-4 text-2xl font-bold">
+          {copy.errors.accessDenied.title}
+        </h1>
 
         <p class="text-muted-foreground mb-6 text-sm leading-relaxed">
-          No puedes acceder a esta página directamente. Debes completar el
-          formulario de registro primero.
+          {copy.errors.accessDenied.description}
         </p>
 
         <!-- Botón para volver -->
@@ -57,7 +62,7 @@ import { BRAND } from '@/consts/branding'
               stroke-width="2"
               d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
           </svg>
-          Volver al formulario
+          {copy.errors.accessDenied.action}
         </a>
       </div>
     </div>
@@ -66,11 +71,11 @@ import { BRAND } from '@/consts/branding'
 
 <script>
   import { notify } from '@/utils/toast'
+  import { publicCopy } from '@/i18n'
 
-  // Mostrar toast explicativo al cargar la página
   document.addEventListener('astro:page-load', () => {
     setTimeout(() => {
-      notify('warning', 'Completa el formulario de registro para continuar')
+      notify('warning', publicCopy().errors.accessDenied.toast)
     }, 1000)
   })
 </script>

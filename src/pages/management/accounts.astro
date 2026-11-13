@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import { formatDateTime } from '@/utils/date-formatters'
 import { accountsRepository } from '@/lib/repositories/accounts-repository'
 import type { DatabaseAccountRow } from '@/types/database'
@@ -8,6 +9,11 @@ import { logger } from '@/lib/logger'
 
 // Get session data from middleware
 const session = Astro.locals.adminUser
+const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages ?? getMessages(locale)
+const page = copy.admin.accounts
+const filters = copy.states.accountFilter
+const sortLabels = copy.states.sort
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -60,20 +66,20 @@ try {
     )
   }
 } catch (loadError) {
-  error = 'Error al cargar las cuentas'
+  error = page.loadError
   logger.error('Error loading accounts:', loadError)
 }
 ---
 
-<ManagementLayout title="Cuentas Creadas" activeTab="accounts">
+<ManagementLayout title={page.title} activeTab="accounts">
   <div class="bg-background min-h-screen">
     <!-- Main Content -->
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
-        <h1 class="text-foreground text-3xl font-bold">Cuentas Creadas</h1>
+        <h1 class="text-foreground text-3xl font-bold">{page.title}</h1>
         <p class="text-muted-foreground mt-2">
-          Listado completo de todas las cuentas Hive creadas en el sistema
+          {page.description}
         </p>
       </div>
 
@@ -87,14 +93,14 @@ try {
                 for="ticket"
                 class="text-foreground mb-2 block text-sm font-medium"
               >
-                Ticket
+                {page.ticket}
               </label>
               <input
                 type="text"
                 id="ticket"
                 name="ticket"
                 value={ticketFilter}
-                placeholder="Código del ticket"
+                placeholder={page.ticketPlaceholder}
                 class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
               />
             </div>
@@ -105,14 +111,14 @@ try {
                 for="user"
                 class="text-foreground mb-2 block text-sm font-medium"
               >
-                Usuario
+                {page.user}
               </label>
               <input
                 type="text"
                 id="user"
                 name="user"
                 value={userFilter}
-                placeholder="Nombre de usuario"
+                placeholder={page.userPlaceholder}
                 class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
               />
             </div>
@@ -122,7 +128,7 @@ try {
                 for="status"
                 class="text-foreground mb-2 block text-sm font-medium"
               >
-                Estado
+                {page.status}
               </label>
               <select
                 id="status"
@@ -130,14 +136,14 @@ try {
                 class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus-visible:ring-1"
               >
                 <option value="all" selected={statusFilter === 'all'}
-                  >All</option
+                  >{filters.all}</option
                 >
                 <option
                   value="simulated"
-                  selected={statusFilter === 'simulated'}>Simulated</option
+                  selected={statusFilter === 'simulated'}>{filters.simulated}</option
                 >
                 <option value="live" selected={statusFilter === 'live'}
-                  >Live</option
+                  >{filters.live}</option
                 >
               </select>
             </div>
@@ -148,7 +154,7 @@ try {
                 for="sort"
                 class="text-foreground mb-2 block text-sm font-medium"
               >
-                Ordenar por Fecha
+                {page.sort}
               </label>
               <select
                 id="sort"
@@ -156,10 +162,10 @@ try {
                 class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
               >
                 <option value="desc" selected={sortOrder === 'desc'}>
-                  Más recientes primero
+                  {sortLabels.newest}
                 </option>
                 <option value="asc" selected={sortOrder === 'asc'}>
-                  Más antiguas primero
+                  {sortLabels.oldest}
                 </option>
               </select>
             </div>
@@ -171,13 +177,13 @@ try {
               type="submit"
               class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
             >
-              Aplicar Filtros
+              {copy.ui.applyFilters}
             </button>
             <a
               href="/management/accounts"
               class="bg-muted hover:bg-muted/80 text-foreground rounded-md px-4 py-2 text-sm font-medium transition-colors"
             >
-              Limpiar Filtros
+              {copy.ui.clearFilters}
             </a>
           </div>
         </form>
@@ -187,7 +193,7 @@ try {
       <div class="bg-card border-border mb-6 rounded-lg border p-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="text-muted-foreground text-sm">Total de cuentas:</span>
+            <span class="text-muted-foreground text-sm">{page.total}</span>
             <span class="text-foreground text-lg font-bold"
               >{accounts.length}</span
             >
@@ -195,7 +201,7 @@ try {
           {
             (ticketFilter || userFilter) && (
               <span class="text-muted-foreground text-sm italic">
-                Resultados filtrados
+                {page.filtered}
               </span>
             )
           }
@@ -225,32 +231,32 @@ try {
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Usuario Hive
+                  {page.hiveUser}
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Estado
+                  {page.status}
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Ticket
+                  {page.ticket}
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Fecha de Creación
+                  {page.createdAt}
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Referencia
+                  {page.reference}
                 </th>
                 <th
                   class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider"
                 >
-                  Acciones
+                  {copy.ui.actions}
                 </th>
               </tr>
             </thead>
@@ -260,7 +266,7 @@ try {
                   <tr>
                     <td colspan="7" class="px-6 py-8 text-center">
                       <p class="text-muted-foreground text-sm">
-                        No se encontraron cuentas
+                        {page.empty}
                       </p>
                     </td>
                   </tr>
@@ -306,6 +312,16 @@ try {
                                 : label === 'FAILED'
                                   ? 'bg-red-500/15 text-red-200'
                                   : 'bg-emerald-500/15 text-emerald-200'
+                          const statusText =
+                            label === 'SIMULATED'
+                              ? copy.states.account.simulated
+                              : label === 'BROADCASTED'
+                                ? copy.states.account.broadcasted
+                                : label === 'FAILED'
+                                  ? copy.states.account.failed
+                                  : label === 'CONFIRMED'
+                                    ? copy.states.account.confirmed
+                                    : label
                           return (
                             <span
                               class:list={[
@@ -313,7 +329,7 @@ try {
                                 badgeClass,
                               ]}
                             >
-                              {label}
+                              {statusText}
                             </span>
                           )
                         })()}
@@ -327,10 +343,10 @@ try {
                         </a>
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                        {formatDateTime(account.creation_date)}
+                        {formatDateTime(account.creation_date, locale)}
                       </td>
                       <td class="text-muted-foreground whitespace-nowrap px-6 py-4 text-sm">
-                        {account.builder_username || 'Sin asignar'}
+                        {account.builder_username || page.unassigned}
                       </td>
                       <td class="whitespace-nowrap px-6 py-4 text-sm">
                         <a
@@ -339,7 +355,7 @@ try {
                           rel="noopener noreferrer"
                           class="text-primary hover:text-primary/80 text-sm transition-colors"
                         >
-                          Ver en Hivescan
+                          {page.viewScan}
                         </a>
                       </td>
                     </tr>
@@ -368,17 +384,12 @@ try {
             ></path>
           </svg>
           <div class="text-muted-foreground text-sm">
-            <p class="font-medium">Información sobre las cuentas:</p>
+            <p class="font-medium">{page.infoTitle}</p>
             <ul class="mt-2 list-inside list-disc space-y-1">
-              <li>
-                Haz clic en el nombre de usuario para ver el perfil en Peakd
-              </li>
-              <li>Haz clic en el ticket para filtrar cuentas por ese ticket</li>
-              <li>Usa los filtros para buscar cuentas específicas</li>
-              <li>
-                Ver en Hivescan muestra información detallada de la cuenta en la
-                blockchain
-              </li>
+              <li>{page.infoPeakd}</li>
+              <li>{page.infoTicket}</li>
+              <li>{page.infoFilters}</li>
+              <li>{page.infoScan}</li>
             </ul>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { BRAND } from '@/consts/branding'
 import type { Messages } from './types'
+import { privateEn } from './private-copy'
 
 export const en: Messages = {
   localeSwitch: {
@@ -21,28 +22,30 @@ export const en: Messages = {
     personal:
       'One invitation per social account. Sign in again to resume your progress.',
     preparing: 'Preparing your link...',
-    ready: 'Your invitation is ready',
-    readyDescription: 'Save this personal link to continue whenever you want.',
+    ready: 'Your access is ready',
     welcomeDeveloper: 'Welcome, Dev',
     welcomeCreator: 'Welcome',
     welcomeEnd: '!',
     developerDescription: 'You are one step away from building on Hive.',
     creatorDescription:
       'Your path as a Web3 creator is about to begin on Hive.',
-    codeLabel: 'Your access code',
-    copyCode: 'Copy code',
+    codeLabel: 'Access code',
+    copyCode: 'Copy',
     codeCopied: 'Code copied',
-    oneUse: 'This access is personal and can only be used once.',
+    oneUse: 'Use it once.',
     linkLabel: 'Your account creation link',
     copy: 'Copy link',
     copied: 'Link copied',
     copyError: 'Could not copy. Please try again.',
-    continue: 'Continue creating my account',
+    continue: 'Continue creating',
     processing: 'We are checking your account',
     processingDescription:
       'Your account creation is still in progress. We keep your invitation reserved while checking the result.',
     completed: 'Your account is already created',
     completedDescription: 'This invitation was already used to create',
+    simulatedCompleted: 'You finished the practice run',
+    simulatedCompletedDescription:
+      'This invitation was already used for the practice username',
     unavailable: 'Invitations are currently unavailable.',
     quota:
       'This campaign has no invitations left. If you already have one, sign in to resume it.',
@@ -215,6 +218,7 @@ export const en: Messages = {
     creatingOnHive: 'Creating on Hive',
     confirming: 'Confirming',
     created: 'Account created',
+    ariaLabel: 'Account creation progress',
   },
   success: {
     title: 'Your account is ready',
@@ -226,6 +230,7 @@ export const en: Messages = {
     readySubtitle: 'Your account is ready to access Hive.',
     activeBody: 'is now active on Hive.',
     keychainCta: 'Download Keychain',
+    postCta: '+ Post',
     keychainTitle: 'Set up Hive Keychain',
     keychainDownloadTitle: 'Download Hive Keychain',
     keychainDownloadBody: 'Manage your keys and sign transactions',
@@ -244,6 +249,16 @@ export const en: Messages = {
     communityBody:
       'Join our Telegram group for support, share ideas, and learn more about Hive.',
     communityCta: 'Join the group',
+    simulated: {
+      title: 'Practice run complete',
+      metaDescription:
+        'You finished the creation flow. No Hive account was created.',
+      welcomeTitle: 'Practice run complete',
+      accountCreatedLead: 'You completed the flow as',
+      accountCreatedTail: '. No Hive account was created.',
+      readySubtitle:
+        'Keep any keys you downloaded. They cannot be used on Hive until a real launch.',
+    },
     apps: {
       peakd: 'Advanced social platform',
       hiveblog: 'Classic social portal',
@@ -267,7 +282,7 @@ export const en: Messages = {
     pdfTitle: 'Your account: {username}',
     pdfMasterPasswordLabel: 'Master Password',
     pdfRolesHeading: 'Roles',
-    pdfRoleKeyTitle: '{role} Key:',
+    pdfRoleKeyTitle: '{role} key:',
     pdfWindowTitle: 'Keys for {username}',
     roleNames: {
       owner: 'OWNER',
@@ -278,14 +293,14 @@ export const en: Messages = {
     },
     descriptions: {
       posting:
-        'This key is used for social activities (posting, commenting and voting). This key has a limited set of permissions and cannot be used for monetary actions. Therefore, you cannot lose money if someone else accesses this key.',
+        'Use it to post, comment, vote, and authorize social actions in apps. It does not transfer HIVE or HBD by itself. An app can accept this signature for operations it defines, so do not share it.',
       active:
-        'This key has additional permissions for more sensitive money-related actions, such as transferring and exchanging currencies.',
+        'Moves HIVE, HBD, and Hive Power: transfers, exchanges, power up, and power down. Anyone who has it can spend the account funds.',
       owner:
-        'The owner key is required to change the other keys. This key has additional permissions to recover your account or change your other keys.',
-      memo: 'The only thing the Memo key can do is encrypt and decrypt private messages sent through the blockchain.',
+        'Changes the other keys and can recover the account. It can also do what the active key does. Keep it offline.',
+      memo: 'Encrypts and decrypts memos attached to transfers and other encrypted account messages. Anyone with it can read those memos. It does not move funds by itself.',
       master:
-        'It is the main key from which all other keys of an account are derived, used only in critical situations to ensure maximum security.',
+        'The other keys are derived from this password. Anyone who has it controls the account completely. Keep it offline and do not reuse it.',
     },
   },
   downloadModal: {
@@ -308,4 +323,5 @@ export const en: Messages = {
     pdfGenerationFailed: 'Failed to generate PDF.',
     unsupportedFormat: 'Unsupported format: {format}',
   },
+  ...privateEn,
 }

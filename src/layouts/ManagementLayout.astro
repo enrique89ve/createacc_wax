@@ -6,9 +6,11 @@
  */
 import Base from './Base.astro'
 import Toasts from '@/components/ui/Toasts.astro'
+import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
 import { TITLE_SUFFIXES } from '@/consts/seo'
 import { BRAND } from '@/consts/branding'
 import { UserRole } from '@/lib/roles'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 
 interface Props {
   title: string
@@ -30,6 +32,9 @@ const pageTitle = `${title} - ${TITLE_SUFFIXES.MANAGEMENT}`
 import { getAdminSession } from '@/lib/session-helpers'
 
 const session = await getAdminSession(Astro.request)
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const shell = copy.shell.management
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -39,37 +44,37 @@ if (!session) {
 const navItems = [
   {
     key: 'dashboard',
-    label: 'Dashboard',
+    label: shell.nav.dashboard,
     href: '/management/console',
     adminOnly: false,
   },
   {
     key: 'tickets',
-    label: 'Tickets',
+    label: shell.nav.tickets,
     href: '/management/vouchers',
     adminOnly: false,
   },
   {
     key: 'accounts',
-    label: 'Accounts',
+    label: shell.nav.accounts,
     href: '/management/accounts',
     adminOnly: true,
   },
   {
     key: 'builders',
-    label: 'Builders',
+    label: shell.nav.builders,
     href: '/management/builders',
     adminOnly: true,
   },
   {
     key: 'invites',
-    label: 'Invitaciones',
+    label: shell.nav.invites,
     href: '/management/invites',
     adminOnly: true,
   },
   {
     key: 'logs',
-    label: 'Logs',
+    label: shell.nav.logs,
     href: '/management/logs',
     adminOnly: true,
   },
@@ -81,26 +86,29 @@ const navItems = [
     <!-- Header -->
     <header class="bg-card border-border border-b">
       <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="flex h-16 items-center justify-between">
+        <div class="flex min-h-16 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
           <div class="flex items-center gap-4">
             <h1 class="text-foreground text-xl font-bold">
-              Console {BRAND.NAME}
+              {interpolate(shell.console, { brand: BRAND.NAME })}
             </h1>
             <span
               class="bg-primary/20 text-primary rounded-full px-2 py-1 text-xs font-medium"
             >
-              {session.role === UserRole.Admin ? 'Admin' : 'Builder'}
+              {session.role === UserRole.Admin
+                ? shell.roleAdmin
+                : shell.roleBuilder}
             </span>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex flex-wrap items-center gap-3">
+            <LocaleSwitch />
             <span class="text-muted-foreground text-sm">
-              Hola, {session.username}
+              {interpolate(shell.greeting, { username: session.username })}
             </span>
             <button
               id="logout-btn"
               class="bg-muted hover:bg-muted/80 text-foreground rounded-md px-3 py-1 text-sm transition-colors"
             >
-              Salir
+              {shell.logout}
             </button>
           </div>
         </div>

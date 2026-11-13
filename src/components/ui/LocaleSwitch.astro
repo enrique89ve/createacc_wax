@@ -20,7 +20,7 @@ function hrefFor(next: string): string {
 }
 ---
 
-<nav aria-label={label} class="flex items-center gap-1">
+<nav aria-label={label} class="flex max-w-full flex-wrap items-center gap-1">
   {
     LOCALES.map(code => {
       const current = code === locale
