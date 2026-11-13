@@ -5,6 +5,7 @@ import { defineConfig } from 'astro/config'
 import tailwindcss from '@tailwindcss/vite'
 
 import node from '@astrojs/node'
+import { SITE_HOSTNAMES } from './src/consts/origins'
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,7 +18,11 @@ export default defineConfig({
     checkOrigin: true,
     allowedDomains: [
       {
-        hostname: 'join.holahive.com',
+        hostname: SITE_HOSTNAMES.PRODUCTION,
+        protocol: 'https',
+      },
+      {
+        hostname: SITE_HOSTNAMES.SIMULATOR,
         protocol: 'https',
       },
     ],

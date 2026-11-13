@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth'
 import { LibsqlDialect } from '@libsql/kysely-libsql'
 import { db } from '@/lib/database'
 import { BRAND } from '@/consts/branding'
+import { trustedAuthOrigins } from '@/consts/origins'
 import { UserRole } from '@/lib/roles'
 
 const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60
@@ -102,11 +103,7 @@ export const auth = betterAuth({
       updatedAt: 'updated_at',
     },
   },
-  trustedOrigins: [
-    'http://localhost:4321',
-    'https://join.holahive.com',
-    BRAND.URL,
-  ],
+  trustedOrigins: [...trustedAuthOrigins()],
   advanced: {
     useSecureCookies: process.env.NODE_ENV === 'production',
     defaultCookieAttributes: {

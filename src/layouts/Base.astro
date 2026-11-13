@@ -2,6 +2,7 @@
 import '@/styles/global.css'
 import '@fontsource-variable/sora'
 import { SEO_DEFAULTS, ROBOTS_META } from '@/consts/seo'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
 import { ClientRouter } from 'astro:transitions'
 import {
   DEFAULT_LOCALE,
@@ -45,8 +46,8 @@ const xDefaultHref = localizedSeo
   ? defaultLocaleAlternateHref(Astro.url.pathname)
   : null
 
-// Determine robots meta tag value
-const robotsValue = noindex
+const suppressIndexing = noindex || isSimulationMode()
+const robotsValue = suppressIndexing
   ? enhancedSecurity
     ? ROBOTS_META.NOINDEX_SECURE
     : ROBOTS_META.NOINDEX

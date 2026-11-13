@@ -19,11 +19,11 @@ Five phases. Ship, learn, finish.
 | **4** | **Attract**  | Turn the site into a growth surface, not a form.                                                             | The page itself pulls people in.                                                                              |
 | **5** | **Ship**     | A finished product. Trusted, reliable, ready to scale.                                                       | We would hand this to a stranger.                                                                             |
 
-We are in **phase 1**. The next milestone is a **closed simulated pilot**; it is
-not a public launch and does not create Hive accounts. The app is **not ready to
-invite participants yet**: the success page currently says an account was
-created even in simulation, and there is no remote pilot deployment. Complete
-the simulated-pilot gates before inviting participants.
+We are in **phase 1**. The next milestone is a **closed simulated pilot** on
+`https://dev.holahive.com`. It is not a public launch and does not create Hive
+accounts. Simulation copy no longer claims an account exists. A remote Dokploy
+instance still has to be provisioned (volume, secrets, OAuth, `invite:init`)
+before inviting participants.
 
 The simulated pilot is separate from a real Hive launch. Local tests and builds
 do not validate a remote deployment, a participant pilot, backup restoration,
@@ -50,14 +50,15 @@ GITHUB_CLIENT_ID=
 GITHUB_CLIENT_SECRET=
 TWITTER_CLIENT_ID=
 TWITTER_CLIENT_SECRET=
-BETTER_AUTH_URL=https://join.holahive.com
-AUTH_ORIGIN=https://join.holahive.com
+BETTER_AUTH_URL=https://dev.holahive.com
+AUTH_ORIGIN=https://dev.holahive.com
 ```
 
-Register the exact OAuth callbacks under that origin:
+Register the exact OAuth callbacks under that origin. For the simulated
+pilot those are:
 
-- `/api/invite/auth/callback/github`
-- `/api/invite/auth/callback/twitter`
+- `https://dev.holahive.com/api/invite/auth/callback/github`
+- `https://dev.holahive.com/api/invite/auth/callback/twitter`
 
 GitHub uses `read:user`; X uses `users.read` and `tweet.read`. The application
 does not require the person's email or retain provider access tokens. Better
@@ -165,6 +166,56 @@ especially `DATABASE_URL` when targeting a nondefault database. Never run reset
 or seed commands against an existing deployment.
 
 One admin only. Enforced in SQL. Password is bcrypt (10 rounds).
+
+---
+
+## Simulated pilot on Dokploy
+
+Closed pilot at `https://dev.holahive.com`. `HIVE_TX_MODE=simulate` still talks
+to Hive mainnet RPC and still signs with Beekeeper; it does not broadcast.
+Placeholder creator keys will fail. Public pages emit `noindex` in simulate.
+
+`docker-compose.yml` builds the [Dockerfile](Dockerfile), publishes port 4321,
+mounts `holahive-data` at `/data`, and pins one replica with stop-first updates.
+In Dokploy: Git → Compose (or Dockerfile), domain `dev.holahive.com` with TLS,
+inject env at runtime, never copy `.env` into the image.
+
+Required process env:
+
+```bash
+HIVE_TX_MODE=simulate
+HIVE_CREATOR_ACCOUNT=
+HIVE_CREATOR_ACTIVE_KEY=
+HIVE_DELEGATOR_ACCOUNT=
+HIVE_DELEGATOR_POSTING_KEY=
+SESSION_SECRET=            # openssl rand -base64 64
+AUTH_SECRET=               # ≥ 32 chars, different from INVITE_IDENTITY_SECRET
+BEEKEEPER_WALLET_PASSWORD=
+TRUST_PROXY_HEADERS=true
+AUTH_ORIGIN=https://dev.holahive.com
+BETTER_AUTH_URL=https://dev.holahive.com
+INVITE_IDENTITY_SECRET=    # openssl rand -hex 32; keep stable and backed up
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+TWITTER_CLIENT_ID=
+TWITTER_CLIENT_SECRET=
+```
+
+`DATABASE_URL` defaults to `file:/data/holahive.db` in the image. After the
+container is healthy (`GET /api/health`):
+
+1. `ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create`
+2. `pnpm invite:init` — campaign starts paused with cap 0
+3. Sign in at `/management/login`, open `/management/invites`, enable the
+   campaign and set a cap
+4. Walk `/invite` with a test GitHub or X account through success. The page
+   must say no Hive account was created. `/management/accounts` shows
+   `simulated`
+
+Backup the volume files (`/data/holahive.db` plus `-wal`/`-shm` if present) and
+the three secrets `INVITE_IDENTITY_SECRET`, `AUTH_SECRET`, and `SESSION_SECRET`.
+Do not run `pnpm db:reset` or `pnpm db:seed` against this volume. Do not scale
+past one replica while SQLite is authoritative.
 
 ---
 

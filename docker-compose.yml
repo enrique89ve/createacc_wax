@@ -1,0 +1,34 @@
+# Dokploy simulated-pilot compose. Inject runtime secrets in the Dokploy UI;
+# do not bake .env files into the image. Keep replicas at 1 while SQLite on
+# /data is authoritative. Use recreate / stop-first deploys, not rolling.
+
+services:
+  holahive:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - '4321:4321'
+    volumes:
+      - holahive-data:/data
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+        failure_action: rollback
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4321/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  holahive-data:
