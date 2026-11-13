@@ -1,186 +1,149 @@
 ---
 import Layout from '@/layouts/Layout.astro'
+import InviteMark from '@/components/invite/InviteMark.astro'
 import { getMessages, DEFAULT_LOCALE } from '@/i18n'
 import { getInvitePageState } from '@/lib/invite/page-state'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
 
 const copy = (Astro.locals.messages ?? getMessages(DEFAULT_LOCALE)).invite
+const simulated = isSimulationMode()
+const completedTitle = simulated ? copy.simulatedCompleted : copy.completed
+const completedDescription = simulated
+  ? copy.simulatedCompletedDescription
+  : copy.completedDescription
 const state = await getInvitePageState(Astro.request)
 const authenticated = !['login', 'unavailable'].includes(state.kind)
+const showLoading = state.kind === 'login' || state.kind === 'prepare'
 Astro.response.headers.set('Cache-Control', 'no-store')
 Astro.response.headers.set('Referrer-Policy', 'no-referrer')
+const titleClass =
+  'text-card-foreground max-w-[18ch] text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl sm:leading-[1.1]'
 const buttonClass =
   'border-input text-foreground hover:bg-muted focus-visible:ring-ring min-h-12 w-full rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
+const actionClass =
+  'bg-invite-action text-primary-foreground hover:bg-invite-action-hover focus-visible:ring-ring active:bg-invite-action-hover focus-visible:ring-offset-card inline-flex min-h-12 w-full items-center justify-center rounded-lg px-5 py-3 text-center text-sm font-semibold leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none'
+const continueClass =
+  'bg-invite-action text-primary-foreground hover:bg-invite-action-hover focus-visible:ring-ring active:bg-invite-action-hover focus-visible:ring-offset-card inline-flex min-h-12 w-full items-center justify-center rounded-lg px-5 py-3 text-center text-base font-semibold leading-[1.18] tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none'
 const successActionClass =
-  'border-input text-foreground hover:bg-muted focus-visible:ring-ring inline-flex min-h-12 flex-1 items-center justify-center rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
-const welcome =
-  state.kind === 'available'
-    ? state.provider === 'github'
-      ? copy.welcomeDeveloper
-      : copy.welcomeCreator
-    : ''
-const welcomeDescription =
-  state.kind === 'available'
-    ? state.provider === 'github'
-      ? copy.developerDescription
-      : copy.creatorDescription
-    : ''
+  'text-card-foreground hover:bg-invite-diamond-muted focus-visible:ring-ring inline-flex min-h-12 shrink-0 items-center justify-center rounded-lg px-3 py-3 text-sm font-medium underline decoration-input underline-offset-4 transition-colors active:bg-invite-diamond focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none'
+const codeActionClass =
+  'text-card-foreground hover:bg-invite-diamond-muted focus-visible:ring-ring inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg px-2 text-sm font-medium underline decoration-input underline-offset-4 transition-colors active:bg-invite-diamond focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-card motion-reduce:transition-none'
 ---
 
 <Layout title={copy.title} description={copy.introduction} noindex>
-  <section
-    id="invite-page"
-    data-auto-issue={state.kind === 'prepare' ? 'true' : undefined}
-    class={`mx-auto w-full ${state.kind === 'available' ? 'max-w-xl px-4 py-10 sm:px-6' : 'max-w-md px-6 py-12'}`}
-  >
+  <section id="invite-page" data-auto-issue={state.kind === 'prepare' ? 'true' : undefined} class="mx-auto w-full max-w-xl px-4 py-10 sm:px-6">
     <div
-      class={state.kind === 'available'
-        ? 'invite-success-card border-border bg-card relative isolate rounded-2xl border p-6 sm:p-9'
-        : 'border-border bg-card space-y-6 rounded-xl border p-6'}
+      id="invite-card"
+      transition:name="invite-card"
+      class="border-border bg-card min-w-0 rounded-xl border p-6 sm:p-9"
     >
-      {
-        state.kind === 'available' && (
-          <div class="invite-hexagons" aria-hidden="true">
-            <span class="invite-hexagon invite-hexagon-one" />
-            <span class="invite-hexagon invite-hexagon-two" />
-            <span class="invite-hexagon invite-hexagon-three" />
-          </div>
-        )
-      }
-      <div
-        class={state.kind === 'available'
-          ? 'relative z-10 space-y-7'
-          : 'space-y-6'}
-      >
-        {
-          state.kind === 'available' ? (
-            <div class="max-w-lg space-y-4">
-              <p class="border-primary/30 bg-primary/10 text-primary inline-flex rounded-full border px-3 py-1 text-xs font-semibold">
-                {copy.ready}
-              </p>
-              <h1 class="text-foreground text-3xl font-semibold tracking-tight sm:text-4xl">
-                {welcome}
-                {state.username && (
-                  <>
-                    {' '}
-                    <span class="text-primary break-words font-mono">
-                      @{state.username}
-                    </span>
-                  </>
-                )}
-                {copy.welcomeEnd}
-              </h1>
-              <p class="text-muted-foreground max-w-md text-base leading-relaxed sm:text-lg">
-                {welcomeDescription}
-              </p>
-            </div>
-          ) : (
-            <div class="space-y-3">
-              <h1 class="text-foreground text-2xl font-semibold tracking-tight sm:text-3xl">
-                {copy.title}
-              </h1>
-              <p class="text-muted-foreground text-sm leading-relaxed">
-                {copy.introduction}
-              </p>
-            </div>
-          )
-        }
+      <div class="space-y-6">
         {
           state.kind === 'login' && (
-            <div class="space-y-3">
-              <button
-                type="button"
-                data-invite-provider="github"
-                disabled={!state.providers.includes('github')}
-                class={buttonClass}
-              >
-                {copy.signInGithub}
-              </button>
-              <button
-                type="button"
-                data-invite-provider="twitter"
-                disabled={!state.providers.includes('twitter')}
-                class={buttonClass}
-              >
-                {copy.signInTwitter}
-              </button>
-              <p class="text-muted-foreground text-xs leading-relaxed">
-                {copy.personal}
-              </p>
+            <div data-invite-panel="login" class="space-y-6">
+              <header class="space-y-5">
+                <div class="flex min-h-12 items-center justify-end">
+                  <InviteMark />
+                </div>
+                <h1 class={titleClass}>{copy.title}</h1>
+                <p class="text-muted-foreground max-w-md text-sm leading-relaxed sm:text-base">
+                  {copy.introduction}
+                </p>
+              </header>
+              <div class="space-y-3">
+                <button type="button" data-invite-provider="github" disabled={!state.providers.includes('github')} class={actionClass}>
+                  {copy.signInGithub}
+                </button>
+                <button type="button" data-invite-provider="twitter" disabled={!state.providers.includes('twitter')} class={buttonClass}>
+                  {copy.signInTwitter}
+                </button>
+              </div>
+              <p class="text-muted-foreground text-xs leading-relaxed">{copy.personal}</p>
             </div>
           )
         }
         {
-          state.kind === 'prepare' && (
-            <p
-              id="invite-preparing"
+          showLoading && (
+            <div
+              data-invite-panel="loading"
               role="status"
-              class="text-muted-foreground text-sm"
+              class:list={['space-y-6', state.kind === 'login' && 'hidden']}
+              aria-hidden={state.kind === 'login' ? 'true' : undefined}
             >
-              {copy.preparing}
-            </p>
+              <header class="space-y-5">
+                <div class="flex min-h-12 items-center justify-end">
+                  <InviteMark pulse />
+                </div>
+                <h1 id="invite-loading-title" tabindex="-1" class={titleClass}>
+                  {state.kind === 'prepare' ? copy.preparing : copy.connecting}
+                </h1>
+              </header>
+              <div class="space-y-3" aria-hidden="true">
+                <div class="bg-muted h-12 rounded-lg motion-safe:animate-pulse"></div>
+                <div class="bg-muted h-12 rounded-lg motion-safe:animate-pulse"></div>
+              </div>
+            </div>
           )
         }
         {
           state.kind === 'available' && (
             <div class="space-y-6">
-              <div class="border-border/80 bg-background/70 flex flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                <div class="min-w-0 space-y-2">
-                  <p class="text-muted-foreground text-sm font-medium">
-                    {copy.codeLabel}
-                  </p>
-                  <code class="text-foreground block break-all font-mono text-lg font-semibold tracking-wide">
+              <header class="space-y-5">
+                <div class="flex items-center justify-between gap-5">
+                  <div class="min-w-0 space-y-1 text-sm leading-6">
+                    <p class="text-muted-foreground">{`${copy.welcomeCreator}${copy.welcomeEnd}`}</p>
+                    {state.username && (
+                      <p class="text-invite-accent font-medium [overflow-wrap:anywhere]">@{state.username}</p>
+                    )}
+                  </div>
+                  <InviteMark />
+                </div>
+                <h1 class={titleClass}>{copy.ready}</h1>
+              </header>
+              <div class="space-y-6">
+                <div class="bg-invite-code flex min-w-0 items-center gap-3 rounded-lg px-4 py-2 sm:px-5">
+                  <p class="sr-only">{copy.codeLabel}</p>
+                  <code class="text-card-foreground min-w-0 flex-1 font-mono text-base font-medium leading-5 break-all sm:text-lg sm:leading-6">
                     {state.ticketCode}
                   </code>
+                  <button
+                    type="button"
+                    data-copy-value={state.ticketCode}
+                    data-copy-success={copy.codeCopied}
+                    class={codeActionClass}
+                  >
+                    {copy.copyCode}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  data-copy-value={state.ticketCode}
-                  data-copy-success={copy.codeCopied}
-                  class={successActionClass}
-                >
-                  {copy.copyCode}
-                </button>
+                <div class="flex flex-col items-stretch gap-3">
+                  <a
+                    href={state.url}
+                    data-astro-reload
+                    class={continueClass}
+                  >
+                    {copy.continue}
+                  </a>
+                  <button
+                    type="button"
+                    data-copy-value={state.url}
+                    data-copy-success={copy.copied}
+                    class={`${successActionClass} self-center`}
+                  >
+                    {copy.copy}
+                  </button>
+                </div>
+                <p class="text-muted-foreground text-xs leading-relaxed">{copy.oneUse}</p>
               </div>
-              <div class="flex flex-col gap-3 sm:flex-row">
-                <a
-                  href={state.url}
-                  data-astro-reload
-                  class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex min-h-12 flex-1 items-center justify-center rounded-lg px-5 py-3 text-center text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2"
-                >
-                  {copy.continue}
-                </a>
-                <button
-                  type="button"
-                  data-copy-value={state.url}
-                  data-copy-success={copy.copied}
-                  class={successActionClass}
-                >
-                  {copy.copy}
-                </button>
-              </div>
-              <p class="text-muted-foreground text-sm leading-relaxed">
-                {copy.oneUse}
-              </p>
             </div>
           )
         }
         {
           state.kind === 'processing' && (
             <div class="space-y-3">
-              <h2 class="text-foreground text-lg font-semibold">
-                {copy.processing}
-              </h2>
-              <p class="text-foreground break-words text-sm">
-                @{state.username}
-              </p>
-              <p class="text-muted-foreground text-sm leading-relaxed">
-                {copy.processingDescription}
-              </p>
-              <a
-                href="/invite"
-                data-astro-reload
-                class={`${buttonClass} flex items-center justify-center`}
-              >
+              <h1 class="text-foreground text-lg font-semibold">{copy.processing}</h1>
+              <p class="text-foreground text-sm break-words">@{state.username}</p>
+              <p class="text-muted-foreground text-sm leading-relaxed">{copy.processingDescription}</p>
+              <a href="/invite" data-astro-reload class={`${buttonClass} flex items-center justify-center`}>
                 {copy.refresh}
               </a>
             </div>
@@ -189,45 +152,29 @@ const welcomeDescription =
         {
           state.kind === 'completed' && (
             <div class="space-y-3">
-              <h2 class="text-foreground text-lg font-semibold">
-                {copy.completed}
-              </h2>
+              <h1 class="text-foreground text-lg font-semibold">{completedTitle}</h1>
               <p class="text-muted-foreground text-sm leading-relaxed">
-                {copy.completedDescription}{' '}
-                <strong class="text-foreground break-words">
-                  @{state.username}
-                </strong>
-                .
+                {completedDescription}{' '}
+                <strong class="text-foreground break-words">@{state.username}</strong>.
               </p>
             </div>
           )
         }
         {
           state.kind === 'unavailable' && (
-            <p
-              role="status"
-              class="text-muted-foreground text-sm leading-relaxed"
-            >
+            <p role="status" class="text-muted-foreground text-sm leading-relaxed">
               {copy.unavailable}
             </p>
           )
         }
-        <p
-          id="invite-feedback"
-          role="status"
-          aria-live="polite"
-          class="text-muted-foreground hidden text-sm leading-relaxed"
-        >
-        </p>
-        <button id="invite-retry" type="button" class={`${buttonClass} hidden`}
-          >{copy.retry}</button
-        >
+        <p id="invite-feedback" role="status" aria-live="polite" class="text-muted-foreground hidden text-sm leading-relaxed"></p>
+        <button id="invite-retry" type="button" class={`${buttonClass} hidden`}>{copy.retry}</button>
         {
           authenticated && (
             <button
               id="invite-signout"
               type="button"
-              class="text-muted-foreground hover:text-foreground focus-visible:ring-ring min-h-12 w-full rounded-lg px-4 py-3 text-sm underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2"
+              class={`text-muted-foreground hover:text-foreground focus-visible:ring-ring active:bg-muted min-h-12 w-full rounded-lg px-4 py-3 underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 ${state.kind === 'available' ? 'border-border border-t text-xs' : 'text-sm'}`}
             >
               {copy.signOut}
             </button>
@@ -238,76 +185,22 @@ const welcomeDescription =
   </section>
 </Layout>
 
+<style is:global>
+  #invite-card {
+    view-transition-name: invite-card;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  ::view-transition-old(invite-card),
+  ::view-transition-new(invite-card) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+</style>
+
 <script>
   import { initializeInvitePage } from '@/lib/invite/client'
   initializeInvitePage()
   document.addEventListener('astro:page-load', initializeInvitePage)
 </script>
-
-<style>
-  .invite-hexagons {
-    position: absolute;
-    z-index: 0;
-    inset: 0;
-    overflow: hidden;
-    pointer-events: none;
-  }
-
-  .invite-hexagon {
-    position: absolute;
-    display: block;
-    aspect-ratio: 1;
-    background: color-mix(in srgb, var(--color-primary) 34%, transparent);
-    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
-    filter: drop-shadow(
-      0 0 14px color-mix(in srgb, var(--color-primary) 30%, transparent)
-    );
-    opacity: 0.28;
-    animation: invite-hex-glow 5.2s ease-in-out infinite;
-  }
-
-  .invite-hexagon::after {
-    position: absolute;
-    content: '';
-    inset: 1px;
-    background: var(--color-card);
-    clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0 50%);
-  }
-
-  .invite-hexagon-one {
-    top: 1rem;
-    right: 1rem;
-    width: 6rem;
-  }
-
-  .invite-hexagon-two {
-    top: 4.75rem;
-    right: 5rem;
-    width: 3.5rem;
-    animation-delay: 1.4s;
-  }
-
-  .invite-hexagon-three {
-    top: 1.5rem;
-    right: 7rem;
-    width: 1.75rem;
-    animation-delay: 2.8s;
-  }
-
-  @keyframes invite-hex-glow {
-    0%,
-    100% {
-      opacity: 0.22;
-    }
-
-    50% {
-      opacity: 0.62;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .invite-hexagon {
-      animation: none;
-    }
-  }
-</style>

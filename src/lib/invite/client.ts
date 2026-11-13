@@ -1,8 +1,17 @@
 import { z } from 'astro/zod'
+import { navigate } from 'astro:transitions/client'
 import { publicCopy } from '@/i18n'
 
 const OAuthResponse = z.object({ url: z.url() })
 const IssueResponse = z.object({ kind: z.string(), url: z.string().optional() })
+
+async function replaceInvite(): Promise<void> {
+  try {
+    await navigate('/invite', { history: 'replace' })
+  } catch {
+    window.location.replace('/invite')
+  }
+}
 
 export function initializeInvitePage(): void {
   const root = document.getElementById('invite-page')
@@ -20,6 +29,18 @@ export function initializeInvitePage(): void {
     }
   }
 
+  function setLoading(active: boolean): void {
+    const login = root?.querySelector<HTMLElement>('[data-invite-panel="login"]')
+    const loading = root?.querySelector<HTMLElement>('[data-invite-panel="loading"]')
+    const card = document.getElementById('invite-card')
+    login?.classList.toggle('hidden', active)
+    loading?.classList.toggle('hidden', !active)
+    if (active) loading?.removeAttribute('aria-hidden')
+    else loading?.setAttribute('aria-hidden', 'true')
+    if (active) card?.setAttribute('aria-busy', 'true')
+    else card?.removeAttribute('aria-busy')
+  }
+
   async function issue(): Promise<void> {
     if (retry) retry.disabled = true
     try {
@@ -29,11 +50,11 @@ export function initializeInvitePage(): void {
         result.kind === 'available' &&
         result.url?.match(/^\/invite\/[a-f0-9]{64}$/)
       ) {
-        window.location.replace('/invite')
+        await replaceInvite()
         return
       }
       if (result.kind === 'processing' || result.kind === 'completed') {
-        window.location.reload()
+        await replaceInvite()
         return
       }
       message(
@@ -45,7 +66,7 @@ export function initializeInvitePage(): void {
               ? copy.loginAgain
               : copy.error
       )
-      root?.querySelector('#invite-preparing')?.classList.add('hidden')
+      root?.querySelector('[data-invite-panel="loading"]')?.classList.add('hidden')
       if (
         retry &&
         result.kind !== 'quota_exhausted' &&
@@ -70,7 +91,8 @@ export function initializeInvitePage(): void {
         item.disabled = true
       })
       button.setAttribute('aria-busy', 'true')
-      message(copy.connecting)
+      setLoading(true)
+      document.getElementById('invite-loading-title')?.focus({ preventScroll: true })
       try {
         const response = await fetch('/api/invite/auth/sign-in/social', {
           method: 'POST',
@@ -92,9 +114,10 @@ export function initializeInvitePage(): void {
       } catch {
         message(copy.error)
         buttons.forEach((item, index) => {
-          item.disabled = previous[index]
+          item.disabled = previous[index] ?? false
         })
         button.setAttribute('aria-busy', 'false')
+        setLoading(false)
       }
     })
   }
@@ -124,7 +147,7 @@ export function initializeInvitePage(): void {
         body: '{}',
       })
       if (!response.ok) throw new Error('Sign-out failed')
-      window.location.replace('/invite')
+      await replaceInvite()
     } catch {
       message(copy.error)
     }
