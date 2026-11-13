@@ -55,7 +55,11 @@ const robotsValue = suppressIndexing
 ---
 
 <!doctype html>
-<html lang={locale} class={htmlClass}>
+<html
+  lang={locale}
+  class={htmlClass}
+  data-hive-tx-mode={isSimulationMode() ? 'simulate' : 'broadcast'}
+>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width" />

@@ -210,6 +210,24 @@ export const pt: Messages = {
     },
     createPrefix: 'Criar',
     advancedKeys: 'Ver chaves avançadas',
+    simulated: {
+      metaDescription:
+        'Revise o fluxo de ensaio. As chaves geradas não abrem uma conta Hive real.',
+      keysSafetyCheckbox:
+        'Entendo que é um ensaio: estas chaves não dão acesso a uma conta Hive real.',
+      createAccount: 'Concluir ensaio',
+      creatingAccount: 'Concluindo ensaio...',
+      keysDownloadedBoth:
+        'Downloads iniciados. São só para prática; não precisa guardá-las.',
+      creationOutcomeUnknown:
+        'A conexão caiu antes de recebermos o resultado. Você pode tentar de novo aqui para verificar a mesma tentativa de ensaio.',
+      creationPending:
+        'Ainda não confirmamos o resultado do ensaio. Você pode tentar mais tarde. Referência: {correlationId}.',
+      creationErrors: {
+        creationContextChanged:
+          'O contexto do ensaio não corresponde mais a esta tentativa. Volte ao início para começar de novo.',
+      },
+    },
   },
   progress: {
     modalTitle: 'Criando sua conta',
@@ -226,6 +244,13 @@ export const pt: Messages = {
     confirming: 'Confirmando',
     created: 'Conta criada',
     ariaLabel: 'Progresso da criação da conta',
+    simulated: {
+      modalTitle: 'Concluindo o ensaio',
+      modalSubtitle: 'Aguarde enquanto simulamos a criação',
+      stepCreating: 'Simulando a criação',
+      creatingOnHive: 'Simulando na Hive',
+      created: 'Ensaio concluído',
+    },
   },
   success: {
     title: 'Sua conta está pronta',
@@ -264,7 +289,7 @@ export const pt: Messages = {
       accountCreatedLead: 'Você concluiu o fluxo com o usuário',
       accountCreatedTail: '. Nenhuma conta foi criada no Hive.',
       readySubtitle:
-        'Se você baixou as chaves, guarde-as. Elas não funcionam na rede até um lançamento real.',
+        'Foi um ensaio: não há conta na Hive e você não precisa guardar senhas nem chaves.',
     },
     apps: {
       peakd: 'Plataforma social avançada',
@@ -308,6 +333,10 @@ export const pt: Messages = {
       memo: 'Criptografa e descriptografa os memos das transferências e outras mensagens criptografadas da conta. Quem a tem pode ler esses memos. Não move fundos por si só.',
       master:
         'As outras chaves são derivadas desta senha. Quem a tem controla a conta por completo. Guarde-a offline e não a reutilize.',
+    },
+    simulated: {
+      keepSafe:
+        '⚠️ ENSAIO: estas chaves não abrem uma conta na Hive. Você pode descartá-las depois de revisar o formato. ⚠️',
     },
   },
   downloadModal: {

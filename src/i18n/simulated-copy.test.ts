@@ -31,6 +31,12 @@ describe('simulated public copy', () => {
       expect(blob, locale).toMatch(
         /no se creó|no hive account|nenhuma conta/
       )
+      expect(messages.success.simulated.readySubtitle.toLowerCase()).not.toMatch(
+        /conserv|guarde-as|keep any keys|si descargaste/
+      )
+      expect(messages.success.simulated.readySubtitle.toLowerCase()).toMatch(
+        /no necesitas|do not need|não precisa|ensayo|practice|ensaio/
+      )
     }
   })
 })

@@ -1,6 +1,8 @@
 import { defineMiddleware } from 'astro:middleware'
 import '@/i18n/app-locals'
+import { isSimulationMode } from '@/lib/hive-execution-mode'
 import { getMessages } from './messages'
+import { applySimulationPublicCopy } from './simulation-copy'
 import {
   localeRedirectUrl,
   persistLocaleCookie,
@@ -42,7 +44,10 @@ export const localeMiddleware = defineMiddleware(async (context, next) => {
   }
 
   context.locals.locale = resolution.locale
-  context.locals.messages = getMessages(resolution.locale)
+  const baseMessages = getMessages(resolution.locale)
+  context.locals.messages = isSimulationMode()
+    ? applySimulationPublicCopy(baseMessages)
+    : baseMessages
   if (!context.url.pathname.startsWith('/api/')) {
     persistLocaleCookie(context.cookies, resolution.locale, context.request)
   }

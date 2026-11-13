@@ -203,6 +203,24 @@ export const en: Messages = {
     },
     createPrefix: 'Create',
     advancedKeys: 'View advanced keys',
+    simulated: {
+      metaDescription:
+        'Review the practice flow. Generated keys do not open a real Hive account.',
+      keysSafetyCheckbox:
+        'I understand this is a practice run: these keys do not grant access to a real Hive account.',
+      createAccount: 'Complete practice run',
+      creatingAccount: 'Completing practice run...',
+      keysDownloadedBoth:
+        'Downloads started. They are for practice only—you do not need to keep them.',
+      creationOutcomeUnknown:
+        'The connection dropped before we received the result. You can retry from here to check the same practice attempt.',
+      creationPending:
+        'We have not confirmed the practice result yet. You can retry later. Reference: {correlationId}.',
+      creationErrors: {
+        creationContextChanged:
+          'This practice context no longer matches the attempt. Go back to the home page to start again.',
+      },
+    },
   },
   progress: {
     modalTitle: 'Creating your account',
@@ -219,6 +237,13 @@ export const en: Messages = {
     confirming: 'Confirming',
     created: 'Account created',
     ariaLabel: 'Account creation progress',
+    simulated: {
+      modalTitle: 'Completing the practice run',
+      modalSubtitle: 'Please wait while we simulate account creation',
+      stepCreating: 'Simulating creation',
+      creatingOnHive: 'Simulating on Hive',
+      created: 'Practice run complete',
+    },
   },
   success: {
     title: 'Your account is ready',
@@ -257,7 +282,7 @@ export const en: Messages = {
       accountCreatedLead: 'You completed the flow as',
       accountCreatedTail: '. No Hive account was created.',
       readySubtitle:
-        'Keep any keys you downloaded. They cannot be used on Hive until a real launch.',
+        'This was a practice run: there is no Hive account and you do not need to save any passwords or keys.',
     },
     apps: {
       peakd: 'Advanced social platform',
@@ -301,6 +326,10 @@ export const en: Messages = {
       memo: 'Encrypts and decrypts memos attached to transfers and other encrypted account messages. Anyone with it can read those memos. It does not move funds by itself.',
       master:
         'The other keys are derived from this password. Anyone who has it controls the account completely. Keep it offline and do not reuse it.',
+    },
+    simulated: {
+      keepSafe:
+        '⚠️ PRACTICE RUN: these keys do not open a Hive account. You can discard them after reviewing the format. ⚠️',
     },
   },
   downloadModal: {

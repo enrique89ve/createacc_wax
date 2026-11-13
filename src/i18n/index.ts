@@ -1,4 +1,5 @@
 import { getMessages } from './messages'
+import { applySimulationPublicCopy } from './simulation-copy'
 import { parseLocale, type Locale } from './locales'
 
 export {
@@ -22,14 +23,24 @@ export {
   resolveLocale,
 } from './resolve-locale'
 
+function isClientSimulationMode(): boolean {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.dataset.hiveTxMode === 'simulate'
+}
+
 export function publicCopy(locale?: Locale): ReturnType<typeof getMessages> {
   const resolved =
     locale ??
     parseLocale(
       typeof document === 'undefined' ? undefined : document.documentElement.lang
     )
-  return getMessages(resolved)
+  const messages = getMessages(resolved)
+  return isClientSimulationMode()
+    ? applySimulationPublicCopy(messages)
+    : messages
 }
+
+export { applySimulationPublicCopy } from './simulation-copy'
 
 export {
   buildCanonicalHref,

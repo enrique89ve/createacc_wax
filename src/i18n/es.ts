@@ -209,6 +209,24 @@ export const es = {
     },
     createPrefix: 'Crear',
     advancedKeys: 'Ver claves avanzadas',
+    simulated: {
+      metaDescription:
+        'Revisa el flujo del ensayo. Las claves generadas no abren una cuenta real en Hive.',
+      keysSafetyCheckbox:
+        'Entiendo que es un ensayo: estas claves no dan acceso a una cuenta real en Hive.',
+      createAccount: 'Completar ensayo',
+      creatingAccount: 'Completando ensayo...',
+      keysDownloadedBoth:
+        'Descargas iniciadas. Son solo de práctica; no hace falta guardarlas.',
+      creationOutcomeUnknown:
+        'Se interrumpió la conexión antes de recibir el resultado. Puedes reintentar desde aquí para comprobar el mismo ensayo.',
+      creationPending:
+        'Aún no confirmamos el resultado del ensayo. Puedes volver a intentar más tarde. Referencia: {correlationId}.',
+      creationErrors: {
+        creationContextChanged:
+          'El contexto del ensayo ya no coincide con este intento. Vuelve al inicio para empezar de nuevo.',
+      },
+    },
   },
   progress: {
     modalTitle: 'Creando tu cuenta',
@@ -225,6 +243,13 @@ export const es = {
     confirming: 'Confirmando',
     created: 'Cuenta creada',
     ariaLabel: 'Progreso de creación de cuenta',
+    simulated: {
+      modalTitle: 'Completando el ensayo',
+      modalSubtitle: 'Por favor espera mientras simulamos la creación',
+      stepCreating: 'Simulando la creación',
+      creatingOnHive: 'Simulando en Hive',
+      created: 'Ensayo completado',
+    },
   },
   success: {
     title: 'Tu cuenta está lista',
@@ -263,7 +288,7 @@ export const es = {
       accountCreatedLead: 'Completaste el flujo con el usuario',
       accountCreatedTail: '. No se creó una cuenta en Hive.',
       readySubtitle:
-        'Si descargaste claves, consérvalas. No sirven en la red hasta un lanzamiento real.',
+        'Fue un ensayo: no hay cuenta en Hive y no necesitas guardar contraseñas ni claves.',
     },
     apps: {
       peakd: 'Plataforma social avanzada',
@@ -308,6 +333,10 @@ export const es = {
       memo: 'Cifra y descifra los memos de las transferencias y otros mensajes cifrados de la cuenta. Quien la tiene puede leer esos memos. No mueve fondos por sí sola.',
       master:
         'De esta contraseña se derivan el resto de las claves. Quien la tiene controla la cuenta por completo. Guárdala fuera de línea y no la reutilices.',
+    },
+    simulated: {
+      keepSafe:
+        '⚠️ ENSAYO: estas claves no abren una cuenta en Hive. Puedes descartarlas después de revisar el formato. ⚠️',
     },
   },
   downloadModal: {
