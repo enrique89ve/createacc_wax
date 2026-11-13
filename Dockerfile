@@ -9,7 +9,10 @@ ENV DATABASE_URL="file:/data/holahive.db"
 
 WORKDIR /app
 
-RUN corepack enable \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends gosu \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable \
   && corepack prepare pnpm@11.22.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -18,7 +21,8 @@ RUN pnpm install --frozen-lockfile
 COPY --chown=node:node . .
 RUN pnpm build \
   && mkdir -p /data /app/storage_root-node/.beekeeper \
-  && chown -R node:node /data /app/storage_root-node
+  && chown -R node:node /app /data \
+  && chmod +x /app/scripts/docker-entrypoint.sh
 
 VOLUME ["/data"]
 EXPOSE 4321
@@ -26,5 +30,6 @@ EXPOSE 4321
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:4321/api/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-USER node
+# Stay root so the entrypoint can chown a mounted /data, then drop to `node`.
+ENTRYPOINT ["/app/scripts/docker-entrypoint.sh"]
 CMD ["./node_modules/.bin/tsx", "scripts/start-server.ts"]

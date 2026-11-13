@@ -201,8 +201,10 @@ TWITTER_CLIENT_ID=
 TWITTER_CLIENT_SECRET=
 ```
 
-`DATABASE_URL` defaults to `file:/data/holahive.db` in the image. After the
-container is healthy (`GET /api/health`):
+Set `DATABASE_URL=file:/data/holahive.db` in Dokploy (do not use `file:holahive.db`).
+The image entrypoint chowns `/data` to the `node` user; without that, libsql
+fails with SQLite error 14 (`SQLITE_CANTOPEN`) when the volume is root-owned.
+After the container is healthy (`GET /api/health`):
 
 1. `ADMIN_USERNAME=… ADMIN_PASSWORD=… pnpm admin:create`
 2. `pnpm invite:init` — campaign starts paused with cap 0
