@@ -4,6 +4,7 @@ import {
   Permission,
   unauthorizedResponse,
 } from '@/lib/auth/permissions'
+import { UserRole } from '@/lib/roles'
 import { withAdminApiSession } from '@/lib/session-helpers'
 import { getFreshAdminSession } from '@/lib/auth/admin-auth'
 import { getInviteConfiguration } from '@/lib/invite/config'
@@ -22,6 +23,16 @@ const responseOptions = {
   headers: { 'Referrer-Policy': 'no-referrer' },
 } as const
 
+const ADMIN_ONLY_MESSAGE =
+  'Solo un administrador puede gestionar las invitaciones'
+
+function rejectUnlessAdmin(role: string): Response | null {
+  if (role !== UserRole.Admin) {
+    return unauthorizedResponse(ADMIN_ONLY_MESSAGE)
+  }
+  return null
+}
+
 async function prepareCampaignRequest(): Promise<{
   readonly providers: { readonly github: boolean; readonly twitter: boolean }
 } | null> {
@@ -38,6 +49,8 @@ async function prepareCampaignRequest(): Promise<{
 
 export const GET: APIRoute = async context =>
   withAdminApiSession(context, async session => {
+    const denied = rejectUnlessAdmin(session.role)
+    if (denied) return denied
     try {
       assertCanPerform(
         session,
@@ -98,6 +111,8 @@ export const PUT: APIRoute = async context => {
     )
   }
   const session = sessionResult.session
+  const denied = rejectUnlessAdmin(session.role)
+  if (denied) return denied
   try {
     assertCanPerform(
       session,

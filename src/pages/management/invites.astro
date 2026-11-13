@@ -1,5 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 import { UserRole } from '@/lib/roles'
 import { getInviteConfiguration } from '@/lib/invite/config'
 import { getInviteCampaignSettings } from '@/lib/invite/campaign-settings'
@@ -7,20 +8,27 @@ import { hasInviteSchema, requireInviteSchemaKey } from '@/lib/invite/schema'
 import { logger } from '@/lib/logger'
 
 const session = Astro.locals.adminUser
-if (!session || session.role !== UserRole.Admin) {
+const copy =
+  Astro.locals.messages ?? getMessages(Astro.locals.locale ?? DEFAULT_LOCALE)
+const page = copy.admin.invites
+
+if (!session) {
   return Astro.redirect('/management/access')
+}
+if (session.role !== UserRole.Admin) {
+  return Astro.redirect('/management/console')
 }
 
 const configuration = getInviteConfiguration()
 let settings: Awaited<ReturnType<typeof getInviteCampaignSettings>> | null =
   null
 let setupReady = false
-let setupError =
-  'Configura el secreto de invitaciones en el entorno del servidor.'
+let setupError = page.missingSecret
 const providers = {
   github: Boolean(configuration?.providers.github),
   twitter: Boolean(configuration?.providers.twitter),
 }
+const providerReady = providers.github || providers.twitter
 
 try {
   if (configuration && (await hasInviteSchema())) {
@@ -28,31 +36,32 @@ try {
     settings = await getInviteCampaignSettings()
     setupReady = true
   } else if (configuration) {
-    setupError =
-      'Ejecuta pnpm invite:init en la base de datos de esta instalación.'
+    setupError = page.needsInit
   }
 } catch (error) {
   logger.warn('[invite] Admin campaign settings are unavailable')
   setupError =
     error instanceof Error && error.message.includes('identity key')
-      ? 'La clave de invitaciones no coincide con la base. Recupera la clave original antes de continuar.'
-      : 'No fue posible leer la configuración de invitaciones.'
+      ? page.keyMismatch
+      : page.readError
 }
+
+const inputClass =
+  'bg-background border-border text-foreground focus-visible:border-primary focus-visible:ring-primary min-h-12 w-full rounded-md border px-3 py-2 focus:outline-none focus-visible:ring-1'
 ---
 
-<ManagementLayout title="Invitaciones personales" activeTab="invites">
+<ManagementLayout title={page.title} activeTab="invites">
   <section
     class="bg-card border-border mx-auto max-w-3xl rounded-xl border p-5 sm:p-7"
   >
     <div class="mb-6">
-      <p class="text-primary text-sm font-semibold">Campaña</p>
-      <h2 class="text-foreground mt-1 text-2xl font-bold">
-        Invitaciones personales
-      </h2>
+      <p class="text-primary text-sm font-semibold">{page.eyebrow}</p>
+      <h2 class="text-foreground mt-1 text-2xl font-bold">{page.title}</h2>
       <p class="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
-        Activa o pausa el acceso y define el total de enlaces que se pueden
-        emitir. Los enlaces ya emitidos siguen disponibles para sus
-        propietarios.
+        {page.description}
+      </p>
+      <p class="text-muted-foreground mt-2 text-xs leading-relaxed">
+        {page.adminOnly}
       </p>
     </div>
 
@@ -61,7 +70,7 @@ try {
         <>
           <div class="border-border mb-6 rounded-lg border p-4">
             <h3 class="text-foreground text-sm font-semibold">
-              Proveedores configurados
+              {page.providers}
             </h3>
             <ul class="text-muted-foreground mt-3 grid gap-2 text-sm sm:grid-cols-2">
               <li class="flex items-center gap-2">
@@ -75,7 +84,8 @@ try {
                 >
                   {providers.github ? '●' : '○'}
                 </span>
-                GitHub {providers.github ? 'disponible' : 'sin credenciales'}
+                GitHub{' '}
+                {providers.github ? page.available : page.missingCredentials}
               </li>
               <li class="flex items-center gap-2">
                 <span
@@ -88,7 +98,7 @@ try {
                 >
                   {providers.twitter ? '●' : '○'}
                 </span>
-                X {providers.twitter ? 'disponible' : 'sin credenciales'}
+                X {providers.twitter ? page.available : page.missingCredentials}
               </li>
             </ul>
           </div>
@@ -96,17 +106,77 @@ try {
           <form
             id="invite-campaign-form"
             data-revision={settings.revision}
-            data-provider-ready={
-              providers.github || providers.twitter ? 'true' : 'false'
-            }
+            data-saved-enabled={settings.enabled ? 'true' : 'false'}
+            data-saved-limit={settings.totalLimit}
+            data-provider-ready={providerReady ? 'true' : 'false'}
+            data-status-active={page.statusActive}
+            data-status-paused={page.statusPaused}
+            data-no-changes={page.noChanges}
+            data-limit-required={page.limitRequired}
+            data-providers-required={page.missingProviders}
+            data-saving={page.saving}
+            data-saved={page.saved}
+            data-save-error={page.saveError}
+            data-save-retry={page.saveRetry}
+            data-invalid-response={page.invalidResponse}
             class="space-y-5"
           >
+            <div class="border-border flex items-center justify-between gap-4 rounded-lg border p-4">
+              <div>
+                <p class="text-muted-foreground text-xs font-medium">
+                  {page.statusLabel}
+                </p>
+                <p class="text-foreground mt-1 flex items-center gap-2 text-sm font-semibold">
+                  <span
+                    id="invite-campaign-status-dot"
+                    aria-hidden="true"
+                    class:list={[
+                      'h-2 w-2 rounded-full',
+                      settings.enabled
+                        ? 'bg-emerald-500'
+                        : 'bg-muted-foreground',
+                    ]}
+                  />
+                  <span id="invite-campaign-status-label">
+                    {settings.enabled ? page.statusActive : page.statusPaused}
+                  </span>
+                </p>
+              </div>
+              <button
+                id="invite-campaign-enabled"
+                type="button"
+                role="switch"
+                aria-checked={settings.enabled ? 'true' : 'false'}
+                aria-labelledby="invite-campaign-enabled-label"
+                class="bg-muted focus-visible:ring-primary/40 group relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 aria-checked:bg-emerald-500"
+              >
+                <span class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform group-aria-checked:translate-x-5" />
+              </button>
+            </div>
+            <div>
+              <p
+                id="invite-campaign-enabled-label"
+                class="text-foreground text-sm font-medium"
+              >
+                {page.enabled}
+              </p>
+              <p class="text-muted-foreground mt-1 text-xs leading-relaxed">
+                {page.enabledHelp}
+              </p>
+              <p
+                id="invite-campaign-draft"
+                class="text-muted-foreground mt-2 hidden text-xs"
+              >
+                {page.draftHint}
+              </p>
+            </div>
+
             <div>
               <label
                 for="invite-campaign-limit"
                 class="text-foreground mb-2 block text-sm font-medium"
               >
-                Cupo total de la campaña
+                {page.limit}
               </label>
               <input
                 id="invite-campaign-limit"
@@ -117,78 +187,40 @@ try {
                 step="1"
                 required
                 value={settings.totalLimit}
-                class="bg-background border-border text-foreground focus:border-primary focus:ring-primary min-h-12 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1 sm:max-w-xs"
+                class={`${inputClass} sm:max-w-xs`}
                 aria-describedby="invite-campaign-count invite-campaign-limit-help"
               />
               <p
                 id="invite-campaign-count"
+                data-template={page.issued}
                 class="text-muted-foreground mt-2 text-sm"
               >
-                {settings.issuedCount} enlaces emitidos de {settings.totalLimit}
-                .
+                {interpolate(page.issued, {
+                  issued: String(settings.issuedCount),
+                  total: String(settings.totalLimit),
+                })}
               </p>
               <p
                 id="invite-campaign-limit-help"
                 class="text-muted-foreground mt-1 text-xs"
               >
-                Usa 0 para impedir nuevas emisiones. Las invitaciones existentes
-                se conservan.
+                {page.limitHelp}
               </p>
             </div>
 
-            <div class="border-border flex items-start gap-3 rounded-lg border p-4">
-              <input
-                id="invite-campaign-enabled"
-                name="enabled"
-                type="checkbox"
-                checked={settings.enabled}
-                class="border-border text-primary focus:ring-primary mt-1 h-4 w-4 rounded"
-              />
-              <div>
-                <label
-                  for="invite-campaign-enabled"
-                  class="text-foreground text-sm font-medium"
-                >
-                  Campaña activa
-                </label>
-                <p class="text-muted-foreground mt-1 text-xs leading-relaxed">
-                  Al pausar, no se emiten enlaces nuevos. Quienes ya tengan uno
-                  pueden continuar.
-                </p>
-              </div>
-            </div>
-
-            {!providers.github && !providers.twitter && (
+            {!providerReady && (
               <p class="text-sm text-amber-500" role="status">
-                Configura las credenciales GitHub o X en el entorno antes de
-                activar la campaña. Puedes pausarla desde aquí.
+                {page.missingProviders}
               </p>
             )}
 
-            <div>
-              <label
-                for="invite-campaign-reason"
-                class="text-foreground mb-2 block text-sm font-medium"
-              >
-                Motivo del cambio
-              </label>
-              <input
-                id="invite-campaign-reason"
-                name="reason"
-                type="text"
-                maxlength="500"
-                required
-                placeholder="Ej. Apertura de la campaña inicial"
-                class="bg-background border-border text-foreground focus:border-primary focus:ring-primary min-h-12 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-1"
-              />
-            </div>
-
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
               <button
-                type="submit"
-                class="bg-primary hover:bg-primary/90 focus-visible:ring-primary/40 min-h-12 rounded-md px-5 py-3 text-sm font-semibold text-white transition-colors focus:outline-none focus-visible:ring-2 disabled:cursor-wait disabled:opacity-60"
+                id="invite-campaign-review"
+                type="button"
+                class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 min-h-12 rounded-md px-5 py-3 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2"
               >
-                Guardar configuración
+                {page.review}
               </button>
               <p
                 id="invite-campaign-feedback"
@@ -198,12 +230,110 @@ try {
               />
             </div>
           </form>
+
+          <div
+            id="invite-confirm-dialog"
+            class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4"
+            aria-hidden="true"
+            data-title-activate={page.confirmTitleActivate}
+            data-title-pause={page.confirmTitlePause}
+            data-title-update={page.confirmTitleUpdate}
+            data-body-activate={page.confirmBodyActivate}
+            data-body-pause={page.confirmBodyPause}
+            data-body-update={page.confirmBodyUpdate}
+            data-phrase-activate={page.phraseActivate}
+            data-phrase-pause={page.phrasePause}
+            data-phrase-update={page.phraseUpdate}
+            data-confirm-activate={page.confirmActivate}
+            data-confirm-pause={page.confirmPause}
+            data-confirm-update={page.confirmUpdate}
+            data-type-to-confirm={page.typeToConfirm}
+            data-summary-status={page.summaryStatus}
+            data-summary-limit={page.summaryLimit}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="invite-confirm-title"
+              class="bg-card border-border w-full max-w-md rounded-xl border p-6 shadow-md"
+            >
+              <p class="text-primary text-xs font-semibold uppercase tracking-wide">
+                {page.confirmationEyebrow}
+              </p>
+              <h3
+                id="invite-confirm-title"
+                class="text-foreground mt-2 text-lg font-semibold"
+              />
+              <p
+                id="invite-confirm-body"
+                class="text-muted-foreground mt-2 text-sm leading-relaxed"
+              />
+              <dl
+                id="invite-confirm-summary"
+                class="border-border bg-muted/40 mt-4 space-y-2 rounded-lg border px-4 py-3 text-sm"
+              />
+
+              <div class="mt-4">
+                <label
+                  for="invite-confirm-reason"
+                  class="text-foreground mb-2 block text-sm font-medium"
+                >
+                  {page.reason}
+                </label>
+                <input
+                  id="invite-confirm-reason"
+                  type="text"
+                  maxlength="500"
+                  autocomplete="off"
+                  placeholder={page.reasonPlaceholder}
+                  class={inputClass}
+                />
+              </div>
+
+              <div class="mt-4">
+                <label
+                  for="invite-confirm-phrase"
+                  id="invite-confirm-phrase-label"
+                  class="text-foreground mb-2 block text-sm font-medium"
+                />
+                <input
+                  id="invite-confirm-phrase"
+                  type="text"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  class={`${inputClass} font-mono tracking-wide`}
+                />
+              </div>
+
+              <p
+                id="invite-confirm-feedback"
+                class="mt-3 text-sm text-amber-500"
+                role="status"
+                aria-live="polite"
+              />
+
+              <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  id="invite-confirm-cancel"
+                  type="button"
+                  class="border-border text-foreground hover:bg-muted focus-visible:ring-primary/40 min-h-12 rounded-md border px-4 py-3 text-sm font-medium focus:outline-none focus-visible:ring-2"
+                >
+                  {page.cancel}
+                </button>
+                <button
+                  id="invite-confirm-submit"
+                  type="button"
+                  disabled
+                  class="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-primary/40 min-h-12 rounded-md px-5 py-3 text-sm font-semibold focus:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+            </div>
+          </div>
         </>
       ) : (
         <div class="border-border bg-muted/30 rounded-lg border p-4">
-          <p class="text-foreground text-sm font-medium">
-            Configuración pendiente
-          </p>
+          <p class="text-foreground text-sm font-medium">{page.pending}</p>
           <p class="text-muted-foreground mt-2 text-sm leading-relaxed">
             {setupError}
           </p>

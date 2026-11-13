@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createContext } from 'astro/middleware'
-import { PUT } from './invites'
+import { GET, PUT } from './invites'
 import { getFreshAdminSession } from '@/lib/auth/admin-auth'
 import { updateInviteCampaignSettings } from '@/lib/invite/campaign-settings'
 import { UserRole } from '@/lib/roles'
@@ -77,6 +77,33 @@ describe('invitation campaign mutation authorization', () => {
   it('rejects a cross-origin command before verifying the session', async () => {
     expect((await PUT(context('https://attacker.invalid'))).status).toBe(403)
     expect(getFreshAdminSession).not.toHaveBeenCalled()
+    expect(updateInviteCampaignSettings).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-admin role before reading or changing the campaign', async () => {
+    const read = context()
+    read.locals.adminUser = {
+      ...actor,
+      role: UserRole.Builder,
+    } as unknown as typeof read.locals.adminUser
+    const readResponse = await GET(read)
+    expect(readResponse.status).toBe(403)
+    expect(await readResponse.json()).toMatchObject({
+      message: 'Solo un administrador puede gestionar las invitaciones',
+    })
+
+    vi.mocked(getFreshAdminSession).mockResolvedValue({
+      kind: 'authenticated',
+      session: {
+        ...actor,
+        role: UserRole.Builder,
+      } as unknown as typeof actor,
+    })
+    const writeResponse = await PUT(context())
+    expect(writeResponse.status).toBe(403)
+    expect(await writeResponse.json()).toMatchObject({
+      message: 'Solo un administrador puede gestionar las invitaciones',
+    })
     expect(updateInviteCampaignSettings).not.toHaveBeenCalled()
   })
 

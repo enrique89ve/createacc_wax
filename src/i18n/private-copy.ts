@@ -105,7 +105,11 @@ const privateEs = {
       confirmed: 'Confirmada',
       failed: 'Fallida',
     },
-    ticket: { noCredits: 'Sin créditos', inUse: 'En uso', available: 'Disponible' },
+    ticket: {
+      noCredits: 'Sin créditos',
+      inUse: 'En uso',
+      available: 'Disponible',
+    },
     accountFilter: { all: 'Todas', simulated: 'Simuladas', live: 'En cadena' },
     builder: { blocked: 'Bloqueado', active: 'Activo' },
     sort: { newest: 'Más recientes primero', oldest: 'Más antiguas primero' },
@@ -202,7 +206,8 @@ const privateEs = {
     },
     accounts: {
       title: 'Cuentas creadas',
-      description: 'Listado completo de todas las cuentas Hive creadas en el sistema',
+      description:
+        'Listado completo de todas las cuentas Hive creadas en el sistema',
       ticket: 'Ticket',
       ticketPlaceholder: 'Código del ticket',
       user: 'Usuario',
@@ -222,7 +227,8 @@ const privateEs = {
       infoPeakd: 'Haz clic en el nombre de usuario para ver el perfil en Peakd',
       infoTicket: 'Haz clic en el ticket para filtrar cuentas por ese ticket',
       infoFilters: 'Usa los filtros para buscar cuentas específicas',
-      infoScan: 'Ver en Hivescan muestra información detallada de la cuenta en la blockchain',
+      infoScan:
+        'Ver en Hivescan muestra información detallada de la cuenta en la blockchain',
     },
     logs: {
       title: 'Registros del sistema',
@@ -245,16 +251,21 @@ const privateEs = {
       reason: 'Razón',
       performedBy: 'Realizado por',
       infoTitle: 'Sobre los registros:',
-      infoTickets: 'Registros de tickets: creación, actualización y eliminación de tickets',
-      infoCredits: 'Registros de créditos: asignación y consumo de créditos de builders',
-      infoImmutable: 'Los registros son inmutables y no se pueden modificar ni eliminar',
-      infoTicketLink: 'Haz clic en un código de ticket para ver las cuentas creadas con él',
+      infoTickets:
+        'Registros de tickets: creación, actualización y eliminación de tickets',
+      infoCredits:
+        'Registros de créditos: asignación y consumo de créditos de builders',
+      infoImmutable:
+        'Los registros son inmutables y no se pueden modificar ni eliminar',
+      infoTicketLink:
+        'Haz clic en un código de ticket para ver las cuentas creadas con él',
     },
     vouchers: {
       title: 'Gestión de tickets',
       description: 'Crea tickets del sistema y consulta todos los tickets',
       createTitle: 'Crear ticket',
-      createHelp: 'Los tickets creados por admin no descuentan créditos de ningún builder.',
+      createHelp:
+        'Los tickets creados por admin no descuentan créditos de ningún builder.',
       code: 'Código',
       codeHelp: '{min}-{max} caracteres alfanuméricos.',
       uses: 'Usos',
@@ -297,7 +308,8 @@ const privateEs = {
       emptyTitle: 'No hay cuentas de créditos aún',
       emptyBody: 'Asigna créditos a un usuario de Hive para comenzar',
       username: 'Usuario de Hive',
-      usernameHelp: 'Si el username no tiene créditos, se crea la cuenta de créditos',
+      usernameHelp:
+        'Si el username no tiene créditos, se crea la cuenta de créditos',
       amount: 'Cantidad de créditos',
       maxAssign: 'Máximo 100 créditos por asignación',
       howTitle: '¿Cómo funciona?',
@@ -326,9 +338,11 @@ const privateEs = {
       blockConfirm:
         '¿Bloquear a @{username} por abuso?\n\nNo podrá iniciar sesión. Créditos, tickets e historial se conservan.',
       blockError: 'Error de conexión al bloquear el username',
-      reactivateConfirm: '¿Reactivar a @{username}?\n\nPodrá volver a iniciar sesión con Keychain.',
+      reactivateConfirm:
+        '¿Reactivar a @{username}?\n\nPodrá volver a iniciar sesión con Keychain.',
       reactivateError: 'Error de conexión al reactivar el username',
-      availableRange: 'Créditos disponibles debe ser un entero entre 0 y 100000',
+      availableRange:
+        'Créditos disponibles debe ser un entero entre 0 y 100000',
       pendingRange: 'Créditos pendientes debe ser un entero entre 0 y 100000',
       reasonLength: 'Escribe un motivo de hasta 500 caracteres',
       revisionMissing: 'No se pudo verificar la versión actual del saldo',
@@ -345,9 +359,11 @@ const privateEs = {
       missingCredentials: 'sin credenciales',
       limit: 'Cupo total de la campaña',
       issued: '{issued} enlaces emitidos de {total}.',
-      limitHelp: 'Usa 0 para impedir nuevas emisiones. Las invitaciones existentes se conservan.',
+      limitHelp:
+        'Usa 0 para impedir nuevas emisiones. Las invitaciones existentes se conservan.',
       enabled: 'Campaña activa',
-      enabledHelp: 'Al pausar, no se emiten enlaces nuevos. Quienes ya tengan uno pueden continuar.',
+      enabledHelp:
+        'Al pausar, no se emiten enlaces nuevos. Quienes ya tengan uno pueden continuar.',
       missingProviders:
         'Configura las credenciales GitHub o X en el entorno antes de activar la campaña. Puedes pausarla desde aquí.',
       reason: 'Motivo del cambio',
@@ -355,8 +371,10 @@ const privateEs = {
       save: 'Guardar configuración',
       saving: 'Guardando…',
       pending: 'Configuración pendiente',
-      missingSecret: 'Configura el secreto de invitaciones en el entorno del servidor.',
-      needsInit: 'Ejecuta pnpm invite:init en la base de datos de esta instalación.',
+      missingSecret:
+        'Configura el secreto de invitaciones en el entorno del servidor.',
+      needsInit:
+        'Ejecuta pnpm invite:init en la base de datos de esta instalación.',
       keyMismatch:
         'La clave de invitaciones no coincide con la base. Recupera la clave original antes de continuar.',
       readError: 'No fue posible leer la configuración de invitaciones.',
@@ -364,12 +382,43 @@ const privateEs = {
       saved: 'Configuración guardada.',
       saveError: 'No se pudo guardar.',
       saveRetry: 'No se pudo guardar. Inténtalo de nuevo.',
+      statusLabel: 'Estado',
+      statusActive: 'Activa',
+      statusPaused: 'Pausada',
+      review: 'Revisar y confirmar',
+      draftHint: 'El cambio queda pendiente hasta que lo confirmes.',
+      noChanges: 'No hay cambios para guardar.',
+      limitRequired:
+        'Define un cupo mayor que cero antes de activar la campaña.',
+      adminOnly:
+        'Solo un administrador puede activar, pausar o cambiar el cupo.',
+      confirmationEyebrow: 'Confirmación',
+      confirmTitleActivate: 'Activar invitaciones',
+      confirmTitlePause: 'Pausar invitaciones',
+      confirmTitleUpdate: 'Confirmar el nuevo cupo',
+      confirmBodyActivate:
+        'Quien inicie sesión con GitHub o X podrá recibir un enlace personal hasta agotar el cupo. Esta acción queda registrada a tu nombre.',
+      confirmBodyPause:
+        'No se emitirán enlaces nuevos. Quienes ya tengan uno pueden seguir usándolo. Esta acción queda registrada a tu nombre.',
+      confirmBodyUpdate:
+        'El cupo de la campaña cambiará. Los enlaces ya emitidos se conservan. Esta acción queda registrada a tu nombre.',
+      summaryStatus: 'Estado',
+      summaryLimit: 'Cupo',
+      typeToConfirm: 'Escribe {phrase} para confirmar',
+      cancel: 'Cancelar',
+      confirmActivate: 'Activar',
+      confirmPause: 'Pausar',
+      confirmUpdate: 'Confirmar',
+      phraseActivate: 'ACTIVAR',
+      phrasePause: 'PAUSAR',
+      phraseUpdate: 'CONFIRMAR',
     },
   },
   buildersArea: {
     accounts: {
       title: 'Cuentas creadas',
-      description: 'Historial completo de todas las cuentas Hive que has creado.',
+      description:
+        'Historial completo de todas las cuentas Hive que has creado.',
       total: 'Total de cuentas',
       accountsUnit: 'cuentas',
       totalHelp: 'Cuentas creadas exitosamente',
@@ -387,13 +436,15 @@ const privateEs = {
     },
     tickets: {
       title: 'Gestión de tickets',
-      description: 'Gestiona tus tickets y crea cuentas Hive desde un solo lugar.',
+      description:
+        'Gestiona tus tickets y crea cuentas Hive desde un solo lugar.',
       mine: 'Mis tickets',
       createDisabled: 'No tienes créditos disponibles para crear tickets',
       createTitle: 'Crear un nuevo ticket',
       create: 'Crear ticket',
       noCredits: 'Sin créditos disponibles',
-      noCreditsHelp: 'Reclama créditos pendientes o contacta a un administrador',
+      noCreditsHelp:
+        'Reclama créditos pendientes o contacta a un administrador',
       created: 'Creado',
       copyTitle: 'Copiar enlace con ticket',
       editUses: 'Editar usos',
@@ -401,7 +452,8 @@ const privateEs = {
       emptyTitle: 'Aún no tienes tickets',
       emptyBody: 'Cuando crees tickets aparecerán aquí.',
       notes: 'Notas',
-      noteDelta: 'Actualizar usos aplica un delta, positivo o negativo, sobre los usos restantes.',
+      noteDelta:
+        'Actualizar usos aplica un delta, positivo o negativo, sobre los usos restantes.',
       noteRefund: 'El borrado devuelve los usos no consumidos a tu saldo.',
       noteSpent:
         'Si el ticket ya fue usado para crear cuentas, se elimina sin reembolso de los créditos consumidos.',
@@ -410,7 +462,8 @@ const privateEs = {
       namePlaceholder: 'Ej: PROMO2025AB',
       nameHelp: '10-24 caracteres, letras y números (no solo números)',
       initialUses: 'Usos iniciales',
-      creditsHelp: 'Tienes {available} créditos disponibles (máx. {max} usos por ticket)',
+      creditsHelp:
+        'Tienes {available} créditos disponibles (máx. {max} usos por ticket)',
       maxAllowed: 'Máximo permitido: {max}',
       descriptionLabel: 'Descripción (opcional)',
       descriptionPlaceholder: 'Ej: Promoción especial 2025',
@@ -422,7 +475,8 @@ const privateEs = {
       codeAvailable: 'Código disponible',
       codeUnavailable: 'Código no disponible',
       checkError: 'Error al verificar disponibilidad',
-      notValidated: 'El código del ticket no está disponible o no ha sido validado',
+      notValidated:
+        'El código del ticket no está disponible o no ha sido validado',
       minUses: 'Los usos deben ser al menos 1',
       usesOverCredits:
         'No puedes asignar más de {max} usos (tienes {credits} créditos disponibles)',
@@ -433,13 +487,15 @@ const privateEs = {
     },
     credits: {
       title: 'Gestión de créditos',
-      description: 'Administra tus créditos, reclama pendientes y consulta tu historial.',
+      description:
+        'Administra tus créditos, reclama pendientes y consulta tu historial.',
       pending: 'Pendientes de reclamar',
       unit: 'créditos',
       claimHint: 'Reclamar con Keychain',
       claimNow: 'Reclamar ahora',
       keychainMissing: 'Keychain no detectado.',
-      keychainInstall: 'Instala la extensión Hive Keychain y recarga la página.',
+      keychainInstall:
+        'Instala la extensión Hive Keychain y recarga la página.',
       available: 'Disponibles para usar',
       availableHelp: 'Usa estos créditos para crear tickets y cuentas Hive',
       consumed: 'Cuentas creadas',
@@ -450,7 +506,12 @@ const privateEs = {
       emptyTitle: 'Sin historial de créditos',
       emptyBody: 'Cuando recibas o uses créditos aparecerán aquí.',
       noDescription: 'Sin descripción',
-      operations: { claimed: 'Reclamado', assigned: 'Asignado', consumed: 'Consumido', purchased: 'Comprado' },
+      operations: {
+        claimed: 'Reclamado',
+        assigned: 'Asignado',
+        consumed: 'Consumido',
+        purchased: 'Comprado',
+      },
       exportHeaders: {
         date: 'Fecha',
         type: 'Tipo',
@@ -479,7 +540,8 @@ const privateEs = {
         processingHive: 'Procesando transacción en Hive...',
         stillConfirming:
           'La transacción sigue confirmándose en Hive. Intenta verificarla nuevamente en unos momentos.',
-        claimed: 'Créditos reclamados. Disponible: {available}, pendiente: {pending}',
+        claimed:
+          'Créditos reclamados. Disponible: {available}, pendiente: {pending}',
         invalidVerify: 'Respuesta no válida al verificar la transacción',
         verifyError: 'Error al verificar la transacción',
         connectionError: 'Error de conexión o procesamiento',
@@ -499,12 +561,14 @@ export const privateEn: PrivateCopy = {
     },
     server: {
       title: 'Server error',
-      description: 'Something went wrong on our server. Please try again later.',
+      description:
+        'Something went wrong on our server. Please try again later.',
       action: 'Back to home',
     },
     accessDenied: {
       title: 'Access denied',
-      description: 'You cannot open this page directly. Complete the registration form first.',
+      description:
+        'You cannot open this page directly. Complete the registration form first.',
       action: 'Back to the form',
       toast: 'Complete the registration form to continue',
     },
@@ -580,8 +644,17 @@ export const privateEn: PrivateCopy = {
   time: { today: 'Today', yesterday: 'Yesterday', daysAgo: '{days} days ago' },
   toasts: { close: 'Close notification' },
   states: {
-    account: { simulated: 'Simulated', broadcasted: 'Broadcast', confirmed: 'Confirmed', failed: 'Failed' },
-    ticket: { noCredits: 'No credits', inUse: 'In use', available: 'Available' },
+    account: {
+      simulated: 'Simulated',
+      broadcasted: 'Broadcast',
+      confirmed: 'Confirmed',
+      failed: 'Failed',
+    },
+    ticket: {
+      noCredits: 'No credits',
+      inUse: 'In use',
+      available: 'Available',
+    },
     accountFilter: { all: 'All', simulated: 'Simulated', live: 'On chain' },
     builder: { blocked: 'Blocked', active: 'Active' },
     sort: { newest: 'Newest first', oldest: 'Oldest first' },
@@ -721,8 +794,10 @@ export const privateEn: PrivateCopy = {
       reason: 'Reason',
       performedBy: 'Performed by',
       infoTitle: 'About the logs:',
-      infoTickets: 'Ticket logs: every create, update, and delete action on tickets',
-      infoCredits: 'Credit logs: every credit assignment and consumption for builders',
+      infoTickets:
+        'Ticket logs: every create, update, and delete action on tickets',
+      infoCredits:
+        'Credit logs: every credit assignment and consumption for builders',
       infoImmutable: 'Logs are immutable and cannot be edited or deleted',
       infoTicketLink: 'Click a ticket code to see the accounts created with it',
     },
@@ -730,7 +805,8 @@ export const privateEn: PrivateCopy = {
       title: 'Ticket management',
       description: 'Create system tickets and review every ticket',
       createTitle: 'Create ticket',
-      createHelp: 'Tickets created by an admin do not spend any builder credits.',
+      createHelp:
+        'Tickets created by an admin do not spend any builder credits.',
       code: 'Code',
       codeHelp: '{min}-{max} alphanumeric characters.',
       uses: 'Uses',
@@ -773,7 +849,8 @@ export const privateEn: PrivateCopy = {
       emptyTitle: 'No credit accounts yet',
       emptyBody: 'Assign credits to a Hive user to begin',
       username: 'Hive username',
-      usernameHelp: 'If the username has no credits, a credit account is created',
+      usernameHelp:
+        'If the username has no credits, a credit account is created',
       amount: 'Credit amount',
       maxAssign: 'Maximum 100 credits per assignment',
       howTitle: 'How it works',
@@ -786,7 +863,8 @@ export const privateEn: PrivateCopy = {
       userLabel: 'User:',
       assignedLabel: 'Credits assigned:',
       creditsUnit: '{count} credits',
-      successBody: 'Credits assigned. @{username} must sign in with Keychain to claim them.',
+      successBody:
+        'Credits assigned. @{username} must sign in with Keychain to claim them.',
       editHeading: 'Edit credits - @{username}',
       availableHelp: 'Credits the builder can use to create tickets',
       pendingHelp:
@@ -801,9 +879,11 @@ export const privateEn: PrivateCopy = {
       blockConfirm:
         'Block @{username} for abuse?\n\nThey will not be able to sign in. Credits, tickets, and history are kept.',
       blockError: 'Connection error while blocking the username',
-      reactivateConfirm: 'Reactivate @{username}?\n\nThey will be able to sign in with Keychain again.',
+      reactivateConfirm:
+        'Reactivate @{username}?\n\nThey will be able to sign in with Keychain again.',
       reactivateError: 'Connection error while reactivating the username',
-      availableRange: 'Available credits must be an integer between 0 and 100000',
+      availableRange:
+        'Available credits must be an integer between 0 and 100000',
       pendingRange: 'Pending credits must be an integer between 0 and 100000',
       reasonLength: 'Enter a reason of up to 500 characters',
       revisionMissing: 'Could not verify the current balance version',
@@ -822,7 +902,8 @@ export const privateEn: PrivateCopy = {
       issued: '{issued} links issued of {total}.',
       limitHelp: 'Use 0 to stop new issuance. Existing invitations are kept.',
       enabled: 'Campaign active',
-      enabledHelp: 'While paused, no new links are issued. People who already have one can continue.',
+      enabledHelp:
+        'While paused, no new links are issued. People who already have one can continue.',
       missingProviders:
         'Configure GitHub or X credentials in the environment before activating the campaign. You can still pause it here.',
       reason: 'Reason for the change',
@@ -830,7 +911,8 @@ export const privateEn: PrivateCopy = {
       save: 'Save configuration',
       saving: 'Saving…',
       pending: 'Configuration pending',
-      missingSecret: 'Configure the invitation secret in the server environment.',
+      missingSecret:
+        'Configure the invitation secret in the server environment.',
       needsInit: 'Run pnpm invite:init against this installation database.',
       keyMismatch:
         'The invitation key does not match the database. Restore the original key before continuing.',
@@ -839,6 +921,36 @@ export const privateEn: PrivateCopy = {
       saved: 'Configuration saved.',
       saveError: 'Could not save.',
       saveRetry: 'Could not save. Try again.',
+      statusLabel: 'Status',
+      statusActive: 'Active',
+      statusPaused: 'Paused',
+      review: 'Review and confirm',
+      draftHint: 'The change stays pending until you confirm it.',
+      noChanges: 'There are no changes to save.',
+      limitRequired:
+        'Set a cap greater than zero before activating the campaign.',
+      adminOnly:
+        'Only an administrator can activate, pause, or change the cap.',
+      confirmationEyebrow: 'Confirmation',
+      confirmTitleActivate: 'Activate invitations',
+      confirmTitlePause: 'Pause invitations',
+      confirmTitleUpdate: 'Confirm the new cap',
+      confirmBodyActivate:
+        'Anyone who signs in with GitHub or X can receive a personal link until the cap is reached. This action is recorded under your name.',
+      confirmBodyPause:
+        'No new links will be issued. People who already have one can keep using it. This action is recorded under your name.',
+      confirmBodyUpdate:
+        'The campaign cap will change. Links already issued are kept. This action is recorded under your name.',
+      summaryStatus: 'Status',
+      summaryLimit: 'Cap',
+      typeToConfirm: 'Type {phrase} to confirm',
+      cancel: 'Cancel',
+      confirmActivate: 'Activate',
+      confirmPause: 'Pause',
+      confirmUpdate: 'Confirm',
+      phraseActivate: 'ENABLE',
+      phrasePause: 'PAUSE',
+      phraseUpdate: 'CONFIRM',
     },
   },
   buildersArea: {
@@ -862,7 +974,8 @@ export const privateEn: PrivateCopy = {
     },
     tickets: {
       title: 'Ticket management',
-      description: 'Manage your tickets and create Hive accounts from one place.',
+      description:
+        'Manage your tickets and create Hive accounts from one place.',
       mine: 'My tickets',
       createDisabled: 'You have no credits available to create tickets',
       createTitle: 'Create a new ticket',
@@ -876,7 +989,8 @@ export const privateEn: PrivateCopy = {
       emptyTitle: 'You have no tickets yet',
       emptyBody: 'Tickets you create will appear here.',
       notes: 'Notes',
-      noteDelta: 'Updating uses applies a positive or negative delta to the remaining uses.',
+      noteDelta:
+        'Updating uses applies a positive or negative delta to the remaining uses.',
       noteRefund: 'Deleting returns unused uses to your balance.',
       noteSpent:
         'If the ticket was already used to create accounts, it is deleted without refunding spent credits.',
@@ -885,7 +999,8 @@ export const privateEn: PrivateCopy = {
       namePlaceholder: 'Example: PROMO2025AB',
       nameHelp: '10-24 characters, letters and numbers (not numbers only)',
       initialUses: 'Initial uses',
-      creditsHelp: 'You have {available} credits available (max {max} uses per ticket)',
+      creditsHelp:
+        'You have {available} credits available (max {max} uses per ticket)',
       maxAllowed: 'Maximum allowed: {max}',
       descriptionLabel: 'Description (optional)',
       descriptionPlaceholder: 'Example: special promotion 2025',
@@ -899,7 +1014,8 @@ export const privateEn: PrivateCopy = {
       checkError: 'Error checking availability',
       notValidated: 'The ticket code is unavailable or has not been validated',
       minUses: 'Uses must be at least 1',
-      usesOverCredits: 'You cannot assign more than {max} uses (you have {credits} credits available)',
+      usesOverCredits:
+        'You cannot assign more than {max} uses (you have {credits} credits available)',
       createdOk: 'Ticket "{name}" created',
       invalidCreate: 'Invalid response while creating the ticket',
       copied: 'Link copied: {url}',
@@ -907,13 +1023,15 @@ export const privateEn: PrivateCopy = {
     },
     credits: {
       title: 'Credit management',
-      description: 'Manage your credits, claim pending credits, and review your history.',
+      description:
+        'Manage your credits, claim pending credits, and review your history.',
       pending: 'Pending claim',
       unit: 'credits',
       claimHint: 'Claim with Keychain',
       claimNow: 'Claim now',
       keychainMissing: 'Keychain not detected.',
-      keychainInstall: 'Install the Hive Keychain extension and reload the page.',
+      keychainInstall:
+        'Install the Hive Keychain extension and reload the page.',
       available: 'Available to use',
       availableHelp: 'Use these credits to create tickets and Hive accounts',
       consumed: 'Accounts created',
@@ -924,7 +1042,12 @@ export const privateEn: PrivateCopy = {
       emptyTitle: 'No credit history',
       emptyBody: 'Credits you receive or spend will appear here.',
       noDescription: 'No description',
-      operations: { claimed: 'Claimed', assigned: 'Assigned', consumed: 'Consumed', purchased: 'Purchased' },
+      operations: {
+        claimed: 'Claimed',
+        assigned: 'Assigned',
+        consumed: 'Consumed',
+        purchased: 'Purchased',
+      },
       exportHeaders: {
         date: 'Date',
         type: 'Type',
@@ -971,7 +1094,8 @@ export const privatePt: PrivateCopy = {
     },
     server: {
       title: 'Erro do servidor',
-      description: 'Algo deu errado no nosso servidor. Tente novamente mais tarde.',
+      description:
+        'Algo deu errado no nosso servidor. Tente novamente mais tarde.',
       action: 'Voltar ao início',
     },
     accessDenied: {
@@ -1053,8 +1177,17 @@ export const privatePt: PrivateCopy = {
   time: { today: 'Hoje', yesterday: 'Ontem', daysAgo: 'Há {days} dias' },
   toasts: { close: 'Fechar notificação' },
   states: {
-    account: { simulated: 'Simulada', broadcasted: 'Emitida', confirmed: 'Confirmada', failed: 'Falhou' },
-    ticket: { noCredits: 'Sem créditos', inUse: 'Em uso', available: 'Disponível' },
+    account: {
+      simulated: 'Simulada',
+      broadcasted: 'Emitida',
+      confirmed: 'Confirmada',
+      failed: 'Falhou',
+    },
+    ticket: {
+      noCredits: 'Sem créditos',
+      inUse: 'Em uso',
+      available: 'Disponível',
+    },
     accountFilter: { all: 'Todas', simulated: 'Simuladas', live: 'Na rede' },
     builder: { blocked: 'Bloqueado', active: 'Ativo' },
     sort: { newest: 'Mais recentes primeiro', oldest: 'Mais antigas primeiro' },
@@ -1194,16 +1327,21 @@ export const privatePt: PrivateCopy = {
       reason: 'Motivo',
       performedBy: 'Realizado por',
       infoTitle: 'Sobre os registros:',
-      infoTickets: 'Registros de tickets: criação, atualização e exclusão de tickets',
-      infoCredits: 'Registros de créditos: atribuição e consumo de créditos de builders',
-      infoImmutable: 'Os registros são imutáveis e não podem ser alterados nem apagados',
-      infoTicketLink: 'Clique em um código de ticket para ver as contas criadas com ele',
+      infoTickets:
+        'Registros de tickets: criação, atualização e exclusão de tickets',
+      infoCredits:
+        'Registros de créditos: atribuição e consumo de créditos de builders',
+      infoImmutable:
+        'Os registros são imutáveis e não podem ser alterados nem apagados',
+      infoTicketLink:
+        'Clique em um código de ticket para ver as contas criadas com ele',
     },
     vouchers: {
       title: 'Gestão de tickets',
       description: 'Crie tickets do sistema e consulte todos os tickets',
       createTitle: 'Criar ticket',
-      createHelp: 'Tickets criados pelo admin não descontam créditos de nenhum builder.',
+      createHelp:
+        'Tickets criados pelo admin não descontam créditos de nenhum builder.',
       code: 'Código',
       codeHelp: '{min}-{max} caracteres alfanuméricos.',
       uses: 'Usos',
@@ -1246,7 +1384,8 @@ export const privatePt: PrivateCopy = {
       emptyTitle: 'Ainda não há contas de créditos',
       emptyBody: 'Atribua créditos a um usuário do Hive para começar',
       username: 'Usuário do Hive',
-      usernameHelp: 'Se o username não tiver créditos, a conta de créditos é criada',
+      usernameHelp:
+        'Se o username não tiver créditos, a conta de créditos é criada',
       amount: 'Quantidade de créditos',
       maxAssign: 'Máximo de 100 créditos por atribuição',
       howTitle: 'Como funciona?',
@@ -1275,9 +1414,11 @@ export const privatePt: PrivateCopy = {
       blockConfirm:
         'Bloquear @{username} por abuso?\n\nNão poderá entrar. Créditos, tickets e histórico são conservados.',
       blockError: 'Erro de conexão ao bloquear o username',
-      reactivateConfirm: 'Reativar @{username}?\n\nPoderá entrar novamente com Keychain.',
+      reactivateConfirm:
+        'Reativar @{username}?\n\nPoderá entrar novamente com Keychain.',
       reactivateError: 'Erro de conexão ao reativar o username',
-      availableRange: 'Créditos disponíveis deve ser um inteiro entre 0 e 100000',
+      availableRange:
+        'Créditos disponíveis deve ser um inteiro entre 0 e 100000',
       pendingRange: 'Créditos pendentes deve ser um inteiro entre 0 e 100000',
       reasonLength: 'Escreva um motivo de até 500 caracteres',
       revisionMissing: 'Não foi possível verificar a versão atual do saldo',
@@ -1294,9 +1435,11 @@ export const privatePt: PrivateCopy = {
       missingCredentials: 'sem credenciais',
       limit: 'Cota total da campanha',
       issued: '{issued} links emitidos de {total}.',
-      limitHelp: 'Use 0 para impedir novas emissões. Os convites existentes são conservados.',
+      limitHelp:
+        'Use 0 para impedir novas emissões. Os convites existentes são conservados.',
       enabled: 'Campanha ativa',
-      enabledHelp: 'Ao pausar, não se emitem links novos. Quem já tiver um pode continuar.',
+      enabledHelp:
+        'Ao pausar, não se emitem links novos. Quem já tiver um pode continuar.',
       missingProviders:
         'Configure as credenciais do GitHub ou do X no ambiente antes de ativar a campanha. Você pode pausá-la aqui.',
       reason: 'Motivo da mudança',
@@ -1313,6 +1456,36 @@ export const privatePt: PrivateCopy = {
       saved: 'Configuração salva.',
       saveError: 'Não foi possível salvar.',
       saveRetry: 'Não foi possível salvar. Tente novamente.',
+      statusLabel: 'Estado',
+      statusActive: 'Ativa',
+      statusPaused: 'Pausada',
+      review: 'Revisar e confirmar',
+      draftHint: 'A mudança fica pendente até você confirmá-la.',
+      noChanges: 'Não há mudanças para salvar.',
+      limitRequired:
+        'Defina uma cota maior que zero antes de ativar a campanha.',
+      adminOnly:
+        'Somente um administrador pode ativar, pausar ou alterar a cota.',
+      confirmationEyebrow: 'Confirmação',
+      confirmTitleActivate: 'Ativar convites',
+      confirmTitlePause: 'Pausar convites',
+      confirmTitleUpdate: 'Confirmar a nova cota',
+      confirmBodyActivate:
+        'Quem entrar com GitHub ou X poderá receber um link pessoal até esgotar a cota. Esta ação fica registrada no seu nome.',
+      confirmBodyPause:
+        'Não serão emitidos links novos. Quem já tiver um pode continuar usando. Esta ação fica registrada no seu nome.',
+      confirmBodyUpdate:
+        'A cota da campanha vai mudar. Os links já emitidos são conservados. Esta ação fica registrada no seu nome.',
+      summaryStatus: 'Estado',
+      summaryLimit: 'Cota',
+      typeToConfirm: 'Escreva {phrase} para confirmar',
+      cancel: 'Cancelar',
+      confirmActivate: 'Ativar',
+      confirmPause: 'Pausar',
+      confirmUpdate: 'Confirmar',
+      phraseActivate: 'ATIVAR',
+      phrasePause: 'PAUSAR',
+      phraseUpdate: 'CONFIRMAR',
     },
   },
   buildersArea: {
@@ -1350,7 +1523,8 @@ export const privatePt: PrivateCopy = {
       emptyTitle: 'Você ainda não tem tickets',
       emptyBody: 'Quando você criar tickets, eles aparecerão aqui.',
       notes: 'Notas',
-      noteDelta: 'Atualizar usos aplica um delta, positivo ou negativo, sobre os usos restantes.',
+      noteDelta:
+        'Atualizar usos aplica um delta, positivo ou negativo, sobre os usos restantes.',
       noteRefund: 'A exclusão devolve os usos não consumidos ao seu saldo.',
       noteSpent:
         'Se o ticket já foi usado para criar contas, ele é apagado sem reembolso dos créditos consumidos.',
@@ -1359,7 +1533,8 @@ export const privatePt: PrivateCopy = {
       namePlaceholder: 'Ex.: PROMO2025AB',
       nameHelp: '10-24 caracteres, letras e números (não apenas números)',
       initialUses: 'Usos iniciais',
-      creditsHelp: 'Você tem {available} créditos disponíveis (máx. {max} usos por ticket)',
+      creditsHelp:
+        'Você tem {available} créditos disponíveis (máx. {max} usos por ticket)',
       maxAllowed: 'Máximo permitido: {max}',
       descriptionLabel: 'Descrição (opcional)',
       descriptionPlaceholder: 'Ex.: promoção especial 2025',
@@ -1371,7 +1546,8 @@ export const privatePt: PrivateCopy = {
       codeAvailable: 'Código disponível',
       codeUnavailable: 'Código indisponível',
       checkError: 'Erro ao verificar disponibilidade',
-      notValidated: 'O código do ticket não está disponível ou não foi validado',
+      notValidated:
+        'O código do ticket não está disponível ou não foi validado',
       minUses: 'Os usos devem ser pelo menos 1',
       usesOverCredits:
         'Você não pode atribuir mais de {max} usos (você tem {credits} créditos disponíveis)',
@@ -1382,13 +1558,15 @@ export const privatePt: PrivateCopy = {
     },
     credits: {
       title: 'Gestão de créditos',
-      description: 'Administre seus créditos, resgate pendências e consulte seu histórico.',
+      description:
+        'Administre seus créditos, resgate pendências e consulte seu histórico.',
       pending: 'Pendentes de resgate',
       unit: 'créditos',
       claimHint: 'Resgatar com Keychain',
       claimNow: 'Resgatar agora',
       keychainMissing: 'Keychain não detectado.',
-      keychainInstall: 'Instale a extensão Hive Keychain e recarregue a página.',
+      keychainInstall:
+        'Instale a extensão Hive Keychain e recarregue a página.',
       available: 'Disponíveis para usar',
       availableHelp: 'Use estes créditos para criar tickets e contas Hive',
       consumed: 'Contas criadas',
@@ -1399,7 +1577,12 @@ export const privatePt: PrivateCopy = {
       emptyTitle: 'Sem histórico de créditos',
       emptyBody: 'Quando você receber ou usar créditos, eles aparecerão aqui.',
       noDescription: 'Sem descrição',
-      operations: { claimed: 'Resgatado', assigned: 'Atribuído', consumed: 'Consumido', purchased: 'Comprado' },
+      operations: {
+        claimed: 'Resgatado',
+        assigned: 'Atribuído',
+        consumed: 'Consumido',
+        purchased: 'Comprado',
+      },
       exportHeaders: {
         date: 'Data',
         type: 'Tipo',
@@ -1428,7 +1611,8 @@ export const privatePt: PrivateCopy = {
         processingHive: 'Processando a transação no Hive...',
         stillConfirming:
           'A transação ainda está confirmando no Hive. Tente verificá-la novamente em instantes.',
-        claimed: 'Créditos resgatados. Disponível: {available}, pendente: {pending}',
+        claimed:
+          'Créditos resgatados. Disponível: {available}, pendente: {pending}',
         invalidVerify: 'Resposta inválida ao verificar a transação',
         verifyError: 'Erro ao verificar a transação',
         connectionError: 'Erro de conexão ou processamento',
