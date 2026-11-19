@@ -2,7 +2,11 @@
 export {}
 
 import { z } from 'astro/zod'
+import { publicCopy, interpolate } from '@/i18n'
 import { readApiResponse, type ApiClientResult } from '@/utils/api-client'
+
+const adminBuilders = () => publicCopy().admin.builders
+const uiCopy = () => publicCopy().ui
 
 const CreditAssignmentResponseSchema = z.looseObject({
   message: z.string().min(1),
@@ -180,15 +184,12 @@ if (assignForm) {
     const amount = parseInt(creditsAmountInput.value)
 
     if (!username || username.length < 3) {
-      displayError(
-        assignError,
-        'El nombre de usuario debe tener al menos 3 caracteres'
-      )
+      displayError(assignError, adminBuilders().usernameTooShort)
       return
     }
 
     if (isNaN(amount) || amount < 1 || amount > 100) {
-      displayError(assignError, 'La cantidad debe estar entre 1 y 100')
+      displayError(assignError, adminBuilders().amountRange)
       return
     }
 
@@ -196,7 +197,7 @@ if (assignForm) {
     assignError.classList.add('hidden')
     assignError.textContent = ''
     submitBtn.disabled = true
-    submitBtn.textContent = 'Procesando...'
+    submitBtn.textContent = uiCopy().processing
 
     try {
       const response = await fetch(
@@ -217,7 +218,7 @@ if (assignForm) {
 
       if (!response.ok || !result.ok) {
         throw new Error(
-          getApiErrorMessage(result, 'Error al procesar la solicitud')
+          getApiErrorMessage(result, adminBuilders().processError)
         )
       }
 
@@ -228,11 +229,11 @@ if (assignForm) {
       console.error('Error:', error)
       displayError(
         assignError,
-        error instanceof Error ? error.message : 'Ocurrió un error inesperado'
+        error instanceof Error ? error.message : adminBuilders().unexpected
       )
     } finally {
       submitBtn.disabled = false
-      submitBtn.textContent = 'Asignar Créditos'
+      submitBtn.textContent = adminBuilders().assign
     }
   })
 }
@@ -271,7 +272,7 @@ document.addEventListener('click', async e => {
     if (!username) return
     if (
       !confirm(
-        `¿Bloquear a @${username} por abuso?\n\nNo podrá iniciar sesión. Créditos, tickets e historial se conservan.`
+        interpolate(adminBuilders().blockConfirm, { username })
       )
     ) {
       return
@@ -290,10 +291,10 @@ document.addEventListener('click', async e => {
         window.location.reload()
         return
       }
-      alert(getApiErrorMessage(result, 'Error al bloquear el username'))
+      alert(getApiErrorMessage(result, adminBuilders().blockFailed))
     } catch (error) {
       console.error('Error blocking hive username:', error)
-      alert('Error de conexión al bloquear el username')
+      alert(adminBuilders().blockError)
     }
   }
 
@@ -302,7 +303,7 @@ document.addEventListener('click', async e => {
     if (!username) return
     if (
       !confirm(
-        `¿Reactivar a @${username}?\n\nPodrá volver a iniciar sesión con Keychain.`
+        interpolate(adminBuilders().reactivateConfirm, { username })
       )
     ) {
       return
@@ -321,10 +322,10 @@ document.addEventListener('click', async e => {
         window.location.reload()
         return
       }
-      alert(getApiErrorMessage(result, 'Error al reactivar el username'))
+      alert(getApiErrorMessage(result, adminBuilders().reactivateFailed))
     } catch (error) {
       console.error('Error unblocking hive username:', error)
-      alert('Error de conexión al reactivar el username')
+      alert(adminBuilders().reactivateError)
     }
   }
 })
@@ -468,10 +469,7 @@ if (editForm) {
       availableCredits < 0 ||
       availableCredits > 100000
     ) {
-      displayError(
-        editError,
-        'Créditos disponibles debe ser un entero entre 0 y 100000'
-      )
+      displayError(editError, adminBuilders().availableRange)
       return
     }
     if (
@@ -479,21 +477,15 @@ if (editForm) {
       pendingCredits < 0 ||
       pendingCredits > 100000
     ) {
-      displayError(
-        editError,
-        'Créditos pendientes debe ser un entero entre 0 y 100000'
-      )
+      displayError(editError, adminBuilders().pendingRange)
       return
     }
     if (reason.length === 0 || reason.length > 500) {
-      displayError(editError, 'Escribe un motivo de hasta 500 caracteres')
+      displayError(editError, adminBuilders().reasonLength)
       return
     }
     if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
-      displayError(
-        editError,
-        'No se pudo verificar la versión actual del saldo'
-      )
+      displayError(editError, adminBuilders().revisionMissing)
       return
     }
 
@@ -508,17 +500,14 @@ if (editForm) {
       changes.available_amount = availableCredits
     }
     if (Object.keys(changes).length === 0) {
-      displayError(
-        editError,
-        'Cambia al menos uno de los saldos antes de guardar'
-      )
+      displayError(editError, adminBuilders().noChanges)
       return
     }
 
     editError.classList.add('hidden')
     editError.textContent = ''
     editSubmitBtn.disabled = true
-    editSubmitBtn.textContent = 'Guardando...'
+    editSubmitBtn.textContent = uiCopy().saving
 
     const command = {
       ...changes,
@@ -551,7 +540,7 @@ if (editForm) {
       )
       const errorMessage = getApiErrorMessage(
         result,
-        'Error al actualizar créditos'
+        adminBuilders().updateError
       )
 
       if (!response.ok) {
@@ -561,7 +550,7 @@ if (editForm) {
           editRefreshBtn?.classList.remove('hidden')
           displayError(
             editError,
-            `${errorMessage}. Recarga los saldos antes de preparar otro ajuste.`
+            interpolate(adminBuilders().staleBalanceHint, { detail: errorMessage })
           )
           return
         }
@@ -574,14 +563,14 @@ if (editForm) {
       window.location.reload()
     } catch (error: unknown) {
       const errorMessage =
-        error instanceof Error ? error.message : 'Ocurrió un error inesperado'
+        error instanceof Error ? error.message : adminBuilders().unexpected
       console.error('Error:', error)
       displayError(editError, errorMessage)
     } finally {
       if (editForm.dataset.stale !== 'true') {
         editSubmitBtn.disabled = false
       }
-      editSubmitBtn.textContent = '💾 Guardar'
+      editSubmitBtn.textContent = `💾 ${uiCopy().save}`
     }
   })
 }

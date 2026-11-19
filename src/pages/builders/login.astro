@@ -3,6 +3,7 @@
  * Página de login para builders usando Keychain
  */
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
+import hiveLogo from '@/assets/hive.svg'
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 const copy =
@@ -11,64 +12,110 @@ const auth = copy.auth.builders
 ---
 
 <BuildersLayout title={auth.title} currentPage="login">
-  <div class="mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12">
-    <div class="w-full min-w-0">
-      <!-- Login Card -->
-      <div class="border-border bg-card rounded-lg border p-8">
-        <!-- Header -->
-        <div class="mb-8 text-center">
-          <h1 class="text-foreground mb-2 text-balance text-3xl font-bold tracking-tight">
-            {auth.title}
-          </h1>
-          <p class="text-muted-foreground text-sm">
-            {auth.subtitle}
-          </p>
-        </div>
+  <div
+    class="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-5xl items-center px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
+  >
+    <div class="grid w-full gap-10 lg:grid-cols-[1fr_minmax(0,24rem)] lg:items-center lg:gap-16 xl:grid-cols-[1.1fr_minmax(0,26rem)]">
+      <!-- Branding (desktop): logo a la izquierda del formulario -->
+      <section class="hidden lg:block">
+        <a
+          href="/"
+          class="inline-flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md"
+        >
+          <img
+            src={hiveLogo.src}
+            alt="Hive"
+            width={hiveLogo.width}
+            height={hiveLogo.height}
+            class="h-11 w-auto"
+          />
+        </a>
+        <h1
+          class="text-foreground mt-10 text-balance text-3xl font-bold tracking-tight xl:text-4xl"
+        >
+          {auth.title}
+        </h1>
+        <p class="text-muted-foreground mt-4 max-w-md text-base leading-relaxed">
+          {auth.subtitle}
+        </p>
+      </section>
 
-        <!-- Login Form -->
-        <form id="login-form" class="space-y-6">
-          <div class="space-y-2">
-            <label
-              for="username"
-              class="text-foreground block text-sm font-medium"
+      <!-- Login card -->
+      <div class="w-full min-w-0">
+        <div class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-6 shadow-lg backdrop-blur sm:p-8">
+          <div class="mb-6 lg:mb-8">
+            <div class="mb-4 flex items-center gap-3 lg:hidden">
+              <img
+                src={hiveLogo.src}
+                alt="Hive"
+                width={hiveLogo.width}
+                height={hiveLogo.height}
+                class="h-9 w-auto shrink-0"
+              />
+            </div>
+            <h1
+              class="text-foreground text-balance text-2xl font-bold tracking-tight lg:hidden"
             >
+              {auth.title}
+            </h1>
+            <p class="text-muted-foreground mt-2 text-sm lg:sr-only">
+              {auth.subtitle}
+            </p>
+            <h2
+              class="text-foreground hidden text-lg font-semibold tracking-tight lg:block"
+            >
+              {auth.submit}
+            </h2>
+            <p class="text-muted-foreground mt-1 hidden text-xs lg:block">
               {auth.username}
-            </label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              placeholder={auth.usernamePlaceholder}
-              autocapitalize="none"
-              autocorrect="off"
-              spellcheck="false"
-              class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full min-w-0 rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-              required
-            />
+            </p>
           </div>
 
-          <!-- Keychain error (only visible when not available) -->
-          <div
-            id="keychain-status"
-            class="border-border bg-muted/50 hidden rounded-lg border px-4 py-3 text-sm"
-          >
+          <form id="login-form" class="space-y-6">
+            <div class="space-y-2">
+              <label
+                for="username"
+                class="text-foreground block text-sm font-medium"
+              >
+                {auth.username}
+              </label>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                placeholder={auth.usernamePlaceholder}
+                autocapitalize="none"
+                autocorrect="off"
+                spellcheck="false"
+                class="border-border bg-muted text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full min-w-0 rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+                required
+              />
+            </div>
+
+            <div
+              id="keychain-status"
+              class="border-border bg-muted/50 hidden rounded-lg border px-4 py-3 text-sm"
+            >
+            </div>
+
+            <button
+              type="submit"
+              id="login-btn"
+              class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled
+            >
+              {auth.submit}
+            </button>
+          </form>
+
+          <div class="mt-6 border-t border-border/60 pt-6 lg:mt-8">
+            <p
+              id="keychain-footer"
+              class="text-muted-foreground text-center text-xs lg:text-left"
+            >
+              {auth.checking}
+            </p>
           </div>
-
-          <button
-            type="submit"
-            id="login-btn"
-            class="bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary/40 w-full rounded-lg px-4 py-2 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled
-          >
-            {auth.submit}
-          </button>
-        </form>
-
-        <!-- Footer: Keychain status as subtle text -->
-        <div class="mt-8 text-center">
-          <p id="keychain-footer" class="text-muted-foreground text-xs">
-            {auth.checking}
-          </p>
         </div>
       </div>
     </div>
@@ -93,7 +140,6 @@ const auth = copy.auth.builders
       setupEventListeners()
     })
 
-    // Inicializar página
     async function initPage() {
       const statusDiv = document.getElementById('keychain-status')!
       const footerText = document.getElementById('keychain-footer')!
@@ -103,19 +149,17 @@ const auth = copy.auth.builders
         const isReady = await isKeychainReady()
 
         if (isReady) {
-          // Success: subtle footer text only, no prominent block
           footerText.textContent = publicCopy().auth.builders.detected
           footerText.classList.add('text-green-400/60')
           loginBtn.disabled = false
         } else {
-          // Error: show visible block + footer
           statusDiv.classList.remove('hidden')
           const missing = publicCopy().auth.builders
           statusDiv.innerHTML = `
 						<div class="text-red-400">
 							${missing.unavailable}
 							<div class="mt-1 text-muted-foreground">
-								<a href="https://hive-keychain.com" target="_blank" class="text-primary underline">
+								<a href="https://hive-keychain.com" target="_blank" rel="noopener noreferrer" class="text-primary underline">
 									${missing.install}
 								</a> ${missing.reload}
 							</div>
@@ -135,13 +179,11 @@ const auth = copy.auth.builders
       }
     }
 
-    // Setup event listeners
     function setupEventListeners() {
       const form = document.getElementById('login-form') as HTMLFormElement
       form.addEventListener('submit', handleLogin)
     }
 
-    // Manejar login
     async function handleLogin(e: Event) {
       e.preventDefault()
 
@@ -154,13 +196,11 @@ const auth = copy.auth.builders
         return
       }
 
-      // Desactivar botón
       const loginBtn = document.getElementById('login-btn') as HTMLButtonElement
       loginBtn.disabled = true
       loginBtn.textContent = publicCopy().auth.builders.connecting
 
       try {
-        // 1. Login con Keychain
         notify('info', publicCopy().auth.builders.requestSignature)
 
         const keychainResult = await quickLogin(username, 'Posting')

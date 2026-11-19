@@ -7,7 +7,10 @@
 
 import { BUILDERS_UI, MAX_TICKET_USES } from '@/consts/constants'
 import { z } from 'astro/zod'
+import { publicCopy, interpolate } from '@/i18n'
 import { readApiResponse } from '@/utils/api-client'
+
+const updateModalCopy = () => publicCopy().modals.updateTicket
 
 const BuilderCreditBalanceResponseSchema = z.looseObject({
   balance: z.looseObject({
@@ -175,7 +178,7 @@ async function setupSlider(ticket: TicketData) {
     sliderMaxLabel.textContent = `+${maxIncrease}`
     sliderMaxLabel.className = 'text-emerald-400 font-medium'
   } else {
-    sliderMaxLabel.textContent = 'no uses'
+    sliderMaxLabel.textContent = updateModalCopy().noUses
     sliderMaxLabel.className = 'text-gray-500 font-medium italic'
   }
 
@@ -299,18 +302,24 @@ function setupUpdateModalListeners() {
 
     // Validate use limits
     if (newUses < 0 || newOriginal < 1) {
-      showError(BUILDERS_UI.MESSAGES.MIN_USE_REMAINING)
+      showError(updateModalCopy().minRemaining)
       return
     }
 
     if (newOriginal > MAX_TICKET_USES) {
-      showError(`Uses cannot exceed ${MAX_TICKET_USES}`)
+      showError(
+        interpolate(updateModalCopy().maxUses, { max: String(MAX_TICKET_USES) })
+      )
       return
     }
 
     // Validate available credits if positive delta (uses cache)
     if (delta > 0 && delta > cachedAvailableCredits) {
-      showError(`Not enough credits. Available: ${cachedAvailableCredits}`)
+      showError(
+        interpolate(updateModalCopy().insufficient, {
+          available: String(cachedAvailableCredits),
+        })
+      )
       return
     }
 
@@ -326,7 +335,7 @@ function setupUpdateModalListeners() {
 
       const labelSpan = document.createElement('span')
       labelSpan.className = 'text-gray-400'
-      labelSpan.textContent = 'Ticket will have:'
+      labelSpan.textContent = updateModalCopy().preview
 
       const valueSpan = document.createElement('span')
       valueSpan.className = 'font-mono text-lg font-bold text-white'
@@ -334,7 +343,7 @@ function setupUpdateModalListeners() {
 
       const unitSpan = document.createElement('span')
       unitSpan.className = 'text-gray-500'
-      unitSpan.textContent = 'uses'
+      unitSpan.textContent = updateModalCopy().usesUnit
 
       container.appendChild(labelSpan)
       container.appendChild(valueSpan)
@@ -353,7 +362,7 @@ function setupUpdateModalListeners() {
 
     // Validate that there are changes
     if (delta === 0) {
-      notify('info', 'No changes to apply')
+      notify('info', updateModalCopy().noChanges)
       return
     }
 
@@ -376,7 +385,11 @@ function setupUpdateModalListeners() {
         const deltaText = delta > 0 ? `+${delta}` : String(delta)
         notify(
           'success',
-          `Uses updated: ${currentTicket.remaining_uses} → ${currentTicket.remaining_uses + delta} (${deltaText})`,
+          interpolate(updateModalCopy().usesUpdated, {
+            from: String(currentTicket.remaining_uses),
+            to: String(currentTicket.remaining_uses + delta),
+            delta: deltaText,
+          }),
           3000
         )
         closeModal()
@@ -387,17 +400,17 @@ function setupUpdateModalListeners() {
         }, 3000)
       } else {
         const errorMessage = result.ok
-          ? 'Error updating uses'
+          ? updateModalCopy().updateError
           : result.kind === 'problem'
             ? result.problem.detail
             : result.kind === 'legacy_problem'
               ? result.message
-              : 'Invalid response while updating uses'
+              : updateModalCopy().invalidUpdate
         notify('error', errorMessage)
       }
     } catch (_error) {
       // Network error: notify user with generic message
-      notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
+      notify('error', updateModalCopy().networkError)
     }
   })
 
@@ -429,7 +442,7 @@ function setupDeleteModalListeners() {
         const result = await readApiResponse(resp, TicketDeleteResponseSchema)
 
         if (resp.ok && result.ok) {
-          notify('success', BUILDERS_UI.MESSAGES.TICKET_DELETED, 3000)
+          notify('success', updateModalCopy().deleteSuccess, 3000)
           closeModal()
 
           // Wait 3 seconds for the user to see the toast before reloading
@@ -438,17 +451,17 @@ function setupDeleteModalListeners() {
           }, 3000)
         } else {
           const errorMessage = result.ok
-            ? 'Error deleting'
+            ? updateModalCopy().deleteError
             : result.kind === 'problem'
               ? result.problem.detail
               : result.kind === 'legacy_problem'
                 ? result.message
-                : 'Invalid response while deleting ticket'
+                : updateModalCopy().invalidDelete
           notify('error', errorMessage)
         }
       } catch (_error) {
         // Network error: notify user with generic message
-        notify('error', BUILDERS_UI.MESSAGES.NETWORK_ERROR)
+        notify('error', updateModalCopy().networkError)
       }
     })
 

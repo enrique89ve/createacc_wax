@@ -7,6 +7,7 @@ import Toasts from '@/components/ui/Toasts.astro'
 import { TITLE_SUFFIXES } from '@/consts/seo'
 import { BRAND } from '@/consts/branding'
 import LocaleSwitch from '@/components/ui/LocaleSwitch.astro'
+import hiveLogo from '@/assets/hive.svg'
 import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 
 export interface Props {
@@ -50,6 +51,28 @@ const shell = copy.shell.builders
   htmlClass="dark"
   bodyAttributes={{ 'data-builder-credits': builderCreditsAttribute }}
 >
+  {
+    currentPage === 'login' && (
+      <header class="border-border/40 bg-background/95 supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50 w-full border-b backdrop-blur">
+        <div class="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <a
+            href="/"
+            class="inline-flex items-center gap-2 rounded-md transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
+            <img
+              src={hiveLogo.src}
+              alt="Hive"
+              width={hiveLogo.width}
+              height={hiveLogo.height}
+              class="h-8 w-auto"
+            />
+          </a>
+          <LocaleSwitch />
+        </div>
+      </header>
+    )
+  }
+
   <!-- Navigation Header - Hide on login page -->
   {
     isAuthenticated && currentPage !== 'login' && (

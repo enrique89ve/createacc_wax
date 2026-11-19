@@ -1,6 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
-import { DEFAULT_LOCALE } from '@/i18n'
+import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 import { formatDate } from '@/utils/date-formatters'
 import {
   usersRepository,
@@ -11,6 +11,17 @@ import { UserRole } from '@/lib/roles'
 // Get session data from middleware
 const session = Astro.locals.adminUser
 const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages ?? getMessages(locale)
+const page = copy.admin.builders
+const builderState = copy.states.builder
+const ui = copy.ui
+const [successBefore, successAfter = ''] = page.successBody.split('@{username}')
+const [editHeadingBefore, editHeadingAfter = ''] = page.editHeading.split(
+  '@{username}'
+)
+const [creditsUnitBefore, creditsUnitAfter = ''] = page.creditsUnit.split(
+  '{count}'
+)
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -31,28 +42,27 @@ try {
 }
 ---
 
-<ManagementLayout title="Cuentas de créditos" activeTab="builders">
+<ManagementLayout title={page.title} activeTab="builders">
   <!-- Header Section -->
   <div class="mb-8 flex items-center justify-between">
     <div>
-      <h2 class="text-foreground text-2xl font-bold">Cuentas de créditos</h2>
+      <h2 class="text-foreground text-2xl font-bold">{page.title}</h2>
       <p class="text-muted-foreground mt-1">
-        Asigna créditos a usernames de Hive. Puedes bloquear un username por
-        abuso sin borrar créditos ni historial.
+        {page.description}
       </p>
     </div>
     <button
       id="assign-credits-btn"
       class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
     >
-      💳 Asignar Créditos
+      💳 {page.assign}
     </button>
   </div>
 
   <!-- Builders Table -->
   <div class="bg-card border-border overflow-hidden rounded-lg border">
     <div class="border-border border-b px-6 py-4">
-      <h3 class="text-foreground text-lg font-semibold">Cuentas de créditos</h3>
+      <h3 class="text-foreground text-lg font-semibold">{page.title}</h3>
     </div>
 
     {
@@ -62,25 +72,25 @@ try {
             <thead class="bg-muted/50">
               <tr>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Usuario Hive
+                  {page.hiveUser}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Estado
+                  {ui.status}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Créditos Disponibles
+                  {page.available}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Créditos Pendientes
+                  {page.pending}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Tickets Creados
+                  {page.ticketsCreated}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Fecha Creación
+                  {page.createdAt}
                 </th>
                 <th class="text-muted-foreground px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                  Acciones
+                  {ui.actions}
                 </th>
               </tr>
             </thead>
@@ -94,7 +104,7 @@ try {
                       @{builder.hive_username}
                       {builder.is_blocked && (
                         <span class="ml-2 text-xs text-red-500">
-                          (Bloqueado)
+                          {page.blockedTag}
                         </span>
                       )}
                     </div>
@@ -107,7 +117,7 @@ try {
                           : 'bg-green-100 text-green-800'
                       }`}
                     >
-                      {builder.is_blocked ? 'Bloqueado' : 'Activo'}
+                      {builder.is_blocked ? builderState.blocked : builderState.active}
                     </span>
                   </td>
                   <td class="text-foreground whitespace-nowrap px-6 py-4 text-sm">
@@ -132,9 +142,9 @@ try {
                         class="text-primary hover:text-primary/80 text-sm font-medium"
                         data-action="assign-credits"
                         data-username={builder.hive_username}
-                        title="Asignar más créditos"
+                        title={page.assignMore}
                       >
-                        💳 Asignar
+                        💳 {page.assignShort}
                       </button>
                       <button
                         class="text-sm font-medium text-blue-600 hover:text-blue-500"
@@ -143,27 +153,27 @@ try {
                         data-available={builder.available_credits}
                         data-pending={builder.pending_credits}
                         data-revision={builder.credit_revision}
-                        title="Editar créditos"
+                        title={page.editTitle}
                       >
-                        ✏️ Editar
+                        ✏️ {ui.edit}
                       </button>
                       {builder.is_blocked ? (
                         <button
                           class="text-sm font-medium text-green-600 hover:text-green-500"
                           data-action="reactivate-builder"
                           data-username={builder.hive_username}
-                          title="Reactivar username"
+                          title={page.reactivateTitle}
                         >
-                          ✅ Reactivar
+                          ✅ {page.reactivate}
                         </button>
                       ) : (
                         <button
                           class="text-destructive hover:text-destructive/80 text-sm font-medium"
                           data-action="ban-builder"
                           data-username={builder.hive_username}
-                          title="Bloquear por abuso"
+                          title={page.blockTitle}
                         >
-                          🚫 Bloquear
+                          🚫 {page.block}
                         </button>
                       )}
                     </div>
@@ -177,10 +187,10 @@ try {
         <div class="p-8 text-center">
           <div class="text-muted-foreground mb-4 text-6xl">💳</div>
           <p class="text-foreground mb-2 text-lg font-medium">
-            No hay cuentas de créditos aún
+            {page.emptyTitle}
           </p>
           <p class="text-muted-foreground">
-            Asigna créditos a un usuario de Hive para comenzar
+            {page.emptyBody}
           </p>
         </div>
       )
@@ -196,7 +206,7 @@ try {
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        Asignar Créditos
+        {page.assign}
       </h3>
 
       <form id="assign-form" class="space-y-4">
@@ -205,7 +215,7 @@ try {
             for="builder-username"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Usuario de Hive
+            {page.username}
           </label>
           <input
             id="builder-username"
@@ -217,7 +227,7 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Si el username no tiene créditos, se crea la cuenta de créditos
+            {page.usernameHelp}
           </p>
         </div>
 
@@ -226,7 +236,7 @@ try {
             for="credits-amount"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Cantidad de Créditos
+            {page.amount}
           </label>
           <input
             id="credits-amount"
@@ -239,22 +249,20 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Máximo 100 créditos por asignación
+            {page.maxAssign}
           </p>
         </div>
 
         <div class="bg-muted/50 rounded-lg p-3">
           <h4 class="text-foreground mb-2 text-sm font-medium">
-            ℹ️ ¿Cómo funciona?
+            ℹ️ {page.howTitle}
           </h4>
           <ul class="text-muted-foreground space-y-1 text-xs">
-            <li>• Los créditos se asignan como "Pendientes"</li>
-            <li>• No se crea un usuario Builder: solo una fila de créditos</li>
-            <li>
-              • El usuario debe autenticarse con Keychain para reclamarlos
-            </li>
-            <li>• Después del claim, puede crear tickets y cuentas</li>
-            <li>• 1 crédito = 1 cuenta de Hive que puede crear</li>
+            <li>• {page.howPending}</li>
+            <li>• {page.howNoUser}</li>
+            <li>• {page.howClaim}</li>
+            <li>• {page.howAfter}</li>
+            <li>• {page.howRate}</li>
           </ul>
         </div>
 
@@ -266,14 +274,14 @@ try {
             id="cancel-btn"
             class="bg-muted hover:bg-muted/80 text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           >
-            Cancelar
+            {ui.cancel}
           </button>
           <button
             type="submit"
             id="submit-btn"
             class="bg-primary text-primary-foreground hover:bg-primary/90 flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
           >
-            Asignar Créditos
+            {page.assign}
           </button>
         </div>
       </form>
@@ -289,13 +297,13 @@ try {
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        ✅ Créditos Asignados Exitosamente
+        ✅ {page.successTitle}
       </h3>
 
       <div class="space-y-4">
         <div>
           <label class="text-foreground mb-1 block text-sm font-medium">
-            Usuario:
+            {page.userLabel}
           </label>
           <div
             class="bg-background border-border text-foreground rounded-lg border px-3 py-2 text-sm"
@@ -306,20 +314,19 @@ try {
 
         <div>
           <label class="text-foreground mb-1 block text-sm font-medium">
-            Créditos Asignados:
+            {page.assignedLabel}
           </label>
           <div
             class="bg-background border-border rounded-lg border px-3 py-2 text-sm font-semibold text-green-600"
           >
-            <span id="success-amount"></span> créditos
+            {creditsUnitBefore}<span id="success-amount"></span>{creditsUnitAfter}
           </div>
         </div>
 
         <div class="rounded-lg border border-green-200 bg-green-50 p-3">
           <p class="text-sm text-green-800">
-            ✅ <strong>Créditos asignados correctamente.</strong> El usuario @<span
-              id="success-username-repeat"></span> debe autenticarse con Keychain
-            para reclamarlos.
+            ✅ {successBefore}<span id="success-username-repeat"></span>
+            {successAfter}
           </p>
         </div>
 
@@ -327,7 +334,7 @@ try {
           id="success-close-btn"
           class="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
         >
-          Entendido
+          {ui.understood}
         </button>
       </div>
     </div>
@@ -342,7 +349,8 @@ try {
       class="bg-card border-border mx-4 w-full max-w-md rounded-lg border p-6"
     >
       <h3 class="text-foreground mb-4 text-lg font-semibold">
-        ✏️ Editar Créditos - @<span id="edit-username-display"></span>
+        ✏️ {editHeadingBefore}@<span id="edit-username-display"></span>
+        {editHeadingAfter}
       </h3>
 
       <form id="edit-form" class="space-y-4">
@@ -353,7 +361,7 @@ try {
             for="edit-available-credits"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Créditos Disponibles
+            {page.available}
           </label>
           <input
             id="edit-available-credits"
@@ -364,7 +372,7 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Créditos que el builder puede usar para crear tickets
+            {page.availableHelp}
           </p>
         </div>
 
@@ -373,7 +381,7 @@ try {
             for="edit-pending-credits"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Créditos Pendientes
+            {page.pending}
           </label>
           <input
             id="edit-pending-credits"
@@ -384,8 +392,7 @@ try {
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
           />
           <p class="text-muted-foreground mt-1 text-xs">
-            Créditos asignados para reclamar con Keychain; las reducciones se
-            bloquean durante una reclamación activa
+            {page.pendingHelp}
           </p>
         </div>
 
@@ -394,12 +401,12 @@ try {
             for="edit-reason"
             class="text-foreground mb-1 block text-sm font-medium"
           >
-            Motivo del ajuste
+            {page.reason}
           </label>
           <input
             id="edit-reason"
             type="text"
-            placeholder="Ej: Corrección de error"
+            placeholder={page.reasonPlaceholder}
             maxlength="500"
             required
             class="bg-background border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/40 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2"
@@ -408,7 +415,7 @@ try {
 
         <div class="bg-muted/50 rounded-lg p-3">
           <p class="text-muted-foreground text-xs">
-            ⚠️ Los cambios se registrarán en el historial de auditoría
+            ⚠️ {page.auditNote}
           </p>
         </div>
 
@@ -418,7 +425,7 @@ try {
           id="edit-refresh-btn"
           class="hidden w-full rounded-lg border px-4 py-2 text-sm font-medium"
         >
-          Recargar saldos actuales
+          {page.reloadBalances}
         </button>
 
         <div class="flex gap-3 pt-4">
@@ -427,14 +434,14 @@ try {
             id="edit-cancel-btn"
             class="bg-muted hover:bg-muted/80 text-foreground flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           >
-            Cancelar
+            {ui.cancel}
           </button>
           <button
             type="submit"
             id="edit-submit-btn"
             class="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
           >
-            💾 Guardar
+            💾 {ui.save}
           </button>
         </div>
       </form>

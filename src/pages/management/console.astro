@@ -128,7 +128,7 @@ try {
                       </p>
                       <p class="text-muted-foreground text-xs">
                         {interpolate(page.by, {
-                          user: ticket.created_by_username,
+                          user: ticket.created_by_username ?? '',
                           type: ticket.creator_type ?? 'manual',
                           remaining: String(ticket.remaining_uses),
                           total: String(ticket.total_uses),

@@ -1,6 +1,6 @@
 ---
 import ManagementLayout from '@/layouts/ManagementLayout.astro'
-import { DEFAULT_LOCALE } from '@/i18n'
+import { DEFAULT_LOCALE, getMessages, interpolate } from '@/i18n'
 import { formatDateTimeFull } from '@/utils/date-formatters'
 import { auditRepository } from '@/lib/repositories/audit-repository'
 import type {
@@ -13,6 +13,11 @@ import { logger } from '@/lib/logger'
 // Get session data from middleware
 const session = Astro.locals.adminUser
 const locale = Astro.locals.locale ?? DEFAULT_LOCALE
+const copy = Astro.locals.messages ?? getMessages(locale)
+const page = copy.admin.logs
+const sortState = copy.states.sort
+const ui = copy.ui
+const auditActionLabels = page.auditActions
 
 if (!session) {
   return Astro.redirect('/management/access')
@@ -77,8 +82,14 @@ try {
     }
   }
 } catch (loadError) {
-  error = 'Error al cargar los logs'
+  error = page.loadError
   logger.error('Error loading logs:', loadError)
+}
+
+type AuditActionKey = keyof typeof auditActionLabels
+
+function isAuditActionKey(action: string): action is AuditActionKey {
+  return action in auditActionLabels
 }
 
 // Helper para obtener badge de acción
@@ -87,68 +98,72 @@ function getActionBadge(action: string): {
   label: string
   icon: string
 } {
+  const label = isAuditActionKey(action)
+    ? auditActionLabels[action]
+    : action
+
   switch (action) {
     case 'create':
       return {
         class: 'bg-green-500/20 text-green-400 border-green-500/30',
-        label: 'Creado',
+        label,
         icon: '➕',
       }
     case 'update':
       return {
         class: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-        label: 'Actualizado',
+        label,
         icon: '✏️',
       }
     case 'delete':
       return {
         class: 'bg-red-500/20 text-red-400 border-red-500/30',
-        label: 'Eliminado',
+        label,
         icon: '🗑️',
       }
     case 'uses_adjusted':
       return {
         class: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-        label: 'Usos ajustados',
+        label,
         icon: '✏️',
       }
     case 'revoked':
       return {
         class: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
-        label: 'Revocado',
+        label,
         icon: '⏸️',
       }
     case 'restored':
       return {
         class: 'bg-green-500/20 text-green-400 border-green-500/30',
-        label: 'Restaurado',
+        label,
         icon: '▶️',
       }
     case 'archived':
       return {
         class: 'bg-red-500/20 text-red-400 border-red-500/30',
-        label: 'Archivado',
+        label,
         icon: '📦',
       }
     default:
       return {
         class: 'bg-muted text-foreground border-border',
-        label: action,
+        label,
         icon: '📝',
       }
   }
 }
 ---
 
-<ManagementLayout title="Logs del Sistema" activeTab="logs">
+<ManagementLayout title={page.title} activeTab="logs">
   <div class="bg-background min-h-screen">
     <!-- Main Content -->
     <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <!-- Header -->
       <div class="mb-8">
-        <h1 class="text-foreground text-3xl font-bold">Logs del Sistema</h1>
+        <h1 class="text-foreground text-3xl font-bold">{page.title}</h1>
         <p class="text-muted-foreground mt-2">
-          Registro completo de todas las acciones administrativas
+          {page.description}
         </p>
       </div>
 
@@ -162,7 +177,7 @@ function getActionBadge(action: string): {
               : 'bg-card text-foreground hover:bg-muted border border-border'
           }`}
         >
-          📋 Logs de Tickets ({stats.ticketLogs})
+          📋 {interpolate(page.ticketLogs, { count: String(stats.ticketLogs) })}
         </a>
         <a
           href="/management/logs?type=credits"
@@ -172,7 +187,7 @@ function getActionBadge(action: string): {
               : 'bg-card text-foreground hover:bg-muted border border-border'
           }`}
         >
-          💰 Logs de Créditos ({stats.creditLogs})
+          💰 {interpolate(page.creditLogs, { count: String(stats.creditLogs) })}
         </a>
       </div>
 
@@ -189,22 +204,22 @@ function getActionBadge(action: string): {
                     for="action"
                     class="text-foreground mb-2 block text-sm font-medium"
                   >
-                    Acción
+                    {page.action}
                   </label>
                   <select
                     id="action"
                     name="action"
                     class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   >
-                    <option value="">Todas las acciones</option>
+                    <option value="">{page.allActions}</option>
                     <option value="create" selected={actionFilter === 'create'}>
-                      Creado
+                      {page.created}
                     </option>
                     <option value="update" selected={actionFilter === 'update'}>
-                      Actualizado
+                      {page.updated}
                     </option>
                     <option value="delete" selected={actionFilter === 'delete'}>
-                      Eliminado
+                      {page.deleted}
                     </option>
                   </select>
                 </div>
@@ -215,7 +230,7 @@ function getActionBadge(action: string): {
                     for="sort"
                     class="text-foreground mb-2 block text-sm font-medium"
                   >
-                    Ordenar por Fecha
+                    {page.sort}
                   </label>
                   <select
                     id="sort"
@@ -223,10 +238,10 @@ function getActionBadge(action: string): {
                     class="bg-background border-border text-foreground focus:border-primary focus:ring-primary w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
                   >
                     <option value="desc" selected={sortOrder === 'desc'}>
-                      Más recientes primero
+                      {sortState.newest}
                     </option>
                     <option value="asc" selected={sortOrder === 'asc'}>
-                      Más antiguas primero
+                      {sortState.oldest}
                     </option>
                   </select>
                 </div>
@@ -241,13 +256,13 @@ function getActionBadge(action: string): {
                   type="submit"
                   class="bg-primary hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
                 >
-                  Aplicar Filtros
+                  {ui.applyFilters}
                 </button>
                 <a
                   href="/management/logs?type=tickets"
                   class="bg-muted hover:bg-muted/80 text-foreground rounded-md px-4 py-2 text-sm font-medium transition-colors"
                 >
-                  Limpiar Filtros
+                  {ui.clearFilters}
                 </a>
               </div>
             </form>
@@ -276,16 +291,16 @@ function getActionBadge(action: string): {
                       ID
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Ticket
+                      {copy.admin.vouchers.code}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Acción
+                      {page.action}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Usuario
+                      {page.user}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Fecha y Hora
+                      {page.dateTime}
                     </th>
                   </tr>
                 </thead>
@@ -294,7 +309,7 @@ function getActionBadge(action: string): {
                     <tr>
                       <td colspan="5" class="px-6 py-8 text-center">
                         <p class="text-muted-foreground text-sm">
-                          No se encontraron logs
+                          {page.empty}
                         </p>
                       </td>
                     </tr>
@@ -335,7 +350,7 @@ function getActionBadge(action: string): {
                               </div>
                             ) : (
                               <span class="text-muted-foreground italic">
-                                Sistema
+                                {page.system}
                               </span>
                             )}
                           </td>
@@ -365,22 +380,22 @@ function getActionBadge(action: string): {
                       ID
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Builder
+                      {page.builder}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Operación
+                      {page.operation}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Monto
+                      {page.amount}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Razón
+                      {page.reason}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Realizado Por
+                      {page.performedBy}
                     </th>
                     <th class="border-border text-foreground border-b px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">
-                      Fecha y Hora
+                      {page.dateTime}
                     </th>
                   </tr>
                 </thead>
@@ -389,7 +404,7 @@ function getActionBadge(action: string): {
                     <tr>
                       <td colspan="7" class="px-6 py-8 text-center">
                         <p class="text-muted-foreground text-sm">
-                          No se encontraron logs
+                          {page.empty}
                         </p>
                       </td>
                     </tr>
@@ -437,7 +452,7 @@ function getActionBadge(action: string): {
                             </div>
                           ) : (
                             <span class="text-muted-foreground italic">
-                              Sistema
+                              {page.system}
                             </span>
                           )}
                         </td>
@@ -471,23 +486,12 @@ function getActionBadge(action: string): {
             ></path>
           </svg>
           <div class="text-muted-foreground text-sm">
-            <p class="font-medium">Sobre los logs:</p>
+            <p class="font-medium">{page.infoTitle}</p>
             <ul class="mt-2 list-inside list-disc space-y-1">
-              <li>
-                <strong>Logs de Tickets:</strong> Registra todas las acciones de
-                creación, actualización y eliminación de tickets
-              </li>
-              <li>
-                <strong>Logs de Créditos:</strong> Registra todas las operaciones
-                de asignación y consumo de créditos de builders
-              </li>
-              <li>
-                Los logs son inmutables y no pueden ser modificados o eliminados
-              </li>
-              <li>
-                Haz clic en un código de ticket para ver las cuentas creadas con
-                él
-              </li>
+              <li>{page.infoTickets}</li>
+              <li>{page.infoCredits}</li>
+              <li>{page.infoImmutable}</li>
+              <li>{page.infoTicketLink}</li>
             </ul>
           </div>
         </div>
