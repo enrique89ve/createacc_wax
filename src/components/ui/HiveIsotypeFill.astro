@@ -1,0 +1,57 @@
+---
+import GlyphMatrix from '@/components/ui/GlyphMatrix.astro'
+
+interface Props {
+  class?: string
+}
+
+const { class: className = '' } = Astro.props
+---
+
+<div class:list={['hive-isotype-fill', className]} aria-hidden="true">
+  <div class="hive-isotype-fill__frame text-primary">
+    <div class="hive-isotype-fill__glyphs">
+      <GlyphMatrix pitch={5} prominent />
+    </div>
+  </div>
+</div>
+
+<style>
+  .hive-isotype-fill {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 0;
+  }
+
+  .hive-isotype-fill__frame {
+    position: relative;
+    width: 100%;
+    max-width: min(100%, 20rem);
+    aspect-ratio: 220 / 190;
+    max-height: 100%;
+
+    mask-image: url('/favicon.svg');
+    mask-size: 100% 100%;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-image: url('/favicon.svg');
+    -webkit-mask-size: 100% 100%;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+  }
+
+  .hive-isotype-fill__glyphs {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+  }
+
+  .hive-isotype-fill__glyphs :global(.glyph-matrix) {
+    height: 100%;
+    width: 100%;
+    min-height: 100%;
+  }
+</style>

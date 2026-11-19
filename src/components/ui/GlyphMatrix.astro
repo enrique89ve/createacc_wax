@@ -1,19 +1,41 @@
+---
+interface Props {
+  /** Distancia entre puntos en píxeles (menor = más densidad). */
+  readonly pitch?: number
+  /** Más puntos visibles y brillo algo más alto (isotipo grande). */
+  readonly prominent?: boolean
+}
+
+const { pitch = 8, prominent = false } = Astro.props
+const pitchPx = `${Math.max(4, Math.min(12, pitch))}px`
+---
+
 <span
-  class="glyph-matrix pointer-events-none relative isolate block h-6 w-full min-w-0 overflow-hidden"
-  aria-hidden="true"></span>
+  class:list={[
+    'glyph-matrix pointer-events-none relative isolate block h-6 w-full min-w-0 overflow-hidden',
+    prominent && 'glyph-matrix--prominent',
+  ]}
+  style={`--glyph-pitch: ${pitchPx}`}
+  aria-hidden="true"
+></span>
 
 <style>
   /* Keep a static texture in browsers without CSS masking. */
   .glyph-matrix {
+    --glyph-pitch: 8px;
     --glyph-base: color-mix(in srgb, currentColor 32%, transparent);
 
     background-image: radial-gradient(
       circle,
       var(--glyph-base) 1px,
-      transparent 1.4px
+      transparent 1.35px
     );
-    background-size: 8px 8px;
+    background-size: var(--glyph-pitch) var(--glyph-pitch);
     background-repeat: space;
+  }
+
+  .glyph-matrix--prominent {
+    --glyph-base: color-mix(in srgb, currentColor 52%, transparent);
   }
 
   /* The grid stays fixed while light moves behind its dots. */
@@ -21,8 +43,8 @@
     .glyph-matrix {
       background-color: var(--glyph-base);
       background-image: none;
-      mask-image: radial-gradient(circle, black 1px, transparent 1.4px);
-      mask-size: 8px 8px;
+      mask-image: radial-gradient(circle, black 1px, transparent 1.35px);
+      mask-size: var(--glyph-pitch) var(--glyph-pitch);
       mask-repeat: space;
     }
 
@@ -51,6 +73,10 @@
       );
       animation: glyph-drift 5.8s ease-in-out -2.2s infinite alternate;
     }
+
+    .glyph-matrix--prominent::before {
+      animation: glyph-twinkle-prominent 3.2s ease-in-out -1s infinite alternate;
+    }
   }
 
   @keyframes glyph-twinkle {
@@ -59,6 +85,15 @@
     }
     to {
       opacity: 0.65;
+    }
+  }
+
+  @keyframes glyph-twinkle-prominent {
+    from {
+      opacity: 0.35;
+    }
+    to {
+      opacity: 0.85;
     }
   }
 
@@ -79,6 +114,10 @@
 
     .glyph-matrix::before {
       opacity: 0.45;
+    }
+
+    .glyph-matrix--prominent::before {
+      opacity: 0.65;
     }
 
     .glyph-matrix::after {

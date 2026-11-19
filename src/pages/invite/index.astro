@@ -1,6 +1,9 @@
 ---
 import Layout from '@/layouts/Layout.astro'
-import InviteMark from '@/components/invite/InviteMark.astro'
+import InviteBrandMark from '@/components/invite/InviteBrandMark.astro'
+import LucideIcon from '@/components/ui/LucideIcon.astro'
+import LucideXBrandIcon from '@/components/ui/icons/LucideXBrandIcon.astro'
+import { LUCIDE_GITHUB_ICON } from '@/consts/lucide-social-icons'
 import { getMessages, DEFAULT_LOCALE } from '@/i18n'
 import { getInvitePageState } from '@/lib/invite/page-state'
 import { isSimulationMode } from '@/lib/hive-execution-mode'
@@ -18,10 +21,14 @@ Astro.response.headers.set('Cache-Control', 'no-store')
 Astro.response.headers.set('Referrer-Policy', 'no-referrer')
 const titleClass =
   'text-card-foreground max-w-[18ch] text-balance text-3xl font-semibold leading-tight tracking-tight sm:text-4xl sm:leading-[1.1]'
+const loginHeroTitleClass =
+  'text-card-foreground text-balance text-center text-2xl font-semibold leading-tight tracking-tight sm:text-3xl'
+const loginHeroIntroClass =
+  'text-muted-foreground mx-auto max-w-sm text-center text-sm leading-relaxed sm:text-base'
 const buttonClass =
-  'border-input text-foreground hover:bg-muted focus-visible:ring-ring min-h-12 w-full rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
+  'border-input text-foreground hover:bg-muted focus-visible:ring-ring inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-lg border px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50'
 const actionClass =
-  'bg-invite-action text-primary-foreground hover:bg-invite-action-hover focus-visible:ring-ring active:bg-invite-action-hover focus-visible:ring-offset-card inline-flex min-h-12 w-full items-center justify-center rounded-lg px-5 py-3 text-center text-sm font-semibold leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none'
+  'bg-invite-action text-primary-foreground hover:bg-invite-action-hover focus-visible:ring-ring active:bg-invite-action-hover focus-visible:ring-offset-card inline-flex min-h-12 w-full items-center justify-center gap-2.5 rounded-lg px-5 py-3 text-center text-sm font-semibold leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none'
 const continueClass =
   'bg-invite-action text-primary-foreground hover:bg-invite-action-hover focus-visible:ring-ring active:bg-invite-action-hover focus-visible:ring-offset-card inline-flex min-h-12 w-full items-center justify-center rounded-lg px-5 py-3 text-center text-base font-semibold leading-[1.18] tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none'
 const successActionClass =
@@ -31,7 +38,11 @@ const codeActionClass =
 ---
 
 <Layout title={copy.title} description={copy.introduction} noindex>
-  <section id="invite-page" data-auto-issue={state.kind === 'prepare' ? 'true' : undefined} class="mx-auto w-full max-w-xl px-4 py-10 sm:px-6">
+  <section
+    id="invite-page"
+    data-auto-issue={state.kind === 'prepare' ? 'true' : undefined}
+    class="mx-auto flex min-h-[calc(100dvh-4rem)] w-full max-w-xl items-center px-4 py-10 sm:px-6"
+  >
     <div
       id="invite-card"
       transition:name="invite-card"
@@ -40,25 +51,25 @@ const codeActionClass =
       <div class="space-y-6">
         {
           state.kind === 'login' && (
-            <div data-invite-panel="login" class="space-y-6">
-              <header class="space-y-5">
-                <div class="flex min-h-12 items-center justify-end">
-                  <InviteMark />
+            <div data-invite-panel="login" class="space-y-7">
+              <header class="flex flex-col items-center gap-4 text-center sm:gap-5">
+                <InviteBrandMark />
+                <div class="space-y-2">
+                  <h1 class={loginHeroTitleClass}>{copy.title}</h1>
+                  <p class={loginHeroIntroClass}>{copy.introduction}</p>
                 </div>
-                <h1 class={titleClass}>{copy.title}</h1>
-                <p class="text-muted-foreground max-w-md text-sm leading-relaxed sm:text-base">
-                  {copy.introduction}
-                </p>
               </header>
               <div class="space-y-3">
                 <button type="button" data-invite-provider="github" disabled={!state.providers.includes('github')} class={actionClass}>
-                  {copy.signInGithub}
+                  <LucideIcon icon={LUCIDE_GITHUB_ICON} size={20} />
+                  <span>{copy.signInGithub}</span>
                 </button>
                 <button type="button" data-invite-provider="twitter" disabled={!state.providers.includes('twitter')} class={buttonClass}>
-                  {copy.signInTwitter}
+                  <LucideXBrandIcon class="size-5" />
+                  <span>{copy.signInTwitter}</span>
                 </button>
               </div>
-              <p class="text-muted-foreground text-xs leading-relaxed">{copy.personal}</p>
+              <p class="text-muted-foreground mx-auto max-w-sm text-center text-xs leading-relaxed">{copy.personal}</p>
             </div>
           )
         }
@@ -70,11 +81,9 @@ const codeActionClass =
               class:list={['space-y-6', state.kind === 'login' && 'hidden']}
               aria-hidden={state.kind === 'login' ? 'true' : undefined}
             >
-              <header class="space-y-5">
-                <div class="flex min-h-12 items-center justify-end">
-                  <InviteMark pulse />
-                </div>
-                <h1 id="invite-loading-title" tabindex="-1" class={titleClass}>
+              <header class="flex flex-col items-center gap-4 text-center sm:gap-5">
+                <InviteBrandMark />
+                <h1 id="invite-loading-title" tabindex="-1" class={loginHeroTitleClass}>
                   {state.kind === 'prepare' ? copy.preparing : copy.connecting}
                 </h1>
               </header>
@@ -89,14 +98,14 @@ const codeActionClass =
           state.kind === 'available' && (
             <div class="space-y-6">
               <header class="space-y-5">
-                <div class="flex items-center justify-between gap-5">
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div class="min-w-0 space-y-1 text-sm leading-6">
                     <p class="text-muted-foreground">{`${copy.welcomeCreator}${copy.welcomeEnd}`}</p>
                     {state.username && (
                       <p class="text-invite-accent font-medium [overflow-wrap:anywhere]">@{state.username}</p>
                     )}
                   </div>
-                  <InviteMark />
+                  <InviteBrandMark centered={false} class="sm:max-w-[4.5rem]" />
                 </div>
                 <h1 class={titleClass}>{copy.ready}</h1>
               </header>

@@ -1,0 +1,32 @@
+---
+import HiveIsotypeFill from '@/components/ui/HiveIsotypeFill.astro'
+
+interface Props {
+  class?: string
+  centered?: boolean
+}
+
+const { class: className = '', centered = true } = Astro.props
+---
+
+<div
+  class:list={['invite-brand-mark text-primary', centered && 'invite-brand-mark--center', className]}
+>
+  <HiveIsotypeFill />
+</div>
+
+<style>
+  .invite-brand-mark {
+    width: 9rem;
+    max-width: min(72vw, 10.5rem);
+  }
+
+  .invite-brand-mark--center {
+    margin-inline: auto;
+  }
+
+  .invite-brand-mark--center :global(.hive-isotype-fill) {
+    align-items: center;
+    justify-content: center;
+  }
+</style>

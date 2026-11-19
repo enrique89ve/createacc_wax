@@ -3,7 +3,7 @@
  * Página de login para builders usando Keychain
  */
 import BuildersLayout from '@/layouts/BuildersLayout.astro'
-import hiveLogo from '@/assets/hive.svg'
+import HiveIsotypeFill from '@/components/ui/HiveIsotypeFill.astro'
 import { DEFAULT_LOCALE, getMessages } from '@/i18n'
 
 const copy =
@@ -13,52 +13,37 @@ const auth = copy.auth.builders
 
 <BuildersLayout title={auth.title} currentPage="login">
   <div
-    class="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-5xl items-center px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
+    class="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-5xl items-start px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
   >
-    <div class="grid w-full gap-10 lg:grid-cols-[1fr_minmax(0,24rem)] lg:items-center lg:gap-16 xl:grid-cols-[1.1fr_minmax(0,26rem)]">
-      <!-- Branding (desktop): logo a la izquierda del formulario -->
-      <section class="hidden lg:block">
-        <a
-          href="/"
-          class="inline-flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 rounded-md"
-        >
-          <img
-            src={hiveLogo.src}
-            alt="Hive"
-            width={hiveLogo.width}
-            height={hiveLogo.height}
-            class="h-11 w-auto"
-          />
-        </a>
-        <h1
-          class="text-foreground mt-10 text-balance text-3xl font-bold tracking-tight xl:text-4xl"
-        >
-          {auth.title}
-        </h1>
-        <p class="text-muted-foreground mt-4 max-w-md text-base leading-relaxed">
-          {auth.subtitle}
-        </p>
+    <div
+      class="grid w-full gap-10 lg:grid-cols-[1fr_minmax(0,24rem)] lg:items-start lg:gap-12 xl:grid-cols-[1.05fr_minmax(0,26rem)] xl:gap-14"
+    >
+      <section class="hidden lg:flex lg:flex-col lg:items-start lg:gap-6 lg:pt-1">
+        <HiveIsotypeFill class="w-full max-w-[min(100%,19rem)] self-start" />
+        <div class="max-w-sm space-y-1.5">
+          <h1
+            class="text-foreground text-balance text-lg font-semibold tracking-tight"
+          >
+            {auth.title}
+          </h1>
+          <p class="text-muted-foreground text-sm leading-snug">
+            {auth.subtitle}
+          </p>
+        </div>
       </section>
 
-      <!-- Login card -->
-      <div class="w-full min-w-0">
+      <div class="w-full min-w-0 lg:pt-1">
         <div class="border-border bg-card/95 supports-[backdrop-filter]:bg-card/90 rounded-lg border p-6 shadow-lg backdrop-blur sm:p-8">
           <div class="mb-6 lg:mb-8">
-            <div class="mb-4 flex items-center gap-3 lg:hidden">
-              <img
-                src={hiveLogo.src}
-                alt="Hive"
-                width={hiveLogo.width}
-                height={hiveLogo.height}
-                class="h-9 w-auto shrink-0"
-              />
+            <div class="mb-3 flex justify-start lg:hidden">
+              <HiveIsotypeFill class="h-24 w-36 max-w-[55%]" />
             </div>
             <h1
-              class="text-foreground text-balance text-2xl font-bold tracking-tight lg:hidden"
+              class="text-foreground text-balance text-lg font-semibold tracking-tight lg:hidden"
             >
               {auth.title}
             </h1>
-            <p class="text-muted-foreground mt-2 text-sm lg:sr-only">
+            <p class="text-muted-foreground mt-1.5 text-sm leading-snug lg:sr-only">
               {auth.subtitle}
             </p>
             <h2
